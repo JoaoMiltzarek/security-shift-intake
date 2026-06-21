@@ -49,13 +49,32 @@ class ExtractionResponse(BaseModel):
     fields: list[ExtractedFieldRaw]
 
 
+class ClassificationResult(BaseModel):
+    """Structured classification output: type / urgency / sector + confidence."""
+
+    incident_type: str
+    urgency: str
+    sector: str
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 @runtime_checkable
 class LLMClient(Protocol):
-    """Extracts structured fields from a transcription.
+    """Extracts structured fields and classifies a transcription.
 
     Implementations: MockLLMClient (tests, $0) and AnthropicLLMClient (real).
     """
 
     def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:
         """Return one ExtractedFieldRaw per requested field name."""
+        ...
+
+    def classify(
+        self,
+        transcription: str,
+        types: list[str],
+        urgencies: list[str],
+        sectors: list[str],
+    ) -> ClassificationResult:
+        """Classify the report into one label from each taxonomy dimension."""
         ...

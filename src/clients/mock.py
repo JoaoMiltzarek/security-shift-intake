@@ -7,7 +7,7 @@ it as working transcription functionality.
 
 from __future__ import annotations
 
-from src.clients.base import ExtractedFieldRaw, TranscriptionResult
+from src.clients.base import ClassificationResult, ExtractedFieldRaw, TranscriptionResult
 
 
 class MockVisionClient:
@@ -32,9 +32,17 @@ class MockLLMClient:
     requested field names are returned (missing ones come back as null/0.0).
     """
 
-    def __init__(self, fields: list[ExtractedFieldRaw] | None = None) -> None:
+    def __init__(
+        self,
+        fields: list[ExtractedFieldRaw] | None = None,
+        classification: ClassificationResult | None = None,
+    ) -> None:
         self._by_name = {f.name: f for f in (fields or [])}
+        self._classification = classification or ClassificationResult(
+            incident_type="routine", urgency="low", sector="general_support", confidence=0.9
+        )
         self.call_count = 0
+        self.classify_count = 0
         self.last_transcription: str | None = None
 
     def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:
@@ -44,3 +52,14 @@ class MockLLMClient:
             self._by_name.get(name, ExtractedFieldRaw(name=name, value=None, confidence=0.0))
             for name in field_names
         ]
+
+    def classify(
+        self,
+        transcription: str,
+        types: list[str],
+        urgencies: list[str],
+        sectors: list[str],
+    ) -> ClassificationResult:
+        self.classify_count += 1
+        self.last_transcription = transcription
+        return self._classification
