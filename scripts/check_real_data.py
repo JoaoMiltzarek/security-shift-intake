@@ -44,12 +44,23 @@ _SOURCE_DOC_EXT = {
 # Path components under which content is synthetic by construction (text-scan exempt).
 _SYNTHETIC_SUBPATH = ("data", "synthetic")
 
+# Directory holding committed SYNTHETIC sample images for eyeballing (Tier B output).
+# Image files here are allowed despite the global binary block — they are generated
+# by our code from synthetic data, never real scans.
+_SAMPLES_DIR = "samples"
+_SAMPLE_IMAGE_EXT = re.compile(r"\.(png|jpe?g)$", re.IGNORECASE)
+
 
 def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
     """True if *parts* appears as a contiguous run in path.parts."""
     p = path.parts
     n = len(parts)
     return any(p[i : i + n] == parts for i in range(len(p) - n + 1))
+
+
+def _is_allowed_sample_image(path: Path) -> bool:
+    """True for synthetic sample images committed under samples/."""
+    return _SAMPLES_DIR in path.parts and bool(_SAMPLE_IMAGE_EXT.search(path.name))
 
 
 def _is_text_scan_exempt(path: Path) -> bool:
@@ -64,8 +75,9 @@ def check_file(path: Path) -> list[str]:
     """Return a list of violation descriptions for *path*, empty if clean."""
     violations: list[str] = []
 
-    # (1) Binary/attachment extensions — blocked everywhere.
-    if _BINARY_EXT.search(path.name):
+    # (1) Binary/attachment extensions — blocked everywhere, EXCEPT synthetic sample
+    # images explicitly committed under samples/.
+    if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
         violations.append(f"  {path}: binary/attachment extension not allowed in repo")
         return violations  # no need to read content
 

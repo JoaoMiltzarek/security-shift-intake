@@ -46,6 +46,18 @@ def test_binary_blocked_even_under_synthetic(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
+def test_sample_png_under_samples_allowed(tmp_path: Path) -> None:
+    # Synthetic sample images committed under samples/ are allowed.
+    f = _write(tmp_path / "samples" / "sample_doc-00000.png", "fake-png")
+    assert check_file(f) == []
+
+
+def test_pdf_under_samples_still_blocked(tmp_path: Path) -> None:
+    # The samples exemption is for images only — PDFs are still blocked.
+    f = _write(tmp_path / "samples" / "doc.pdf", "%PDF")
+    assert len(check_file(f)) >= 1
+
+
 # ---------------------------------------------------------------------------
 # Source / docs / config — exempt from the text scan (may mention the org name)
 # ---------------------------------------------------------------------------
