@@ -1,9 +1,19 @@
-"""Pre-commit guard: reject staged files containing patterns that suggest real data.
+"""Pre-commit guard: reject staged files that look like real (non-synthetic) data.
 
 Called by the pre-commit hook. Exits 0 (clean) or 1 (suspicious patterns found).
 Also usable standalone: python scripts/check_real_data.py <file> [<file> ...]
 
-§9 risk: confidential data leak — real HT Micron reports/names committed.
+§9 risk: confidential data leak — real shift reports / names / scans committed.
+
+Design (deliberately low false-positive):
+  1. Binary/attachment extensions (scanned PDFs, photos, spreadsheets) are BLOCKED
+     anywhere — a real report would arrive as one of these and must never enter
+     the repo.
+  2. Real-data text sentinels (the client org name, etc.) are scanned ONLY in
+     data-bearing files. Source code, docs, and config legitimately reference the
+     org name (it is the subject of the project), and files under data/synthetic/
+     are synthetic by construction — both are exempt from the text scan. A stray
+     real report pasted as e.g. report.txt or data/raw/x.csv is still caught.
 """
 
 from __future__ import annotations
@@ -12,56 +22,68 @@ import re
 import sys
 from pathlib import Path
 
-# Patterns that strongly suggest real operational data slipped in.
-# Deliberately conservative: false positives are cheap, false negatives are not.
-_SUSPICIOUS: list[re.Pattern[str]] = [
+# Binary / attachment extensions that should never be committed (real scans etc.).
+_BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
+
+# Real-data text sentinels — patterns that should not appear in *data* files.
+_TEXT_SENTINELS: list[re.Pattern[str]] = [
     re.compile(r"\bHT\s*Micron\b", re.IGNORECASE),
     re.compile(r"\bhtmicron\b", re.IGNORECASE),
-    # Binary attachment extensions that should never enter the repo.
-    re.compile(r"\.(pdf|jpg|jpeg|png|tiff?|bmp|xlsx?|docx?)$", re.IGNORECASE),
 ]
 
-# Files whose content is known-safe to skip. Includes:
-# - Documentation that intentionally names the client org.
-# - The guard script itself and its tests (they reference patterns, not real data).
-_ALLOWLISTED_PATHS: set[str] = {
-    "PROJECT_SPEC.md",
-    "CLAUDE.md",
-    "README.md",
-    "check_real_data.py",           # this script — patterns are strings, not data
-    "test_real_data_guard.py",      # test fixtures that reference patterns
-    "htmicron_security.yaml",       # report-type config — org name in comment, not real data
-    "test_schema_config_integration.py",  # integration test for that config
+# Extensions exempt from the TEXT scan (they may mention the org name legitimately).
+# The binary-extension block above still applies to everything.
+_SOURCE_DOC_EXT = {
+    ".py", ".md", ".rst",
+    ".yaml", ".yml", ".toml", ".cfg", ".ini",
+    ".j2", ".jinja", ".jinja2",
+    ".html", ".htm", ".css", ".js", ".ts",
+    ".gitignore", ".gitkeep",
 }
+
+# Path components under which content is synthetic by construction (text-scan exempt).
+_SYNTHETIC_SUBPATH = ("data", "synthetic")
+
+
+def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
+    """True if *parts* appears as a contiguous run in path.parts."""
+    p = path.parts
+    n = len(parts)
+    return any(p[i : i + n] == parts for i in range(len(p) - n + 1))
+
+
+def _is_text_scan_exempt(path: Path) -> bool:
+    if path.suffix.lower() in _SOURCE_DOC_EXT:
+        return True
+    if path.name in _SOURCE_DOC_EXT:  # e.g. ".gitignore" has no suffix
+        return True
+    return _has_subpath(path, _SYNTHETIC_SUBPATH)
 
 
 def check_file(path: Path) -> list[str]:
     """Return a list of violation descriptions for *path*, empty if clean."""
     violations: list[str] = []
 
-    # Allow-list by filename (not full path) for known-safe docs.
-    if path.name in _ALLOWLISTED_PATHS:
+    # (1) Binary/attachment extensions — blocked everywhere.
+    if _BINARY_EXT.search(path.name):
+        violations.append(f"  {path}: binary/attachment extension not allowed in repo")
+        return violations  # no need to read content
+
+    # (2) Text sentinels — only in data-bearing files.
+    if _is_text_scan_exempt(path):
         return []
 
-    # Binary / attachment extension check (path alone, no content read needed).
-    for pat in _SUSPICIOUS:
-        if pat.search(str(path)) and pat.pattern.startswith(r"\."):
-            violations.append(f"  {path}: binary/attachment extension not allowed in repo")
-            return violations  # no need to read content
-
-    # Text content check — skip non-text files gracefully.
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
 
-    for pat in _SUSPICIOUS:
-        if pat.pattern.startswith(r"\."):
-            continue  # already handled above
+    for pat in _TEXT_SENTINELS:
         for lineno, line in enumerate(text.splitlines(), 1):
             if pat.search(line):
                 violations.append(
-                    f"  {path}:{lineno}: matched pattern {pat.pattern!r} -> {line.strip()!r}"
+                    f"  {path}:{lineno}: matched real-data sentinel {pat.pattern!r} "
+                    f"-> {line.strip()!r}"
                 )
 
     return violations
@@ -81,8 +103,9 @@ def main(argv: list[str]) -> int:
         for v in all_violations:
             print(v, file=sys.stderr)
         print(
-            "\nIf this is a false positive, add the file to _ALLOWLISTED_PATHS in "
-            "scripts/check_real_data.py and re-commit.",
+            "\nIf this is synthetic/source content (a false positive), see the design "
+            "notes in scripts/check_real_data.py — source/docs/config and data/synthetic/ "
+            "are exempt from the text scan.",
             file=sys.stderr,
         )
         return 1

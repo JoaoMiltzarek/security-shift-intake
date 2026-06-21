@@ -36,7 +36,7 @@ format-check:
 	uv run ruff format --check .
 
 typecheck:
-	uv run mypy src
+	uv run mypy src data scripts
 
 test:
 	uv run pytest

@@ -1,5 +1,9 @@
-"""M0.6: tests for the synthetic-data guard script (scripts/check_real_data.py).
+"""Tests for the synthetic-data guard (scripts/check_real_data.py).
 
+Semantics under test:
+  - Binary/attachment extensions are blocked ANYWHERE.
+  - Real-data text sentinels (org name) are scanned ONLY in data-bearing files;
+    source/docs/config and data/synthetic/ are exempt.
 Each test covers exactly one scenario so failures are pinpoint-attributable.
 """
 
@@ -9,86 +13,95 @@ from pathlib import Path
 
 from scripts.check_real_data import check_file
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-
-def _tmp_file(tmp_path: Path, name: str, content: str) -> Path:
-    p = tmp_path / name
-    p.write_text(content, encoding="utf-8")
-    return p
+def _write(path: Path, content: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
 
 
 # ---------------------------------------------------------------------------
-# Clean files — should produce no violations
+# Binary / attachment extensions — blocked anywhere
 # ---------------------------------------------------------------------------
-
-
-def test_clean_text_file_passes(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "clean.txt", "Routine patrol, no incidents noted.\n")
-    assert check_file(f) == []
-
-
-def test_synthetic_record_passes(tmp_path: Path) -> None:
-    content = 'shift_date: "2026-01-15"\nguard_name: "Guard_042"\nincident_occurred: false\n'
-    f = _tmp_file(tmp_path, "record.yaml", content)
-    assert check_file(f) == []
-
-
-def test_allowlisted_readme_passes(tmp_path: Path) -> None:
-    # README.md is in the allowlist; even if it contains "HT Micron" it should pass.
-    f = _tmp_file(tmp_path, "README.md", "This pipeline was built for HT Micron.\n")
-    assert check_file(f) == []
-
-
-def test_allowlisted_project_spec_passes(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "PROJECT_SPEC.md", "HT Micron uses this system.\n")
-    assert check_file(f) == []
-
-
-def test_allowlisted_claude_md_passes(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "CLAUDE.md", "One report type, one organization: HT Micron.\n")
-    assert check_file(f) == []
-
-
-# ---------------------------------------------------------------------------
-# Suspicious files — should produce violations
-# ---------------------------------------------------------------------------
-
-
-def test_ht_micron_name_blocked(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "report.txt", "Property of HT Micron Security.\n")
-    violations = check_file(f)
-    assert len(violations) >= 1
-    assert "HT Micron" in violations[0] or "ht micron" in violations[0].lower()
-
-
-def test_htmicron_slug_blocked(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "notes.txt", "Contact: ops@htmicron.com\n")
-    violations = check_file(f)
-    assert len(violations) >= 1
-
-
-def test_ht_micron_case_insensitive(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "log.txt", "source: ht micron factory floor\n")
-    violations = check_file(f)
-    assert len(violations) >= 1
 
 
 def test_pdf_extension_blocked(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "scan.pdf", "%PDF-1.4 binary content")
-    violations = check_file(f)
-    assert len(violations) >= 1
+    f = _write(tmp_path / "scan.pdf", "%PDF-1.4")
+    assert len(check_file(f)) >= 1
 
 
 def test_jpg_extension_blocked(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "photo.jpg", "binary")
-    violations = check_file(f)
-    assert len(violations) >= 1
+    f = _write(tmp_path / "photo.jpg", "binary")
+    assert len(check_file(f)) >= 1
 
 
 def test_xlsx_extension_blocked(tmp_path: Path) -> None:
-    f = _tmp_file(tmp_path, "roster.xlsx", "binary")
+    f = _write(tmp_path / "roster.xlsx", "binary")
+    assert len(check_file(f)) >= 1
+
+
+def test_binary_blocked_even_under_synthetic(tmp_path: Path) -> None:
+    # Synthetic dir is text-scan exempt, but binaries are still blocked.
+    f = _write(tmp_path / "data" / "synthetic" / "leak.pdf", "%PDF")
+    assert len(check_file(f)) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Source / docs / config — exempt from the text scan (may mention the org name)
+# ---------------------------------------------------------------------------
+
+
+def test_python_source_with_org_name_passes(tmp_path: Path) -> None:
+    f = _write(tmp_path / "priors.py", '"""Priors for the HT Micron report."""\n')
+    assert check_file(f) == []
+
+
+def test_markdown_doc_with_org_name_passes(tmp_path: Path) -> None:
+    f = _write(tmp_path / "README.md", "Built for HT Micron.\n")
+    assert check_file(f) == []
+
+
+def test_yaml_config_with_org_name_passes(tmp_path: Path) -> None:
+    f = _write(tmp_path / "report.yaml", "# HT Micron security shift report\n")
+    assert check_file(f) == []
+
+
+def test_synthetic_jsonl_with_slug_passes(tmp_path: Path) -> None:
+    f = _write(
+        tmp_path / "data" / "synthetic" / "records.jsonl",
+        '{"report_type": "htmicron_security_shift"}\n',
+    )
+    assert check_file(f) == []
+
+
+# ---------------------------------------------------------------------------
+# Data-bearing files with sentinels — blocked
+# ---------------------------------------------------------------------------
+
+
+def test_txt_with_org_name_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "report.txt", "Property of HT Micron Security.\n")
     violations = check_file(f)
     assert len(violations) >= 1
+
+
+def test_csv_under_data_raw_with_org_name_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "data" / "raw" / "dump.csv", "guard,org\nX,ht micron\n")
+    violations = check_file(f)
+    assert len(violations) >= 1
+
+
+def test_json_outside_synthetic_with_slug_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "export.json", '{"src": "htmicron"}\n')
+    violations = check_file(f)
+    assert len(violations) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Clean data files — pass
+# ---------------------------------------------------------------------------
+
+
+def test_clean_txt_passes(tmp_path: Path) -> None:
+    f = _write(tmp_path / "notes.txt", "Routine patrol, no incidents noted.\n")
+    assert check_file(f) == []
