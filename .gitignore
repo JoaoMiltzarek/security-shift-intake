@@ -1,3 +1,7 @@
+# Generated synthetic datasets (reproducible via `make gen-data` / `make gen-pdfs`)
+data/synthetic/*
+!data/synthetic/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

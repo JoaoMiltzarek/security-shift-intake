@@ -50,8 +50,7 @@ validate-config:
 	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml
 
 gen-data:
-	@echo Target gen-data is not implemented yet - arrives in M2
-	@exit 1
+	PYTHONPATH=. uv run python scripts/gen_data.py
 
 gen-pdfs:
 	@echo Target gen-pdfs is not implemented yet - arrives in M3
