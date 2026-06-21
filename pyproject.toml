@@ -1,0 +1,53 @@
+[project]
+name = "security-shift-intake"
+version = "0.0.0"
+description = "Document-intake pipeline: scanned handwritten shift reports -> transcription, extraction, classification, deterministic routing, and a human-approval gate. Config-driven, synthetic data only."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+    "pydantic>=2.7,<3.0",
+    "pyyaml>=6.0,<7.0",
+    "jinja2>=3.1,<4.0",
+    "httpx>=0.27,<1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2,<9.0",
+    "pytest-mock>=3.14,<4.0",
+    "ruff>=0.6,<1.0",
+    "mypy>=1.11,<2.0",
+    "types-pyyaml>=6.0,<7.0",
+]
+
+# This is an application, not a distributable library: uv manages the venv and
+# dependencies, but does not build/install the project itself. Imports resolve via
+# pytest's `pythonpath` and by running tools from the repo root.
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Third-party libs without bundled type stubs: don't fail typecheck on them.
+[[tool.mypy.overrides]]
+module = ["uvicorn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# Run from repo root so `import src...` resolves without installing the project.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
