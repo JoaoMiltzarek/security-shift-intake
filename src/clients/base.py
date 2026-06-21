@@ -29,3 +29,33 @@ class VisionClient(Protocol):
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
         """Transcribe a base64-encoded page image verbatim."""
         ...
+
+
+class ExtractedFieldRaw(BaseModel):
+    """One field extracted from the transcription: raw string value + confidence.
+
+    Values are raw strings (or null when blank/absent). Type coercion and validity
+    checks happen deterministically in the critic stage, not here.
+    """
+
+    name: str
+    value: str | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ExtractionResponse(BaseModel):
+    """Structured-output wrapper the LLM fills (one entry per requested field)."""
+
+    fields: list[ExtractedFieldRaw]
+
+
+@runtime_checkable
+class LLMClient(Protocol):
+    """Extracts structured fields from a transcription.
+
+    Implementations: MockLLMClient (tests, $0) and AnthropicLLMClient (real).
+    """
+
+    def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:
+        """Return one ExtractedFieldRaw per requested field name."""
+        ...

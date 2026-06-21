@@ -7,7 +7,7 @@ it as working transcription functionality.
 
 from __future__ import annotations
 
-from src.clients.base import TranscriptionResult
+from src.clients.base import ExtractedFieldRaw, TranscriptionResult
 
 
 class MockVisionClient:
@@ -23,3 +23,24 @@ class MockVisionClient:
         self.call_count += 1
         self.last_image_b64 = image_b64
         return TranscriptionResult(text=self._text, confidence=self._confidence)
+
+
+class MockLLMClient:
+    """Returns canned extracted fields and records how it was called.
+
+    MOCK: no model inference. Configure with a list of ExtractedFieldRaw; only the
+    requested field names are returned (missing ones come back as null/0.0).
+    """
+
+    def __init__(self, fields: list[ExtractedFieldRaw] | None = None) -> None:
+        self._by_name = {f.name: f for f in (fields or [])}
+        self.call_count = 0
+        self.last_transcription: str | None = None
+
+    def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:
+        self.call_count += 1
+        self.last_transcription = transcription
+        return [
+            self._by_name.get(name, ExtractedFieldRaw(name=name, value=None, confidence=0.0))
+            for name in field_names
+        ]
