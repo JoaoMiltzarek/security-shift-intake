@@ -47,8 +47,7 @@ check: lint typecheck test
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
 validate-config:
-	@echo Target validate-config is not implemented yet - arrives in M1
-	@exit 1
+	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml
 
 gen-data:
 	@echo Target gen-data is not implemented yet - arrives in M2

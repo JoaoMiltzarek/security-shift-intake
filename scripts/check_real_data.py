@@ -28,8 +28,10 @@ _ALLOWLISTED_PATHS: set[str] = {
     "PROJECT_SPEC.md",
     "CLAUDE.md",
     "README.md",
-    "check_real_data.py",       # this script — patterns are strings, not data
-    "test_real_data_guard.py",  # test fixtures that reference patterns
+    "check_real_data.py",           # this script — patterns are strings, not data
+    "test_real_data_guard.py",      # test fixtures that reference patterns
+    "htmicron_security.yaml",       # report-type config — org name in comment, not real data
+    "test_schema_config_integration.py",  # integration test for that config
 }
 
 

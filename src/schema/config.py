@@ -18,7 +18,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 # ---------------------------------------------------------------------------
 # Field types the pipeline supports
 # ---------------------------------------------------------------------------
@@ -37,7 +36,7 @@ class FieldSchema(BaseModel):
     values: list[str] | None = None
 
     @model_validator(mode="after")
-    def enum_requires_values(self) -> "FieldSchema":
+    def enum_requires_values(self) -> FieldSchema:
         if self.type == "enum" and not self.values:
             raise ValueError(
                 f"Field '{self.name}': type='enum' requires a non-empty 'values' list."
@@ -103,7 +102,7 @@ class ReportConfig(BaseModel):
     email_template: str
 
     @model_validator(mode="after")
-    def routing_has_default(self) -> "ReportConfig":
+    def routing_has_default(self) -> ReportConfig:
         """At least one routing rule must be the catch-all (when=None)."""
         has_default = any(r.when is None for r in self.routing)
         if not has_default:

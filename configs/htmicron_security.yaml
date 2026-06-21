@@ -1,0 +1,70 @@
+# configs/htmicron_security.yaml
+# Report type: HT Micron security shift report (handwritten form, scanned to PDF).
+#
+# This is the single config that drives the whole pipeline.
+# Adding a new report type = new YAML file + new email template; no code change.
+# Validated by src/schema/config.ReportConfig (schema-for-the-schema).
+
+report_type: htmicron_security_shift
+
+fields:
+  - name: shift_date
+    type: date
+    required: true
+    handwritten: true
+
+  - name: guard_name
+    type: string
+    required: true
+    handwritten: true
+
+  - name: post
+    type: string
+    required: true
+    handwritten: true
+
+  - name: shift_period
+    type: enum
+    required: true
+    handwritten: true
+    values: [day, night]
+
+  - name: incident_occurred
+    type: bool
+    required: true
+    handwritten: true
+
+  - name: incident_description
+    type: text
+    required: false
+    handwritten: true
+
+classification:
+  type:
+    labels: [routine, access_violation, equipment, safety, theft, other]
+  urgency:
+    labels: [low, medium, high, critical]
+  sector:
+    labels: [tech_security, general_support, facilities]
+
+routing:
+  - when:
+      urgency: critical
+    recipients: [tech_security_oncall, general_support]
+
+  - when:
+      type: theft
+    recipients: [tech_security, general_support]
+
+  - when:
+      type: equipment
+    recipients: [facilities]
+
+  - when:
+      type: access_violation
+    recipients: [tech_security]
+
+  # Default catch-all — must be last.
+  - recipients: [general_support]
+
+email_template: templates/security_shift.j2

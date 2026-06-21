@@ -7,7 +7,6 @@ from pydantic import ValidationError
 
 from src.schema.config import ClassificationConfig, LabelSet, RoutingCondition, RoutingRule
 
-
 # ---------------------------------------------------------------------------
 # ClassificationConfig
 # ---------------------------------------------------------------------------
