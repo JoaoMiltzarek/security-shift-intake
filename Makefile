@@ -56,8 +56,7 @@ gen-pdfs:
 	PYTHONPATH=. uv run python scripts/gen_pdfs.py
 
 demo-transcribe:
-	@echo Target demo-transcribe is not implemented yet - arrives in M4
-	@exit 1
+	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
 
 eval:
 	@echo Target eval is not implemented yet - arrives in M8
