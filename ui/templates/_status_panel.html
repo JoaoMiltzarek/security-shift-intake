@@ -1,0 +1,23 @@
+<div id="status-panel">
+  <p>
+    Status: <span class="badge {{ draft.status }}">{{ draft.status }}</span>
+    {% if draft.sent_at %}<em>(sent {{ draft.sent_at.isoformat() }})</em>{% endif %}
+  </p>
+  {% if message %}<p><strong>{{ message }}</strong></p>{% endif %}
+
+  <div>
+    <button hx-post="/ui/drafts/{{ draft.id }}/approve" hx-target="#status-panel"
+            hx-swap="outerHTML">Approve</button>
+    <button hx-post="/ui/drafts/{{ draft.id }}/reject" hx-target="#status-panel"
+            hx-swap="outerHTML">Reject</button>
+    <button hx-post="/ui/drafts/{{ draft.id }}/send" hx-target="#status-panel"
+            hx-swap="outerHTML">Send</button>
+  </div>
+
+  <h3>Audit log</h3>
+  <ul>
+    {% for a in audit %}
+    <li>{{ a.timestamp.isoformat() }} — {{ a.actor }}: {{ a.action }}{% if a.detail %} ({{ a.detail }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>

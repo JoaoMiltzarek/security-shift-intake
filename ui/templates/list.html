@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Drafts{% endblock %}
+{% block content %}
+<h2>Drafts pending review</h2>
+{% if drafts %}
+<table>
+  <tr><th>ID</th><th>Status</th><th>Created</th><th></th></tr>
+  {% for d in drafts %}
+  <tr>
+    <td>{{ d.id }}</td>
+    <td><span class="badge {{ d.status }}">{{ d.status }}</span></td>
+    <td>{{ d.created_at.isoformat() }}</td>
+    <td><a href="/drafts/{{ d.id }}/review">review</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No drafts yet.</p>
+{% endif %}
+{% endblock %}

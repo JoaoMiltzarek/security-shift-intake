@@ -14,7 +14,9 @@ import json
 from collections.abc import Iterator
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
@@ -23,6 +25,26 @@ from src.api.db import init_db, make_engine
 from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
 from src.api.models import Draft
 from src.schema.state import ApprovalStatus, PipelineState
+
+_templates = Jinja2Templates(directory="ui/templates")
+
+
+def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLResponse:
+    """Render a template to an HTMLResponse (typed boundary over TemplateResponse)."""
+    response: HTMLResponse = _templates.TemplateResponse(request, template, context)
+    return response
+
+
+def _review_context(draft: Draft) -> dict[str, Any]:
+    """Parse a draft's stored PipelineState into template-friendly pieces."""
+    state = PipelineState.model_validate_json(draft.state_json)
+    return {
+        "transcription": state.transcription,
+        "fields": state.extracted_fields,
+        "classification": state.classification,
+        "recipients": state.recipients,
+        "email_draft": state.email_draft,
+    }
 
 
 def _draft_summary(draft: Draft) -> dict[str, Any]:
@@ -112,6 +134,62 @@ def create_app(engine: Engine | None = None, sender: Sender | None = None) -> Fa
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return _draft_summary(draft)
+
+    # ----- HTMX review UI -----
+
+    def _require_draft(session: Session, draft_id: int) -> Draft:
+        draft = repository.get_draft(session, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        return draft
+
+    def _status_panel(
+        request: Request, draft: Draft, session: Session, message: str | None = None
+    ) -> HTMLResponse:
+        return _render(
+            request,
+            "_status_panel.html",
+            {"draft": draft, "audit": repository.get_audit(session, draft.id or 0),
+             "message": message},
+        )
+
+    @app.get("/", response_class=HTMLResponse)
+    def index(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+        return _render(request, "list.html", {"drafts": repository.list_drafts(session)})
+
+    @app.get("/drafts/{draft_id}/review", response_class=HTMLResponse)
+    def review(
+        request: Request, draft_id: int, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        draft = _require_draft(session, draft_id)
+        ctx: dict[str, Any] = {"draft": draft, "audit": repository.get_audit(session, draft_id)}
+        ctx.update(_review_context(draft))
+        return _render(request, "review.html", ctx)
+
+    @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
+    def ui_approve(
+        request: Request, draft_id: int, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, "reviewer")
+        return _status_panel(request, draft, session)
+
+    @app.post("/ui/drafts/{draft_id}/reject", response_class=HTMLResponse)
+    def ui_reject(
+        request: Request, draft_id: int, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, "reviewer")
+        return _status_panel(request, draft, session)
+
+    @app.post("/ui/drafts/{draft_id}/send", response_class=HTMLResponse)
+    def ui_send(
+        request: Request, draft_id: int, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        try:
+            draft = send_draft(session, draft_id, active_sender, actor="reviewer")
+            return _status_panel(request, draft, session, message="Sent.")
+        except DraftNotApprovedError as exc:
+            draft = _require_draft(session, draft_id)
+            return _status_panel(request, draft, session, message=f"Blocked: {exc}")
 
     return app
 

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}security-shift-intake{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 900px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+    .must-review { background: #fff3cd; }
+    .badge { padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    .pending { background: #e2e3e5; }
+    .approved { background: #d4edda; }
+    .rejected { background: #f8d7da; }
+    pre { background: #f6f8fa; padding: 10px; white-space: pre-wrap; }
+    button { padding: 6px 12px; margin-right: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1><a href="/">security-shift-intake</a></h1>
+  {% block content %}{% endblock %}
+</body>
+</html>
