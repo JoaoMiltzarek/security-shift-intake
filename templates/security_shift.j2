@@ -1,0 +1,15 @@
+To: {{ recipients | join(", ") }}
+Subject: [{{ classification.urgency | upper }}] {{ classification.incident_type }} - {{ report_type }}
+
+Classification: {{ classification.incident_type }} / urgency {{ classification.urgency }} / sector {{ classification.sector }} (confidence {{ "%.2f" | format(classification.confidence) }})
+
+Extracted fields:
+{% for f in fields %}
+- {{ f.name }}: {{ f.value if f.value is not none else "(blank)" }}{{ "   [MUST REVIEW]" if f.must_review else "" }}
+{% endfor %}
+{% if must_review_fields %}
+ATTENTION: {{ must_review_fields | length }} field(s) need review before sending: {{ must_review_fields | join(", ") }}.
+{% else %}
+All fields passed automated checks.
+{% endif %}
+-- DRAFT - nothing is sent until a human reviews and approves this report.
