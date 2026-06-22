@@ -59,5 +59,4 @@ demo-transcribe:
 	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
 
 eval:
-	@echo Target eval is not implemented yet - arrives in M8
-	@exit 1
+	PYTHONPATH=. uv run python -m evals.run_eval

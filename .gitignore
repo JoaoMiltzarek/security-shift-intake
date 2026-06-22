@@ -7,6 +7,9 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 
+# Generated eval machine artifact (EVAL_REPORT.md is the committed human artifact)
+/metrics.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

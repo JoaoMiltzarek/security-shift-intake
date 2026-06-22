@@ -33,3 +33,38 @@ jobs:
 
       - name: Test (pytest)
         run: make test
+
+  smoke-eval:
+    name: smoke-eval (metrics + report)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tesseract (OCR baseline)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Sync dependencies (from uv.lock)
+        run: uv sync --locked
+
+      - name: Run eval on a tiny fixture
+        run: PYTHONPATH=. uv run python -m evals.run_eval --classification-n 400 --transcription-n 2
+
+      - name: Show generated report
+        run: cat EVAL_REPORT.md
+
+      - name: Upload eval artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-artifacts
+          path: |
+            metrics.json
+            EVAL_REPORT.md
