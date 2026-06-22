@@ -2,6 +2,11 @@
 data/synthetic/*
 !data/synthetic/.gitkeep
 
+# Local SQLite databases (approval-gate persistence)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

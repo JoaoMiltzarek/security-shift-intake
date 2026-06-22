@@ -1,0 +1,114 @@
+"""M7.c (DoD): integration test of submit -> review -> approve -> (mock) send.
+
+Also asserts the invariant at the HTTP layer: an unapproved draft cannot be sent
+(409), and the mock sender is never called for it.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.api.app import create_app
+from src.api.db import make_engine
+from src.api.gate import MockSender
+
+_SUBMIT_BODY = {
+    "source_pdf": "report.pdf",
+    "transcription": "Vigilante: A. Souza ...",
+    "recipients": ["tech_security", "general_support"],
+    "email_draft": "Subject: [HIGH] theft\n\nbody",
+    "classification": {
+        "incident_type": "theft",
+        "urgency": "high",
+        "sector": "tech_security",
+        "confidence": 0.9,
+    },
+    "extracted_fields": [
+        {"name": "guard_name", "value": "A. Souza", "confidence": 0.95, "must_review": False}
+    ],
+}
+
+
+@pytest.fixture
+def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
+    sender = MockSender()
+    app = create_app(engine=make_engine("sqlite://"), sender=sender)
+    with TestClient(app) as client:
+        yield client, sender
+
+
+def test_submit_review_approve_send_flow(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, sender = client_and_sender
+
+    # submit -> pending
+    r = client.post("/drafts", json=_SUBMIT_BODY)
+    assert r.status_code == 201
+    draft_id = r.json()["id"]
+    assert r.json()["status"] == "pending"
+
+    # review -> shows state + audit
+    r = client.get(f"/drafts/{draft_id}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["state"]["classification"]["incident_type"] == "theft"
+    assert "submitted" in [a["action"] for a in body["audit"]]
+
+    # send before approval -> BLOCKED (409), sender not called
+    r = client.post(f"/drafts/{draft_id}/send")
+    assert r.status_code == 409
+    assert sender.call_count == 0
+
+    # approve
+    r = client.post(f"/drafts/{draft_id}/approve", params={"actor": "reviewer@x"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "approved"
+
+    # send after approval -> ok, sender called once
+    r = client.post(f"/drafts/{draft_id}/send")
+    assert r.status_code == 200
+    assert r.json()["sent_at"] is not None
+    assert sender.call_count == 1
+    assert sender.sent[0][0] == ["tech_security", "general_support"]
+
+    # audit reflects the full history
+    audit = [a["action"] for a in client.get(f"/drafts/{draft_id}").json()["audit"]]
+    assert "submitted" in audit
+    assert "status:approved" in audit
+    assert "send_blocked" in audit  # the rejected pre-approval attempt
+    assert "sent" in audit
+
+
+def test_rejected_draft_send_is_blocked(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, sender = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+
+    client.post(f"/drafts/{draft_id}/reject")
+    r = client.post(f"/drafts/{draft_id}/send")
+    assert r.status_code == 409
+    assert sender.call_count == 0
+
+
+def test_get_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
+    client, _ = client_and_sender
+    assert client.get("/drafts/999").status_code == 404
+
+
+def test_approve_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
+    client, _ = client_and_sender
+    assert client.post("/drafts/999/approve").status_code == 404
+
+
+def test_list_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
+    client, _ = client_and_sender
+    client.post("/drafts", json=_SUBMIT_BODY)
+    client.post("/drafts", json=_SUBMIT_BODY)
+    r = client.get("/drafts")
+    assert r.status_code == 200
+    assert len(r.json()) == 2

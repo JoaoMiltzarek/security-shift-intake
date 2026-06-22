@@ -1,21 +1,119 @@
-"""FastAPI application entrypoint.
+"""FastAPI application for the approval gate.
 
-M0: minimal app with a health endpoint so the skeleton runs and CI has something to test.
-Approval endpoints and the review UI arrive in M7.
+`create_app(engine, sender)` builds the app with injectable persistence and sender
+so tests run against an in-memory DB and a mock sender. The module-level `app` is
+the default instance for `uvicorn`.
+
+Endpoints expose the state machine: submit -> review -> approve/reject -> send.
+Sending always goes through the gate (M7.b) — never auto-sent.
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+import json
+from collections.abc import Iterator
+from typing import Any
 
-app = FastAPI(
-    title="security-shift-intake",
-    version="0.0.0",
-    summary="Staged intake pipeline for handwritten security shift reports.",
-)
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy.engine import Engine
+from sqlmodel import Session
+
+from src.api import repository
+from src.api.db import init_db, make_engine
+from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
+from src.api.models import Draft
+from src.schema.state import ApprovalStatus, PipelineState
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    """Liveness probe. Returns a fixed payload; used by tests and CI smoke checks."""
-    return {"status": "ok"}
+def _draft_summary(draft: Draft) -> dict[str, Any]:
+    return {
+        "id": draft.id,
+        "status": draft.status,
+        "created_at": draft.created_at.isoformat(),
+        "updated_at": draft.updated_at.isoformat(),
+        "sent_at": draft.sent_at.isoformat() if draft.sent_at else None,
+    }
+
+
+def create_app(engine: Engine | None = None, sender: Sender | None = None) -> FastAPI:
+    engine = engine or make_engine()
+    init_db(engine)
+    active_sender: Sender = sender or MockSender()
+
+    app = FastAPI(
+        title="security-shift-intake",
+        version="0.7.0",
+        summary="Staged intake pipeline for handwritten security shift reports.",
+    )
+
+    def get_session() -> Iterator[Session]:
+        with Session(engine) as session:
+            yield session
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.post("/drafts", status_code=201)
+    def submit(
+        state: PipelineState, session: Session = Depends(get_session)
+    ) -> dict[str, Any]:
+        draft = repository.create_draft(session, state)
+        return _draft_summary(draft)
+
+    @app.get("/drafts")
+    def list_drafts(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
+        return [_draft_summary(d) for d in repository.list_drafts(session)]
+
+    @app.get("/drafts/{draft_id}")
+    def get_draft(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+        draft = repository.get_draft(session, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        summary = _draft_summary(draft)
+        summary["state"] = json.loads(draft.state_json)
+        summary["audit"] = [
+            {"actor": a.actor, "action": a.action, "detail": a.detail,
+             "timestamp": a.timestamp.isoformat()}
+            for a in repository.get_audit(session, draft_id)
+        ]
+        return summary
+
+    @app.post("/drafts/{draft_id}/approve")
+    def approve(
+        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+    ) -> dict[str, Any]:
+        return _set_status(session, draft_id, ApprovalStatus.APPROVED, actor)
+
+    @app.post("/drafts/{draft_id}/reject")
+    def reject(
+        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+    ) -> dict[str, Any]:
+        return _set_status(session, draft_id, ApprovalStatus.REJECTED, actor)
+
+    @app.post("/drafts/{draft_id}/send")
+    def send(
+        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+    ) -> dict[str, Any]:
+        try:
+            draft = send_draft(session, draft_id, active_sender, actor=actor)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except DraftNotApprovedError as exc:
+            # 409 Conflict: the draft's state forbids sending.
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return _draft_summary(draft)
+
+    def _set_status(
+        session: Session, draft_id: int, status: ApprovalStatus, actor: str
+    ) -> dict[str, Any]:
+        try:
+            draft = repository.set_status(session, draft_id, status, actor)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return _draft_summary(draft)
+
+    return app
+
+
+app = create_app()
