@@ -20,6 +20,7 @@ dependencies = [
     "sqlmodel>=0.0.38,<1.0",
     "scikit-learn>=1.9.0,<2.0",
     "pytesseract>=0.3.13,<1.0",
+    "python-multipart>=0.0.32,<1.0",
 ]
 
 [dependency-groups]

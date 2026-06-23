@@ -4,34 +4,5 @@
 <h2>Review draft #{{ draft.id }}</h2>
 
 {% include "_status_panel.html" %}
-
-<h3>Classification</h3>
-{% if classification %}
-<p>{{ classification.incident_type }} / urgency <strong>{{ classification.urgency }}</strong>
-   / sector {{ classification.sector }} (confidence {{ "%.2f"|format(classification.confidence) }})</p>
-{% else %}
-<p><em>not classified</em></p>
-{% endif %}
-
-<h3>Recipients</h3>
-<p>{{ recipients | join(", ") if recipients else "(none)" }}</p>
-
-<h3>Extracted fields</h3>
-<table>
-  <tr><th>Field</th><th>Value</th><th>Confidence</th><th>Review?</th></tr>
-  {% for f in fields %}
-  <tr class="{{ 'must-review' if f.must_review else '' }}">
-    <td>{{ f.name }}</td>
-    <td>{{ f.value if f.value is not none else "(blank)" }}</td>
-    <td>{{ "%.2f"|format(f.confidence) }}</td>
-    <td>{{ "MUST REVIEW" if f.must_review else "" }}</td>
-  </tr>
-  {% endfor %}
-</table>
-
-<h3>Transcription</h3>
-<pre>{{ transcription if transcription else "(none)" }}</pre>
-
-<h3>Email draft</h3>
-<pre>{{ email_draft if email_draft else "(not drafted)" }}</pre>
+{% include "_review_body.html" %}
 {% endblock %}

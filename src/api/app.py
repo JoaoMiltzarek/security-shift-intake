@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -24,9 +25,14 @@ from src.api import repository
 from src.api.db import init_db, make_engine
 from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
 from src.api.models import Draft
-from src.schema.state import ApprovalStatus, PipelineState
+from src.pipeline.draft import draft as draft_stage
+from src.pipeline.validate import validate
+from src.schema.config import ReportConfig
+from src.schema.loader import load_config
+from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
 
 _templates = Jinja2Templates(directory="ui/templates")
+_DEFAULT_CONFIG = Path("configs/htmicron_security.yaml")
 
 
 def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLResponse:
@@ -39,6 +45,7 @@ def _review_context(draft: Draft) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
     state = PipelineState.model_validate_json(draft.state_json)
     return {
+        "draft": draft,
         "transcription": state.transcription,
         "fields": state.extracted_fields,
         "classification": state.classification,
@@ -57,14 +64,19 @@ def _draft_summary(draft: Draft) -> dict[str, Any]:
     }
 
 
-def create_app(engine: Engine | None = None, sender: Sender | None = None) -> FastAPI:
+def create_app(
+    engine: Engine | None = None,
+    sender: Sender | None = None,
+    config: ReportConfig | None = None,
+) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
     active_sender: Sender = sender or MockSender()
+    active_config: ReportConfig = config or load_config(_DEFAULT_CONFIG)
 
     app = FastAPI(
         title="security-shift-intake",
-        version="0.7.0",
+        version="0.9.0",
         summary="Staged intake pipeline for handwritten security shift reports.",
     )
 
@@ -190,6 +202,34 @@ def create_app(engine: Engine | None = None, sender: Sender | None = None) -> Fa
         except DraftNotApprovedError as exc:
             draft = _require_draft(session, draft_id)
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
+
+    @app.post("/ui/drafts/{draft_id}/edit", response_class=HTMLResponse)
+    async def ui_edit(
+        request: Request, draft_id: int, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        draft = _require_draft(session, draft_id)
+        form = await request.form()
+        state = PipelineState.model_validate_json(draft.state_json)
+
+        # Human-confirmed values get full confidence (no longer "guessed" OCR);
+        # the critic still flags any that are type-invalid or required-but-blank.
+        new_fields: list[ExtractedField] = []
+        for field in active_config.fields:
+            raw = form.get(f"field__{field.name}")
+            value = raw.strip() if isinstance(raw, str) and raw.strip() else None
+            new_fields.append(
+                ExtractedField(name=field.name, value=value, confidence=1.0 if value else 0.0)
+            )
+
+        state = state.model_copy(update={"extracted_fields": new_fields})
+        state = validate(state, active_config)   # recompute MUST_REVIEW flags
+        state = draft_stage(state, active_config)  # re-render the email draft
+        repository.update_state(session, draft_id, state, actor="reviewer", action="edited")
+
+        updated = _require_draft(session, draft_id)
+        ctx: dict[str, Any] = {"audit": repository.get_audit(session, draft_id)}
+        ctx.update(_review_context(updated))
+        return _render(request, "_review_body.html", ctx)
 
     return app
 

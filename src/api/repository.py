@@ -71,6 +71,20 @@ def mark_sent(session: Session, draft_id: int, actor: str) -> Draft:
     return draft
 
 
+def update_state(
+    session: Session, draft_id: int, state: PipelineState, actor: str, action: str = "edited"
+) -> Draft:
+    """Replace a draft's stored PipelineState (e.g. after human edits) + audit."""
+    draft = _require(session, draft_id)
+    draft.state_json = state.model_dump_json()
+    draft.updated_at = utcnow()
+    session.add(draft)
+    session.commit()
+    session.refresh(draft)
+    add_audit(session, draft_id, actor=actor, action=action)
+    return draft
+
+
 def get_audit(session: Session, draft_id: int) -> list[AuditEntry]:
     return list(
         session.exec(

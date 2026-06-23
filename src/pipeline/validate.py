@@ -80,15 +80,14 @@ def validate(
             if field.required:
                 errors.append(f"{field.name}: required field is missing")
                 flagged = True
-            # optional + blank -> fine, no flag
+            # optional + blank -> fine: no value to be (un)confident about, no flag
         else:
             err = _type_error(field, str(extracted.value))
             if err is not None:
                 errors.append(err)
                 flagged = True
-
-        if extracted.confidence < threshold:
-            flagged = True  # low-confidence -> review (not a schema error)
+            if extracted.confidence < threshold:
+                flagged = True  # low-confidence value -> review (not a schema error)
 
         if flagged:
             must_review.append(field.name)

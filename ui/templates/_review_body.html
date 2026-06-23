@@ -1,0 +1,35 @@
+<div id="review-body">
+  <h3>Classification</h3>
+  {% if classification %}
+  <p>{{ classification.incident_type }} / urgency <strong>{{ classification.urgency }}</strong>
+     / sector {{ classification.sector }} (confidence {{ "%.2f"|format(classification.confidence) }})</p>
+  {% else %}
+  <p><em>not classified</em></p>
+  {% endif %}
+
+  <h3>Recipients</h3>
+  <p>{{ recipients | join(", ") if recipients else "(none)" }}</p>
+
+  <h3>Extracted fields — verify / correct, then Save</h3>
+  <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
+    <table>
+      <tr><th>Field</th><th>Value</th><th>Conf.</th><th>Review?</th></tr>
+      {% for f in fields %}
+      <tr class="{{ 'must-review' if f.must_review else '' }}">
+        <td><label for="field__{{ f.name }}">{{ f.name }}</label></td>
+        <td><input id="field__{{ f.name }}" name="field__{{ f.name }}"
+                   value="{{ f.value if f.value is not none else '' }}" style="width: 100%"></td>
+        <td>{{ "%.2f"|format(f.confidence) }}</td>
+        <td>{{ "MUST REVIEW" if f.must_review else "" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p><button type="submit">Save corrections</button></p>
+  </form>
+
+  <h3>Transcription (OCR — read-only)</h3>
+  <pre>{{ transcription if transcription else "(none)" }}</pre>
+
+  <h3>Email draft</h3>
+  <pre>{{ email_draft if email_draft else "(not drafted)" }}</pre>
+</div>
