@@ -199,10 +199,49 @@ pending ──approve──▶ approved ──send──▶ (sent)
 
 ---
 
-## Running the real model (mock-first)
+## Process a real sheet locally (zero-cost, privacy-first) 🔒
 
-Tests and CI use a **mock** model layer (deterministic, $0) — no API key needed. To exercise
-the real Claude vision path:
+End-to-end on **one local machine, offline, no API, no cost** — local OCR (Tesseract) +
+deterministic rule extraction + the human review screen. This is the
+OCR → rules → MUST_REVIEW → human-corrects design (à la SAP Concur ExpenseIt).
+
+```bash
+# 1. Install the OCR engine + Portuguese language data (one-time):
+#    Windows: winget install UB-Mannheim.TesseractOCR   (tick "Portuguese" in the installer)
+#    Linux:   sudo apt-get install -y tesseract-ocr tesseract-ocr-por
+uv sync
+
+# 2. Put the real sheet in private/ (gitignored — never committed):
+mkdir -p private && cp /path/to/folha.pdf private/      # PDF or a phone photo (JPG/PNG)
+
+# 3. Run the local pipeline (no API key):
+make demo-pipeline FILE=private/folha.pdf               # creates a pending draft, prints the URL
+
+# 4. Review in the browser: verify/correct the OCR'd fields, then approve or reject.
+uv run uvicorn src.api.app:app                          # open http://127.0.0.1:8000/
+
+# 5. Wipe the real data when done:
+make purge-demo-data
+```
+
+**Privacy:** the input sheet and the SQLite DB (which holds the transcription/fields, i.e.
+PII) both live in `private/`, which is gitignored; the demo never prints field values to
+stdout; the pre-commit guard blocks committing PDF/JPG/PNG anywhere.
+
+**Honest limitation:** free local OCR is weak on cursive handwriting, so most fields come
+back flagged **MUST_REVIEW** with a pre-filled best guess — you confirm/correct each in the
+review screen. The system never silently "guesses": low-confidence/ambiguous always goes to
+the human. This is the credible posture for zero-cost OCR.
+
+The model layer is swappable (`VisionClient`/`LLMClient`): local OCR+rules here, or the paid
+API below — the pipeline is identical.
+
+---
+
+## Running the real model — paid API (optional, mock-first)
+
+Tests and CI use a **mock** model layer (deterministic, $0) — no API key needed. The paid
+Claude vision path is **optional** (not required for the local demo above). To exercise it:
 
 ```bash
 cp .env.example .env          # then set ANTHROPIC_API_KEY
