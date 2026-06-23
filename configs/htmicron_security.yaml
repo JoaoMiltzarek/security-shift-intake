@@ -12,32 +12,38 @@ fields:
     type: date
     required: true
     handwritten: true
+    ocr_aliases: [Data, "Data:"]
 
   - name: guard_name
     type: string
     required: true
     handwritten: true
+    ocr_aliases: [Vigilante, "Vigilante:", Guarda]
 
   - name: post
     type: string
     required: true
     handwritten: true
+    ocr_aliases: [Posto, "Posto:"]
 
   - name: shift_period
     type: enum
     required: true
     handwritten: true
     values: [day, night]
+    ocr_aliases: [Turno, "Turno:"]
 
   - name: incident_occurred
     type: bool
     required: true
     handwritten: true
+    ocr_aliases: [Ocorrencia, "Ocorrencia:", "Ocorrência"]
 
   - name: incident_description
     type: text
     required: false
     handwritten: true
+    ocr_aliases: [Descricao, "Descricao:", "Descrição"]
 
 classification:
   type:

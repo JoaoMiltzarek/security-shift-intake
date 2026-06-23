@@ -34,6 +34,9 @@ class FieldSchema(BaseModel):
     handwritten: bool = True
     # Only meaningful when type == "enum"; must be provided in that case.
     values: list[str] | None = None
+    # Printed label(s) the OCR/rule extractor anchors on to find this field's value
+    # (e.g. ["Data", "Dia"]). Optional; config-driven so adding a form needs no code.
+    ocr_aliases: list[str] | None = None
 
     @model_validator(mode="after")
     def enum_requires_values(self) -> FieldSchema:
