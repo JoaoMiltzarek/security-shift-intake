@@ -13,7 +13,12 @@ import pytest
 from PIL import Image
 
 from data.generators.tier_b import build_tier_b
-from src.pipeline.ingest import DEFAULT_DPI, image_to_base64_png, rasterize_pdf
+from src.pipeline.ingest import (
+    DEFAULT_DPI,
+    image_to_base64_png,
+    load_source_images,
+    rasterize_pdf,
+)
 
 
 @pytest.fixture(scope="module")
@@ -56,3 +61,39 @@ def test_base64_png_round_trips(sample_pdf: Path) -> None:
     b64 = image_to_base64_png(img)
     raw = base64.standard_b64decode(b64)
     assert raw[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
+
+
+# --- load_source_images: PDF or image ---
+
+
+def test_load_source_images_pdf(sample_pdf: Path) -> None:
+    images = load_source_images(sample_pdf, dpi=120)
+    assert len(images) == 1
+    assert images[0].mode == "RGB"
+
+
+def test_load_source_images_png(tmp_path: Path) -> None:
+    png = tmp_path / "photo.png"
+    Image.new("RGB", (50, 40), "white").save(png)
+    images = load_source_images(png)
+    assert len(images) == 1
+    assert images[0].size == (50, 40)
+    assert images[0].mode == "RGB"
+
+
+def test_load_source_images_jpg(tmp_path: Path) -> None:
+    jpg = tmp_path / "photo.jpg"
+    Image.new("RGB", (30, 30), "white").save(jpg)
+    assert len(load_source_images(jpg)) == 1
+
+
+def test_load_source_images_rejects_unknown_type(tmp_path: Path) -> None:
+    bad = tmp_path / "notes.txt"
+    bad.write_text("hi", encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported source type"):
+        load_source_images(bad)
+
+
+def test_load_source_images_missing(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        load_source_images(tmp_path / "nope.pdf")

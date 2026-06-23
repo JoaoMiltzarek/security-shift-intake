@@ -58,13 +58,13 @@ def test_confidence_is_minimum_across_pages() -> None:
             TranscriptionResult(text="page two", confidence=0.4),
         ]
     )
-    # Patch rasterize to return two dummy images without needing a 2-page PDF.
+    # Patch the loader to return two dummy images without needing a 2-page PDF.
     from PIL import Image
 
     import src.pipeline.transcribe as mod
 
-    original = mod.rasterize_pdf
-    mod.rasterize_pdf = lambda path, dpi=250: [  # type: ignore[assignment]
+    original = mod.load_source_images
+    mod.load_source_images = lambda path, dpi=250: [  # type: ignore[assignment]
         Image.new("RGB", (10, 10), "white"),
         Image.new("RGB", (10, 10), "white"),
     ]
@@ -72,7 +72,7 @@ def test_confidence_is_minimum_across_pages() -> None:
         state = PipelineState(source_pdf=Path("ignored.pdf"))
         result = transcribe(state, fake)
     finally:
-        mod.rasterize_pdf = original  # type: ignore[assignment]
+        mod.load_source_images = original  # type: ignore[assignment]
 
     assert result.transcription == "page one\n\npage two"
     assert result.transcription_confidence == 0.4
