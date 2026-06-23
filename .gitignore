@@ -7,6 +7,9 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 
+# Private folder: real input sheets + the local DB with PII. NEVER commit.
+private/
+
 # Generated eval machine artifact (EVAL_REPORT.md is the committed human artifact)
 /metrics.json
 

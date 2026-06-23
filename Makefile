@@ -6,7 +6,8 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help install lint format format-check typecheck test check \
-        validate-config gen-data gen-pdfs demo-transcribe eval
+        validate-config gen-data gen-pdfs demo-transcribe demo-pipeline eval \
+        purge-demo-data
 
 help:
 	@echo security-shift-intake - available targets:
@@ -20,7 +21,9 @@ help:
 	@echo   make validate-config - [M1] validate configs against the schema
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
-	@echo   make demo-transcribe - [M4] run the real VLM on one PDF
+	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
+	@echo   make demo-pipeline   - [M9] local zero-cost end-to-end on FILE=... (OCR+rules)
+	@echo   make purge-demo-data - [M9] wipe real data in private/ after a test
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 
 install:
@@ -57,6 +60,9 @@ gen-pdfs:
 
 demo-transcribe:
 	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
+
+demo-pipeline:
+	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)"
 
 eval:
 	PYTHONPATH=. uv run python -m evals.run_eval
