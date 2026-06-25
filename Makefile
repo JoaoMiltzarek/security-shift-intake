@@ -6,8 +6,9 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help install lint format format-check typecheck test check \
-        validate-config gen-data gen-pdfs demo-transcribe demo-pipeline eval \
-        purge-demo-data privacy-check
+        validate-config gen-data gen-pdfs demo-transcribe demo-pipeline \
+        demo-pipeline-mock eval \
+        purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
 	@echo security-shift-intake - available targets:
@@ -22,8 +23,11 @@ help:
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
-	@echo   make demo-pipeline   - [M9] local zero-cost end-to-end on FILE=... (OCR+rules)
-	@echo   make purge-demo-data - [M9] wipe real data in private/ after a test
+	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules)
+	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
+	@echo   make purge-demo-data - wipe only temp demo artifacts (DB + audit/) in private/
+	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
+	@echo   make purge-all-private - wipe ALL of private/ (incl. curadoria), needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 
@@ -66,7 +70,13 @@ demo-pipeline:
 	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)"
 
 purge-demo-data:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py
+	PYTHONPATH=. uv run python scripts/purge_demo_data.py demo
+
+purge-real-data:
+	PYTHONPATH=. uv run python scripts/purge_demo_data.py real --confirm "$(CONFIRM)"
+
+purge-all-private:
+	PYTHONPATH=. uv run python scripts/purge_demo_data.py all --confirm "$(CONFIRM)"
 
 privacy-check:
 	PYTHONPATH=. uv run python scripts/privacy_check.py
