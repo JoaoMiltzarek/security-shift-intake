@@ -18,6 +18,7 @@ from src.pipeline.extract import extract
 from src.pipeline.extract_table import extract_table
 from src.pipeline.ingest import DEFAULT_DPI
 from src.pipeline.ocr_quality import OCR_FAILED, assess_ocr_quality
+from src.pipeline.outputs import build_outputs
 from src.pipeline.route import route
 from src.pipeline.transcribe import transcribe
 from src.pipeline.validate import validate, validate_table
@@ -70,11 +71,14 @@ def run_pipeline(
             state = route(state, config)
             return state.model_copy(update={"email_draft": blocked_draft_message(reason)})
         state = classify(state, llm, config)
-    else:
-        state = extract(state, llm, config)
-        state = validate(state, config)
-        state = classify(state, llm, config)
+        state = route(state, config)
+        # Outputs do produto: planilha padronizada + mensagem copy-ready (bloqueia se pendente).
+        return build_outputs(state, config)
 
+    # Caminho escalar (htmicron_security) — preservado para não-regressão.
+    state = extract(state, llm, config)
+    state = validate(state, config)
+    state = classify(state, llm, config)
     state = route(state, config)
     state = draft(state, config)
     return state

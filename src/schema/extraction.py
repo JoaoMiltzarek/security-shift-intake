@@ -93,3 +93,12 @@ class NormalizedIncidentModel(BaseModel):
     shift: NormalizedShift = Field(default_factory=NormalizedShift)
     no_occurrence: bool = False
     occurrences: list[NormalizedOccurrence] = Field(default_factory=list)
+
+
+class SpreadsheetRow(BaseModel):
+    """Uma linha do Output 1 — planilha padronizada DIA | UNIDADE | OBJETO | DESCRIÇÃO."""
+
+    dia: str
+    unidade: str
+    objeto: str
+    descricao: str

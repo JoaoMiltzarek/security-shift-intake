@@ -24,7 +24,9 @@ def test_incident_scenario_has_occurrence() -> None:
     assert state.normalized is not None
     assert state.normalized.no_occurrence is False
     assert state.normalized.shift.unit == "1"
-    assert state.email_draft is not None and "Subject:" in state.email_draft
+    assert state.spreadsheet_rows  # Output 1 (planilha) populated
+    assert state.email_draft is not None
+    assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in state.email_draft  # Output 2 (copy-ready)
 
 
 def test_no_change_scenario_is_no_occurrence() -> None:

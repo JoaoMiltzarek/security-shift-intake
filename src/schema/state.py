@@ -23,7 +23,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.schema.extraction import NormalizedIncidentModel, RawDocumentExtraction
+from src.schema.extraction import (
+    NormalizedIncidentModel,
+    RawDocumentExtraction,
+    SpreadsheetRow,
+)
 
 
 class ApprovalStatus(StrEnum):
@@ -85,6 +89,8 @@ class PipelineState(BaseModel):
     # --- Stage 5: route + draft ---
     recipients: list[str] = Field(default_factory=list)
     email_draft: str | None = None
+    # --- Outputs (table path): planilha padronizada + mensagem copy-ready ---
+    spreadsheet_rows: list[SpreadsheetRow] = Field(default_factory=list)
 
     # --- Stage 6: human gate ---
     approval_status: ApprovalStatus = ApprovalStatus.PENDING
