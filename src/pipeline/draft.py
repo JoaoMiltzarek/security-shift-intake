@@ -15,6 +15,16 @@ from src.schema.config import ReportConfig
 from src.schema.state import PipelineState
 
 
+def blocked_draft_message(reason: str) -> str:
+    """Mensagem de rascunho BLOQUEADO quando o documento está em estado inseguro (OCR ruim)."""
+    return (
+        "RASCUNHO BLOQUEADO — qualidade do OCR insuficiente.\n"
+        f"Motivo: {reason}\n"
+        "Faça a transcrição/correção manual dos campos obrigatórios na revisão; "
+        "o rascunho operacional só é gerado quando os dados estiverem confirmados."
+    )
+
+
 def render_draft(state: PipelineState, config: ReportConfig) -> str:
     """Render the email draft text from the state and config template."""
     if state.classification is None:

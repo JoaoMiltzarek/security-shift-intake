@@ -13,15 +13,16 @@ from pathlib import Path
 
 from src.clients.base import LLMClient, VisionClient
 from src.pipeline.classify import classify
-from src.pipeline.draft import draft
+from src.pipeline.draft import blocked_draft_message, draft
 from src.pipeline.extract import extract
 from src.pipeline.extract_table import extract_table
 from src.pipeline.ingest import DEFAULT_DPI
+from src.pipeline.ocr_quality import OCR_FAILED, assess_ocr_quality
 from src.pipeline.route import route
 from src.pipeline.transcribe import transcribe
 from src.pipeline.validate import validate, validate_table
 from src.schema.config import ReportConfig
-from src.schema.state import PipelineState
+from src.schema.state import Classification, PipelineState
 
 
 def _has_table(config: ReportConfig) -> bool:
@@ -45,13 +46,35 @@ def run_pipeline(
     """
     state = PipelineState(source_pdf=source)
     state = transcribe(state, vision, dpi=dpi)
+
     if _has_table(config):
         state = extract_table(state, config)
         state = validate_table(state, config)
+        status, reason = assess_ocr_quality(state, config)
+        state = state.model_copy(
+            update={"ocr_quality": status, "ocr_quality_reason": reason}
+        )
+        if status == OCR_FAILED:
+            # Modo seguro: sem classificação automática nem rascunho operacional.
+            state = state.model_copy(
+                update={
+                    "classification": Classification(
+                        incident_type="unknown",
+                        urgency="unknown",
+                        sector="manual_review",
+                        confidence=0.0,
+                        reason=reason,
+                    )
+                }
+            )
+            state = route(state, config)
+            return state.model_copy(update={"email_draft": blocked_draft_message(reason)})
+        state = classify(state, llm, config)
     else:
         state = extract(state, llm, config)
         state = validate(state, config)
-    state = classify(state, llm, config)
+        state = classify(state, llm, config)
+
     state = route(state, config)
     state = draft(state, config)
     return state

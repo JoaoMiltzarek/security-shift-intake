@@ -49,6 +49,8 @@ class Classification(BaseModel):
     sector: str
     # Raw model confidence — used by the critic to surface low-confidence results.
     confidence: float = Field(ge=0.0, le=1.0)
+    # Why this classification (e.g. "OCR quality below threshold"); None on the normal path.
+    reason: str | None = None
 
 
 class PipelineState(BaseModel):
@@ -61,6 +63,9 @@ class PipelineState(BaseModel):
     # --- Stage 1: transcribe ---
     transcription: str | None = None
     transcription_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # --- OCR quality gate (table path) ---  good | low | failed
+    ocr_quality: str | None = None
+    ocr_quality_reason: str | None = None
 
     # --- Stage 2: extract ---
     extracted_fields: list[ExtractedField] = Field(default_factory=list)
