@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -34,10 +35,73 @@ from src.api.gate import (
 )
 from src.api.models import Draft
 from src.pipeline.draft import draft as draft_stage
+from src.pipeline.outputs import build_outputs
 from src.pipeline.validate import validate
 from src.schema.config import ReportConfig
 from src.schema.loader import load_config
 from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
+
+_GUARD_SPLIT = re.compile(r"[;,]| e ")
+
+
+def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> PipelineState:
+    """Apply human edits on the table path: update the normalized model from the form,
+    mark edited values human-confirmed, recompute pending, and regenerate the outputs.
+    """
+    assert state.normalized is not None
+    norm = state.normalized.model_copy(deep=True)
+
+    def fval(name: str) -> str | None:
+        raw = form.get(f"field__{name}")
+        return raw.strip() if isinstance(raw, str) and raw.strip() else None
+
+    norm.shift.date = fval("data_turno")
+    guards = fval("vigilantes")
+    norm.shift.guards = (
+        [g.strip() for g in _GUARD_SPLIT.split(guards) if g.strip()] if guards else []
+    )
+    norm.shift.unit = fval("unidade")
+    for i, occ in enumerate(norm.occurrences, start=1):
+        desc = fval(f"ocorrencia_{i}")
+        occ.description = desc
+        occ.needs_review = desc is None
+
+    fields: list[ExtractedField] = []
+    must_review: list[str] = []
+    for name, value in [
+        ("data_turno", norm.shift.date),
+        ("vigilantes", ", ".join(norm.shift.guards) or None),
+        ("unidade", norm.shift.unit),
+    ]:
+        flagged = value is None  # required header field still blank
+        fields.append(
+            ExtractedField(name=name, value=value, confidence=0.0 if flagged else 1.0,
+                           must_review=flagged)
+        )
+        if flagged:
+            must_review.append(name)
+    if norm.no_occurrence or not norm.occurrences:
+        fields.append(ExtractedField(name="ocorrencias", value="(sem alteração)",
+                                     confidence=1.0, must_review=False))
+    else:
+        for i, occ in enumerate(norm.occurrences, start=1):
+            flagged = occ.description is None
+            fields.append(
+                ExtractedField(name=f"ocorrencia_{i}",
+                               value=occ.description or "(sem descrição)",
+                               confidence=0.0 if flagged else 1.0, must_review=flagged)
+            )
+            if flagged:
+                must_review.append(f"ocorrencia_{i}")
+
+    updates: dict[str, Any] = {
+        "normalized": norm, "extracted_fields": fields, "must_review_fields": must_review,
+    }
+    # Human transcription clears the OCR-failed block (the data is now confirmed).
+    if state.ocr_quality == "failed":
+        updates["ocr_quality"] = "low"
+        updates["ocr_quality_reason"] = "Transcrição/correção manual aplicada."
+    return build_outputs(state.model_copy(update=updates), config)
 
 _templates = Jinja2Templates(directory="ui/templates")
 _DEFAULT_CONFIG = Path("configs/htmicron_security.yaml")
@@ -54,6 +118,15 @@ def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLRes
     return response
 
 
+def _document_status(state: PipelineState) -> str:
+    """Human-facing document status for the review screen."""
+    if state.ocr_quality == "failed":
+        return "OCR FAILED — transcrição manual necessária"
+    if state.must_review_fields:
+        return f"Em revisão — {len(state.must_review_fields)} campo(s) pendente(s)"
+    return "Pronto para gerar/aprovar"
+
+
 def _review_context(draft: Draft) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
     state = PipelineState.model_validate_json(draft.state_json)
@@ -64,6 +137,10 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         "classification": state.classification,
         "recipients": state.recipients,
         "email_draft": state.email_draft,
+        "ocr_quality": state.ocr_quality,
+        "ocr_quality_reason": state.ocr_quality_reason,
+        "spreadsheet_rows": state.spreadsheet_rows,
+        "document_status": _document_status(state),
     }
 
 
@@ -238,19 +315,22 @@ def create_app(
         form = await request.form()
         state = PipelineState.model_validate_json(draft.state_json)
 
-        # Human-confirmed values get full confidence (no longer "guessed" OCR);
-        # the critic still flags any that are type-invalid or required-but-blank.
-        new_fields: list[ExtractedField] = []
-        for field in active_config.fields:
-            raw = form.get(f"field__{field.name}")
-            value = raw.strip() if isinstance(raw, str) and raw.strip() else None
-            new_fields.append(
-                ExtractedField(name=field.name, value=value, confidence=1.0 if value else 0.0)
-            )
-
-        state = state.model_copy(update={"extracted_fields": new_fields})
-        state = validate(state, active_config)   # recompute MUST_REVIEW flags
-        state = draft_stage(state, active_config)  # re-render the email draft
+        if state.normalized is not None:
+            # Table path: edit the normalized model + regenerate the planilha/mensagem.
+            state = _edit_table(state, form, active_config)
+        else:
+            # Scalar path: human-confirmed values get full confidence; the critic still
+            # flags type-invalid or required-but-blank.
+            new_fields: list[ExtractedField] = []
+            for field in active_config.fields:
+                raw = form.get(f"field__{field.name}")
+                value = raw.strip() if isinstance(raw, str) and raw.strip() else None
+                new_fields.append(
+                    ExtractedField(name=field.name, value=value, confidence=1.0 if value else 0.0)
+                )
+            state = state.model_copy(update={"extracted_fields": new_fields})
+            state = validate(state, active_config)   # recompute MUST_REVIEW flags
+            state = draft_stage(state, active_config)  # re-render the email draft
         repository.update_state(session, draft_id, state, actor="reviewer", action="edited")
 
         updated = _require_draft(session, draft_id)
