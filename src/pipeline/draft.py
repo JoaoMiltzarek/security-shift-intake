@@ -35,6 +35,9 @@ def render_draft(state: PipelineState, config: ReportConfig) -> str:
         classification=state.classification,
         fields=state.extracted_fields,
         must_review_fields=state.must_review_fields,
+        # Table path: the domain model the controle_ocorrencias template renders.
+        # None on the scalar path (its template ignores it).
+        normalized=state.normalized,
     )
 
 

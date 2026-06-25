@@ -1,0 +1,22 @@
+To: {{ recipients | join(", ") }}
+Subject: [{{ classification.urgency | upper }}] {{ classification.incident_type }} - {{ report_type }}
+
+Turno: {{ normalized.shift.date or "(data?)" }}{% if normalized.shift.unit %} | Unidade: {{ normalized.shift.unit }}{% endif %}
+Vigilantes: {{ normalized.shift.guards | join(", ") if normalized.shift.guards else "(?)" }}
+
+Classification: {{ classification.incident_type }} / urgency {{ classification.urgency }} / sector {{ classification.sector }} (confidence {{ "%.2f" | format(classification.confidence) }})
+
+{% if normalized.no_occurrence %}
+Ocorrências: nenhuma (S/A - sem alteração).
+{% else %}
+Ocorrências ({{ normalized.occurrences | length }}):
+{% for o in normalized.occurrences %}
+- {{ o.category or "(item?)" }}{% if o.entry_time %} | {{ o.entry_time }}{% if o.exit_time %}-{{ o.exit_time }}{% endif %}{% endif %}: {{ o.description or "(sem descrição)" }}{{ "   [REVISAR]" if o.needs_review else "" }}
+{% endfor %}
+{% endif %}
+{% if must_review_fields %}
+ATENÇÃO: {{ must_review_fields | length }} campo(s) precisam de revisão antes do envio: {{ must_review_fields | join(", ") }}.
+{% else %}
+Todos os campos passaram nas checagens automáticas.
+{% endif %}
+-- RASCUNHO - nada é enviado até um humano revisar e aprovar.
