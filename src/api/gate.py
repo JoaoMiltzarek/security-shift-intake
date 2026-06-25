@@ -21,6 +21,24 @@ class DraftNotApprovedError(RuntimeError):
     """Raised when a send is attempted on a draft that is not approved."""
 
 
+class DraftNotReviewableError(RuntimeError):
+    """Raised when approval is attempted while fields still need review (plano R4)."""
+
+
+def assert_reviewable(state: PipelineState) -> None:
+    """Block approval while any field is still flagged for review (plano R4).
+
+    Enforces "nunca adivinhar": a draft cannot be approved while the critic's
+    `must_review_fields` is non-empty (low-confidence, missing, invalid, or ambiguous
+    values). The human must resolve every flag (edit screen) before approving.
+    """
+    if state.must_review_fields:
+        raise DraftNotReviewableError(
+            f"{len(state.must_review_fields)} field(s) need review before approval: "
+            f"{', '.join(state.must_review_fields)}."
+        )
+
+
 @runtime_checkable
 class Sender(Protocol):
     """Performs the irreversible action. Implementations: MockSender (tests)."""

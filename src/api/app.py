@@ -23,7 +23,14 @@ from sqlmodel import Session
 
 from src.api import repository
 from src.api.db import init_db, make_engine
-from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
+from src.api.gate import (
+    DraftNotApprovedError,
+    DraftNotReviewableError,
+    MockSender,
+    Sender,
+    assert_reviewable,
+    send_draft,
+)
 from src.api.models import Draft
 from src.pipeline.draft import draft as draft_stage
 from src.pipeline.validate import validate
@@ -117,6 +124,14 @@ def create_app(
     def approve(
         draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
     ) -> dict[str, Any]:
+        draft = repository.get_draft(session, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        state = PipelineState.model_validate_json(draft.state_json)
+        try:
+            assert_reviewable(state)  # plano R4: block approval with pending fields
+        except DraftNotReviewableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _set_status(session, draft_id, ApprovalStatus.APPROVED, actor)
 
     @app.post("/drafts/{draft_id}/reject")
@@ -182,6 +197,12 @@ def create_app(
     def ui_approve(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
+        draft = _require_draft(session, draft_id)
+        state = PipelineState.model_validate_json(draft.state_json)
+        try:
+            assert_reviewable(state)  # plano R4: block approval with pending fields
+        except DraftNotReviewableError as exc:
+            return _status_panel(request, draft, session, message=f"Blocked: {exc}")
         draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, "reviewer")
         return _status_panel(request, draft, session)
 
