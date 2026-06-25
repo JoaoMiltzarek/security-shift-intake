@@ -69,6 +69,9 @@ demo-transcribe:
 demo-pipeline:
 	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)"
 
+demo-pipeline-mock:
+	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
+
 purge-demo-data:
 	PYTHONPATH=. uv run python scripts/purge_demo_data.py demo
 
