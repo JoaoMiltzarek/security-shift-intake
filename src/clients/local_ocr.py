@@ -23,6 +23,22 @@ from PIL import Image
 
 from src.clients.base import TranscriptionResult
 
+# Real office scans are low-resolution; rasterizing them at high DPI upscales the
+# noise and *hurts* Tesseract. Empirically (real folhas) OCR peaks near ~150 DPI for
+# A4, so we cap the longest side before OCR — large inputs are downscaled, small
+# synthetic renders are left untouched.
+_MAX_OCR_LONG_SIDE = 1800
+
+
+def _downscale_for_ocr(image: Image.Image) -> Image.Image:
+    """Downscale oversized scans so Tesseract reads them better; leave small ones as-is."""
+    longest = max(image.width, image.height)
+    if longest <= _MAX_OCR_LONG_SIDE:
+        return image
+    scale = _MAX_OCR_LONG_SIDE / longest
+    new_size = (round(image.width * scale), round(image.height * scale))
+    return image.resize(new_size, Image.Resampling.LANCZOS)
+
 
 def _reconstruct(data: dict[str, Any]) -> tuple[str, float]:
     """Rebuild line-preserving text + mean word confidence from image_to_data output."""
@@ -74,8 +90,9 @@ class LocalOCRVisionClient:
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
         lang = self._resolve_lang()
         image = Image.open(io.BytesIO(base64.standard_b64decode(image_b64)))
+        ocr_image = _downscale_for_ocr(image)
         data = pytesseract.image_to_data(
-            image, lang=lang, output_type=pytesseract.Output.DICT
+            ocr_image, lang=lang, output_type=pytesseract.Output.DICT
         )
         text, confidence = _reconstruct(data)
         return TranscriptionResult(text=text, confidence=confidence)

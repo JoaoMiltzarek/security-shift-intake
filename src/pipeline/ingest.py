@@ -20,6 +20,12 @@ from PIL import Image
 # ~250 DPI balances legibility of handwriting against image size/cost (spec §2 stage 0).
 DEFAULT_DPI = 250
 
+# Local OCR path: real office scans are low-resolution, and rasterizing them high
+# upscales noise that *hurts* Tesseract. Empirically (real folhas) OCR is best near
+# ~150 DPI for A4. Used by the zero-cost local entry points (demo-pipeline, real eval);
+# the VLM path keeps DEFAULT_DPI.
+OCR_DPI = 150
+
 # Raster image extensions we accept directly (a phone photo of the form, a scan).
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 

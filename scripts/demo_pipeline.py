@@ -25,6 +25,7 @@ from src.clients.base import LLMClient, VisionClient
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
+from src.pipeline.ingest import OCR_DPI
 from src.schema.loader import load_config
 
 DEFAULT_CONFIG = Path("configs/htmicron_security.yaml")
@@ -36,7 +37,7 @@ def build_and_store(
     """Run the pipeline on *file* and persist a pending draft. Returns the draft id."""
     config = load_config(config_path)
     init_db(engine)
-    state = run_pipeline(file, vision, llm, config)
+    state = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
     with Session(engine) as session:
         draft = create_draft(session, state, actor="demo")
         assert draft.id is not None

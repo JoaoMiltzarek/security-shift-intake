@@ -1,52 +1,55 @@
-# AUDITORIA — Folhas reais (baseline do sistema atual)
+# AUDITORIA — Folhas reais (ANTES escalar × DEPOIS tabela)
 
-> Gerado por `evals/eval_extraction_real.py`. **Nenhum número é digitado à mão.** Contém apenas métricas agregadas + exemplos sintéticos — dados reais ficam em `private/` (plano R6/regra #2). Detalhe com PII em `private/audit/metrics_real.json`.
+> Gerado por `evals/eval_extraction_real.py`. **Nenhum número é digitado à mão.** Só métricas agregadas — dados reais ficam em `private/` (plano R6/regra #2). Detalhe com PII em `private/audit/metrics_real.json`.
 
-> ⚠️ **PRELIMINAR.** Nenhuma curadoria está `verified_by_user` ainda (0/4). Os números abaixo usam a transcrição automática como ground-truth e **devem ser reconferidos** (plano R4).
+- **ANTES** = config escalar `htmicron_security` (incidente único).
+- **DEPOIS** = config `controle_ocorrencias` (cabeçalho + tabela de N linhas).
 
-## Cobertura
+> ⚠️ **PRELIMINAR.** Nenhuma curadoria está `verified_by_user` (0/4). Ground-truth ainda é a transcrição automática; reconferir (plano R4).
 
-- Folhas com curadoria: **4**
-- Rodadas no pipeline: **2**
-- Pendentes (arquivo da imagem ausente em `private/reais/`): **2**
-- Confiança média do OCR (Tesseract): **0.694**
+## Cobertura (igual nos dois)
 
-## Captura de ocorrências (o dado mais importante)
+- Folhas com curadoria: **4** | rodadas: **2** | pendentes: **2**
 
-- Ocorrências reais na curadoria: **1**
-- Capturadas com fidelidade pelo sistema atual: **0**
+## Ocorrências (o dado mais importante)
 
-## Status dos campos (plano R2)
-
-| status | contagem |
-|---|---|
-| accepted | 0 |
-| must_review | 4 |
-| missing | 8 |
+| métrica | ANTES | DEPOIS |
+|---|---|---|
+| ocorrências reais (curadoria) | 1 | 1 |
+| **representadas** (têm onde existir) | 0 | 1 |
+| capturadas fielmente (CER ≤ 0.5) | 0 | 0 |
 
 ## Erros por severidade (plano R3)
 
-| severidade | contagem |
-|---|---|
-| BLOCKER | 2 |
-| HIGH | 0 |
-| MEDIUM | 6 |
-| LOW (revisão humana, desejado) | 12 |
-
-## Erros por tipo
-
-| tipo | severidade | contagem |
+| severidade | ANTES | DEPOIS |
 |---|---|---|
-| FALSE_INCIDENT | BLOCKER | 1 |
-| MISSED_INCIDENT | BLOCKER | 1 |
+| BLOCKER | 2 | 0 |
+| HIGH | 0 | 0 |
+| MEDIUM | 6 | 6 |
+| LOW (revisão humana, desejado) | 12 | 7 |
+
+## Status dos campos (plano R2)
+
+| status | ANTES | DEPOIS |
+|---|---|---|
+| accepted | 0 | 1 |
+| must_review | 6 | 4 |
+| missing | 6 | 3 |
+
+## Erros por tipo (DEPOIS)
+
+| tipo | severidade | DEPOIS |
+|---|---|---|
+| FALSE_INCIDENT | BLOCKER | 0 |
+| MISSED_INCIDENT | BLOCKER | 0 |
 | BAD_NORMALIZATION | HIGH | 0 |
 | TABLE_ROW_SPLIT_ERROR | HIGH | 0 |
-| FIELD_NOT_FOUND | MEDIUM | 6 |
-| OCR_MISS | MEDIUM | 0 |
-| NEEDS_HUMAN_REVIEW | LOW | 12 |
+| FIELD_NOT_FOUND | MEDIUM | 3 |
+| OCR_MISS | MEDIUM | 3 |
+| NEEDS_HUMAN_REVIEW | LOW | 7 |
 
 ## Leitura honesta
 
-- O Tesseract lê **rótulos impressos** bem, mas **valores cursivos** viram ruído — esperado para OCR livre em manuscrito (não é um defeito do pipeline).
-- O achado estrutural: a config atual modela **incidente único escalar**; a folha real é uma **tabela de N linhas** (Item/Hora/Descrição/Ação/Resolvido) com cabeçalho de vários vigilantes. O conteúdo das ocorrências **não tem onde ser representado** hoje → `MISSED_INCIDENT`/`TABLE_ROW_SPLIT_ERROR`. Isso motiva o ADR.
-- `BLOCKER`/`HIGH` são a prioridade da reforma; `LOW` (must_review) é o comportamento desejado ("nunca adivinhar").
+- A reforma (caminho tabela) faz a ocorrência **ser representada** e trata `S/A` como sem alteração — eliminando os `BLOCKER` (`FALSE_INCIDENT` na folha S/A e `MISSED_INCIDENT` por não ter onde guardar a ocorrência).
+- O OCR cursivo do Tesseract continua fraco: o conteúdo capturado entra como `must_review` (LOW, desejado) para o humano confirmar/corrigir — não some nem é dado como certo. Fidelidade de texto (CER) só melhora com OCR/manuscrito melhor.
+- Números preliminares até a curadoria ser `verified_by_user` (plano R4).

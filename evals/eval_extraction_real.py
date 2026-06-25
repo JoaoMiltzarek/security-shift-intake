@@ -37,12 +37,15 @@ from scripts.privacy_check import scan_text_for_pii
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
+from src.pipeline.ingest import OCR_DPI
+from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
 from src.schema.state import ExtractedField
 
 CURADORIA_DIR = Path("private/curadoria")
 AUDIT_DIR = Path("private/audit")
-CONFIG_PATH = Path("configs/htmicron_security.yaml")
+CONFIG_PATH = Path("configs/htmicron_security.yaml")  # ANTES (escalar)
+TABLE_CONFIG_PATH = Path("configs/controle_ocorrencias.yaml")  # DEPOIS (tabela)
 REPORT_PATH = Path("docs/AUDITORIA_FOLHAS_REAIS.md")
 
 VALID_REVIEW_STATUS = {"draft_by_claude", "needs_review", "verified_by_user"}
@@ -148,6 +151,43 @@ def classify_errors(cur: dict[str, Any], extracted: list[ExtractedField]) -> lis
     return errors
 
 
+def classify_errors_normalized(
+    cur: dict[str, Any], normalized: NormalizedIncidentModel, extracted: list[ExtractedField]
+) -> list[dict[str, str]]:
+    """Taxonomia R3 para o caminho de TABELA (compara o modelo normalizado x curadoria)."""
+    errors: list[dict[str, str]] = []
+
+    def add(etype: str, field: str = "") -> None:
+        errors.append({"type": etype, "severity": SEVERITY[etype], "field": field})
+
+    header = {
+        "data": normalized.shift.date,
+        "unidade": normalized.shift.unit,
+        "vigilantes": ", ".join(normalized.shift.guards) if normalized.shift.guards else None,
+    }
+    for ckey, sysval in header.items():
+        cval = curated_header(cur, ckey)
+        if not cval:
+            continue
+        if not sysval:
+            add("FIELD_NOT_FOUND", ckey)
+        elif cer(_norm(cval), _norm(str(sysval))) > CER_FAIL:
+            add("OCR_MISS", ckey)
+
+    occ = has_occurrence(cur)
+    if not occ and not normalized.no_occurrence and normalized.occurrences:
+        add("FALSE_INCIDENT", "ocorrencias")
+    if occ and normalized.no_occurrence:
+        add("MISSED_INCIDENT", "ocorrencias")
+    if occ and len(cur.get("ocorrencias", [])) > len(normalized.occurrences):
+        add("TABLE_ROW_SPLIT_ERROR", "ocorrencias")
+
+    for ef in extracted:
+        if ef.must_review:
+            add("NEEDS_HUMAN_REVIEW", ef.name)
+    return errors
+
+
 def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
     """Agrega contagens por tipo/severidade e status de campo (sanitizável)."""
     run = [s for s in per_sheet if s["ran"]]
@@ -156,6 +196,7 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
     status_counts: dict[str, int] = {"accepted": 0, "must_review": 0, "missing": 0}
     occ_total = 0
     occ_captured = 0
+    occ_represented = 0
     for s in run:
         for e in s["errors"]:
             err_by_type[e["type"]] = err_by_type.get(e["type"], 0) + 1
@@ -164,6 +205,7 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             status_counts[st] = status_counts.get(st, 0) + 1
         occ_total += s["n_occurrences_curated"]
         occ_captured += s["n_occurrences_captured"]
+        occ_represented += s.get("n_occurrences_represented", 0)
     return {
         "n_sheets_total": len(per_sheet),
         "n_sheets_run": len(run),
@@ -173,6 +215,7 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
         "errors_by_severity": err_by_sev,
         "field_status_counts": status_counts,
         "occurrences_curated": occ_total,
+        "occurrences_represented": occ_represented,
         "occurrences_captured_faithfully": occ_captured,
         "mean_ocr_confidence": (
             round(sum(s["ocr_confidence"] for s in run) / len(run), 3) if run else 0.0
@@ -204,6 +247,7 @@ def run_sheet(cur: dict[str, Any], config: Any) -> dict[str, Any]:
         "errors": [],
         "field_statuses": {},
         "n_occurrences_curated": len(cur.get("ocorrencias", [])),
+        "n_occurrences_represented": 0,
         "n_occurrences_captured": 0,
         "ocr_confidence": 0.0,
     }
@@ -212,7 +256,9 @@ def run_sheet(cur: dict[str, Any], config: Any) -> dict[str, Any]:
         base["status"] = "pending_file"
         return base
     try:
-        state = run_pipeline(src, LocalOCRVisionClient(), RuleBasedLLMClient(config), config)
+        state = run_pipeline(
+            src, LocalOCRVisionClient(), RuleBasedLLMClient(config), config, dpi=OCR_DPI
+        )
     except RuntimeError as exc:  # Tesseract ausente etc.
         base["status"] = f"ocr_error: {exc}"
         return base
@@ -223,13 +269,24 @@ def run_sheet(cur: dict[str, Any], config: Any) -> dict[str, Any]:
     base["field_statuses"] = {
         ef.name: field_status(ef.value, ef.must_review) for ef in extracted
     }
-    base["errors"] = classify_errors(cur, extracted)
-    # Ocorrência capturada com fidelidade?
-    if has_occurrence(cur):
-        sys_desc = _system_description(extracted)
-        first = cur["ocorrencias"][0].get("descricao", "") or ""
-        if sys_desc is not None and cer(_norm(first), _norm(sys_desc)) <= CER_FAIL:
-            base["n_occurrences_captured"] = 1
+    if state.normalized is not None:
+        # Caminho de TABELA (controle_ocorrencias).
+        base["errors"] = classify_errors_normalized(cur, state.normalized, extracted)
+        if has_occurrence(cur) and not state.normalized.no_occurrence:
+            base["n_occurrences_represented"] = 1
+            first = cur["ocorrencias"][0].get("descricao", "") or ""
+            for o in state.normalized.occurrences:
+                if o.description and cer(_norm(first), _norm(o.description)) <= CER_FAIL:
+                    base["n_occurrences_captured"] = 1
+                    break
+    else:
+        # Caminho ESCALAR (htmicron_security).
+        base["errors"] = classify_errors(cur, extracted)
+        if has_occurrence(cur):
+            sys_desc = _system_description(extracted)
+            first = cur["ocorrencias"][0].get("descricao", "") or ""
+            if sys_desc is not None and cer(_norm(first), _norm(sys_desc)) <= CER_FAIL:
+                base["n_occurrences_captured"] = 1
     # Detalhe com PII (só p/ private/): transcrição + valores extraídos.
     base["_detail"] = {
         "transcription": state.transcription,
@@ -315,9 +372,103 @@ def render_report(agg: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def run_config(
+    curadoria: list[dict[str, Any]], config_path: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Roda todas as folhas com uma config; devolve (per_sheet detalhado, agregado)."""
+    config = load_config(config_path)
+    per_sheet = [run_sheet(cur, config) for cur in curadoria]
+    return per_sheet, aggregate(per_sheet)
+
+
+def _sev_row(label: str, antes: dict[str, Any], depois: dict[str, Any], key: str) -> str:
+    return f"| {label} | {antes.get(key, 0)} | {depois.get(key, 0)} |"
+
+
+def render_compare(antes: dict[str, Any], depois: dict[str, Any]) -> str:
+    """Relatório público SANITIZADO com ANTES (escalar) x DEPOIS (tabela). Sem PII."""
+    a_sev, d_sev = antes["errors_by_severity"], depois["errors_by_severity"]
+    a_fs, d_fs = antes["field_status_counts"], depois["field_status_counts"]
+    preliminary = depois["n_verified_by_user"] == 0
+    lines: list[str] = [
+        "# AUDITORIA — Folhas reais (ANTES escalar × DEPOIS tabela)",
+        "",
+        "> Gerado por `evals/eval_extraction_real.py`. **Nenhum número é digitado à mão.** "
+        "Só métricas agregadas — dados reais ficam em `private/` (plano R6/regra #2). "
+        "Detalhe com PII em `private/audit/metrics_real.json`.",
+        "",
+        "- **ANTES** = config escalar `htmicron_security` (incidente único).",
+        "- **DEPOIS** = config `controle_ocorrencias` (cabeçalho + tabela de N linhas).",
+        "",
+    ]
+    if preliminary:
+        lines += [
+            "> ⚠️ **PRELIMINAR.** Nenhuma curadoria está `verified_by_user` "
+            f"({depois['n_verified_by_user']}/{depois['n_sheets_total']}). Ground-truth ainda é a "
+            "transcrição automática; reconferir (plano R4).",
+            "",
+        ]
+    lines += [
+        "## Cobertura (igual nos dois)",
+        "",
+        f"- Folhas com curadoria: **{depois['n_sheets_total']}** | rodadas: "
+        f"**{depois['n_sheets_run']}** | pendentes: **{depois['n_sheets_pending_file']}**",
+        "",
+        "## Ocorrências (o dado mais importante)",
+        "",
+        "| métrica | ANTES | DEPOIS |",
+        "|---|---|---|",
+        f"| ocorrências reais (curadoria) | {antes['occurrences_curated']} "
+        f"| {depois['occurrences_curated']} |",
+        f"| **representadas** (têm onde existir) | {antes.get('occurrences_represented', 0)} "
+        f"| {depois.get('occurrences_represented', 0)} |",
+        f"| capturadas fielmente (CER ≤ {CER_FAIL}) | "
+        f"{antes['occurrences_captured_faithfully']} | "
+        f"{depois['occurrences_captured_faithfully']} |",
+        "",
+        "## Erros por severidade (plano R3)",
+        "",
+        "| severidade | ANTES | DEPOIS |",
+        "|---|---|---|",
+        _sev_row("BLOCKER", a_sev, d_sev, "BLOCKER"),
+        _sev_row("HIGH", a_sev, d_sev, "HIGH"),
+        _sev_row("MEDIUM", a_sev, d_sev, "MEDIUM"),
+        _sev_row("LOW (revisão humana, desejado)", a_sev, d_sev, "LOW"),
+        "",
+        "## Status dos campos (plano R2)",
+        "",
+        "| status | ANTES | DEPOIS |",
+        "|---|---|---|",
+        _sev_row("accepted", a_fs, d_fs, "accepted"),
+        _sev_row("must_review", a_fs, d_fs, "must_review"),
+        _sev_row("missing", a_fs, d_fs, "missing"),
+        "",
+        "## Erros por tipo (DEPOIS)",
+        "",
+        "| tipo | severidade | DEPOIS |",
+        "|---|---|---|",
+    ]
+    d_et = depois["errors_by_type"]
+    for etype in SEVERITY:
+        lines.append(f"| {etype} | {SEVERITY[etype]} | {d_et.get(etype, 0)} |")
+    lines += [
+        "",
+        "## Leitura honesta",
+        "",
+        "- A reforma (caminho tabela) faz a ocorrência **ser representada** e trata `S/A` como "
+        "sem alteração — eliminando os `BLOCKER` (`FALSE_INCIDENT` na folha S/A e "
+        "`MISSED_INCIDENT` por não ter onde guardar a ocorrência).",
+        "- O OCR cursivo do Tesseract continua fraco: o conteúdo capturado entra como "
+        "`must_review` (LOW, desejado) para o humano confirmar/corrigir — não some nem é "
+        "dado como certo. Fidelidade de texto (CER) só melhora com OCR/manuscrito melhor.",
+        "- Números preliminares até a curadoria ser `verified_by_user` (plano R4).",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Auditoria de folhas reais (baseline).")
-    parser.add_argument("--config", type=Path, default=CONFIG_PATH)
+    parser = argparse.ArgumentParser(description="Auditoria de folhas reais (antes/depois).")
     parser.add_argument("--no-report", action="store_true", help="não escrever o doc público")
     args = parser.parse_args(argv)
 
@@ -326,18 +477,24 @@ def main(argv: list[str]) -> int:
         print("Nenhuma curadoria válida em private/curadoria/ — nada a auditar.", file=sys.stderr)
         return 1
 
-    config = load_config(args.config)
-    per_sheet = [run_sheet(cur, config) for cur in curadoria]
-    agg = aggregate(per_sheet)
+    antes_per, antes_agg = run_config(curadoria, CONFIG_PATH)
+    depois_per, depois_agg = run_config(curadoria, TABLE_CONFIG_PATH)
 
     # Detalhado (PII) -> private/.
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
     (AUDIT_DIR / "metrics_real.json").write_text(
-        json.dumps({"aggregate": agg, "per_sheet": per_sheet}, indent=2, ensure_ascii=False),
+        json.dumps(
+            {
+                "antes": {"aggregate": antes_agg, "per_sheet": antes_per},
+                "depois": {"aggregate": depois_agg, "per_sheet": depois_per},
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
 
-    report = render_report(agg)
+    report = render_compare(antes_agg, depois_agg)
     # Gate de PII (plano R4): nunca escrever relatório público com PII.
     pii = scan_text_for_pii(report, include_org=False)
     if pii:
@@ -350,7 +507,7 @@ def main(argv: list[str]) -> int:
         REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
         REPORT_PATH.write_text(report, encoding="utf-8")
         print(f"Escrito {REPORT_PATH} e {AUDIT_DIR / 'metrics_real.json'}")
-    print(json.dumps(agg, indent=2, ensure_ascii=False))
+    print(json.dumps({"antes": antes_agg, "depois": depois_agg}, indent=2, ensure_ascii=False))
     return 0
 
 
