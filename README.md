@@ -1,272 +1,119 @@
-# security-shift-intake
+# Security Shift Intake — Local Document AI for Security Incident Logs
 
 [![CI](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-A **configurable, staged document-intake pipeline** that turns a scanned, handwritten
-security shift-report PDF into a faithful transcription, structured fields, a
-classification (type / urgency / responsible sector), and a **routed, pre-filled email
-draft** — held behind a **human-approval gate** so nothing is ever sent automatically.
+Offline, privacy-first document-extraction pipeline for handwritten **security incident sheets**
+("Controle de ocorrências"). It turns a scanned/photographed sheet into two useful outputs — a
+**standardized spreadsheet** and a **copy-ready message** — with local OCR, mandatory human
+review, audit trails, and safe automation gates.
 
-It is an internal triage tool whose job is to **reduce transcription load and surface
-uncertainty**, not to achieve autonomy. Built as a portfolio-grade artifact: typed API,
-mockable model layer, reproducible evals, CI, and synthetic-only data.
-
----
-
-## What it is — and what it is not
-
-**Is:** a linear pipeline of **deterministic stages**, each using the simplest tool that
-works; a real state machine for approvals; an honest, baseline-anchored eval harness.
-
-**Is NOT:**
--  an "autonomous multi-agent" system — it is a staged pipeline (no agent loops/planners).
--  an auto-sender — **email is never sent without explicit human approval.**
-- a multi-tenant SaaS — one report type, one org config (the abstraction lives in the *structure*).
-- trained on or storing **any real data** — **synthetic only**, enforced by a pre-commit guard.
-
-### Non-negotiable invariants
-1. **Human approval gate** before any irreversible action (sending email).
-2. **Synthetic data only** in the repo — no real reports, names, or photos.
-3. **No fabricated metrics** — every number comes from code that ran (`make eval`).
-4. **Config-driven, not hardcoded** — fields, taxonomy, routing, and templates live in YAML.
-
----
-
-## Architecture
+> **OCR is best-effort. Human approval is mandatory. Unsafe automation is blocked.**
 
 ```
- PDF (scanned, handwritten)
-        │
-   [0] Ingest ──────────► rasterize PDF → image(s) @ ~250 DPI          (PyMuPDF)
-        │
-   [1] Transcribe ──────► VLM reads image → verbatim text + confidence (VisionClient)
-        │
-   [2] Extract ─────────► text → structured fields + per-field conf.    (LLMClient, Pydantic)
-        │
-   [3] Validate (critic)► types / required / allowed values + threshold → MUST_REVIEW
-        │
-   [4] Classify ────────► incident type / urgency / sector             (LLM structured output)
-        │
-   [5] Route + Draft ───► deterministic recipients from YAML rules → Jinja email draft
-        │
-   [6] Human Gate ──────► reviewer sees transcription | fields | classification | draft
-                          → approve / reject → only then (mock) send + audit
+folha (PDF/foto) → OCR local → extração estruturada → revisão humana → planilha + mensagem
 ```
 
-Every model call goes through a single `VisionClient` / `LLMClient` interface, so the
-provider is swappable and **mockable in tests** — the whole suite runs offline at **$0**.
+## The problem
+Every shift, a guard fills a paper occurrence sheet by hand; someone retypes it into a
+spreadsheet and a message. It's manual, repetitive, and error-prone. And it's hard to automate
+honestly: the sheets are **handwritten** (free OCR fails on cursive), the data is **sensitive
+PII** (must not go to an external API), and automation **must not invent** information.
 
-A rendered Tier B sample (synthetic, scan-degraded):
+## The solution
+A staged, **config-driven** pipeline that runs **100% locally** (no paid API, no cloud):
+local OCR → best-effort extraction → an **OCR quality gate** → auditable per-field results →
+normalization → **human review** → blocked drafts when unsafe → an immutable audit trail.
+It doesn't replace the human; it **reduces transcription load and surfaces uncertainty**.
 
-![Tier B sample render](samples/sample_doc-00001.png)
+### Two outputs
+**Output 1 — standardized spreadsheet**
 
----
+| DIA | UNIDADE | OBJETO | DESCRIÇÃO |
+|---|---|---|---|
+| 25/06/2026 | 1 | Alarme | HH:MM - Alarme disparou 4 vezes |
+| 25/06/2026 | 2 | Sem alteração | |
 
-## Tech stack
+**Output 2 — copy-ready message** (paste into WhatsApp/e-mail; never auto-sent):
 
-| Tool | Role |
-|---|---|
-| **Python 3.11**, **uv** | language + reproducible, pinned dependency management |
-| **Pydantic v2** | typed contracts between stages, config, structured output |
-| **PyMuPDF** | PDF → image rasterization |
-| **Pillow + NumPy** | synthetic handwriting render + scan degradation |
-| **Anthropic (Claude vision)** | transcription + extraction + classification (behind `VisionClient`/`LLMClient`) |
-| **scikit-learn** | trained classifier (documented evolution path) + classification metrics |
-| **Tesseract** (`pytesseract`) | OCR **baseline only** (to prove the VLM earns its cost) |
-| **FastAPI + HTMX + Jinja2** | approval API + thin server-rendered review UI |
-| **SQLModel + SQLite** | persisted drafts, statuses, audit log |
-| **pytest**, **ruff**, **mypy (strict)**, **GitHub Actions** | tests, lint, types, CI |
+```
+Bom dia,
 
----
+DIA | UNIDADE | OBJETO | DESCRIÇÃO
+25/06/2026 | 1 | Alarme | HH:MM - Alarme disparou 4 vezes
+25/06/2026 | 2 | Sem alteração |
 
-## Quickstart
+Vigilantes: ...
+```
 
+If any required field is pending, the message is marked **`RASCUNHO INCOMPLETO`** and lists
+exactly what to fix — it never goes out as a clean operational message.
+
+## Quick demo
 ```bash
-# Prerequisites: Python 3.11+, uv (https://docs.astral.sh/uv/), GNU make
-uv sync                       # install deps from the lockfile
-
-make lint typecheck test      # quality gate (200+ tests, all mocked, $0)
-make validate-config          # validate configs/htmicron_security.yaml
-make gen-data                 # Tier A: structured synthetic records → data/synthetic/
-make gen-pdfs                 # Tier B: handwritten-form PDFs → data/synthetic/tier_b/ + samples/
-make eval                     # metrics.json + EVAL_REPORT.md (real numbers, baselines)
-```
-
-Run the API + review UI locally:
-
-```bash
-uv run uvicorn src.api.app:app --reload
-# open http://127.0.0.1:8000/        → list of drafts
-# open http://127.0.0.1:8000/docs    → OpenAPI
-```
-
-### Make targets
-
-| Target | What it does |
-|---|---|
-| `make lint` / `format` / `typecheck` / `test` | ruff, ruff format, mypy (strict), pytest |
-| `make check` | lint + typecheck + test (the CI quality gate) |
-| `make validate-config` | validate a report-type YAML against the schema-for-the-schema |
-| `make gen-data` | generate Tier A records (seeded, train/val/test split) |
-| `make gen-pdfs` | render + scan-degrade Tier B PDFs + committable samples |
-| `make demo-transcribe FILE=...` | run the **real** VLM on one PDF (needs an API key) |
-| `make eval` | run the eval harness → `metrics.json` + `EVAL_REPORT.md` |
-
----
-
-## Repository layout
-
-```
-configs/        report-type YAML (fields, taxonomy, routing, template)
-src/
-  schema/       Pydantic models: config, report schema, pipeline state
-  clients/      VisionClient / LLMClient (+ mock and Anthropic implementations)
-  pipeline/     ingest, transcribe, extract, validate, classify, route, draft
-  classifier/   sklearn evolution-path model + baselines
-  api/          FastAPI app, persistence, repository, approval gate, audit
-ui/templates/   HTMX + Jinja review screen
-data/generators/ Tier A (records, messiness) + Tier B (render, degrade)
-evals/          metric primitives + per-component evals + report generator
-skills/         encoded project rules (see below)
-tests/          unit (mocked), integration, distribution tests
-```
-
----
-
-## Data strategy (synthetic, statistically honest)
-
-Generated in two tiers (see `data/generators/` and the
-`synthetic-data-generation` skill):
-
-- **Tier A — structured ground truth.** Records sampled from **documented, non-uniform
-  priors** that preserve joint distributions (`urgency|type`, `sector|type`, day/night
-  effects), with realistic messiness (abbreviations, misspellings, blank optional fields,
-  ambiguous characters) injected at documented rates. A distribution test proves the data
-  is **not** uniform.
-- **Tier B — rendered handwritten PDFs.** Tier A records laid out on a form with
-  handwriting-style rendering, then scan-degraded (skew, blur, Gaussian/salt-pepper noise,
-  JPEG) to mimic a printer-scan → PDF, then rasterized back — round-tripping the real path.
-
-### Honesty caveats (read before trusting any number)
-- **Font-handwriting is easier than real handwriting** → Tier B transcription/extraction
-  scores are an **optimistic upper bound**. (No fonts are bundled; without TTFs in
-  `assets/fonts/`, rendering falls back to a typed font — further still from real handwriting.)
-- **Synthetic labels make the classification eval partly circular** — it measures recovering
-  the generator's rules, not real-world generalization. Transcription/extraction are the
-  meaningful evals; classification numbers are directional.
-- **Reproducibility:** everything is seeded and versioned; train/val/test splits hold out
-  disjoint records (no leakage).
-
----
-
-## Evaluation
-
-`make eval` computes every metric on a held-out set and writes
-[`EVAL_REPORT.md`](EVAL_REPORT.md) from `metrics.json` — **no number is hand-typed**
-(see the `eval-harness` skill).
-
-- **Classification** — accuracy, macro-F1, per-class P/R, confusion matrix for the trained
-  sklearn model vs **majority** and **keyword** baselines.
-- **Routing** — recipient-selection accuracy vs the documented YAML rules (regression guard).
-- **Transcription** — **Tesseract OCR baseline** (CER/WER); skipped gracefully if the binary
-  is absent locally, run for real in CI.
-- **Pending (mock-first):** VLM transcription/extraction, end-to-end accuracy, and the
-  critic's error-flag recall are computed once an API key is available — they are recorded
-  as *pending*, **never fabricated**.
-
-The CI `smoke-eval` job installs Tesseract, runs the harness on a tiny fixture, and uploads
-the artifacts.
-
----
-
-## The human-approval gate (the core safety property)
-
-Drafts are persisted with a real state machine:
-
-```
-pending ──approve──▶ approved ──send──▶ (sent)
-   └─────reject────▶ rejected
-```
-
-- The send step **asserts `status == approved`** and is otherwise a hard block — the email
-  sender is **never** called, and the blocked attempt is audited.
-- Every transition (submitted / approved / rejected / sent / send_blocked) writes an
-  immutable audit row (who / what / when).
-- This is enforced and tested at three layers — the gate, the API (`409`), and the UI — with
-  a test proving an unapproved draft **cannot** be sent. See the `human-approval-gate` skill.
-
----
-
-## Process a real sheet locally (zero-cost, privacy-first) 🔒
-
-End-to-end on **one local machine, offline, no API, no cost** — local OCR (Tesseract) +
-deterministic rule extraction + the human review screen. This is the
-OCR → rules → MUST_REVIEW → human-corrects design (à la SAP Concur ExpenseIt).
-
-```bash
-# 1. Install the OCR engine + Portuguese language data (one-time):
-#    Windows: winget install UB-Mannheim.TesseractOCR   (tick "Portuguese" in the installer)
-#    Linux:   sudo apt-get install -y tesseract-ocr tesseract-ocr-por
 uv sync
 
-# 2. Put the real sheet in private/ (gitignored — never committed):
-mkdir -p private && cp /path/to/folha.pdf private/      # PDF or a phone photo (JPG/PNG)
+# Public synthetic demo — no real file, no API, $0:
+make demo-pipeline-mock        # creates review drafts; prints the URLs
+INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
+#   open http://127.0.0.1:8000/
 
-# 3. Run the local pipeline (no API key):
-make demo-pipeline FILE=private/folha.pdf               # creates a pending draft, prints the URL
-
-# 4. Review in the browser: verify/correct the OCR'd fields, then approve or reject.
-uv run uvicorn src.api.app:app                          # open http://127.0.0.1:8000/
-
-# 5. Wipe the real data when done:
-make purge-demo-data
+# Quality gate (200+ tests, mocked, $0) and the privacy guardrail:
+make check
+make privacy-check
 ```
-
-**Privacy:** the input sheet and the SQLite DB (which holds the transcription/fields, i.e.
-PII) both live in `private/`, which is gitignored; the demo never prints field values to
-stdout; the pre-commit guard blocks committing PDF/JPG/PNG anywhere.
-
-**Honest limitation:** free local OCR is weak on cursive handwriting, so most fields come
-back flagged **MUST_REVIEW** with a pre-filled best guess — you confirm/correct each in the
-review screen. The system never silently "guesses": low-confidence/ambiguous always goes to
-the human. This is the credible posture for zero-cost OCR.
-
-The model layer is swappable (`VisionClient`/`LLMClient`): local OCR+rules here, or the paid
-API below — the pipeline is identical.
-
----
-
-## Running the real model — paid API (optional, mock-first)
-
-Tests and CI use a **mock** model layer (deterministic, $0) — no API key needed. The paid
-Claude vision path is **optional** (not required for the local demo above). To exercise it:
-
+Process a **real** sheet locally (needs Tesseract + the `por` language data; the file stays in
+the gitignored `private/` folder, never committed):
 ```bash
-cp .env.example .env          # then set ANTHROPIC_API_KEY
-make gen-pdfs                 # produce a sample PDF
-make demo-transcribe FILE=data/synthetic/tier_b/pdfs/doc-00000.pdf
+make demo-pipeline FILE=private/reais/example.pdf
+make purge-demo-data           # wipe temporary demo artifacts when done
 ```
 
-The model ID lives in config (`src/clients/settings.py`, default `claude-opus-4-8`,
-overridable via `VISION_MODEL`). Mock vs. real behaviour is labelled everywhere it appears.
+## Architecture (in 10 seconds)
+```
+ingest → transcribe → OCR quality gate → extract → normalize → validate → classify/route → outputs → human gate
+```
+Two decoupled models keep the domain stable as the sheet layout changes:
+- **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
+  (value + confidence + source `ocr|rule|human` + status + evidence).
+- **`NormalizedIncidentModel`** — what the domain understands (shift + occurrences, or `S/A`).
 
----
+Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why this schema:
+[docs/ADR_controle_ocorrencias_schema.md](docs/ADR_controle_ocorrencias_schema.md).
 
-## Skills
+## Privacy & security
+Real sheets are PII and stay **only in `private/`** (gitignored). No external API is used in
+the default flow. Public artifacts carry **aggregate metrics + synthetic examples only**.
+`make privacy-check` fails on any tracked real data or PII in public files; scoped
+`purge-*` targets clean up without destroying validated curadoria. See
+[docs/PRIVACY.md](docs/PRIVACY.md).
 
-Project rules are encoded as reusable skills under `skills/` so they are applied
-consistently: `synthetic-data-generation`, `vlm-document-extraction`,
-`human-approval-gate`, `eval-harness`, `config-schema-authoring`.
+## Results & honest limitations
+- **The pipeline is correct and safe** (verified on real sheets, preliminary):
+  reshaping to the occurrence-table model + the OCR gate took **blocking errors from 2 → 0**
+  (no false incident on an `S/A` sheet; a real occurrence is now represented, not dropped).
+  Numbers and methodology: [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
+- **OCR fidelity is the honest ceiling.** Tesseract reads printed labels well but **cannot read
+  cursive handwriting** — measured across DPIs and preprocessing variants, no meaningful gain.
+  So real handwritten values come back low-confidence and are routed to **human review**; the
+  system never presents OCR noise as trustworthy data, and never auto-classifies a document it
+  couldn't read. Raising fidelity needs a better reader — see Roadmap.
+- **Synthetic evals** (classification/routing) are reproducible via `make eval`
+  ([EVAL_REPORT.md](EVAL_REPORT.md)); their caveats (templated labels are partly circular) are
+  stated there. No number in this repo is hand-typed.
 
-## Development
+## What was tested
+~360 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
+critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
+the outputs, and the review UI.
 
-- **Quality gate:** `make check` (ruff + strict mypy + pytest). CI runs it on every push/PR.
-- **Discipline:** small tested micro-steps — one isolated change → a covering test → run the
-  real command → only then advance. The model layer is always mocked in tests.
+## Roadmap
+A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
+and richer occurrence-table editing — all deferred to keep v1.0 clean.
+See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
-
-[MIT](LICENSE) © João Miltzarek. Synthetic data only; no real personal or organizational
-data is included.
+[MIT](LICENSE) © João Miltzarek. Synthetic data only; no real personal or organizational data
+is included.

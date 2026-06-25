@@ -1,7 +1,7 @@
 # CLAUDE.md — security-shift-intake
 
 > Condensed operating rules for this repo. The authoritative source is
-> [`PROJECT_SPEC.md`](PROJECT_SPEC.md) — when anything here is ambiguous or conflicts with
+> [`PROJECT_SPEC.md`](docs/archive/PROJECT_SPEC.md) — when anything here is ambiguous or conflicts with
 > reality, **stop and ask the human** (§8.6). Do not improvise around the spec.
 
 ## Scope (§1) — the North Star
