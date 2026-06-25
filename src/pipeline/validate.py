@@ -16,8 +16,10 @@ review trigger rather than an error).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from src.schema.config import FieldSchema, ReportConfig
+from src.schema.extraction import AuditedField
 from src.schema.state import ExtractedField, PipelineState
 
 # Confidence at/above which a field is trusted without review (spec §6: tune so
@@ -97,6 +99,76 @@ def validate(
     return state.model_copy(
         update={
             "extracted_fields": updated,
+            "must_review_fields": must_review,
+            "validation_errors": errors,
+        }
+    )
+
+
+def validate_table(
+    state: PipelineState,
+    config: ReportConfig,
+    threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+) -> PipelineState:
+    """Critic for the table path: flatten Raw header + Normalized occurrences into
+    `extracted_fields` with MUST_REVIEW flags (so the review UI / draft / gate work).
+
+    A header cell is flagged when required-but-blank, or its `status` != accepted, or
+    confidence < threshold. Each occurrence becomes one field flagged by `needs_review`.
+    `S/A` sheets yield a single, non-flagged "(sem alteração)" field — never an incident.
+    """
+    raw = state.raw_extraction
+    normalized = state.normalized
+    if raw is None or normalized is None:
+        raise ValueError("validate_table() requires raw_extraction and normalized in state.")
+
+    fields: list[ExtractedField] = []
+    must_review: list[str] = []
+    errors: list[str] = []
+
+    for field in config.fields:
+        if field.type == "table":
+            continue
+        cell: AuditedField | None = getattr(raw.header, field.name, None)
+        value: Any = cell.value if cell is not None else None
+        confidence = cell.confidence if cell is not None else 0.0
+        flagged = False
+        if _is_blank(value):
+            if field.required:
+                errors.append(f"{field.name}: required field is missing")
+                flagged = True
+        elif (cell is not None and cell.status != "accepted") or confidence < threshold:
+            flagged = True
+        fields.append(
+            ExtractedField(name=field.name, value=value, confidence=confidence, must_review=flagged)
+        )
+        if flagged:
+            must_review.append(field.name)
+
+    if normalized.no_occurrence:
+        fields.append(
+            ExtractedField(
+                name="ocorrencias", value="(sem alteração)", confidence=1.0, must_review=False
+            )
+        )
+    else:
+        for i, occ in enumerate(normalized.occurrences, start=1):
+            name = f"ocorrencia_{i}"
+            flagged = occ.needs_review
+            fields.append(
+                ExtractedField(
+                    name=name,
+                    value=occ.description or "(sem descrição)",
+                    confidence=0.4 if flagged else 1.0,
+                    must_review=flagged,
+                )
+            )
+            if flagged:
+                must_review.append(name)
+
+    return state.model_copy(
+        update={
+            "extracted_fields": fields,
             "must_review_fields": must_review,
             "validation_errors": errors,
         }
