@@ -23,6 +23,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.schema.extraction import NormalizedIncidentModel, RawDocumentExtraction
+
 
 class ApprovalStatus(StrEnum):
     PENDING = "pending"
@@ -62,6 +64,10 @@ class PipelineState(BaseModel):
 
     # --- Stage 2: extract ---
     extracted_fields: list[ExtractedField] = Field(default_factory=list)
+    # Table-report path (ADR controle_ocorrencias): the layout-coupled read and the
+    # normalized domain model. None on the scalar path (htmicron_security).
+    raw_extraction: RawDocumentExtraction | None = None
+    normalized: NormalizedIncidentModel | None = None
 
     # --- Stage 3: validate (critic) ---
     # Field names that the critic flagged as MUST_REVIEW.
