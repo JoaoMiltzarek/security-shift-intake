@@ -1,6 +1,6 @@
 # ADR — Suporte à folha "Controle de ocorrências" (tabela de N linhas)
 
-- **Status:** Proposto — aguardando aprovação após a auditoria (não implementar antes do "Aceito").
+- **Status:** Aceito (2026-06-25) — caminho A aprovado pelo usuário após a auditoria. Fase 3 em andamento.
 - **Data:** 2026-06-24
 - **Contexto-base:** [AUDITORIA_FOLHAS_REAIS.md](AUDITORIA_FOLHAS_REAIS.md) · [CURADORIA_FORMATO.md](CURADORIA_FORMATO.md)
 
@@ -129,5 +129,5 @@ no contrato; manter dois modelos sincronizados via `normalize`.
 
 ## 9. Decisão
 
-> **Pendente.** Aguardando o usuário revisar a auditoria + este ADR e aprovar oficialmente o caminho
-> (A completa × C leve) antes de iniciar a Fase 3.
+> **Aceito (2026-06-25):** o usuário aprovou o **caminho A** (Raw+Normalized+tabela) após revisar a
+> auditoria. A Fase 3 segue em micro-etapas commitadas, preservando o fluxo `htmicron_security.yaml`.
