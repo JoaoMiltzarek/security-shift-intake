@@ -21,10 +21,10 @@ mockable model layer, reproducible evals, CI, and synthetic-only data.
 works; a real state machine for approvals; an honest, baseline-anchored eval harness.
 
 **Is NOT:**
-- ❌ an "autonomous multi-agent" system — it is a staged pipeline (no agent loops/planners).
-- ❌ an auto-sender — **email is never sent without explicit human approval.**
-- ❌ a multi-tenant SaaS — one report type, one org config (the abstraction lives in the *structure*).
-- ❌ trained on or storing **any real data** — **synthetic only**, enforced by a pre-commit guard.
+-  an "autonomous multi-agent" system — it is a staged pipeline (no agent loops/planners).
+-  an auto-sender — **email is never sent without explicit human approval.**
+- a multi-tenant SaaS — one report type, one org config (the abstraction lives in the *structure*).
+- trained on or storing **any real data** — **synthetic only**, enforced by a pre-commit guard.
 
 ### Non-negotiable invariants
 1. **Human approval gate** before any irreversible action (sending email).

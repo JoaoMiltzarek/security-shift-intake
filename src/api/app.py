@@ -11,6 +11,7 @@ Sending always goes through the gate (M7.b) — never auto-sent.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,11 @@ from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
 
 _templates = Jinja2Templates(directory="ui/templates")
 _DEFAULT_CONFIG = Path("configs/htmicron_security.yaml")
+
+
+def _default_config_path() -> Path:
+    """Config the app serves; overridable via INTAKE_CONFIG (e.g. controle_ocorrencias)."""
+    return Path(os.environ.get("INTAKE_CONFIG", str(_DEFAULT_CONFIG)))
 
 
 def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLResponse:
@@ -79,7 +85,7 @@ def create_app(
     engine = engine or make_engine()
     init_db(engine)
     active_sender: Sender = sender or MockSender()
-    active_config: ReportConfig = config or load_config(_DEFAULT_CONFIG)
+    active_config: ReportConfig = config or load_config(_default_config_path())
 
     app = FastAPI(
         title="security-shift-intake",
