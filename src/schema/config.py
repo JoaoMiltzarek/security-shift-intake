@@ -22,11 +22,35 @@ from pydantic import BaseModel, Field, model_validator
 # Field types the pipeline supports
 # ---------------------------------------------------------------------------
 
-FieldType = Literal["date", "string", "enum", "bool", "text"]
+# Scalar field/column types. "table" (repeating rows) is only valid at the field level.
+ScalarFieldType = Literal["date", "string", "enum", "bool", "text"]
+FieldType = Literal["date", "string", "enum", "bool", "text", "table"]
+
+
+class ColumnSchema(BaseModel):
+    """One column of a `table` field (e.g. Item / Hora / Descrição / Ação / Resolvido)."""
+
+    name: str
+    type: ScalarFieldType  # tables do not nest
+    values: list[str] | None = None  # required when type == "enum"
+    ocr_aliases: list[str] | None = None
+
+    @model_validator(mode="after")
+    def enum_requires_values(self) -> ColumnSchema:
+        if self.type == "enum" and not self.values:
+            raise ValueError(
+                f"Column '{self.name}': type='enum' requires a non-empty 'values' list."
+            )
+        return self
 
 
 class FieldSchema(BaseModel):
-    """Schema for a single field in the handwritten report form."""
+    """Schema for a single field in the handwritten report form.
+
+    A field is scalar (date/string/enum/bool/text) or a `table` of repeating rows
+    (the occurrence table). A table field declares its `columns`; a scalar field
+    must not (ADR controle_ocorrencias).
+    """
 
     name: str
     type: FieldType
@@ -37,12 +61,26 @@ class FieldSchema(BaseModel):
     # Printed label(s) the OCR/rule extractor anchors on to find this field's value
     # (e.g. ["Data", "Dia"]). Optional; config-driven so adding a form needs no code.
     ocr_aliases: list[str] | None = None
+    # Required when type == "table"; forbidden otherwise.
+    columns: list[ColumnSchema] | None = None
 
     @model_validator(mode="after")
     def enum_requires_values(self) -> FieldSchema:
         if self.type == "enum" and not self.values:
             raise ValueError(
                 f"Field '{self.name}': type='enum' requires a non-empty 'values' list."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def table_requires_columns(self) -> FieldSchema:
+        if self.type == "table" and not self.columns:
+            raise ValueError(
+                f"Field '{self.name}': type='table' requires a non-empty 'columns' list."
+            )
+        if self.type != "table" and self.columns:
+            raise ValueError(
+                f"Field '{self.name}': 'columns' is only valid for type='table'."
             )
         return self
 

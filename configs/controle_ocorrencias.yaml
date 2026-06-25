@@ -1,0 +1,80 @@
+# configs/controle_ocorrencias.yaml
+# Report type: folha "Controle de ocorrências" (manuscrita, escaneada em PDF).
+#
+# Estrutura real: cabeçalho (Data e Turno / Vigilantes / Unidade) + uma TABELA de N linhas
+# (Item / Hora / Descrição / Ação / Resolvido). S/A ou risco = sem alteração.
+# Coexiste com htmicron_security.yaml (sem mudança de código por config — ADR controle_ocorrencias).
+# Validado por src/schema/config.ReportConfig.
+
+report_type: controle_ocorrencias
+
+fields:
+  - name: data_turno
+    type: string
+    required: true
+    handwritten: true
+    ocr_aliases: ["Data e Turno", "Data e Turno:", "Data"]
+
+  - name: vigilantes
+    type: string
+    required: true
+    handwritten: true
+    ocr_aliases: ["Vigilantes", "Vigilantes:", "Vigilante"]
+
+  - name: unidade
+    type: string
+    required: true
+    handwritten: true
+    ocr_aliases: ["Unidade", "Unidade:"]
+
+  - name: ocorrencias
+    type: table
+    required: false
+    handwritten: true
+    columns:
+      - name: item
+        type: string
+        ocr_aliases: ["Item"]
+      - name: hora
+        type: string
+        ocr_aliases: ["Hora"]
+      - name: descricao
+        type: text
+        ocr_aliases: ["Descrição da Ocorrência", "Descrição", "Descricao"]
+      - name: acao
+        type: string
+        ocr_aliases: ["Ação", "Acao"]
+      - name: resolvido
+        type: enum
+        values: [sim, nao]
+        ocr_aliases: ["Resolvido (sim/não)", "Resolvido"]
+
+classification:
+  type:
+    labels: [routine, access_violation, equipment, safety, theft, other]
+  urgency:
+    labels: [low, medium, high, critical]
+  sector:
+    labels: [tech_security, general_support, facilities]
+
+routing:
+  - when:
+      urgency: critical
+    recipients: [tech_security_oncall, general_support]
+
+  - when:
+      type: theft
+    recipients: [tech_security, general_support]
+
+  - when:
+      type: equipment
+    recipients: [facilities]
+
+  - when:
+      type: access_violation
+    recipients: [tech_security]
+
+  # Default catch-all — must be last.
+  - recipients: [general_support]
+
+email_template: templates/controle_ocorrencias.j2
