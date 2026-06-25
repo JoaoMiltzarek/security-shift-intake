@@ -52,4 +52,5 @@
 
 - A reforma (caminho tabela) faz a ocorrência **ser representada** e trata `S/A` como sem alteração — eliminando os `BLOCKER` (`FALSE_INCIDENT` na folha S/A e `MISSED_INCIDENT` por não ter onde guardar a ocorrência).
 - O OCR cursivo do Tesseract continua fraco: o conteúdo capturado entra como `must_review` (LOW, desejado) para o humano confirmar/corrigir — não some nem é dado como certo. Fidelidade de texto (CER) só melhora com OCR/manuscrito melhor.
+- **Iteração de OCR (Fase 4), medida:** baixar a rasterização para ~150 DPI recuperou a estrutura (eliminou `MISSED_INCIDENT`); já variar pré-processamento (grayscale/Otsu/autocontrast × PSM 3/4/6) **não deu ganho** no manuscrito cursivo — nem os dígitos da data foram lidos. O teto de fidelidade no custo-zero é o próprio Tesseract; subir exige um leitor melhor (VLM, fora do escopo) ou fonte de melhor qualidade. O sistema degrada corretamente: tudo vai para revisão humana.
 - Números preliminares até a curadoria ser `verified_by_user` (plano R4).
