@@ -7,7 +7,7 @@
 
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs demo-transcribe demo-pipeline eval \
-        purge-demo-data
+        purge-demo-data privacy-check
 
 help:
 	@echo security-shift-intake - available targets:
@@ -24,6 +24,7 @@ help:
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - [M9] local zero-cost end-to-end on FILE=... (OCR+rules)
 	@echo   make purge-demo-data - [M9] wipe real data in private/ after a test
+	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 
 install:
@@ -66,6 +67,9 @@ demo-pipeline:
 
 purge-demo-data:
 	PYTHONPATH=. uv run python scripts/purge_demo_data.py
+
+privacy-check:
+	PYTHONPATH=. uv run python scripts/privacy_check.py
 
 eval:
 	PYTHONPATH=. uv run python -m evals.run_eval

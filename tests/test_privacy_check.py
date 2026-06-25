@@ -1,0 +1,85 @@
+"""Tests for the privacy guardrail (scripts/privacy_check.py).
+
+One scenario per test so a failure pinpoints the broken rule. The git-tracked check
+is exercised indirectly via the pure helpers on tmp trees (no git state needed).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from scripts.privacy_check import (
+    check_no_sensitive_outside_private,
+    check_public_no_pii,
+    scan_text_for_pii,
+)
+
+
+def _write(path: Path, content: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+# --- scan_text_for_pii ------------------------------------------------------
+
+
+def test_scan_detects_org_sentinel() -> None:
+    assert scan_text_for_pii("Built for HT Micron.", extra_terms=[])
+
+
+def test_scan_detects_clock_time() -> None:
+    assert scan_text_for_pii("Acesso às 17:19 saída 17:52", extra_terms=[])
+
+
+def test_scan_ignores_iso_timestamp() -> None:
+    # ISO datetime (HH:MM:SS) must not be flagged — it is a generation timestamp.
+    assert scan_text_for_pii("Generated: 2026-06-22T22:19:54+00:00", extra_terms=[]) == []
+
+
+def test_scan_detects_extra_term() -> None:
+    import re
+
+    terms = [re.compile(re.escape("Fulano"), re.IGNORECASE)]
+    assert scan_text_for_pii("vigilante fulano da silva", extra_terms=terms)
+
+
+def test_scan_clean_text_passes() -> None:
+    text = "Aggregate field-capture rate: 0.42 over N=4 sheets."
+    assert scan_text_for_pii(text, extra_terms=[]) == []
+
+
+# --- check_no_sensitive_outside_private -------------------------------------
+
+
+def test_pdf_outside_private_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "reais" / "folha.pdf", "%PDF")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
+def test_pdf_inside_private_ok(tmp_path: Path) -> None:
+    _write(tmp_path / "private" / "reais" / "folha.pdf", "%PDF")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+def test_sample_image_allowed(tmp_path: Path) -> None:
+    _write(tmp_path / "samples" / "sample_doc-00000.png", "png")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+# --- check_public_no_pii ----------------------------------------------------
+
+
+def test_public_md_with_time_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "docs" / "AUDITORIA.md", "Ocorrência às 13:00 na portaria.")
+    assert check_public_no_pii(tmp_path)
+
+
+def test_private_md_with_time_ignored(tmp_path: Path) -> None:
+    _write(tmp_path / "private" / "audit" / "detail.md", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path) == []
+
+
+def test_public_md_clean_passes(tmp_path: Path) -> None:
+    _write(tmp_path / "docs" / "AUDITORIA.md", "Field-capture rate 0.42; N=4 sheets.")
+    assert check_public_no_pii(tmp_path) == []
