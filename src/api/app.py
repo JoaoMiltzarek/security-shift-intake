@@ -62,9 +62,9 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     )
     norm.shift.unit = fval("unidade")
     for i, occ in enumerate(norm.occurrences, start=1):
-        desc = fval(f"ocorrencia_{i}")
-        occ.description = desc
-        occ.needs_review = desc is None
+        occ.category = fval(f"ocorrencia_{i}_objeto")
+        occ.description = fval(f"ocorrencia_{i}")
+        occ.needs_review = False  # human-confirmed; blank handled per-field below
 
     fields: list[ExtractedField] = []
     must_review: list[str] = []
@@ -85,13 +85,21 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                                      confidence=1.0, must_review=False))
     else:
         for i, occ in enumerate(norm.occurrences, start=1):
-            flagged = occ.description is None
+            obj_blank = occ.category is None
+            fields.append(
+                ExtractedField(name=f"ocorrencia_{i}_objeto",
+                               value=occ.category or "(revisar)",
+                               confidence=0.0 if obj_blank else 1.0, must_review=obj_blank)
+            )
+            if obj_blank:
+                must_review.append(f"ocorrencia_{i}_objeto")
+            desc_blank = occ.description is None
             fields.append(
                 ExtractedField(name=f"ocorrencia_{i}",
                                value=occ.description or "(sem descrição)",
-                               confidence=0.0 if flagged else 1.0, must_review=flagged)
+                               confidence=0.0 if desc_blank else 1.0, must_review=desc_blank)
             )
-            if flagged:
+            if desc_blank:
                 must_review.append(f"ocorrencia_{i}")
 
     updates: dict[str, Any] = {

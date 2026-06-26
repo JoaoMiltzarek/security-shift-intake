@@ -153,18 +153,33 @@ def validate_table(
         )
     else:
         for i, occ in enumerate(normalized.occurrences, start=1):
-            name = f"ocorrencia_{i}"
-            flagged = occ.needs_review
+            # OBJETO (item) — ambiguous/blank must block export (R: "nunca adivinhar").
+            obj_name = f"ocorrencia_{i}_objeto"
+            obj_blank = occ.category is None or not str(occ.category).strip()
+            obj_flag = obj_blank or occ.needs_review
             fields.append(
                 ExtractedField(
-                    name=name,
-                    value=occ.description or "(sem descrição)",
-                    confidence=0.4 if flagged else 1.0,
-                    must_review=flagged,
+                    name=obj_name,
+                    value=occ.category or "(revisar)",
+                    confidence=0.0 if obj_blank else (0.4 if obj_flag else 1.0),
+                    must_review=obj_flag,
                 )
             )
-            if flagged:
-                must_review.append(name)
+            if obj_flag:
+                must_review.append(obj_name)
+            # DESCRIÇÃO.
+            desc_name = f"ocorrencia_{i}"
+            desc_flag = occ.needs_review
+            fields.append(
+                ExtractedField(
+                    name=desc_name,
+                    value=occ.description or "(sem descrição)",
+                    confidence=0.4 if desc_flag else 1.0,
+                    must_review=desc_flag,
+                )
+            )
+            if desc_flag:
+                must_review.append(desc_name)
 
     return state.model_copy(
         update={
