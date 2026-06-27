@@ -133,14 +133,16 @@ class ReportConfig(BaseModel):
     """The complete config document loaded from a configs/*.yaml file.
 
     Validates the whole structure: field definitions, taxonomy, routing rules,
-    and the email template path.
+    and the optional email template path.
     """
 
     report_type: str
     fields: Annotated[list[FieldSchema], Field(min_length=1)]
     classification: ClassificationConfig
     routing: list[RoutingRule]
-    email_template: str
+    # Jinja template for the email draft (scalar path). Optional: the occurrence-table
+    # path renders its outputs in code (build_outputs), so it declares no template.
+    email_template: str | None = None
 
     @model_validator(mode="after")
     def routing_has_default(self) -> ReportConfig:
