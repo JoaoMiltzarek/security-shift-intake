@@ -41,6 +41,7 @@ def test_review_shows_table_outputs(client: TestClient) -> None:
     assert "DIA" in html and "OBJETO" in html
     assert "Copiar mensagem" in html
     assert "RASCUNHO INCOMPLETO" in html  # fields still pending (never-guess)
+    assert "<td>rule</td>" in html  # real AuditedField source, not inferred ocr/human
 
 
 def test_edit_regenerates_clean_message(client: TestClient) -> None:

@@ -24,8 +24,8 @@
     <table>
       <tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th></tr>
       {% for f in fields %}
-      {% set status = "missing" if (f.value is none or f.value == "") else ("must_review" if f.must_review else "accepted") %}
-      {% set source = "human" if f.confidence == 1.0 else "ocr" %}
+      {% set status = f.status or ("missing" if (f.value is none or f.value == "") else ("must_review" if f.must_review else "accepted")) %}
+      {% set source = f.source or "—" %}
       <tr class="{{ 'must-review' if f.must_review else '' }}">
         <td><label for="field__{{ f.name }}">{{ f.name }}</label></td>
         <td><input id="field__{{ f.name }}" name="field__{{ f.name }}"
