@@ -354,7 +354,10 @@ def create_app(
                 raw = form.get(f"field__{field.name}")
                 value = raw.strip() if isinstance(raw, str) and raw.strip() else None
                 new_fields.append(
-                    ExtractedField(name=field.name, value=value, confidence=1.0 if value else 0.0)
+                    ExtractedField(
+                        name=field.name, value=value, confidence=1.0 if value else 0.0,
+                        source="human" if value else None,
+                    )
                 )
             state = state.model_copy(update={"extracted_fields": new_fields})
             state = validate(state, active_config)   # recompute MUST_REVIEW flags
