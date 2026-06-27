@@ -60,6 +60,24 @@ def test_edit_regenerates_clean_message(client: TestClient) -> None:
     assert "Bom dia," in r.text  # clean copy-ready message after human confirmation
 
 
+def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {
+        "field__data_turno": "25/06/2026",
+        "field__vigilantes": "Ana Silva, Bruno Costa",
+        "field__unidade": "1",
+        "field__ocorrencia_1_objeto": "Alarme",
+        "field__ocorrencia_1": "14:32 - Alarme disparou 4 vezes",
+    }
+    client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    state = client.get(f"/drafts/{draft_id}").json()["state"]
+    unidade = next(f for f in state["extracted_fields"] if f["name"] == "unidade")
+    assert unidade["source"] == "human"
+    assert unidade["status"] == "accepted"
+    # The raw audit trail also records the human override.
+    assert state["raw_extraction"]["header"]["unidade"]["source"] == "human"
+
+
 def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     # Pending fields -> approval blocked (R4).
