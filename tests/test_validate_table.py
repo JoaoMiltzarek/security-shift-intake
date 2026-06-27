@@ -52,6 +52,10 @@ def test_header_rule_values_are_must_review() -> None:
     state = _run(_OCC)
     unidade = next(f for f in state.extracted_fields if f.name == "unidade")
     assert unidade.must_review is True
+    # The real audit trail is surfaced, not inferred: source from the AuditedField,
+    # status from the critic's decision.
+    assert unidade.source == "rule"
+    assert unidade.status == "must_review"
 
 
 def test_occurrence_becomes_flagged_field() -> None:
@@ -59,6 +63,8 @@ def test_occurrence_becomes_flagged_field() -> None:
     occ = next(f for f in state.extracted_fields if f.name == "ocorrencia_1")
     assert occ.must_review is True
     assert "ocorrencia_1" in state.must_review_fields
+    assert occ.source == "rule"
+    assert occ.status == "must_review"
 
 
 def test_sa_yields_non_flagged_no_change_field() -> None:
@@ -66,6 +72,8 @@ def test_sa_yields_non_flagged_no_change_field() -> None:
     occ = next(f for f in state.extracted_fields if f.name == "ocorrencias")
     assert occ.value == "(sem alteração)"
     assert occ.must_review is False
+    assert occ.source == "rule"
+    assert occ.status == "accepted"
 
 
 def test_missing_required_header_is_error() -> None:
