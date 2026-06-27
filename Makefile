@@ -5,6 +5,10 @@
 
 .DEFAULT_GOAL := help
 
+# Config the real-file demo runs against. Defaults to the v1 occurrence-table sheet;
+# override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
+CONFIG ?= configs/controle_ocorrencias.yaml
+
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs demo-transcribe demo-pipeline \
         demo-pipeline-mock eval \
@@ -23,7 +27,7 @@ help:
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
-	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules)
+	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
 	@echo   make purge-demo-data - wipe only temp demo artifacts (DB + audit/) in private/
 	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
@@ -67,7 +71,7 @@ demo-transcribe:
 	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
 
 demo-pipeline:
-	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)"
+	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)" --config "$(CONFIG)"
 
 demo-pipeline-mock:
 	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
