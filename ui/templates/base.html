@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}security-shift-intake{% endblock %}</title>
-  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <!-- Vendored locally (offline/local-first); SRI guards integrity. -->
+  <script src="/static/htmx.min.js"
+          integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
+          crossorigin="anonymous"></script>
+  <script src="/static/app.js" defer></script>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 900px; }
     table { border-collapse: collapse; width: 100%; }

@@ -19,6 +19,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
@@ -198,6 +199,8 @@ def create_app(
         version=__version__,
         summary="Staged intake pipeline for handwritten security shift reports.",
     )
+    # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
+    app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
     def get_session() -> Iterator[Session]:
         with Session(engine) as session:

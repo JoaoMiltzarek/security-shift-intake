@@ -90,3 +90,18 @@ def test_ui_approve_then_send(client_and_sender: tuple[TestClient, MockSender]) 
 def test_review_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client, _ = client_and_sender
     assert client.get("/drafts/999/review").status_code == 404
+
+
+def test_htmx_is_vendored_locally_not_cdn(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    page = client.get(f"/drafts/{draft_id}/review").text
+    assert "/static/htmx.min.js" in page          # vendored, not unpkg
+    assert "unpkg.com" not in page
+    assert "integrity=" in page                     # SRI present
+    # The asset is actually served and looks like htmx.
+    asset = client.get("/static/htmx.min.js")
+    assert asset.status_code == 200
+    assert "htmx" in asset.text

@@ -51,8 +51,7 @@
   <h3>{% if spreadsheet_rows %}Mensagem pronta para copiar (Output 2){% else %}Email draft{% endif %}</h3>
   <pre id="copy-message">{{ email_draft if email_draft else "(not drafted)" }}</pre>
   {% if email_draft %}
-  <button type="button"
-          onclick="navigator.clipboard.writeText(document.getElementById('copy-message').innerText)">
+  <button type="button" data-copy-target="copy-message">
     Copiar mensagem
   </button>
   {% endif %}
