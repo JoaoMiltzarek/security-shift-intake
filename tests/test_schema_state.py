@@ -27,6 +27,20 @@ def test_extracted_field_valid() -> None:
     assert f.must_review is False
 
 
+def test_extracted_field_source_status_default_none() -> None:
+    f = ExtractedField(name="guard_name", value="Guard_042", confidence=0.95)
+    assert f.source is None
+    assert f.status is None
+
+
+def test_extracted_field_source_status_set() -> None:
+    f = ExtractedField(
+        name="unidade", value="1", confidence=0.65, source="rule", status="must_review"
+    )
+    assert f.source == "rule"
+    assert f.status == "must_review"
+
+
 def test_extracted_field_low_confidence_flag() -> None:
     f = ExtractedField(name="shift_date", value="2026-01-15", confidence=0.45, must_review=True)
     assert f.must_review is True

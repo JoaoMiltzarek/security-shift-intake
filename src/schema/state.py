@@ -43,6 +43,12 @@ class ExtractedField(BaseModel):
     value: Any = None
     confidence: float = Field(ge=0.0, le=1.0)
     must_review: bool = False
+    # Audit trail surfaced to the review UI: where the value came from
+    # (ocr | rule | human) and the critic's status (accepted | must_review |
+    # missing | ambiguous). Populated from the AuditedField on the table path;
+    # None on the scalar path, where no AuditedField backs the field.
+    source: str | None = None
+    status: str | None = None
 
 
 class Classification(BaseModel):
