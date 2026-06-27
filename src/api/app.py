@@ -23,6 +23,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
+from src import __version__
 from src.api import repository
 from src.api.db import init_db, make_engine
 from src.api.gate import (
@@ -194,7 +195,7 @@ def create_app(
 
     app = FastAPI(
         title="security-shift-intake",
-        version="0.9.0",
+        version=__version__,
         summary="Staged intake pipeline for handwritten security shift reports.",
     )
 
