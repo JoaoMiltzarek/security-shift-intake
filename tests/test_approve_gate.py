@@ -41,6 +41,13 @@ _CLEAN_BODY = {
     "must_review_fields": [],
 }
 
+# Body where OCR failed but the critic left no pending field — must still be blocked.
+_OCR_FAILED_BODY = {
+    **_CLEAN_BODY,
+    "ocr_quality": "failed",
+    "ocr_quality_reason": "Conteúdo manuscrito ilegível para o OCR.",
+}
+
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
@@ -58,6 +65,15 @@ def test_assert_reviewable_raises_when_pending() -> None:
 def test_assert_reviewable_passes_when_clean() -> None:
     state = PipelineState(source_pdf=Path("x.pdf"), must_review_fields=[])
     assert_reviewable(state)  # does not raise
+
+
+def test_assert_reviewable_blocks_failed_ocr_even_without_pending_fields() -> None:
+    # OCR failed but no field flagged: the explicit OCR block must still fire.
+    state = PipelineState(
+        source_pdf=Path("x.pdf"), ocr_quality="failed", must_review_fields=[]
+    )
+    with pytest.raises(DraftNotReviewableError):
+        assert_reviewable(state)
 
 
 def test_api_approve_blocked_when_pending(client: TestClient) -> None:
@@ -84,5 +100,12 @@ def test_ui_approve_blocked_when_pending(client: TestClient) -> None:
 def test_pending_draft_cannot_be_sent_via_unreviewed_approve(client: TestClient) -> None:
     # Full chain: pending fields -> approve blocked -> send still blocked.
     draft_id = client.post("/drafts", json=_PENDING_BODY).json()["id"]
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
+    assert client.post(f"/drafts/{draft_id}/send").status_code == 409
+
+
+def test_failed_ocr_draft_cannot_be_approved_or_sent(client: TestClient) -> None:
+    # OCR failed, no pending fields: approve blocked (409) and send still blocked (409).
+    draft_id = client.post("/drafts", json=_OCR_FAILED_BODY).json()["id"]
     assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
     assert client.post(f"/drafts/{draft_id}/send").status_code == 409
