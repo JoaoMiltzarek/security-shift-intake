@@ -59,7 +59,7 @@ check: lint typecheck test
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
 validate-config:
-	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml
+	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
 
 gen-data:
 	PYTHONPATH=. uv run python scripts/gen_data.py
