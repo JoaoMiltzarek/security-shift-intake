@@ -91,6 +91,10 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
 `purge-*` targets clean up without destroying validated curadoria. See
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
+> **Run it on localhost only.** The review API/UI has **no authentication** and its endpoints
+> return the full document state (including the transcription). It is a single-operator local
+> tool — do **not** expose it to a network or deploy it publicly without adding auth first.
+
 ## Results & honest limitations
 - **The pipeline is correct and safe** (verified on real sheets, preliminary):
   reshaping to the occurrence-table model + the OCR gate took **blocking errors from 2 → 0**

@@ -7,6 +7,10 @@ project is built so that data never leaves the operator's machine and never land
 - **Local-first, offline.** The default flow uses local OCR (Tesseract) + deterministic rules.
   **No external API** is called — not Anthropic, OpenAI, Google, AWS or Azure. A real sheet is
   never uploaded anywhere.
+- **Localhost only — no authentication.** The FastAPI review API/UI has no auth, and endpoints
+  like `GET /drafts/{id}` return the full pipeline state (including the transcription). Run it
+  bound to `127.0.0.1` for a single operator; **never expose it to a network or deploy it
+  publicly** without adding authentication and access control first.
 - **Real data lives only in `private/`** — gitignored. It holds: input sheets (`private/reais/`),
   the SQLite DB with PII (`private/app.db`), detailed audit (`private/audit/`), and the curated
   ground-truth (`private/curadoria/`).
