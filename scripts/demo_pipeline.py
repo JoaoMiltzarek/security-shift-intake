@@ -22,7 +22,7 @@ from sqlmodel import Session
 from src.api.db import init_db, make_engine
 from src.api.repository import create_draft
 from src.clients.base import LLMClient, VisionClient
-from src.clients.local_ocr import LocalOCRVisionClient
+from src.clients.factory import get_vision_client
 from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import OCR_DPI
@@ -58,7 +58,9 @@ def main(argv: list[str]) -> int:
         return 2
 
     config = load_config(args.config)
-    vision = LocalOCRVisionClient()
+    # Reader chosen by INTAKE_VISION (default local_ocr → unchanged behaviour;
+    # set INTAKE_VISION=local_vlm to run the local open VLM instead).
+    vision = get_vision_client()
     llm = RuleBasedLLMClient(config)
     engine = make_engine()
 
