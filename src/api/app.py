@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
@@ -36,6 +36,7 @@ from src.api.gate import (
     send_draft,
 )
 from src.api.models import Draft
+from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
 from src.pipeline.draft import draft as draft_stage
 from src.pipeline.outputs import build_outputs
 from src.pipeline.validate import validate
@@ -188,11 +189,13 @@ def create_app(
     engine: Engine | None = None,
     sender: Sender | None = None,
     config: ReportConfig | None = None,
+    page_images_root: Path | None = None,
 ) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
     active_sender: Sender = sender or MockSender()
     active_config: ReportConfig = config or load_config(_default_config_path())
+    active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
 
     app = FastAPI(
         title="security-shift-intake",
@@ -307,6 +310,19 @@ def create_app(
         ctx: dict[str, Any] = {"draft": draft, "audit": repository.get_audit(session, draft_id)}
         ctx.update(_review_context(draft))
         return _render(request, "review.html", ctx)
+
+    @app.get("/drafts/{draft_id}/page/{n}")
+    def page_image(
+        draft_id: int, n: int, session: Session = Depends(get_session)
+    ) -> FileResponse:
+        """Serve the persisted OCR page image the cockpit overlay draws on (path-safe)."""
+        draft = _require_draft(session, draft_id)
+        state = PipelineState.model_validate_json(draft.state_json)
+        try:
+            path = resolve_page_image(state.page_image_paths, n, active_page_root)
+        except (FileNotFoundError, PermissionError) as exc:
+            raise HTTPException(status_code=404, detail="page image not found") from exc
+        return FileResponse(path, media_type="image/png")
 
     @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
     def ui_approve(
