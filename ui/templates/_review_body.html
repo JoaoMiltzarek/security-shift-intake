@@ -1,61 +1,93 @@
 <div id="review-body">
-  {% if ocr_quality %}
-  <h3>Qualidade do OCR</h3>
-  <p><span class="badge ocr-{{ ocr_quality }}">{{ ocr_quality | upper }}</span>
-     {{ ocr_quality_reason or "" }}</p>
-  {% endif %}
+  <div class="cockpit{{ ' has-page' if has_image else '' }}">
+    {% if has_image %}
+    {# Left pane: the *OCR* page image (same downscale as the boxes) + overlay.
+       ponytail: page 0 only — folhas are single-page; multi-page can switch src by
+       data-page later. #}
+    <div class="page-pane">
+      <div class="page-stage">
+        <img id="page-img" src="/drafts/{{ draft.id }}/page/0" alt="Folha (imagem de OCR)">
+        <div id="bbox-highlight" class="bbox-highlight" hidden></div>
+      </div>
+      <p id="evidence-note" class="evidence-note" aria-live="polite">
+        Clique num campo para destacar a região provável de origem na folha.
+        A caixa é uma <strong>evidência provável</strong>, não prova.
+      </p>
+    </div>
+    {% endif %}
 
-  <p><strong>Status do documento:</strong> {{ document_status }}</p>
+    <div class="review-pane">
+      {% if ocr_quality %}
+      <h3>Qualidade do OCR</h3>
+      <p><span class="badge ocr-{{ ocr_quality }}">{{ ocr_quality | upper }}</span>
+         {{ ocr_quality_reason or "" }}</p>
+      {% endif %}
 
-  <h3>Classification</h3>
-  {% if classification %}
-  <p>{{ classification.incident_type }} / urgency <strong>{{ classification.urgency }}</strong>
-     / sector {{ classification.sector }} (confidence {{ "%.2f"|format(classification.confidence) }})
-     {% if classification.reason %}<br><em>{{ classification.reason }}</em>{% endif %}</p>
-  {% else %}
-  <p><em>not classified</em></p>
-  {% endif %}
+      <p><strong>Status do documento:</strong> {{ document_status }}</p>
 
-  <h3>Recipients</h3>
-  <p>{{ recipients | join(", ") if recipients else "(none)" }}</p>
+      <h3>Classification</h3>
+      {% if classification %}
+      <p>{{ classification.incident_type }} / urgency <strong>{{ classification.urgency }}</strong>
+         / sector {{ classification.sector }} (confidence {{ "%.2f"|format(classification.confidence) }})
+         {% if classification.reason %}<br><em>{{ classification.reason }}</em>{% endif %}</p>
+      {% else %}
+      <p><em>not classified</em></p>
+      {% endif %}
 
-  <h3>Extracted fields — verify / correct, then Save</h3>
-  <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
-    <table>
-      <tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th></tr>
-      {% for f in fields %}
-      {% set status = f.status or ("missing" if (f.value is none or f.value == "") else ("must_review" if f.must_review else "accepted")) %}
-      {% set source = f.source or "—" %}
-      <tr class="{{ 'must-review' if f.must_review else '' }}">
-        <td><label for="field__{{ f.name }}">{{ f.name }}</label></td>
-        <td><input id="field__{{ f.name }}" name="field__{{ f.name }}"
-                   value="{{ f.value if f.value is not none else '' }}" style="width: 100%"></td>
-        <td>{{ source }}</td>
-        <td>{{ status }}{{ "  MUST REVIEW" if f.must_review else "" }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <p><button type="submit">Save corrections</button></p>
-  </form>
+      <h3>Recipients</h3>
+      <p>{{ recipients | join(", ") if recipients else "(none)" }}</p>
 
-  {% if spreadsheet_rows %}
-  <h3>Planilha padronizada (Output 1)</h3>
-  <table>
-    <tr><th>DIA</th><th>UNIDADE</th><th>OBJETO</th><th>DESCRIÇÃO</th></tr>
-    {% for r in spreadsheet_rows %}
-    <tr><td>{{ r.dia }}</td><td>{{ r.unidade }}</td><td>{{ r.objeto }}</td><td>{{ r.descricao }}</td></tr>
-    {% endfor %}
-  </table>
-  {% endif %}
+      <h3>Extracted fields — verify / correct, then Save</h3>
+      <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
+        <table>
+          <tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th><th>Evidência</th></tr>
+          {% for f in fields %}
+          {% set status = f.status or ("missing" if (f.value is none or f.value == "") else ("must_review" if f.must_review else "accepted")) %}
+          {% set source = f.source or "—" %}
+          {# Data carried to JS via tojson (HTML-safe: escapes < > & ' as \uXXXX), read with
+             JSON.parse + textContent in app.js — never innerHTML — so OCR/human text can't inject. #}
+          <tr class="field-row {{ 'must-review' if f.must_review else '' }}"
+              data-field="{{ f.name }}"
+              data-page="{{ f.page if f.page is not none else 0 }}"
+              data-bbox='{{ f.bbox | tojson }}'
+              data-method='{{ f.evidence_method | tojson }}'
+              data-evidence='{{ f.evidence_text | tojson }}'>
+            <td><label for="field__{{ f.name }}">{{ f.name }}</label></td>
+            <td><input id="field__{{ f.name }}" name="field__{{ f.name }}"
+                       value="{{ f.value if f.value is not none else '' }}" style="width: 100%"></td>
+            <td>{{ source }}</td>
+            <td>{{ status }}{{ "  MUST REVIEW" if f.must_review else "" }}</td>
+            <td class="evidence-cell">
+              {% if f.evidence_method == "human_edit" %}revisado
+              {% elif f.bbox %}<span class="evidence-link">📍 {{ f.evidence_method }}</span>
+              {% else %}texto apenas{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        <p><button type="submit">Save corrections</button></p>
+      </form>
 
-  <h3>{% if spreadsheet_rows %}Mensagem pronta para copiar (Output 2){% else %}Email draft{% endif %}</h3>
-  <pre id="copy-message">{{ email_draft if email_draft else "(not drafted)" }}</pre>
-  {% if email_draft %}
-  <button type="button" data-copy-target="copy-message">
-    Copiar mensagem
-  </button>
-  {% endif %}
+      {% if spreadsheet_rows %}
+      <h3>Planilha padronizada (Output 1)</h3>
+      <table>
+        <tr><th>DIA</th><th>UNIDADE</th><th>OBJETO</th><th>DESCRIÇÃO</th></tr>
+        {% for r in spreadsheet_rows %}
+        <tr><td>{{ r.dia }}</td><td>{{ r.unidade }}</td><td>{{ r.objeto }}</td><td>{{ r.descricao }}</td></tr>
+        {% endfor %}
+      </table>
+      {% endif %}
 
-  <h3>Transcription (OCR — read-only)</h3>
-  <pre>{{ transcription if transcription else "(none)" }}</pre>
+      <h3>{% if spreadsheet_rows %}Mensagem pronta para copiar (Output 2){% else %}Email draft{% endif %}</h3>
+      <pre id="copy-message">{{ email_draft if email_draft else "(not drafted)" }}</pre>
+      {% if email_draft %}
+      <button type="button" data-copy-target="copy-message">
+        Copiar mensagem
+      </button>
+      {% endif %}
+
+      <h3>Transcription (OCR — read-only)</h3>
+      <pre>{{ transcription if transcription else "(none)" }}</pre>
+    </div>
+  </div>
 </div>
