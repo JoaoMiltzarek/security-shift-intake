@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.clients.base import WordBox
 from src.pipeline.validate import validate
 from src.schema.loader import load_config
 from src.schema.state import ExtractedField, PipelineState
@@ -143,3 +144,26 @@ def test_validate_does_not_mutate_input() -> None:
     state = _state(_clean_fields(confidence=0.30))  # everything low-confidence
     validate(state, CONFIG)
     assert state.must_review_fields == []  # original untouched
+
+
+def test_validate_attaches_evidence_when_words_present() -> None:
+    state = _state(_clean_fields())
+    object.__setattr__(
+        state,
+        "words",
+        [
+            WordBox(text="A.", bbox=(0.1, 0.1, 0.15, 0.12), conf=0.9, line_key="0:0:0"),
+            WordBox(text="Souza", bbox=(0.16, 0.1, 0.3, 0.12), conf=0.9, line_key="0:0:0"),
+        ],
+    )
+    result = validate(state, CONFIG)
+    guard = next(f for f in result.extracted_fields if f.name == "guard_name")
+    assert guard.evidence_method == "exact"
+    assert guard.bbox == (0.1, 0.1, 0.3, 0.12)
+
+
+def test_validate_leaves_fields_without_bbox_when_no_words() -> None:
+    result = validate(_state(_clean_fields()), CONFIG)
+    guard = next(f for f in result.extracted_fields if f.name == "guard_name")
+    assert guard.bbox is None
+    assert guard.evidence_method is None  # locator did not run

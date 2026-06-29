@@ -10,6 +10,8 @@ Sending always goes through the gate (M7.b) — never auto-sent.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
@@ -18,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
@@ -36,8 +38,9 @@ from src.api.gate import (
     send_draft,
 )
 from src.api.models import Draft
+from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
 from src.pipeline.draft import draft as draft_stage
-from src.pipeline.outputs import build_outputs
+from src.pipeline.outputs import build_outputs, export_blockers
 from src.pipeline.validate import validate
 from src.schema.config import ReportConfig
 from src.schema.loader import load_config
@@ -85,6 +88,7 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                 must_review=flagged,
                 source=None if flagged else "human",
                 status="missing" if flagged else "accepted",
+                evidence_method=None if flagged else "human_edit",  # invariant 4
             )
         )
         if flagged:
@@ -98,7 +102,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     if norm.no_occurrence or not norm.occurrences:
         fields.append(ExtractedField(name="ocorrencias", value="(sem alteração)",
                                      confidence=1.0, must_review=False,
-                                     source="human", status="accepted"))
+                                     source="human", status="accepted",
+                                     evidence_method="human_edit"))
     else:
         for i, occ in enumerate(norm.occurrences, start=1):
             obj_blank = occ.category is None
@@ -107,7 +112,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                                value=occ.category or "(revisar)",
                                confidence=0.0 if obj_blank else 1.0, must_review=obj_blank,
                                source=None if obj_blank else "human",
-                               status="missing" if obj_blank else "accepted")
+                               status="missing" if obj_blank else "accepted",
+                               evidence_method=None if obj_blank else "human_edit")
             )
             if obj_blank:
                 must_review.append(f"ocorrencia_{i}_objeto")
@@ -117,7 +123,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                                value=occ.description or "(sem descrição)",
                                confidence=0.0 if desc_blank else 1.0, must_review=desc_blank,
                                source=None if desc_blank else "human",
-                               status="missing" if desc_blank else "accepted")
+                               status="missing" if desc_blank else "accepted",
+                               evidence_method=None if desc_blank else "human_edit")
             )
             if desc_blank:
                 must_review.append(f"ocorrencia_{i}")
@@ -171,7 +178,24 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         "ocr_quality_reason": state.ocr_quality_reason,
         "spreadsheet_rows": state.spreadsheet_rows,
         "document_status": _document_status(state),
+        # Cockpit overlay only renders when a page image was persisted; otherwise the
+        # review degrades to the single-column layout (invariant 5).
+        "has_image": bool(state.page_image_paths),
+        # Pending items that block a clean CSV export (empty = exportable). Drives the
+        # export button's disabled state + reason (invariants 2 and 8).
+        "export_blockers": export_blockers(state),
     }
+
+
+def _csv_safe(value: str) -> str:
+    """Neutralize spreadsheet formula injection (CWE-1236).
+
+    A reviewed cell that starts with a formula trigger (=, +, -, @, or a control char)
+    would be executed by Excel/LibreOffice on open — and the value author (the guard whose
+    sheet was OCR'd / a human editor) is not the CSV consumer (ops). Prefix with an
+    apostrophe so the value is treated as text, not a formula.
+    """
+    return "'" + value if value and value[0] in "=+-@\t\r" else value
 
 
 def _draft_summary(draft: Draft) -> dict[str, Any]:
@@ -188,11 +212,13 @@ def create_app(
     engine: Engine | None = None,
     sender: Sender | None = None,
     config: ReportConfig | None = None,
+    page_images_root: Path | None = None,
 ) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
     active_sender: Sender = sender or MockSender()
     active_config: ReportConfig = config or load_config(_default_config_path())
+    active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
 
     app = FastAPI(
         title="security-shift-intake",
@@ -308,6 +334,50 @@ def create_app(
         ctx.update(_review_context(draft))
         return _render(request, "review.html", ctx)
 
+    @app.get("/drafts/{draft_id}/page/{n}")
+    def page_image(
+        draft_id: int, n: int, session: Session = Depends(get_session)
+    ) -> FileResponse:
+        """Serve the persisted OCR page image the cockpit overlay draws on (path-safe)."""
+        draft = _require_draft(session, draft_id)
+        state = PipelineState.model_validate_json(draft.state_json)
+        try:
+            path = resolve_page_image(state.page_image_paths, n, active_page_root)
+        except (FileNotFoundError, PermissionError) as exc:
+            raise HTTPException(status_code=404, detail="page image not found") from exc
+        return FileResponse(path, media_type="image/png")
+
+    @app.get("/drafts/{draft_id}/export.csv")
+    def export_csv(draft_id: int, session: Session = Depends(get_session)) -> Response:
+        """Export the standardized spreadsheet as CSV — only when nothing is pending.
+
+        Uses the post-review values in `state.spreadsheet_rows` (invariant 8) and refuses
+        (409) while `export_blockers` is non-empty so a draft with pending fields never
+        produces a clean operational artifact (invariant 2). Scalar path has no rows → 404.
+        """
+        draft = _require_draft(session, draft_id)
+        state = PipelineState.model_validate_json(draft.state_json)
+        if not state.spreadsheet_rows:
+            raise HTTPException(status_code=404, detail="no spreadsheet to export")
+        blockers = export_blockers(state)
+        if blockers:
+            raise HTTPException(
+                status_code=409, detail=f"export blocked — pending: {', '.join(blockers)}"
+            )
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
+        for row in state.spreadsheet_rows:
+            writer.writerow(
+                [_csv_safe(row.dia), _csv_safe(row.unidade),
+                 _csv_safe(row.objeto), _csv_safe(row.descricao)]
+            )
+        return Response(
+            content=buffer.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="draft_{draft_id}.csv"'},
+        )
+
     @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
     def ui_approve(
         request: Request, draft_id: int, session: Session = Depends(get_session)
@@ -361,6 +431,9 @@ def create_app(
                     ExtractedField(
                         name=field.name, value=value, confidence=1.0 if value else 0.0,
                         source="human" if value else None,
+                        # Human value drops any OCR bbox (invariant 4); the locator
+                        # skips source="human" so no box is re-attached on re-validate.
+                        evidence_method="human_edit" if value else None,
                     )
                 )
             state = state.model_copy(update={"extracted_fields": new_fields})
