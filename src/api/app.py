@@ -187,6 +187,17 @@ def _review_context(draft: Draft) -> dict[str, Any]:
     }
 
 
+def _csv_safe(value: str) -> str:
+    """Neutralize spreadsheet formula injection (CWE-1236).
+
+    A reviewed cell that starts with a formula trigger (=, +, -, @, or a control char)
+    would be executed by Excel/LibreOffice on open — and the value author (the guard whose
+    sheet was OCR'd / a human editor) is not the CSV consumer (ops). Prefix with an
+    apostrophe so the value is treated as text, not a formula.
+    """
+    return "'" + value if value and value[0] in "=+-@\t\r" else value
+
+
 def _draft_summary(draft: Draft) -> dict[str, Any]:
     return {
         "id": draft.id,
@@ -357,7 +368,10 @@ def create_app(
         writer = csv.writer(buffer)
         writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
         for row in state.spreadsheet_rows:
-            writer.writerow([row.dia, row.unidade, row.objeto, row.descricao])
+            writer.writerow(
+                [_csv_safe(row.dia), _csv_safe(row.unidade),
+                 _csv_safe(row.objeto), _csv_safe(row.descricao)]
+            )
         return Response(
             content=buffer.getvalue(),
             media_type="text/csv",

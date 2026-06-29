@@ -77,3 +77,17 @@ def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> No
     # Post-review value present (human entered "1"), raw "(revisar)" placeholder gone.
     assert any("1" in r for r in rows[1:])
     assert all("(revisar)" not in cell for row in rows[1:] for cell in row)
+
+
+def test_export_neutralizes_formula_injection(client: TestClient) -> None:
+    # A reviewed cell starting with a formula trigger must be defanged (CWE-1236):
+    # exported as text, not executed by Excel/LibreOffice on open.
+    draft_id = _submit_table_draft(client)
+    form = dict(_CLEAN_FORM)
+    form["field__ocorrencia_1_objeto"] = "=cmd()"
+    client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+
+    resp = client.get(f"/drafts/{draft_id}/export.csv")
+    assert resp.status_code == 200
+    rows = list(csv.reader(io.StringIO(resp.text)))
+    assert any("'=cmd()" in cell for row in rows[1:] for cell in row)
