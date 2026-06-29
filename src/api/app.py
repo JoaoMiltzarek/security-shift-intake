@@ -10,6 +10,8 @@ Sending always goes through the gate (M7.b) — never auto-sent.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
@@ -18,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
@@ -38,7 +40,7 @@ from src.api.gate import (
 from src.api.models import Draft
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
 from src.pipeline.draft import draft as draft_stage
-from src.pipeline.outputs import build_outputs
+from src.pipeline.outputs import build_outputs, export_blockers
 from src.pipeline.validate import validate
 from src.schema.config import ReportConfig
 from src.schema.loader import load_config
@@ -179,6 +181,9 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         # Cockpit overlay only renders when a page image was persisted; otherwise the
         # review degrades to the single-column layout (invariant 5).
         "has_image": bool(state.page_image_paths),
+        # Pending items that block a clean CSV export (empty = exportable). Drives the
+        # export button's disabled state + reason (invariants 2 and 8).
+        "export_blockers": export_blockers(state),
     }
 
 
@@ -330,6 +335,34 @@ def create_app(
         except (FileNotFoundError, PermissionError) as exc:
             raise HTTPException(status_code=404, detail="page image not found") from exc
         return FileResponse(path, media_type="image/png")
+
+    @app.get("/drafts/{draft_id}/export.csv")
+    def export_csv(draft_id: int, session: Session = Depends(get_session)) -> Response:
+        """Export the standardized spreadsheet as CSV — only when nothing is pending.
+
+        Uses the post-review values in `state.spreadsheet_rows` (invariant 8) and refuses
+        (409) while `export_blockers` is non-empty so a draft with pending fields never
+        produces a clean operational artifact (invariant 2). Scalar path has no rows → 404.
+        """
+        draft = _require_draft(session, draft_id)
+        state = PipelineState.model_validate_json(draft.state_json)
+        if not state.spreadsheet_rows:
+            raise HTTPException(status_code=404, detail="no spreadsheet to export")
+        blockers = export_blockers(state)
+        if blockers:
+            raise HTTPException(
+                status_code=409, detail=f"export blocked — pending: {', '.join(blockers)}"
+            )
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
+        for row in state.spreadsheet_rows:
+            writer.writerow([row.dia, row.unidade, row.objeto, row.descricao])
+        return Response(
+            content=buffer.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="draft_{draft_id}.csv"'},
+        )
 
     @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
     def ui_approve(

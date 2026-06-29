@@ -76,6 +76,14 @@
         <tr><td>{{ r.dia }}</td><td>{{ r.unidade }}</td><td>{{ r.objeto }}</td><td>{{ r.descricao }}</td></tr>
         {% endfor %}
       </table>
+      <p>
+        {% if export_blockers %}
+        <button type="button" disabled>Exportar CSV</button>
+        <span class="evidence-note">Bloqueado até revisar: {{ export_blockers | join(", ") }}</span>
+        {% else %}
+        <a href="/drafts/{{ draft.id }}/export.csv"><button type="button">Exportar CSV</button></a>
+        {% endif %}
+      </p>
       {% endif %}
 
       <h3>{% if spreadsheet_rows %}Mensagem pronta para copiar (Output 2){% else %}Email draft{% endif %}</h3>
