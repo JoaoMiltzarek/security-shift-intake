@@ -86,6 +86,7 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                 must_review=flagged,
                 source=None if flagged else "human",
                 status="missing" if flagged else "accepted",
+                evidence_method=None if flagged else "human_edit",  # invariant 4
             )
         )
         if flagged:
@@ -99,7 +100,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     if norm.no_occurrence or not norm.occurrences:
         fields.append(ExtractedField(name="ocorrencias", value="(sem alteração)",
                                      confidence=1.0, must_review=False,
-                                     source="human", status="accepted"))
+                                     source="human", status="accepted",
+                                     evidence_method="human_edit"))
     else:
         for i, occ in enumerate(norm.occurrences, start=1):
             obj_blank = occ.category is None
@@ -108,7 +110,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                                value=occ.category or "(revisar)",
                                confidence=0.0 if obj_blank else 1.0, must_review=obj_blank,
                                source=None if obj_blank else "human",
-                               status="missing" if obj_blank else "accepted")
+                               status="missing" if obj_blank else "accepted",
+                               evidence_method=None if obj_blank else "human_edit")
             )
             if obj_blank:
                 must_review.append(f"ocorrencia_{i}_objeto")
@@ -118,7 +121,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                                value=occ.description or "(sem descrição)",
                                confidence=0.0 if desc_blank else 1.0, must_review=desc_blank,
                                source=None if desc_blank else "human",
-                               status="missing" if desc_blank else "accepted")
+                               status="missing" if desc_blank else "accepted",
+                               evidence_method=None if desc_blank else "human_edit")
             )
             if desc_blank:
                 must_review.append(f"ocorrencia_{i}")
@@ -172,6 +176,9 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         "ocr_quality_reason": state.ocr_quality_reason,
         "spreadsheet_rows": state.spreadsheet_rows,
         "document_status": _document_status(state),
+        # Cockpit overlay only renders when a page image was persisted; otherwise the
+        # review degrades to the single-column layout (invariant 5).
+        "has_image": bool(state.page_image_paths),
     }
 
 
@@ -377,6 +384,9 @@ def create_app(
                     ExtractedField(
                         name=field.name, value=value, confidence=1.0 if value else 0.0,
                         source="human" if value else None,
+                        # Human value drops any OCR bbox (invariant 4); the locator
+                        # skips source="human" so no box is re-attached on re-validate.
+                        evidence_method="human_edit" if value else None,
                     )
                 )
             state = state.model_copy(update={"extracted_fields": new_fields})
