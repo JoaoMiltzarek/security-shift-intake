@@ -78,6 +78,10 @@ class PipelineState(BaseModel):
     # --- Stage 0: ingest ---
     source_pdf: Path
     image_paths: list[Path] = Field(default_factory=list)
+    # Persisted OCR page images for the cockpit overlay, as POSIX paths relative to the
+    # page-images root (the *same* downscaled image the words were measured on, so the
+    # normalized boxes line up). Empty on paths that never persisted images.
+    page_image_paths: list[str] = Field(default_factory=list)
 
     # --- Stage 1: transcribe ---
     transcription: str | None = None
