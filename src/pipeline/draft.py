@@ -29,6 +29,10 @@ def render_draft(state: PipelineState, config: ReportConfig) -> str:
     """Render the email draft text from the state and config template."""
     if state.classification is None:
         raise ValueError("render_draft() requires a classification.")
+    if config.email_template is None:
+        raise ValueError(
+            "render_draft() requires an email_template; the table path uses build_outputs."
+        )
 
     template_path = Path(config.email_template)
     env = Environment(

@@ -70,6 +70,7 @@ def test_edit_corrects_field_and_clears_review_flag(client: TestClient) -> None:
     detail = client.get(f"/drafts/{draft_id}").json()
     sd = next(f for f in detail["state"]["extracted_fields"] if f["name"] == "shift_date")
     assert sd["value"] == "2026-01-15"
+    assert sd["source"] == "human"  # human-confirmed value carries provenance
     assert "edited" in [a["action"] for a in detail["audit"]]
 
 

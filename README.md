@@ -59,20 +59,22 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (200+ tests, mocked, $0) and the privacy guardrail:
+# Quality gate (~370 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
 Process a **real** sheet locally (needs Tesseract + the `por` language data; the file stays in
 the gitignored `private/` folder, never committed):
 ```bash
+# Defaults to the v1 occurrence-table config (configs/controle_ocorrencias.yaml);
+# override with CONFIG=configs/htmicron_security.yaml for the legacy scalar form.
 make demo-pipeline FILE=private/reais/example.pdf
 make purge-demo-data           # wipe temporary demo artifacts when done
 ```
 
 ## Architecture (in 10 seconds)
 ```
-ingest → transcribe → OCR quality gate → extract → normalize → validate → classify/route → outputs → human gate
+ingest → transcribe → extract → normalize → validate → OCR quality gate → classify/route → outputs → human gate
 ```
 Two decoupled models keep the domain stable as the sheet layout changes:
 - **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
@@ -89,6 +91,10 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
 `purge-*` targets clean up without destroying validated curadoria. See
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
+> **Run it on localhost only.** The review API/UI has **no authentication** and its endpoints
+> return the full document state (including the transcription). It is a single-operator local
+> tool — do **not** expose it to a network or deploy it publicly without adding auth first.
+
 ## Results & honest limitations
 - **The pipeline is correct and safe** (verified on real sheets, preliminary):
   reshaping to the occurrence-table model + the OCR gate took **blocking errors from 2 → 0**
@@ -104,7 +110,7 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-~360 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+~370 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
 the outputs, and the review UI.

@@ -94,7 +94,11 @@ def validate(
         if flagged:
             must_review.append(field.name)
 
-        updated.append(extracted.model_copy(update={"must_review": flagged}))
+        status = (
+            "missing" if _is_blank(extracted.value)
+            else ("must_review" if flagged else "accepted")
+        )
+        updated.append(extracted.model_copy(update={"must_review": flagged, "status": status}))
 
     return state.model_copy(
         update={
@@ -139,8 +143,16 @@ def validate_table(
                 flagged = True
         elif (cell is not None and cell.status != "accepted") or confidence < threshold:
             flagged = True
+        status = "missing" if _is_blank(value) else ("must_review" if flagged else "accepted")
         fields.append(
-            ExtractedField(name=field.name, value=value, confidence=confidence, must_review=flagged)
+            ExtractedField(
+                name=field.name,
+                value=value,
+                confidence=confidence,
+                must_review=flagged,
+                source=cell.source if cell is not None else None,
+                status=status,
+            )
         )
         if flagged:
             must_review.append(field.name)
@@ -148,7 +160,8 @@ def validate_table(
     if normalized.no_occurrence:
         fields.append(
             ExtractedField(
-                name="ocorrencias", value="(sem alteração)", confidence=1.0, must_review=False
+                name="ocorrencias", value="(sem alteração)", confidence=1.0, must_review=False,
+                source="rule", status="accepted",
             )
         )
     else:
@@ -163,6 +176,10 @@ def validate_table(
                     value=occ.category or "(revisar)",
                     confidence=0.0 if obj_blank else (0.4 if obj_flag else 1.0),
                     must_review=obj_flag,
+                    source="rule",
+                    status=(
+                        "missing" if obj_blank else ("must_review" if obj_flag else "accepted")
+                    ),
                 )
             )
             if obj_flag:
@@ -176,6 +193,8 @@ def validate_table(
                     value=occ.description or "(sem descrição)",
                     confidence=0.4 if desc_flag else 1.0,
                     must_review=desc_flag,
+                    source="rule",
+                    status="must_review" if desc_flag else "accepted",
                 )
             )
             if desc_flag:

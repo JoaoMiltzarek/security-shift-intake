@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from src.api.models import Draft
 from src.api.repository import add_audit, get_draft, mark_sent
+from src.pipeline.ocr_quality import OCR_FAILED
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -31,7 +32,16 @@ def assert_reviewable(state: PipelineState) -> None:
     Enforces "nunca adivinhar": a draft cannot be approved while the critic's
     `must_review_fields` is non-empty (low-confidence, missing, invalid, or ambiguous
     values). The human must resolve every flag (edit screen) before approving.
+
+    Also a hard safety block when the OCR quality gate failed: a document the OCR
+    could not read is never approvable until a human transcribes/corrects it (which
+    clears the failed state). Explicit so the block does not rely on the critic
+    coincidentally leaving fields pending.
     """
+    if state.ocr_quality == OCR_FAILED:
+        raise DraftNotReviewableError(
+            "OCR quality failed — manual transcription required before approval."
+        )
     if state.must_review_fields:
         raise DraftNotReviewableError(
             f"{len(state.must_review_fields)} field(s) need review before approval: "

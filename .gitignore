@@ -2,6 +2,10 @@
 data/synthetic/*
 !data/synthetic/.gitkeep
 
+# Third-party real-handwriting eval dataset (BRESSAY) — large, downloaded locally,
+# never committed. See docs/EVAL_BRESSAY.md.
+data/bressay/
+
 # Local SQLite databases (approval-gate persistence)
 data/*.db
 data/*.db-journal

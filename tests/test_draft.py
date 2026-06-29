@@ -65,3 +65,11 @@ def test_draft_stage_sets_email_draft() -> None:
 def test_draft_requires_classification() -> None:
     with pytest.raises(ValueError, match="classification"):
         render_draft(PipelineState(source_pdf=Path("x.pdf")), CONFIG)
+
+
+def test_render_draft_requires_email_template() -> None:
+    # The table config declares no email_template; render_draft must refuse, not crash.
+    table_cfg = load_config(Path("configs/controle_ocorrencias.yaml"))
+    assert table_cfg.email_template is None
+    with pytest.raises(ValueError, match="email_template"):
+        render_draft(_state(), table_cfg)

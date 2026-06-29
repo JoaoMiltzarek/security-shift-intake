@@ -18,10 +18,10 @@ so it is swappable and **mockable in tests** (the whole suite runs offline at $0
         │
    [3] Normalize ─────► Raw → NormalizedIncidentModel (domínio estável)
         │
-   [O] OCR Quality Gate ─► good / low / FAILED
-        │                  FAILED → classificação unknown/manual_review + rascunho BLOQUEADO
    [4] Validate (critic)─► por linha; baixa confiança/ausente → must_review
         │
+   [O] OCR Quality Gate ─► good / low / FAILED
+        │                  FAILED → classificação unknown/manual_review + rascunho BLOQUEADO
    [5] Classify ───────► tipo / urgência / setor (bloqueado se OCR failed)
         │
    [6] Route ──────────► destinatários determinísticos das regras YAML

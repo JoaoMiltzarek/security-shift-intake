@@ -19,10 +19,12 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
+from src import __version__
 from src.api import repository
 from src.api.db import init_db, make_engine
 from src.api.gate import (
@@ -66,6 +68,9 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
         occ.description = fval(f"ocorrencia_{i}")
         occ.needs_review = False  # human-confirmed; blank handled per-field below
 
+    # Annotate the raw audit trail: edited header cells become human-sourced/accepted.
+    raw = state.raw_extraction.model_copy(deep=True) if state.raw_extraction is not None else None
+
     fields: list[ExtractedField] = []
     must_review: list[str] = []
     for name, value in [
@@ -75,21 +80,34 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     ]:
         flagged = value is None  # required header field still blank
         fields.append(
-            ExtractedField(name=name, value=value, confidence=0.0 if flagged else 1.0,
-                           must_review=flagged)
+            ExtractedField(
+                name=name, value=value, confidence=0.0 if flagged else 1.0,
+                must_review=flagged,
+                source=None if flagged else "human",
+                status="missing" if flagged else "accepted",
+            )
         )
         if flagged:
             must_review.append(name)
+        elif raw is not None:
+            cell = getattr(raw.header, name, None)
+            if cell is not None:
+                cell.source = "human"
+                cell.status = "accepted"
+                cell.value = norm.shift.guards if name == "vigilantes" else value
     if norm.no_occurrence or not norm.occurrences:
         fields.append(ExtractedField(name="ocorrencias", value="(sem alteração)",
-                                     confidence=1.0, must_review=False))
+                                     confidence=1.0, must_review=False,
+                                     source="human", status="accepted"))
     else:
         for i, occ in enumerate(norm.occurrences, start=1):
             obj_blank = occ.category is None
             fields.append(
                 ExtractedField(name=f"ocorrencia_{i}_objeto",
                                value=occ.category or "(revisar)",
-                               confidence=0.0 if obj_blank else 1.0, must_review=obj_blank)
+                               confidence=0.0 if obj_blank else 1.0, must_review=obj_blank,
+                               source=None if obj_blank else "human",
+                               status="missing" if obj_blank else "accepted")
             )
             if obj_blank:
                 must_review.append(f"ocorrencia_{i}_objeto")
@@ -97,7 +115,9 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
             fields.append(
                 ExtractedField(name=f"ocorrencia_{i}",
                                value=occ.description or "(sem descrição)",
-                               confidence=0.0 if desc_blank else 1.0, must_review=desc_blank)
+                               confidence=0.0 if desc_blank else 1.0, must_review=desc_blank,
+                               source=None if desc_blank else "human",
+                               status="missing" if desc_blank else "accepted")
             )
             if desc_blank:
                 must_review.append(f"ocorrencia_{i}")
@@ -105,6 +125,8 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     updates: dict[str, Any] = {
         "normalized": norm, "extracted_fields": fields, "must_review_fields": must_review,
     }
+    if raw is not None:
+        updates["raw_extraction"] = raw
     # Human transcription clears the OCR-failed block (the data is now confirmed).
     if state.ocr_quality == "failed":
         updates["ocr_quality"] = "low"
@@ -174,9 +196,11 @@ def create_app(
 
     app = FastAPI(
         title="security-shift-intake",
-        version="0.9.0",
+        version=__version__,
         summary="Staged intake pipeline for handwritten security shift reports.",
     )
+    # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
+    app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
     def get_session() -> Iterator[Session]:
         with Session(engine) as session:
@@ -334,7 +358,10 @@ def create_app(
                 raw = form.get(f"field__{field.name}")
                 value = raw.strip() if isinstance(raw, str) and raw.strip() else None
                 new_fields.append(
-                    ExtractedField(name=field.name, value=value, confidence=1.0 if value else 0.0)
+                    ExtractedField(
+                        name=field.name, value=value, confidence=1.0 if value else 0.0,
+                        source="human" if value else None,
+                    )
                 )
             state = state.model_copy(update={"extracted_fields": new_fields})
             state = validate(state, active_config)   # recompute MUST_REVIEW flags

@@ -77,4 +77,5 @@ routing:
   # Default catch-all — must be last.
   - recipients: [general_support]
 
-email_template: templates/controle_ocorrencias.j2
+# No email_template: the occurrence-table path renders its outputs in code
+# (src/pipeline/outputs.py: build_outputs), not from a Jinja template.

@@ -47,6 +47,15 @@ def test_clean_record_has_no_flags() -> None:
     assert all(not f.must_review for f in result.extracted_fields)
 
 
+def test_scalar_critic_sets_status_and_leaves_source_none() -> None:
+    result = validate(_state(_clean_fields()), CONFIG)
+    guard = next(f for f in result.extracted_fields if f.name == "guard_name")
+    assert guard.status == "accepted"
+    assert guard.source is None  # no AuditedField behind the scalar path
+    desc = next(f for f in result.extracted_fields if f.name == "incident_description")
+    assert desc.status == "missing"  # optional + blank: status reflects it, not flagged
+
+
 # ---------------------------------------------------------------------------
 # Low-confidence field -> flagged, but not a schema error
 # ---------------------------------------------------------------------------

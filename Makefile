@@ -5,9 +5,16 @@
 
 .DEFAULT_GOAL := help
 
+# Config the real-file demo runs against. Defaults to the v1 occurrence-table sheet;
+# override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
+CONFIG ?= configs/controle_ocorrencias.yaml
+
+# Sample cap for the BRESSAY real-handwriting eval (override: `make eval-bressay N=20`).
+N ?= 50
+
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval \
+        demo-pipeline-mock eval eval-bressay \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -23,13 +30,15 @@ help:
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
-	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules)
+	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
 	@echo   make purge-demo-data - wipe only temp demo artifacts (DB + audit/) in private/
 	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
 	@echo   make purge-all-private - wipe ALL of private/ (incl. curadoria), needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
+	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
+	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
 
 install:
 	uv sync
@@ -55,7 +64,7 @@ check: lint typecheck test
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
 validate-config:
-	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml
+	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
 
 gen-data:
 	PYTHONPATH=. uv run python scripts/gen_data.py
@@ -67,7 +76,7 @@ demo-transcribe:
 	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
 
 demo-pipeline:
-	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)"
+	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)" --config "$(CONFIG)"
 
 demo-pipeline-mock:
 	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
@@ -86,3 +95,9 @@ privacy-check:
 
 eval:
 	PYTHONPATH=. uv run python -m evals.run_eval
+
+# Real-handwriting eval (BRESSAY). Kept out of the default `eval`/CI: it needs the
+# third-party dataset and (for the VLM column) a local server. Fails loudly /
+# reports unavailable rather than fabricating a number. See docs/EVAL_BRESSAY.md.
+eval-bressay:
+	PYTHONPATH=. uv run python -m evals.eval_htr_bressay --n $(N)

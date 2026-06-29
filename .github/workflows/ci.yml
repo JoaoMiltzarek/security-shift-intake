@@ -34,6 +34,12 @@ jobs:
       - name: Test (pytest)
         run: make test
 
+      - name: Validate configs (schema-for-the-schema)
+        run: make validate-config
+
+      - name: Privacy check (no real data / PII)
+        run: make privacy-check
+
   smoke-eval:
     name: smoke-eval (metrics + report)
     runs-on: ubuntu-latest
