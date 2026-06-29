@@ -93,3 +93,22 @@ def test_edit_keeps_gate_send_still_blocked_until_approved(client: TestClient) -
     client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
     # Editing does not approve — send is still blocked.
     assert client.post(f"/drafts/{draft_id}/send").status_code == 409
+
+
+def test_human_edit_drops_ocr_bbox(client: TestClient) -> None:
+    # Invariant 4: a human-edited value keeps no OCR bbox and is marked human_edit.
+    draft_id = _submit(client)
+    form = {
+        "field__guard_name": "A. Souza",
+        "field__shift_date": "2026-01-15",
+        "field__post": "Portaria 1",
+        "field__shift_period": "day",
+        "field__incident_occurred": "nao",
+        "field__incident_description": "",
+    }
+    client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    state = client.get(f"/drafts/{draft_id}").json()["state"]
+    gn = next(f for f in state["extracted_fields"] if f["name"] == "guard_name")
+    assert gn["source"] == "human"
+    assert gn["bbox"] is None
+    assert gn["evidence_method"] == "human_edit"

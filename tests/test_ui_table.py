@@ -82,3 +82,47 @@ def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     # Pending fields -> approval blocked (R4).
     assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
+
+
+# --- PR4: cockpit overlay rendering + XSS safety ---------------------------------
+
+_XSS = "</script><svg/onload=alert(1)>"
+
+_COCKPIT_BODY = {
+    "source_pdf": "x.pdf",
+    "page_image_paths": ["abc123/page_0.png"],
+    "extracted_fields": [
+        {"name": "unidade", "value": "Portaria", "confidence": 1.0, "page": 0,
+         "bbox": [0.2, 0.3, 0.4, 0.32], "evidence_method": "exact", "evidence_text": "Portaria"},
+        {"name": "obs", "value": "ok", "confidence": 1.0,
+         "evidence_method": "none", "evidence_text": None},
+        {"name": "danger", "value": "x", "confidence": 1.0,
+         "evidence_method": "none", "evidence_text": _XSS},
+    ],
+}
+
+
+def _submit_cockpit_draft(client: TestClient) -> int:
+    return int(client.post("/drafts", json=_COCKPIT_BODY).json()["id"])
+
+
+def test_review_renders_page_image_and_bbox(client: TestClient) -> None:
+    draft_id = _submit_cockpit_draft(client)
+    html = client.get(f"/drafts/{draft_id}/review").text
+    assert f'src="/drafts/{draft_id}/page/0"' in html  # cockpit shows the OCR image
+    assert 'id="bbox-highlight"' in html
+    assert 'data-field="unidade"' in html
+    assert "data-bbox=" in html and "0.32" in html  # bbox carried to the overlay
+
+
+def test_field_without_bbox_falls_back_to_text(client: TestClient) -> None:
+    draft_id = _submit_cockpit_draft(client)
+    html = client.get(f"/drafts/{draft_id}/review").text
+    assert "texto apenas" in html  # field with no region never renders blank/broken
+
+
+def test_evidence_text_is_escaped_not_injected(client: TestClient) -> None:
+    draft_id = _submit_cockpit_draft(client)
+    html = client.get(f"/drafts/{draft_id}/review").text
+    assert _XSS not in html  # raw payload never reaches the DOM
+    assert "\\u003c/script\\u003e" in html  # tojson escaped < > to \uXXXX
