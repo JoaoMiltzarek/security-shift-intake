@@ -9,7 +9,7 @@ conservative confidence into the pipeline state. The input state is never mutate
 
 from __future__ import annotations
 
-from src.clients.base import VisionClient
+from src.clients.base import VisionClient, WordBox
 from src.pipeline.ingest import DEFAULT_DPI, image_to_base64_png, load_source_images
 from src.schema.state import PipelineState
 
@@ -31,6 +31,20 @@ def transcribe(
     # uncertainty rather than hiding it behind an average).
     confidence = min((r.confidence for r in results), default=0.0)
 
+    # Carry OCR geometry forward (stamped with the page index) so the evidence
+    # locator can place each value on the right page. None unless a reader emits it.
+    words: list[WordBox] | None = None
+    for page_idx, result in enumerate(results):
+        if result.words is None:
+            continue
+        if words is None:
+            words = []
+        words.extend(w.model_copy(update={"page": page_idx}) for w in result.words)
+
     return state.model_copy(
-        update={"transcription": text, "transcription_confidence": confidence}
+        update={
+            "transcription": text,
+            "transcription_confidence": confidence,
+            "words": words,
+        }
     )
