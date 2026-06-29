@@ -15,9 +15,12 @@ review trigger rather than an error).
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+from src.pipeline.locate import attach_evidence
 from src.schema.config import FieldSchema, ReportConfig
 from src.schema.extraction import AuditedField
 from src.schema.state import ExtractedField, PipelineState
@@ -32,6 +35,13 @@ _BOOL_TOKENS = {"sim", "nao", "não", "true", "false", "yes", "no", "s", "n", "1
 
 def _is_blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def _debug_path(state: PipelineState) -> Path | None:
+    """Where the locator dumps per-field match details, only when debugging is on."""
+    if os.environ.get("INTAKE_LOCATOR_DEBUG") != "1":
+        return None
+    return Path("private/debug/evidence_matches") / f"{state.source_pdf.stem}.json"
 
 
 def _type_error(field: FieldSchema, value: str) -> str | None:
@@ -99,6 +109,8 @@ def validate(
             else ("must_review" if flagged else "accepted")
         )
         updated.append(extracted.model_copy(update={"must_review": flagged, "status": status}))
+
+    updated = attach_evidence(updated, state.words, debug_path=_debug_path(state))
 
     return state.model_copy(
         update={
@@ -199,6 +211,8 @@ def validate_table(
             )
             if desc_flag:
                 must_review.append(desc_name)
+
+    fields = attach_evidence(fields, state.words, debug_path=_debug_path(state))
 
     return state.model_copy(
         update={
