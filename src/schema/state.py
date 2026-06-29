@@ -50,6 +50,14 @@ class ExtractedField(BaseModel):
     # None on the scalar path, where no AuditedField backs the field.
     source: str | None = None
     status: str | None = None
+    # Evidence (PR2): where on the page this value most likely came from. bbox is a
+    # *probable* region (fractions 0..1), never proof. None when the locator found no
+    # match, the reader emitted no geometry, or a human edited the value.
+    bbox: tuple[float, float, float, float] | None = None
+    page: int | None = None
+    evidence_text: str | None = None
+    evidence_method: str | None = None  # exact | token_window | none | human_edit
+    evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class Classification(BaseModel):
