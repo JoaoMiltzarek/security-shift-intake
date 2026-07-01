@@ -52,7 +52,11 @@ _SYNTHETIC_SUBPATH = ("data", "synthetic")
 # Image files here are allowed despite the global binary block — they are generated
 # by our code from synthetic data, never real scans.
 _SAMPLES_DIR = "samples"
-_SAMPLE_IMAGE_EXT = re.compile(r"\.(png|jpe?g)$", re.IGNORECASE)
+# Only these known generated names are allowed — a stray real image (e.g. samples/leak.png)
+# must still be blocked, not silently waved through by a blanket *.png rule.
+_ALLOWED_SAMPLE_NAMES = re.compile(
+    r"^(sample_doc-\d+|screenshot_review_overlay)\.(png|jpe?g)$", re.IGNORECASE
+)
 
 
 def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
@@ -63,8 +67,8 @@ def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
 
 
 def _is_allowed_sample_image(path: Path) -> bool:
-    """True for synthetic sample images committed under samples/."""
-    return _SAMPLES_DIR in path.parts and bool(_SAMPLE_IMAGE_EXT.search(path.name))
+    """True only for the known generated sample images committed under samples/."""
+    return _SAMPLES_DIR in path.parts and bool(_ALLOWED_SAMPLE_NAMES.match(path.name))
 
 
 def _is_text_scan_exempt(path: Path) -> bool:

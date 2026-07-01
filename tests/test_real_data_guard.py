@@ -58,6 +58,17 @@ def test_pdf_under_samples_still_blocked(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
+def test_unknown_image_under_samples_blocked(tmp_path: Path) -> None:
+    # Allowlist is by known generated name — a stray image in samples/ is still blocked.
+    f = _write(tmp_path / "samples" / "random_leak.png", "png")
+    assert len(check_file(f)) >= 1
+
+
+def test_screenshot_overlay_under_samples_allowed(tmp_path: Path) -> None:
+    f = _write(tmp_path / "samples" / "screenshot_review_overlay.png", "png")
+    assert check_file(f) == []
+
+
 # ---------------------------------------------------------------------------
 # Source / docs / config — exempt from the text scan (may mention the org name)
 # ---------------------------------------------------------------------------
