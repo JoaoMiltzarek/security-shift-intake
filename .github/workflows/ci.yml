@@ -25,6 +25,10 @@ jobs:
       - name: Sync dependencies (from uv.lock)
         run: uv sync --locked
 
+      - name: Preflight (non-blocking env probe)
+        continue-on-error: true
+        run: python3 scripts/preflight.py --json | tee preflight.json
+
       - name: Lint (ruff)
         run: make lint
 
@@ -32,13 +36,27 @@ jobs:
         run: make typecheck
 
       - name: Test (pytest)
-        run: make test
+        run: set -o pipefail; make test 2>&1 | tee pytest.log
 
       - name: Validate configs (schema-for-the-schema)
         run: make validate-config
 
       - name: Privacy check (no real data / PII)
-        run: make privacy-check
+        run: set -o pipefail; make privacy-check 2>&1 | tee privacy.log
+
+      - name: Evidence report (authoritative collector — uploaded, not committed)
+        if: always()
+        run: >
+          uv run python scripts/evidence_report.py
+          --preflight preflight.json --pytest-log pytest.log --privacy-log privacy.log
+          --authoritative-sha ${{ github.sha }} --out SSI-1002_EVIDENCE.md
+
+      - name: Upload evidence report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssi-1002-evidence
+          path: SSI-1002_EVIDENCE.md
 
   smoke-eval:
     name: smoke-eval (metrics + report)
