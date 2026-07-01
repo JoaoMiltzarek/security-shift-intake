@@ -23,14 +23,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import httpx
+# Runnable both as `uv run python scripts/browser_smoke.py` and plain `python scripts/...`:
+# put the repo root (parent of scripts/) on sys.path so `import src...` resolves either way.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.api.page_images import save_page_images
-from src.clients.local_rules import RuleBasedLLMClient
-from src.clients.mock import MockVisionClient
-from src.orchestrator import run_pipeline
-from src.pipeline.ingest import OCR_DPI, load_source_images
-from src.schema.loader import load_config
+import httpx  # noqa: E402
+
+from src.api.page_images import save_page_images  # noqa: E402
+from src.clients.local_rules import RuleBasedLLMClient  # noqa: E402
+from src.clients.mock import MockVisionClient  # noqa: E402
+from src.orchestrator import run_pipeline  # noqa: E402
+from src.pipeline.ingest import OCR_DPI, load_source_images  # noqa: E402
+from src.schema.loader import load_config  # noqa: E402
 
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 SAMPLE = Path("samples/sample_doc-00000.png")
