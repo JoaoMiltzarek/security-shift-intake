@@ -67,6 +67,16 @@ def test_sample_image_allowed(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
+def test_db_outside_private_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "data" / "app.db", "sqlite")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
+def test_db_inside_private_ok(tmp_path: Path) -> None:
+    _write(tmp_path / "private" / "app.db", "sqlite")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
 # --- check_public_no_pii ----------------------------------------------------
 
 

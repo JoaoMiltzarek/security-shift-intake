@@ -24,6 +24,7 @@ from pathlib import Path
 
 from scripts.check_real_data import (
     _BINARY_EXT,
+    _DB_EXT,
     _SYNTHETIC_SUBPATH,
     _has_subpath,
     _is_allowed_sample_image,
@@ -126,6 +127,8 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _PRIVATE_DIR in rel.parts or _has_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
+        if _DB_EXT.search(p.name):
+            violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
         if _BINARY_EXT.search(p.name) and not _is_allowed_sample_image(rel):
             violations.append(f"  sensitive file outside {_PRIVATE_DIR}/: {rel}")
     return violations
