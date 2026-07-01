@@ -67,6 +67,37 @@ def test_sample_image_allowed(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
+def test_db_outside_private_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "data" / "app.db", "sqlite")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
+def test_db_inside_private_ok(tmp_path: Path) -> None:
+    _write(tmp_path / "private" / "app.db", "sqlite")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+# --- check_no_sensitive_tracked ---------------------------------------------
+# _tracked_files() shells to `git ls-files`; stub it so the check is exercised
+# hermetically on a synthetic path list.
+
+
+def test_tracked_db_under_synthetic_flagged(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    # The gap check (2) misses: a DB under data/synthetic/ is exempt there, so the
+    # tracked scan must catch it — a DB is never legitimately git-tracked.
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("data/synthetic/report.db")])
+    assert pc.check_no_sensitive_tracked()
+
+
+def test_tracked_source_files_ok(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("src/api/app.py"), Path("README.md")])
+    assert pc.check_no_sensitive_tracked() == []
+
+
 # --- check_public_no_pii ----------------------------------------------------
 
 

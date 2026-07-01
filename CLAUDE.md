@@ -56,3 +56,41 @@ surface uncertainty** — not to achieve autonomy.
   keeps any regression attributable to the last step.
 - DoD task runner is `make`. Tests run via `uv run pytest`. Provider calls go through
   `VisionClient` / `LLMClient` and are mockable.
+
+---
+
+# Security Intake — Agent Operating Context
+
+This project is Security Intake.
+
+Goal:
+- Extract handwritten/printed data from real surveillance/intake sheets.
+- Interpret the extracted information reliably.
+- Populate structured spreadsheet-like data.
+- Generate a final copy-ready message from the validated data.
+- Preserve auditability through evidence, source images, confidence, and correction history.
+
+Agent rules:
+- Prefer small, reviewable commits.
+- Before changing code, inspect the current branch, recent commits, and existing architecture.
+- Never rewrite large parts of the system without explaining the migration path.
+- Treat OCR/VLM extraction as evidence-driven, not magic.
+- Any extracted field should be traceable to source evidence when possible.
+- Prioritize tests, reproducibility, and clear failure states.
+- For new features, produce an implementation plan first.
+- For security-sensitive changes, run a security review before finalizing.
+
+Recommended ECC workflows:
+- Use /ecc:plan for architecture and next-step planning.
+- Use /code-review after implementation.
+- Use /python-review for Python/OCR/backend changes.
+- Use /security-scan before merging sensitive or file-processing changes.
+- Use /quality-gate before important commits.
+
+Project priorities:
+1. Reliability of extraction.
+2. Evidence cockpit and audit trail.
+3. Human correction workflow.
+4. Spreadsheet/message generation accuracy.
+5. Maintainable architecture.
+6. Clear developer documentation.

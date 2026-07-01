@@ -62,3 +62,29 @@ def test_endpoint_404_on_bad_index(served: tuple[TestClient, list[str]]) -> None
         "/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}
     ).json()["id"]
     assert client.get(f"/drafts/{draft_id}/page/9").status_code == 404
+
+
+def test_resolve_blocks_symlink_escape(tmp_path: Path) -> None:
+    # A symlink INSIDE root pointing OUTSIDE must be rejected: resolve() follows the
+    # link, so the resolved path lands outside root and the guard raises.
+    outside = tmp_path / "outside_secret.txt"
+    outside.write_text("secret", encoding="utf-8")
+    root = tmp_path / "root"
+    root.mkdir()
+    try:
+        (root / "escape.png").symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not permitted on this platform")
+    with pytest.raises(PermissionError):
+        resolve_page_image(["escape.png"], 0, root=root)
+
+
+def test_saved_page_image_matches_ocr_dims(tmp_path: Path) -> None:
+    # The served image must be the *exact* image the OCR read (downscaled), so overlay
+    # boxes line up. A large page is downscaled; the saved PNG matches that transform.
+    from src.clients.local_ocr import downscale_for_ocr
+
+    orig = Image.new("RGB", (2400, 1000), "white")
+    rel = save_page_images([orig], root=tmp_path)
+    saved = Image.open(tmp_path / rel[0])
+    assert saved.size == downscale_for_ocr(orig).size

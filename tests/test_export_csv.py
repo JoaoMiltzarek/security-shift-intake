@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from scripts.demo_pipeline_mock import OCR_INCIDENT, SAMPLE
-from src.api.app import create_app
+from src.api.app import _csv_safe, create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
 from src.clients.local_rules import RuleBasedLLMClient
@@ -91,3 +91,27 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
     assert resp.status_code == 200
     rows = list(csv.reader(io.StringIO(resp.text)))
     assert any("'=cmd()" in cell for row in rows[1:] for cell in row)
+
+
+# --- _csv_safe unit coverage (Unicode Cc/Cf, BOM, whitespace) ----------------
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "=cmd()", "+1", "-1", "@x",
+        "\t=cmd()", "\r=cmd()", "\n=cmd()",  # ASCII control / newline
+        "\x00", "\x1f",                        # C0 controls
+        "\x85=cmd()",                          # NEL (Cc)
+        "﻿=cmd()",                        # BOM (Cf)
+        "​=cmd()",                        # zero-width space (Cf)
+        " =cmd()",                             # leading whitespace
+    ],
+)
+def test_csv_safe_neutralizes(payload: str) -> None:
+    assert _csv_safe(payload).startswith("'")
+
+
+@pytest.mark.parametrize("benign", ["Joao", "07:30", "", "Ronda noturna", "1"])
+def test_csv_safe_leaves_benign_unchanged(benign: str) -> None:
+    assert _csv_safe(benign) == benign

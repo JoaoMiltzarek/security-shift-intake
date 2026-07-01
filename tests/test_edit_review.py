@@ -46,7 +46,7 @@ def test_review_shows_edit_form(client: TestClient) -> None:
     draft_id = _submit(client)
     html = client.get(f"/drafts/{draft_id}/review").text
     assert 'name="field__guard_name"' in html
-    assert "Save corrections" in html
+    assert "Salvar revisão" in html
 
 
 def test_edit_corrects_field_and_clears_review_flag(client: TestClient) -> None:

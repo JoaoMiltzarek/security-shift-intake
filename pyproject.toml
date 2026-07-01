@@ -57,7 +57,7 @@ warn_redundant_casts = true
 # Third-party libs without bundled type stubs: don't fail typecheck on them.
 # pymupdf ships only partial annotations; treat it as untyped at the boundary.
 [[tool.mypy.overrides]]
-module = ["uvicorn.*", "pymupdf", "pymupdf.*", "sklearn.*", "pytesseract"]
+module = ["uvicorn.*", "pymupdf", "pymupdf.*", "sklearn.*", "pytesseract", "playwright.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 

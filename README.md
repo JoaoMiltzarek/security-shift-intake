@@ -77,7 +77,7 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (412 tests, mocked, $0) and the privacy guardrail:
+# Quality gate (457 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
@@ -99,6 +99,21 @@ INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 ```
 > The mock demo (`make demo-pipeline-mock`) has no OCR geometry, so it shows the cockpit's
 > textual-fallback layout, not the clickable overlay.
+
+## Setup & troubleshooting
+The supported platform is **Linux / WSL / CI (Ubuntu)**. Windows native works as a
+**documented fallback** — the tests and demo run, but the live browser-smoke gate runs in CI,
+not locally. Probe your environment before running:
+```bash
+python3 scripts/preflight.py --json   # stdlib only; needs no uv/venv
+```
+It reports uv/make/tesseract/chromium, symlink support, stray SQLite DBs, and the pre-commit
+hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never mutates.
+
+- **No `make`?** Run the underlying commands: `uv run pytest`, `uv run ruff check .`,
+  `uv run mypy src data scripts`.
+- **No Tesseract?** The OCR path can't read handwriting, so fields route to human review and the
+  cockpit shows its textual-fallback layout — the mock demo still runs end to end.
 
 ## Architecture (in 10 seconds)
 ```
@@ -138,12 +153,14 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-412 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+457 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
 the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /
 `token_window` / `none`), `human_edit` dropping the OCR box, path-traversal-safe page-image
-serving, XSS-safe overlay rendering, and CSV export blocked until review is complete.
+serving, XSS-safe overlay rendering, and CSV export blocked until review is complete. The
+stdlib preflight probe (DB/severity contract) and the evidence collector are unit-tested; the
+live cockpit is proven by a **blocking browser-smoke gate** in CI (real Chromium under CSP).
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
