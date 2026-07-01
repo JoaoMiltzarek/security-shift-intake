@@ -74,7 +74,9 @@ def _seed_draft(base_url: str) -> int:
     llm = RuleBasedLLMClient(config)
     state = run_pipeline(SAMPLE, vision, llm, config, dpi=OCR_DPI)
     page_paths = save_page_images(load_source_images(SAMPLE, dpi=OCR_DPI))
-    payload: dict[str, Any] = state.model_copy(update={"page_image_paths": page_paths}).model_dump()
+    payload: dict[str, Any] = state.model_copy(
+        update={"page_image_paths": page_paths}
+    ).model_dump(mode="json")
 
     # Inject a probable-region bbox on one field so the overlay has something to draw.
     patched = False
