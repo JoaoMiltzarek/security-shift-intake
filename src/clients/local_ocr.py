@@ -50,14 +50,15 @@ def downscale_for_ocr(image: Image.Image) -> Image.Image:
     return image.resize(new_size, Image.Resampling.LANCZOS)
 
 
-def _norm_coord(value: float, *, name: str, word: str) -> float | None:
+def _norm_coord(value: float, *, name: str) -> float | None:
     """Normalize one fraction: clamp tiny rounding overshoot, reject absurd values."""
     if -_CLAMP_EPS <= value < 0.0 or 1.0 < value <= 1.0 + _CLAMP_EPS:
         return min(1.0, max(0.0, value))
     if 0.0 <= value <= 1.0:
         return value
     if os.environ.get("INTAKE_LOCATOR_DEBUG") == "1":
-        print(f"[locator] dropped word {word!r}: {name}={value:.4f} out of [0,1]")
+        # Never log the OCR text itself (may be PII) — only the coordinate that failed.
+        print(f"[locator] dropped a word box: {name}={value:.4f} out of [0,1]")
     return None
 
 
@@ -77,10 +78,10 @@ def _collect_words(data: dict[str, Any], width: int, height: int) -> list[WordBo
         w, h = float(data["width"][i]), float(data["height"][i])
         if w <= 0 or h <= 0:  # degenerate box → not a real word region
             continue
-        x0 = _norm_coord(left / width, name="x0", word=text)
-        y0 = _norm_coord(top / height, name="y0", word=text)
-        x1 = _norm_coord((left + w) / width, name="x1", word=text)
-        y1 = _norm_coord((top + h) / height, name="y1", word=text)
+        x0 = _norm_coord(left / width, name="x0")
+        y0 = _norm_coord(top / height, name="y0")
+        x1 = _norm_coord((left + w) / width, name="x1")
+        y1 = _norm_coord((top + h) / height, name="y1")
         if x0 is None or y0 is None or x1 is None or y1 is None:
             continue
         line_key = (
