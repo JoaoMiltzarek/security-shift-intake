@@ -117,3 +117,25 @@ def test_json_outside_synthetic_with_slug_blocked(tmp_path: Path) -> None:
 def test_clean_txt_passes(tmp_path: Path) -> None:
     f = _write(tmp_path / "notes.txt", "Routine patrol, no incidents noted.\n")
     assert check_file(f) == []
+
+
+# ---------------------------------------------------------------------------
+# SQLite databases — blocked anywhere (belong only in private/)
+# ---------------------------------------------------------------------------
+
+
+def test_db_extension_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "data" / "app.db", "SQLite format 3\x00")
+    assert len(check_file(f)) >= 1
+
+
+def test_db_blocked_even_under_private_path(tmp_path: Path) -> None:
+    # The guard blocks the extension itself; private/ safety comes from .gitignore,
+    # not this per-file check — so a DB is flagged wherever check_file sees it.
+    f = _write(tmp_path / "private" / "app.db", "SQLite format 3\x00")
+    assert len(check_file(f)) >= 1
+
+
+def test_sqlite_wal_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "cache.db-wal", "wal")
+    assert len(check_file(f)) >= 1

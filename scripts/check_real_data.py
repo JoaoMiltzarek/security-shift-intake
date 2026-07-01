@@ -25,6 +25,10 @@ from pathlib import Path
 # Binary / attachment extensions that should never be committed (real scans etc.).
 _BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
 
+# SQLite databases (the approval-gate store) can accrue real PII — allowed only in
+# private/ (gitignored). Blocked as an extension wherever this guard inspects a file.
+_DB_EXT = re.compile(r"\.(db|sqlite3?|db-wal|db-journal)$", re.IGNORECASE)
+
 # Real-data text sentinels — patterns that should not appear in *data* files.
 _TEXT_SENTINELS: list[re.Pattern[str]] = [
     re.compile(r"\bHT\s*Micron\b", re.IGNORECASE),
@@ -80,6 +84,12 @@ def check_file(path: Path) -> list[str]:
     if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
         violations.append(f"  {path}: binary/attachment extension not allowed in repo")
         return violations  # no need to read content
+
+    # (1b) SQLite databases belong only in private/ (gitignored). The extension is
+    # blocked wherever seen; private/ safety comes from .gitignore, not this check.
+    if _DB_EXT.search(path.name):
+        violations.append(f"  {path}: database file not allowed in repo (belongs in private/)")
+        return violations
 
     # (2) Text sentinels — only in data-bearing files.
     if _is_text_scan_exempt(path):
