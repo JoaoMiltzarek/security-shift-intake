@@ -150,3 +150,15 @@ def test_db_blocked_even_under_private_path(tmp_path: Path) -> None:
 def test_sqlite_wal_blocked(tmp_path: Path) -> None:
     f = _write(tmp_path / "cache.db-wal", "wal")
     assert len(check_file(f)) >= 1
+
+
+def test_sqlite_shm_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "cache.db-shm", "shm")
+    assert len(check_file(f)) >= 1
+
+
+def test_alt_sqlite_extensions_blocked(tmp_path: Path) -> None:
+    # Foreign SQLite tools emit .db3 / .s3db / .sqlite2 — the same DB family, blocked too.
+    for name in ("notes.db3", "notes.s3db", "notes.sqlite2"):
+        f = _write(tmp_path / name, "SQLite format 3\x00")
+        assert len(check_file(f)) >= 1, name

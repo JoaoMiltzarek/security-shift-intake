@@ -27,7 +27,9 @@ _BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", 
 
 # SQLite databases (the approval-gate store) can accrue real PII — allowed only in
 # private/ (gitignored). Blocked as an extension wherever this guard inspects a file.
-_DB_EXT = re.compile(r"\.(db|sqlite3?|db-wal|db-journal)$", re.IGNORECASE)
+# Covers the whole SQLite family: .db/.db3, .s3db, .sqlite/.sqlite2/.sqlite3, and the
+# -wal/-shm/-journal sidecars. Keep in sync with preflight.py's `_DB_RE` (stdlib copy).
+_DB_EXT = re.compile(r"\.(db3?|s3db|sqlite[23]?|db-(wal|shm|journal))$", re.IGNORECASE)
 
 # Real-data text sentinels — patterns that should not appear in *data* files.
 _TEXT_SENTINELS: list[re.Pattern[str]] = [

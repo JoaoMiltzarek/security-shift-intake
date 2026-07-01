@@ -10,6 +10,7 @@ data/bressay/
 data/*.db
 data/*.db-journal
 data/*.db-wal
+data/*.db-shm
 
 # Private folder: real input sheets + the local DB with PII. NEVER commit.
 private/
