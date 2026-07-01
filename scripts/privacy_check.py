@@ -97,9 +97,16 @@ def _tracked_files() -> list[Path]:
 
 
 def check_no_sensitive_tracked() -> list[str]:
-    """(1) No git-tracked file has a sensitive binary extension (except sample images)."""
+    """(1) No git-tracked file has a sensitive binary/DB extension (except sample images).
+
+    A DB is the most sensitive data class (the approval-gate store) and must never be
+    tracked *anywhere* — including under data/synthetic/, which check (2) exempts. So the
+    DB test lives here, unconditional on path, not only in the outside-private scan.
+    """
     violations: list[str] = []
     for path in _tracked_files():
+        if _DB_EXT.search(path.name):
+            violations.append(f"  tracked database: {path}")
         if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
             violations.append(f"  tracked sensitive file: {path}")
     return violations
