@@ -33,9 +33,10 @@ SEVERITY_BLOCKER = 2
 
 # SQLite family — same rule the privacy guards use, duplicated here on purpose so
 # preflight stays import-free (it must run when the venv/package tree is broken).
-# Whole SQLite family (.db/.db3/.s3db/.sqlite/.sqlite2/.sqlite3 + -wal/-shm/-journal).
+# Whole SQLite family: base .db/.db3/.s3db/.sqlite/.sqlite2/.sqlite3, each with an
+# OPTIONAL -wal/-shm/-journal sidecar (SQLite names them <dbfile>-wal, so app.sqlite3-wal).
 # Keep in sync with check_real_data.py's `_DB_EXT` (this stdlib copy stays self-contained).
-_DB_RE = re.compile(r"\.(db3?|s3db|sqlite[23]?|db-(wal|shm|journal))$", re.IGNORECASE)
+_DB_RE = re.compile(r"\.(db3?|s3db|sqlite[23]?)(-(wal|shm|journal))?$", re.IGNORECASE)
 _BINARY_RE = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
 
 # Directories that never hold committable source; skipped by the tree walk.

@@ -158,7 +158,15 @@ def test_sqlite_shm_blocked(tmp_path: Path) -> None:
 
 
 def test_alt_sqlite_extensions_blocked(tmp_path: Path) -> None:
-    # Foreign SQLite tools emit .db3 / .s3db / .sqlite2 — the same DB family, blocked too.
-    for name in ("notes.db3", "notes.s3db", "notes.sqlite2"):
+    # The whole SQLite family: every base extension AND its -wal/-shm/-journal sidecar
+    # (SQLite names a sidecar <dbfile>-wal, so a .sqlite3 DB yields app.sqlite3-wal).
+    names = (
+        "app.db", "app.db3", "app.s3db",
+        "app.sqlite", "app.sqlite2", "app.sqlite3",
+        "app.db-wal", "app.db-shm", "app.db-journal",
+        "app.sqlite3-wal", "app.sqlite3-shm", "app.sqlite3-journal",
+        "app.s3db-wal", "app.s3db-shm",
+    )
+    for name in names:
         f = _write(tmp_path / name, "SQLite format 3\x00")
         assert len(check_file(f)) >= 1, name
