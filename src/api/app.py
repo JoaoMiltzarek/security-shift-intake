@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
+from starlette.middleware.base import RequestResponseEndpoint
 
 from src import __version__
 from src.api import repository
@@ -234,6 +235,23 @@ def create_app(
     )
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
     app.mount("/static", StaticFiles(directory="ui/static"), name="static")
+
+    @app.middleware("http")
+    async def _security_headers(
+        request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        """Lock the local cockpit down: same-origin scripts/styles, no framing.
+
+        The overlay JS is vendored under /static (script-src 'self'); templates carry
+        inline styles only (style-src 'unsafe-inline'); the page image is same-origin
+        or a data: URI. There is no inline <script>, so 'self' does not break the UI.
+        """
+        response = await call_next(request)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' data:; script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
+        )
+        return response
 
     def get_session() -> Iterator[Session]:
         with Session(engine) as session:

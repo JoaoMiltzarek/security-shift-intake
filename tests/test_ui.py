@@ -105,3 +105,11 @@ def test_htmx_is_vendored_locally_not_cdn(
     asset = client.get("/static/htmx.min.js")
     assert asset.status_code == 200
     assert "htmx" in asset.text
+
+
+def test_security_headers_present(client_and_sender: tuple[TestClient, MockSender]) -> None:
+    client, _ = client_and_sender
+    csp = client.get("/health").headers.get("content-security-policy", "")
+    assert "default-src 'self'" in csp
+    assert "script-src 'self'" in csp          # no 'unsafe-inline' for scripts
+    assert "frame-ancestors 'none'" in csp
