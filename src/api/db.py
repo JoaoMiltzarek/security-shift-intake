@@ -7,12 +7,11 @@ in-memory SQLite engine; the app uses a file-backed one.
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
 from pathlib import Path
 
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import SQLModel, create_engine
 
 # Importing models registers the tables on SQLModel.metadata before create_all.
 from src.api import models  # noqa: F401  (side-effect import)
@@ -50,9 +49,3 @@ def make_engine(url: str = DEFAULT_DB_URL) -> Engine:
 def init_db(engine: Engine) -> None:
     """Create all tables if they don't exist."""
     SQLModel.metadata.create_all(engine)
-
-
-def session_factory(engine: Engine) -> Iterator[Session]:
-    """Yield a session bound to *engine* (FastAPI dependency / context use)."""
-    with Session(engine) as session:
-        yield session
