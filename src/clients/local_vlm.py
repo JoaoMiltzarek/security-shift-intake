@@ -24,7 +24,7 @@ path runs only when you point it at a real local server.
 from __future__ import annotations
 
 import math
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 import httpx
 from pydantic import BaseModel
@@ -113,22 +113,27 @@ def _parse_text(response: _ChatResponse) -> str:
     return text
 
 
-def _confidence_from_logprobs(response: _ChatResponse, default: float) -> float:
-    """Mean per-token probability from logprobs, clamped to [0, 1]; else *default*.
+def _confidence_from_logprobs(
+    response: _ChatResponse, default: float
+) -> tuple[float, Literal["logprobs", "placeholder"]]:
+    """(confidence, source): mean per-token probability from logprobs, clamped to
+    [0, 1], with source "logprobs" — else (*default*, "placeholder").
 
     Honest by construction: returns a real signal only when the server provides
     logprobs, and a conservative placeholder otherwise (never a fabricated score).
+    The source travels with the number so downstream consumers (eval, G3 gate)
+    never have to guess where a confidence came from.
     """
     if not response.choices:
-        return default
+        return default, "placeholder"
     logprobs = response.choices[0].logprobs
     if logprobs is None or not logprobs.content:
-        return default
+        return default, "placeholder"
     probs = [math.exp(token.logprob) for token in logprobs.content]
     if not probs:
-        return default
+        return default, "placeholder"
     mean = sum(probs) / len(probs)
-    return max(0.0, min(1.0, mean))
+    return max(0.0, min(1.0, mean)), "logprobs"
 
 
 class LocalVLMVisionClient:
@@ -175,5 +180,5 @@ class LocalVLMVisionClient:
         raw = self._transport(payload)
         response = _ChatResponse.model_validate(raw)
         text = _parse_text(response)
-        confidence = _confidence_from_logprobs(response, self._default_confidence)
-        return TranscriptionResult(text=text, confidence=confidence)
+        confidence, source = _confidence_from_logprobs(response, self._default_confidence)
+        return TranscriptionResult(text=text, confidence=confidence, confidence_source=source)

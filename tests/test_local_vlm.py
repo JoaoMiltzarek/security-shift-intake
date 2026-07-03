@@ -84,6 +84,7 @@ def test_confidence_from_logprobs() -> None:
     client = LocalVLMVisionClient(transport=transport)
     result = client.transcribe("ZmFrZQ==")
     assert result.confidence == pytest.approx(0.85)
+    assert result.confidence_source == "logprobs"
 
 
 def test_confidence_falls_back_to_default_without_logprobs() -> None:
@@ -91,12 +92,13 @@ def test_confidence_falls_back_to_default_without_logprobs() -> None:
     client = LocalVLMVisionClient(transport=transport, default_confidence=0.33)
     result = client.transcribe("ZmFrZQ==")
     assert result.confidence == 0.33
+    assert result.confidence_source == "placeholder"
 
 
 def test_confidence_helper_clamps_to_unit_interval() -> None:
     # A positive logprob (possible with some servers) must not exceed 1.0.
     response = _ChatResponse.model_validate(_response("ok", logprobs=[0.5]))
-    assert _confidence_from_logprobs(response, default=0.5) == 1.0
+    assert _confidence_from_logprobs(response, default=0.5) == (1.0, "logprobs")
 
 
 # --- error path: malformed / empty response raises a clear error (no fabrication) ---
