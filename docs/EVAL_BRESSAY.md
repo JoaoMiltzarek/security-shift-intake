@@ -23,19 +23,23 @@ gitignored). You can also point anywhere with `BRESSAY_DIR=/path/to/bressay`.
 ## 2. Build the manifest
 
 The harness reads a tiny, format-agnostic manifest so it does not depend on any one
-release layout. Create `<BRESSAY_DIR>/manifest.jsonl`, one JSON object per line:
+release layout. Generate it from the release's **test** partition (comparable to the
+literature; never lines the reader was tuned on):
+
+```bash
+python scripts/build_bressay_manifest.py --bressay-dir data/bressay --n 20
+# options: --level line|page, --out <path>; ids sem imagem/gt são contados no stderr
+```
+
+The script reads `sets/test.txt` + `data/{lines,pages}/` and emits
+`<BRESSAY_DIR>/manifest.jsonl`, one JSON object per line:
 
 ```json
-{"image": "lines/0001.png", "text": "transcrição de referência desta linha"}
-{"image": "lines/0002.png", "text": "..."}
+{"image": "data/lines/0001.png", "text": "transcrição de referência desta linha"}
 ```
 
 - `image`: path to a line/page image, absolute or relative to `BRESSAY_DIR`.
 - `text`: the ground-truth transcription for that image.
-
-Use the partition BRESSAY designates for **test** so results are comparable to the
-literature, and so you never evaluate on lines the reader was tuned on. A few lines of
-Python over the release's label files is enough to emit this manifest.
 
 ## 3. Run it
 
@@ -53,9 +57,11 @@ respective column reports `available: false` with a reason — it never invents 
 
 ## 4. Read the result honestly
 
+- **BRESSAY is a secondary sanity check** (~20 samples: "does the reader read BR-PT
+  handwriting at all?"), **not** a decision criterion. The ruler that decides the
+  PR ladder is the real-sheet instrumented eval — formulas and gates in
+  `docs/EVAL_PROTOCOL.md`.
 - The **VLM must beat the Tesseract baseline** to justify replacing it (spec §6).
 - **Domain gap:** BRESSAY is student essays; occurrence forms differ in vocabulary and
-  layout. These numbers are **directional** — also measure on your curated real sheets
-  (`private/curadoria/*.json`) once they are `verified_by_user`.
-- The headline number that retires the `EVAL_REPORT.md` "pending" lines is the VLM's
-  CER/WER on real BR-PT handwriting, side by side with the baseline.
+  layout. These numbers are **directional** — the deciding measurement runs on your
+  curated real sheets (`private/curadoria/*.json`, ideally `verified_by_user`).
