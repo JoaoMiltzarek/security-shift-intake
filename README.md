@@ -119,7 +119,7 @@ Compare a transcrição/extração lado a lado. **Honestidade:** o caminho VLM (
 # pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
 make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
 make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
-make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI
+make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
 PYTHONPATH=. uv run python -m evals.eval_extraction_real --compare \
   private/audit/eval_real_detailed_local_ocr_dpi150.json \
   private/audit/eval_real_detailed_local_vlm_dpi150.json   # pareado por campo (gate G1)
