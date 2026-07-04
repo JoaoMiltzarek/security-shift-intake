@@ -100,6 +100,34 @@ INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 > The mock demo (`make demo-pipeline-mock`) has no OCR geometry, so it shows the cockpit's
 > textual-fallback layout, not the clickable overlay.
 
+### Demo de 3 minutos (dois leitores, honesta sobre o que cada um mostra)
+```bash
+# (a) Sem setup extra — Tesseract: bbox REAL no cockpit + gate humano + saída bloqueada
+#     enquanto houver pendência:
+make demo-pipeline FILE=samples/sample_doc-00000.png
+
+# (b) Com Ollama — o VLM local lê o manuscrito que o Tesseract não lê:
+ollama serve   # noutro terminal: ollama pull qwen2.5vl:3b (~3 GB, uma vez)
+INTAKE_VISION=local_vlm make demo-pipeline FILE=samples/sample_doc-00000.png
+```
+Compare a transcrição/extração lado a lado. **Honestidade:** o caminho VLM (como o mock)
+**não emite geometria** — o cockpit mostra o fallback textual, sem overlay clicável
+(a UI tolera `bbox=None`); o bbox clicável é exclusivo do caminho Tesseract.
+
+### Medir o leitor em folha real (a régua que decide — docs/EVAL_PROTOCOL.md)
+```bash
+# pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
+make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
+make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
+make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
+PYTHONPATH=. uv run python -m evals.eval_extraction_real --compare \
+  private/audit/eval_real_detailed_local_ocr_dpi150.json \
+  private/audit/eval_real_detailed_local_vlm_dpi150.json   # pareado por campo (gate G1)
+```
+Saídas: detalhado (PII) em `private/audit/` (gitignored); resumo público **por whitelist**
+em `docs/eval_real_summary.json`. Sanity check secundário do leitor:
+`python scripts/build_bressay_manifest.py --bressay-dir data/bressay --n 20 && make eval-bressay N=20`.
+
 ## Setup & troubleshooting
 The supported platform is **Linux / WSL / CI (Ubuntu)**. Windows native works as a
 **documented fallback** — the tests and demo run, but the live browser-smoke gate runs in CI,

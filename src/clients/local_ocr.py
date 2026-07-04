@@ -157,6 +157,7 @@ class LocalOCRVisionClient:
         return TranscriptionResult(
             text=text,
             confidence=confidence,
+            confidence_source="tesseract",
             words=words,
             image_width=ocr_image.width,
             image_height=ocr_image.height,
