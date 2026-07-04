@@ -12,9 +12,15 @@ CONFIG ?= configs/controle_ocorrencias.yaml
 # Sample cap for the BRESSAY real-handwriting eval (override: `make eval-bressay N=20`).
 N ?= 50
 
+# Instrumented real-sheet eval (docs/EVAL_PROTOCOL.md): reader + rasterization DPI.
+# Override: `make eval-real VISION=local_vlm DPI=250 REAL_N=3`.
+VISION ?= local_ocr
+DPI ?= 150
+REAL_N ?= 0
+
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval eval-bressay \
+        demo-pipeline-mock eval eval-bressay eval-real \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -38,6 +44,7 @@ help:
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
+	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
 
 install:
@@ -101,3 +108,8 @@ eval:
 # reports unavailable rather than fabricating a number. See docs/EVAL_BRESSAY.md.
 eval-bressay:
 	PYTHONPATH=. uv run python -m evals.eval_htr_bressay --n $(N)
+
+# Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
+# Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
+eval-real:
+	PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
