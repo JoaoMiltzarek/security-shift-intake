@@ -177,7 +177,17 @@ class LocalVLMVisionClient:
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
         payload = _build_payload(image_b64, media_type, self._model)
-        raw = self._transport(payload)
+        try:
+            raw = self._transport(payload)
+        except RuntimeError as exc:
+            # Medido (2026-07): Ollama 0.31.1 devolve HTTP 500 quando `logprobs: true`
+            # acompanha um payload de visão; sem logprobs funciona. logprobs é fonte de
+            # confiança (aprimoramento), não requisito — 1 retry sem ele, e o
+            # confidence_source registra "placeholder" honestamente. Erros de
+            # conexão/timeout propagam direto (retry não ajudaria e dobraria a espera).
+            if not isinstance(exc.__cause__, httpx.HTTPStatusError):
+                raise
+            raw = self._transport({k: v for k, v in payload.items() if k != "logprobs"})
         response = _ChatResponse.model_validate(raw)
         text = _parse_text(response)
         confidence, source = _confidence_from_logprobs(response, self._default_confidence)

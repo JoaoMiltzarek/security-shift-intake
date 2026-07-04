@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import httpx
 import pytest
 
 from src.clients.base import TranscriptionResult, VisionClient
@@ -158,3 +159,42 @@ def test_factory_explicit_arg_overrides_env(monkeypatch: pytest.MonkeyPatch) -> 
 def test_factory_unknown_name_raises() -> None:
     with pytest.raises(ValueError, match="Unknown INTAKE_VISION"):
         get_vision_client("does-not-exist")
+
+
+# --- retry sem logprobs (medido: Ollama 0.31.1 -> 500 com logprobs+visão) ------
+
+
+class _LogprobRejectingTransport:
+    """Simula o Ollama: HTTP 500 se o payload pede logprobs; sucesso sem eles."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        self._response = response
+        self.payloads: list[dict[str, Any]] = []
+
+    def __call__(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.payloads.append(payload)
+        if payload.get("logprobs"):
+            error = httpx.HTTPStatusError(
+                "500", request=httpx.Request("POST", "http://x"), response=httpx.Response(500)
+            )
+            raise RuntimeError("server rejected logprobs") from error
+        return self._response
+
+
+def test_transcribe_retries_without_logprobs_on_http_status_error() -> None:
+    transport = _LogprobRejectingTransport(_response("Data: 15/01"))
+    client = LocalVLMVisionClient(transport=transport, default_confidence=0.5)
+    result = client.transcribe("ZmFrZQ==")
+    assert result.text == "Data: 15/01"
+    assert result.confidence_source == "placeholder"  # sem logprobs -> honesto
+    assert [bool(p.get("logprobs")) for p in transport.payloads] == [True, False]
+
+
+def test_transcribe_does_not_retry_on_connection_error() -> None:
+    def _refuses(payload: dict[str, Any]) -> dict[str, Any]:
+        error = httpx.ConnectError("refused")
+        raise RuntimeError("no server") from error
+
+    client = LocalVLMVisionClient(transport=_refuses)
+    with pytest.raises(RuntimeError, match="no server"):
+        client.transcribe("ZmFrZQ==")
