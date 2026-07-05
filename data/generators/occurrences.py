@@ -100,7 +100,7 @@ OCCURRENCE_BANK: tuple[OccurrenceTemplate, ...] = (
     OccurrenceTemplate(
         "Alarme",
         "Alarme disparou no {setor}, verificação sem anormalidade.",
-        ("Ronda no local realizada.", "Alarme rearmado."),
+        ("Verificação no local realizada.", "Alarme rearmado."),
     ),
     OccurrenceTemplate(
         "Alarme",
@@ -119,7 +119,7 @@ OCCURRENCE_BANK: tuple[OccurrenceTemplate, ...] = (
     ),
     OccurrenceTemplate(
         "Porta aberta",
-        "Porta do {setor} encontrada aberta durante a ronda.",
+        "Porta do {setor} encontrada aberta durante a inspeção.",
         ("Porta fechada e conferida.", "Responsável do setor avisado."),
         False,
     ),
@@ -172,12 +172,12 @@ OCCURRENCE_BANK: tuple[OccurrenceTemplate, ...] = (
         ("Sem pendências na passagem.",),
     ),
     OccurrenceTemplate(
-        "Ronda",
-        "Ronda completa no perímetro sem anormalidades.",
-        ("Registrado no bastão de ronda.",),
+        "Inspeção",
+        "Inspeção completa no perímetro sem anormalidades.",
+        ("Registrado no bastão de controle.",),
     ),
     OccurrenceTemplate(
-        "Ronda", "Ronda no {setor} identificou fiação exposta.", ("Manutenção acionada.",)
+        "Inspeção", "Inspeção no {setor} identificou fiação exposta.", ("Manutenção acionada.",)
     ),
     OccurrenceTemplate(
         "Acesso",
@@ -242,7 +242,7 @@ OCCURRENCE_BANK: tuple[OccurrenceTemplate, ...] = (
     OccurrenceTemplate(
         "Perturbação",
         "Barulho vindo do {setor}, verificação sem anormalidade.",
-        ("Ronda extra no local.",),
+        ("Verificação extra no local.",),
     ),
     OccurrenceTemplate(
         "Perturbação", "Discussão entre terceiros no estacionamento.", ("Mediado e dispersado.",)

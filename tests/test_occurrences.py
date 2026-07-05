@@ -94,6 +94,21 @@ def test_placa_ficticia_formato_mercosul() -> None:
     assert plates, "nenhuma placa gerada em 300 folhas (banco com {placa} não amostrado?)"
 
 
+# --- contrato do parser: nenhum texto do banco colide com o rodapé da tabela --
+
+
+def test_bank_never_matches_table_footer() -> None:
+    """`_FOOTER` (\\bronda\\b) fecha a região da tabela em table_rules._table_region;
+    um item/descrição/ação contendo a palavra truncaria a tabela e mataria o G-S0.
+    O banco é construído sem ela — este teste congela o contrato (DATASET_CONTRACT §11).
+    """
+    from src.clients.table_rules import _FOOTER
+
+    for tpl in OCCURRENCE_BANK:
+        for text in (tpl.item, tpl.descricao, *tpl.acoes):
+            assert not _FOOTER.search(text), f"colide com o rodapé: {text!r}"
+
+
 # --- distribuição por perfil (χ² grosso, padrão test_tier_a_distribution) ----
 
 
