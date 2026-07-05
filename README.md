@@ -114,9 +114,14 @@ Compare a transcrição/extração lado a lado. **Honestidade:** o caminho VLM (
 **não emite geometria** — o cockpit mostra o fallback textual, sem overlay clicável
 (a UI tolera `bbox=None`); o bbox clicável é exclusivo do caminho Tesseract.
 
-### Medir o leitor em folha real (a régua que decide — docs/EVAL_PROTOCOL.md)
+### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
+A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
+G1-S) + BRESSAY — nunca de folha real. Fábrica em construção (PRs D0–D6 do contrato);
+progresso em `docs/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
+**avaliação local opcional** (folhas 100% autorizadas, locais, nunca versionadas):
+
 ```bash
-# pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
+# opcional/legado — pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
 make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
 make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
 make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
