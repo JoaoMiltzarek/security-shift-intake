@@ -22,7 +22,7 @@ G1-S** (`DATASET_CONTRACT.md` §10) — decisão de leitor **sem folha real**.
 | **D1** | 5 fontes handwriting OFL + `FONTS.md` (registro source/license/sha256) + `tests/test_fonts_coverage.py` (cobertura ã/ç/õ…) + `assets/fonts/README.md` (política de binários) | ✅ (commits abaixo) |
 | **D2** | `data/generators/occurrences.py` (vocabulários ~18 tipos + `SheetRecord` no vocabulário da curadoria + perfis balanced/operational) + extensão de `priors.py` + `messiness_table` + held-out 20% vocab/frases | ✅ (commits abaixo) |
 | **D3** | `data/generators/templates/controle_ocorrencias.py` — render tabela 5 colunas (9 linhas), variantes A/B (+C só test), `RenderResult(image, ideal_lines, font_name)`, teste de contrato pré-G-S0 | ✅ (commits abaixo) |
-| **D4** | `degrade_photo` (perspectiva/sombra/corte ≤3%/downscale) + knob `clean\|scan\|photo` + bandas held-out 80/20 por split | ⬜ |
+| **D4** | `degrade_photo` (perspectiva/sombra/corte ≤3%/downscale) + bandas held-out 80/20 por split (`Band`, `_banded`; knob `clean\|scan\|photo` materializa na D5) | ✅ (commits abaixo) |
 | **D5** | `tier_c.py::build_tier_c` + `CANONICAL_DATASETS` + `scripts/gen_sheets.py` + Make `gen-sheets DATASET=...` + manifesto congelado (sha256 de PNG+gt canônico, nunca PDF) + estender `_ALLOWED_SAMPLE_NAMES` p/ `sample_tc-\d+` | ⬜ |
 | **D6** | `evals/eval_extraction_synthetic.py` (reusa `load_curadoria(directory, valid_status)`/`run_sheet`) + `--split val` default + `reader_metrics` × `parser_ceiling` + `docs/eval_synthetic_summary.json` + Make `eval-synthetic` | ⬜ |
 
@@ -65,6 +65,13 @@ Armadilha real achada e cercada na D3: o parser fecha a tabela no 1º `\bronda\b
 o banco da D2 tinha "Ronda" como item/descrição/ação e teria matado o G-S0; agora o
 rodapé é o ÚNICO lugar com a palavra, e um teste congela isso.
 
+| **PR-D4** `degrade.py`: `degrade_photo` (perspectiva QUAD, corte ≤3% c/ resize, sombra lateral, downscale espelhado, blur, JPEG) + `Band`/`_banded` 80/20; `degrade_scan(band=None)` preserva o caminho legado EXATO (randint do JPEG mantido — tier_b byte-idêntico) | `0ad03be` |
+| `test_degrade_photo.py` — 6 testes: determinismo, dimensões, legibilidade mínima na banda dura (≥50% da tinta), foto≠scan, legado intacto, `test_degrade_bands_disjoint_by_split` (G-S3) | `c953303` |
+
+Evidência PR-D4: `make check` → **547 passed, 1 skipped**; `make privacy-check` OK.
+Nota de design D4: bandas "duras" espelham intervalos onde menor = pior (qualidade
+JPEG, fator de downscale) para que upper20 seja SEMPRE a fatia mais difícil.
+
 ## Decisões congeladas (não rediscutir sem novo registro)
 
 - Gabarito = formato curadoria + bloco `synthetic`; `review_status: synthetic_ground_truth`
@@ -90,17 +97,30 @@ rodapé é o ÚNICO lugar com a palavra, e um teste congela isso.
 ```bash
 git log --oneline -20          # commits da tabela acima
 make check                     # deve estar verde antes de qualquer mudança (506+ testes)
-# Próximo passo: PR-D4 (degradação foto + knob de dificuldade) — DATASET_CONTRACT.md §5(4).
-# D4 exige, em data/generators/degrade.py (manter degrade_scan intocado):
-#   - degrade_photo(rng, image): perspectiva leve, gradiente de sombra, corte de
-#     borda <=3%, downscale, blur um pouco maior — bounds documentados e mild
-#     ("degradar demais mede tolerancia a ruido, nao leitura");
-#   - bandas held-out por split: train/val amostram dos 80% INFERIORES de cada
-#     intervalo; os 20% superiores sao exclusivos do test (parametro band="lower80"|
-#     "upper20" ou equivalente); bandas declaradas p/ meta.json.heldout_bands (D5);
-#   - testes (padrao test_degrade.py): determinismo, bounds, dimensoes preservadas,
-#     legibilidade minima (fracao de tinta sobrevivente >= limiar documentado),
-#     test_degrade_bands_disjoint_by_split (nomeado no contrato §10, G-S3).
-# Depois: PR-D5 (tier_c.py build + CANONICAL_DATASETS + gen_sheets + manifests
-# congelados + _ALLOWED_SAMPLE_NAMES sample_tc-\d+) e PR-D6 (eval sintetico).
+# Próximo passo: PR-D5 (orquestração + CLI + Make) — DATASET_CONTRACT.md §3/§4/§5.
+# D5 exige data/generators/tier_c.py com:
+#   - CANONICAL_DATASETS = tabela §4 do contrato (smoke 50/seed42, bench-balanced
+#     300/seed43, bench-operational 300/seed44, stress 1000/seed45; split_seed 0);
+#   - build_tier_c(out_dir, dataset|seed/n/profile): fluxo por doc (RNG _doc_rng como
+#     tier_b): split do id (split_dataset 70/15/15) -> vocab_for_split(split) ->
+#     generate_sheet -> build_surface -> variante (A/B em todos; C ~25% SO no test,
+#     TEST_ONLY_VARIANTS) -> difficulty (clean|scan|photo; scan/photo via band:
+#     train/val=lower80, test=upper20) -> render_sheet -> degrade -> salva PNG
+#     canonico + PDF derivado + gt (to_curadoria_dict + bloco synthetic com
+#     generator/seed/template/profile/difficulty/font/messiness/legibility/surface)
+#     -> manifests {train,val,test}.jsonl com sha256_img (PNG!) + sha256_gt (JSON
+#     canonico: sort_keys, ensure_ascii=False, separators fixos) -> meta.json
+#     (version/dataset/seed/split_seed/n/profile/counts/heldout_vocab_seed/
+#      heldout_fractions/heldout_bands/git_commit);
+#   - manifesto congelado: data/manifests/tier_c_v1_bench_{balanced,operational}_test.jsonl
+#     (gravar na 1a geracao oficial; teste de regeneracao contra fixture pequena);
+#   - scripts/gen_sheets.py (padrao gen_pdfs.py) + Make gen-sheets DATASET=smoke
+#     (ou SEED/N/PROFILE avulsos); 2-3 PNGs -> samples/sample_tc-*.png;
+#   - estender _ALLOWED_SAMPLE_NAMES em scripts/check_real_data.py p/ sample_tc-\d+
+#     + atualizar tests/test_real_data_guard.py (correcao #1 do plano);
+#   - testes: e2e n=4 em tmp_path (arquivos/manifests/meta), regeneracao mesma seed
+#     reproduz sha256, G-S3 e2e (vocab/variante C/banda ausentes de train/val),
+#     test_frozen_manifest_matches_regeneration.
+# Depois: PR-D6 (eval sintetico — load_curadoria(valid_status), --split val default,
+# reader_metrics x parser_ceiling, docs/eval_synthetic_summary.json, Make eval-synthetic).
 ```
