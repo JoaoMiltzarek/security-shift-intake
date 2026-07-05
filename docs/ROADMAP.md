@@ -7,10 +7,17 @@ with honest OCR, mandatory human review, and blocked unsafe automation. Everythi
 
 ## A escada de PRs do leitor (medição primeiro — PR-1 é a régua)
 
+> **⚠️ Régua reposicionada:** as decisões de adoção de leitor passam a vir dos gates
+> **G-S0…G-S3 e G1-S** do dataset sintético `tier_c`
+> ([`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) §10) + BRESSAY — nunca mais de folha
+> real (G1–G3 abaixo = legado / avaliação local opcional). A fábrica `tier_c` entra
+> pelas PRs D0–D6 do contrato (D0 contrato ✅ → D1 fontes OFL → D2 gabarito →
+> D3 render → D4 degradação foto → D5 CLI/manifests → D6 eval sintético).
+
 A PR-1 ("medição primeiro") construiu a régua que decide as PRs seguintes sem tocar o
 orquestrador: eval instrumentado por leitor×DPI, probes, contrato VLM congelado e o
 protocolo normativo [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md). Cada seta abaixo é um
-número dos gates G1–G3 (fórmulas exatas no protocolo):
+número dos gates G1–G3 (fórmulas exatas no protocolo; **hoje legado**):
 
 - **G1** (`parse_table_success` VLM ≥ baseline **e** vitória pareada por campo com
   margem ≥ 2 **e** redução de `estimated_chars_to_type` **e** `tempo_por_folha` ≤ SLO)
