@@ -23,6 +23,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.clients.base import WordBox
 from src.schema.extraction import (
     NormalizedIncidentModel,
     RawDocumentExtraction,
@@ -49,6 +50,14 @@ class ExtractedField(BaseModel):
     # None on the scalar path, where no AuditedField backs the field.
     source: str | None = None
     status: str | None = None
+    # Evidence (PR2): where on the page this value most likely came from. bbox is a
+    # *probable* region (fractions 0..1), never proof. None when the locator found no
+    # match, the reader emitted no geometry, or a human edited the value.
+    bbox: tuple[float, float, float, float] | None = None
+    page: int | None = None
+    evidence_text: str | None = None
+    evidence_method: str | None = None  # exact | token_window | none | human_edit
+    evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class Classification(BaseModel):
@@ -69,10 +78,16 @@ class PipelineState(BaseModel):
     # --- Stage 0: ingest ---
     source_pdf: Path
     image_paths: list[Path] = Field(default_factory=list)
+    # Persisted OCR page images for the cockpit overlay, as POSIX paths relative to the
+    # page-images root (the *same* downscaled image the words were measured on, so the
+    # normalized boxes line up). Empty on paths that never persisted images.
+    page_image_paths: list[str] = Field(default_factory=list)
 
     # --- Stage 1: transcribe ---
     transcription: str | None = None
     transcription_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # OCR word geometry (fractions 0..1) for the evidence locator; None on mock/VLM paths.
+    words: list[WordBox] | None = None
     # --- OCR quality gate (table path) ---  good | low | failed
     ocr_quality: str | None = None
     ocr_quality_reason: str | None = None

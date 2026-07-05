@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.clients.base import WordBox
 from src.pipeline.extract_table import extract_table
 from src.pipeline.validate import validate_table
 from src.schema.loader import load_config
@@ -79,3 +80,15 @@ def test_sa_yields_non_flagged_no_change_field() -> None:
 def test_missing_required_header_is_error() -> None:
     state = _run(_EMPTY_HEADER)
     assert any("required field is missing" in e for e in state.validation_errors)
+
+
+def test_table_path_attaches_evidence_when_words_present() -> None:
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        transcription=_OCC,
+        words=[WordBox(text="Portaria", bbox=(0.2, 0.3, 0.4, 0.32), conf=0.9, line_key="3:1:1")],
+    )
+    result = validate_table(extract_table(state, CONFIG), CONFIG)
+    unidade = next(f for f in result.extracted_fields if f.name == "unidade")
+    assert unidade.evidence_method == "exact"
+    assert unidade.bbox == (0.2, 0.3, 0.4, 0.32)

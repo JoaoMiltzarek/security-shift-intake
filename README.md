@@ -50,6 +50,24 @@ Vigilantes: ...
 If any required field is pending, the message is marked **`RASCUNHO INCOMPLETO`** and lists
 exactly what to fix — it never goes out as a clean operational message.
 
+## Evidence cockpit (auditable review)
+The review screen is an **evidence cockpit**: the OCR page image sits beside the extracted
+fields, and clicking a field highlights the **probable region** the value came from. Every
+value answers *where it came from, with what confidence, by which method, and whether a human
+reviewed it*:
+
+- **`exact`** — the value matched a contiguous run of OCR words (box = union of those words).
+- **`token_window`** — the value's tokens matched within one OCR line (partial score).
+- **`none`** — no match; the field shows a textual fallback, never a blank or a wrong box.
+- **`human_edit`** — a human edited the value, so the old OCR box is **discarded**.
+
+The box is **probable evidence, not ground truth** — a hint that points the reviewer at the
+most likely source region. Boxes are normalized (0..1) against the *same* downscaled image
+Tesseract read, so the overlay lines up; the image is served **path-safe** from the gitignored
+`private/` tree. When the reader emits no geometry (mock/VLM path), the cockpit degrades to the
+plain review layout. Reviewed sheets export to **CSV** — but the button is **blocked while any
+field is pending**, and the CSV always carries the post-review values, never the raw OCR.
+
 ## Quick demo
 ```bash
 uv sync
@@ -59,7 +77,7 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (~370 tests, mocked, $0) and the privacy guardrail:
+# Quality gate (412 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
@@ -71,6 +89,16 @@ the gitignored `private/` folder, never committed):
 make demo-pipeline FILE=private/reais/example.pdf
 make purge-demo-data           # wipe temporary demo artifacts when done
 ```
+
+### See the evidence cockpit
+The clickable overlay needs real OCR geometry, so run the **Tesseract** path on the committed
+synthetic sheet, then open the printed review URL (image left, fields right, click to highlight):
+```bash
+make demo-pipeline FILE=samples/sample_doc-00000.png CONFIG=configs/controle_ocorrencias.yaml
+INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
+```
+> The mock demo (`make demo-pipeline-mock`) has no OCR geometry, so it shows the cockpit's
+> textual-fallback layout, not the clickable overlay.
 
 ## Architecture (in 10 seconds)
 ```
@@ -110,10 +138,12 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-~370 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+412 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
-the outputs, and the review UI.
+the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /
+`token_window` / `none`), `human_edit` dropping the OCR box, path-traversal-safe page-image
+serving, XSS-safe overlay rendering, and CSV export blocked until review is complete.
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,

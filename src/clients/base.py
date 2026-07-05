@@ -7,16 +7,46 @@ swappable and, crucially, **mockable in tests** (spec §2 provider abstraction,
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
 
+class WordBox(BaseModel):
+    """One OCR word with its geometry, in **fractions 0..1** of the source image.
+
+    The geometry is what makes a field's value auditable in the cockpit: we can point
+    at *where on the page* the OCR text that produced the value sits. Coordinates are
+    normalized so the overlay scales to any display size. `coordinate_space` is a
+    closed enum on purpose — a box only ever lives in the OCR image space until code
+    that maps to the original page exists.
+    """
+
+    text: str
+    # (x0, y0, x1, y1) as fractions 0..1 of the source image (top-left origin).
+    bbox: tuple[float, float, float, float]
+    conf: float = Field(ge=0.0, le=1.0)
+    # block:par:line from Tesseract — distinguishes lines that share a line_num across
+    # different blocks/paragraphs, so the token-window locator never merges them.
+    line_key: str
+    page: int = 0
+    coordinate_space: Literal["ocr_image"] = "ocr_image"
+
+
 class TranscriptionResult(BaseModel):
-    """Verbatim transcription of one page image, with model-reported confidence."""
+    """Verbatim transcription of one page image, with model-reported confidence.
+
+    `words` is optional and provider-specific: the local OCR path fills it (geometry
+    from Tesseract); the mock/VLM paths leave it None and the evidence locator simply
+    does not run (backward compatible).
+    """
 
     text: str
     confidence: float = Field(ge=0.0, le=1.0)
+    words: list[WordBox] | None = None
+    # Pixel size of the image the words were measured against (for reconstruction).
+    image_width: int | None = None
+    image_height: int | None = None
 
 
 @runtime_checkable

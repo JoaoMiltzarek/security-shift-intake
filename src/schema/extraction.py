@@ -33,6 +33,11 @@ class AuditedField(BaseModel):
     status: FieldStatus = "missing"
     # Trecho de OCR usado para este valor (quando disponível). Pode conter PII → só em private/.
     evidence: str | None = None
+    # Evidência visual (PR2): região provável na imagem (frações 0..1), nunca prova.
+    bbox: tuple[float, float, float, float] | None = None
+    page: int | None = None
+    evidence_method: str | None = None  # exact | token_window | none | human_edit
+    evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class RawHeader(BaseModel):
