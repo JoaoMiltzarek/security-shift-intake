@@ -201,5 +201,13 @@ and richer occurrence-table editing — all deferred to keep v1.0 clean.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
-[MIT](LICENSE) © João Miltzarek. Synthetic data only; no real personal or organizational data
-is included.
+
+This project is source-available under the [PolyForm Noncommercial License 1.0.0](./LICENSE).
+
+Noncommercial use is allowed. Commercial use requires a separate written commercial license from the project owner.
+
+Commercial use includes internal company use, client projects, consulting, SaaS, paid products, automation pipelines, operational deployment, or processing real operational documents for commercial or organizational benefit.
+
+See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) for commercial licensing terms.
+
+Synthetic data only; no real personal or organizational data is included.
