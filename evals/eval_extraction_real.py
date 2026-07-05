@@ -426,13 +426,21 @@ def run_metadata(reader: str, dpi: int) -> dict[str, Any]:
 # --- execução do pipeline (precisa de leitor real p/ folhas reais) -----------
 
 
-def load_curadoria(directory: Path = CURADORIA_DIR) -> list[dict[str, Any]]:
+def load_curadoria(
+    directory: Path = CURADORIA_DIR, valid_status: set[str] = VALID_REVIEW_STATUS
+) -> list[dict[str, Any]]:
+    """Carrega gabaritos aceitos por *valid_status* (default: só curadoria REAL).
+
+    O eval sintético (PR-D6) chama com valid_status={"synthetic_ground_truth"} —
+    opt-in explícito; o eval real segue ignorando verdade gerada por construção
+    (docs/CURADORIA_FORMATO.md / DATASET_CONTRACT.md §2.2).
+    """
     if not directory.exists():
         return []
     out: list[dict[str, Any]] = []
     for path in sorted(directory.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
-        if data.get("review_status") in VALID_REVIEW_STATUS:
+        if data.get("review_status") in valid_status:
             out.append(data)
     return out
 

@@ -18,8 +18,12 @@ VISION ?= local_ocr
 DPI ?= 150
 REAL_N ?= 0
 
+# Tier C canonical dataset name (docs/DATASET_CONTRACT.md par.4). Override:
+# `make gen-sheets DATASET=bench-balanced`.
+DATASET ?= smoke
+
 .PHONY: help install lint format format-check typecheck test check \
-        validate-config gen-data gen-pdfs demo-transcribe demo-pipeline \
+        validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
         demo-pipeline-mock eval eval-bressay eval-real \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
@@ -35,6 +39,7 @@ help:
 	@echo   make validate-config - [M1] validate configs against the schema
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
+	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
@@ -78,6 +83,9 @@ gen-data:
 
 gen-pdfs:
 	PYTHONPATH=. uv run python scripts/gen_pdfs.py
+
+gen-sheets:
+	PYTHONPATH=. uv run python scripts/gen_sheets.py --dataset $(DATASET)
 
 demo-transcribe:
 	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"

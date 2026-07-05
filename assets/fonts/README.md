@@ -1,13 +1,16 @@
 # Handwriting fonts
 
-Drop open-licensed handwriting `.ttf` / `.otf` files here to make the rendered
-Tier B forms look hand-filled. Good SIL-OFL options: *Caveat*, *Patrick Hand*,
-*Shadows Into Light*, *Reenie Beanie*.
+**Bundladas desde a PR-D1** (mudança deliberada da política no-binary anterior,
+registrada em `docs/DATASET_CONTRACT.md` §3): cinco fontes handwriting **SIL OFL 1.1**
+vivem neste diretório, cada uma com seu `<Fonte>.OFL.txt` ao lado. Proveniência,
+atribuição e sha256 de cada arquivo: [`FONTS.md`](FONTS.md). Cobertura dos acentos
+PT-BR é garantida por `tests/test_fonts_coverage.py` — fonte nova só entra passando
+nesse teste e ganhando linha no registro.
 
-**None are bundled** (licensing + the repo's no-binary policy). If this folder has
-no fonts, the renderer falls back to Pillow's default font — the pipeline still
-runs end-to-end, the output just looks typed rather than handwritten.
+Se este diretório estiver vazio (ex.: checkout parcial), o renderer cai no fallback da
+fonte default do Pillow — o pipeline segue rodando fim a fim, só que o output parece
+digitado em vez de manuscrito (`data/generators/fonts.py`).
 
-> **Honesty caveat (also stated in the main README):** font-rendered "handwriting"
-> is *easier* to read than real human handwriting, so transcription/extraction
-> scores on Tier B are an **optimistic upper bound** on real-world performance.
+> **Honesty caveat (também no README principal):** "manuscrito" renderizado por fonte é
+> *mais fácil* de ler que manuscrito humano real, então scores de transcrição/extração
+> sobre folhas sintéticas são um **limite superior otimista** do desempenho real.

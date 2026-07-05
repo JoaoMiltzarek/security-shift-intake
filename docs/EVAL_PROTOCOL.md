@@ -5,6 +5,13 @@
 > protocolo. Se código e protocolo divergirem, o protocolo manda — corrija o código.
 > Nenhum número é digitado à mão (CLAUDE.md, invariante #3).
 
+> **⚠️ Reposicionamento (decisão registrada em `DATASET_CONTRACT.md` §1):** a régua
+> **oficial** do projeto passou a ser o dataset sintético `tier_c` (gates G-S0…G-S3 e
+> **G1-S**) + BRESSAY + públicos licenciados — nenhuma decisão de roadmap depende mais
+> de folha real. Os gates **G1–G3 abaixo (§3) são legado / avaliação local opcional**,
+> apenas com folhas 100% autorizadas, locais e nunca versionadas. As **fórmulas do §2
+> permanecem normativas** — são exatamente as que o eval sintético reusa.
+
 ## 0. A pergunta que este protocolo responde
 
 **O VLM local reduz esforço humano em folha real?** Medido por
@@ -87,7 +94,12 @@ comparável, resultado ∈ {`both`, `only_baseline`, `only_vlm`, `neither`}
 (acerto = §2 acima). Publicado por índice anônimo (`sheet_1.data_turno`), nunca por
 valor.
 
-## 3. Gates de decisão (numéricos)
+## 3. Gates de decisão (numéricos) — **LEGADO / avaliação local opcional**
+
+> Estes gates dependem de folha real curada e **não são mais requisito de nenhuma PR**
+> (ver reposicionamento acima). Quem tiver folhas 100% autorizadas e locais pode
+> avaliá-los como verificação complementar; a decisão oficial é o **G1-S**
+> (`DATASET_CONTRACT.md` §10).
 
 - **G1 (escalonamento de página → PR-2).** Todas:
   1. **Taxa agregada, não boolean solto:**

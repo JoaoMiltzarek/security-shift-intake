@@ -52,6 +52,12 @@ def test_sample_png_under_samples_allowed(tmp_path: Path) -> None:
     assert check_file(f) == []
 
 
+def test_sample_tc_png_under_samples_allowed(tmp_path: Path) -> None:
+    # Tier C sample images (PR-D5, docs/DATASET_CONTRACT.md §3) are also allowed.
+    f = _write(tmp_path / "samples" / "sample_tc-000000.png", "fake-png")
+    assert check_file(f) == []
+
+
 def test_pdf_under_samples_still_blocked(tmp_path: Path) -> None:
     # The samples exemption is for images only — PDFs are still blocked.
     f = _write(tmp_path / "samples" / "doc.pdf", "%PDF")

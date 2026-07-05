@@ -117,6 +117,42 @@ POSTS = [
 
 
 # ---------------------------------------------------------------------------
+# Tier C priors — occurrence-table sheet "Controle de ocorrências"
+# (docs/DATASET_CONTRACT.md §6; same elicitation source as the priors above).
+# ---------------------------------------------------------------------------
+
+# P(sheet is S/A | profile): "balanced" oversamples occurrences on purpose (more
+# measurable signal per sheet); "operational" matches the real-world ~70% no-incident
+# prior. The two profiles are NEVER mixed in one dataset (contract §6).
+P_SA_GIVEN_PROFILE: dict[str, float] = {
+    "balanced": 0.50,
+    "operational": 0.70,
+}
+
+# When a sheet has no occurrence, the guard either writes "S/A" or strikes the cells
+# through. Striking is the rarer habit.
+P_RISCADO_GIVEN_NO_OCCURRENCE = 0.25
+
+# P(number of table rows | sheet has occurrences): most sheets log one incident.
+P_N_OCORRENCIAS_GIVEN_OCCURRENCE: dict[int, float] = {1: 0.55, 2: 0.30, 3: 0.15}
+
+# P(number of guards on the header): the real sheet lists several names.
+P_N_VIGILANTES: dict[int, float] = {1: 0.35, 2: 0.45, 3: 0.20}
+
+# P(an occurrence with a time records BOTH entry and exit times) — contract §6.
+P_HORA_DUPLA = 0.30
+
+# P(resolvido column value): "em_branco" = guard left it blank (maps to None).
+P_RESOLVIDO: Distribution = {"sim": 0.60, "nao": 0.25, "em_branco": 0.15}
+
+# Fictional units (mix of generic numbering and invented post names — contract §7).
+UNIDADES = [
+    "Unidade 01", "Unidade 02", "Unidade 03", "Unidade 05", "Unidade 07",
+    "Unidade 09", "Unidade 12", "Posto Delta", "Posto Horizonte", "Posto Mirante",
+]
+
+
+# ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
 
@@ -147,3 +183,19 @@ def validate_all_priors() -> None:
     for period, p in P_INCIDENT_GIVEN_SHIFT.items():
         if not 0.0 <= p <= 1.0:
             raise ValueError(f"P_INCIDENT_GIVEN_SHIFT[{period!r}] out of [0,1].")
+    # --- Tier C priors (contract §6) ---
+    if not is_valid_distribution(P_RESOLVIDO):
+        raise ValueError("P_RESOLVIDO does not sum to 1.")
+    for name, int_dist in {
+        "P_N_OCORRENCIAS_GIVEN_OCCURRENCE": P_N_OCORRENCIAS_GIVEN_OCCURRENCE,
+        "P_N_VIGILANTES": P_N_VIGILANTES,
+    }.items():
+        if abs(sum(int_dist.values()) - 1.0) > 1e-6 or any(p < 0 for p in int_dist.values()):
+            raise ValueError(f"{name} is not a valid distribution.")
+    for name, prob in {
+        **{f"P_SA_GIVEN_PROFILE[{k!r}]": v for k, v in P_SA_GIVEN_PROFILE.items()},
+        "P_RISCADO_GIVEN_NO_OCCURRENCE": P_RISCADO_GIVEN_NO_OCCURRENCE,
+        "P_HORA_DUPLA": P_HORA_DUPLA,
+    }.items():
+        if not 0.0 <= prob <= 1.0:
+            raise ValueError(f"{name} out of [0,1].")
