@@ -39,7 +39,11 @@ VARIANTS: tuple[Variant, ...] = ("controle_A", "controle_B", "controle_C")
 # Variante C: SÓ no split de test (held-out de layout, contrato §5) — imposto na PR-D5.
 TEST_ONLY_VARIANTS: tuple[Variant, ...] = ("controle_C",)
 
-_TITLE = "CONTROLE DE OCORRÊNCIAS"
+# Rótulos impressos em ASCII: a fonte default do Pillow (rótulos "impressos") não
+# cobre Ê/ç/ã (medido na amostra sample_tc-000000: tofu). "Descricao"/"Acao" estão
+# nos ocr_aliases da config; acentos impressos voltam se um dia bundlarmos fonte
+# impressa OFL. Os VALORES manuscritos usam as fontes OFL (acentos verificados).
+_TITLE = "CONTROLE DE OCORRENCIAS"
 _ILEGIVEL = "[ilegível]"
 
 # Rótulos por variante — todos dentro dos ocr_aliases de configs/controle_ocorrencias.yaml.
@@ -54,8 +58,8 @@ _HEADER_X_OFFSET: dict[Variant, int] = {"controle_A": 0, "controle_B": 0, "contr
 _COLUMNS: tuple[tuple[str, int], ...] = (
     ("Item", 150),
     ("Hora", 120),
-    ("Descrição da Ocorrência", 360),
-    ("Ação", 190),
+    ("Descricao da Ocorrencia", 360),
+    ("Acao", 190),
     ("Resolvido", 100),
 )
 
