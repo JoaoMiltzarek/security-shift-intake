@@ -12,6 +12,13 @@
 ela constrói a régua (eval instrumentado + probes + contrato congelado) que decide as
 PRs seguintes (PR-2 escalonamento / PR-2b reparo / PR-3 calibração) pelos gates G1–G3.
 
+> **⚠️ LEGADO (decisão posterior, registrada em `DATASET_CONTRACT.md` §1):** a régua
+> oficial passou a ser o dataset sintético `tier_c` (gates G-S0…G-S3 + G1-S) + BRESSAY;
+> G1–G3 sobre folha real viraram avaliação local opcional. As rodadas medidas abaixo
+> **permanecem como evidência histórica** — números medidos não se reescrevem — mas as
+> ações humanas pendentes (curadoria verificada, fotos, SLO real) deixaram de bloquear
+> o roadmap. Progresso da fábrica sintética: `docs/STATUS_TIER_C.md`.
+
 ## Feito (com commit)
 
 | # | Item do plano | Commit |
