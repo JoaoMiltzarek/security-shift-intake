@@ -58,7 +58,7 @@ _SAMPLES_DIR = "samples"
 # Only these known generated names are allowed — a stray real image (e.g. samples/leak.png)
 # must still be blocked, not silently waved through by a blanket *.png rule.
 _ALLOWED_SAMPLE_NAMES = re.compile(
-    r"^(sample_doc-\d+|screenshot_review_overlay)\.(png|jpe?g)$", re.IGNORECASE
+    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay)\.(png|jpe?g)$", re.IGNORECASE
 )
 
 
