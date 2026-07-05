@@ -23,7 +23,7 @@ G1-S** (`DATASET_CONTRACT.md` §10) — decisão de leitor **sem folha real**.
 | **D2** | `data/generators/occurrences.py` (vocabulários ~18 tipos + `SheetRecord` no vocabulário da curadoria + perfis balanced/operational) + extensão de `priors.py` + `messiness_table` + held-out 20% vocab/frases | ✅ (commits abaixo) |
 | **D3** | `data/generators/templates/controle_ocorrencias.py` — render tabela 5 colunas (9 linhas), variantes A/B (+C só test), `RenderResult(image, ideal_lines, font_name)`, teste de contrato pré-G-S0 | ✅ (commits abaixo) |
 | **D4** | `degrade_photo` (perspectiva/sombra/corte ≤3%/downscale) + bandas held-out 80/20 por split (`Band`, `_banded`; knob `clean\|scan\|photo` materializa na D5) | ✅ (commits abaixo) |
-| **D5** | `tier_c.py::build_tier_c` + `CANONICAL_DATASETS` + `scripts/gen_sheets.py` + Make `gen-sheets DATASET=...` + manifesto congelado (sha256 de PNG+gt canônico, nunca PDF) + estender `_ALLOWED_SAMPLE_NAMES` p/ `sample_tc-\d+` | ⬜ |
+| **D5** | `tier_c.py::build_tier_c` + `CANONICAL_DATASETS` + `scripts/gen_sheets.py` + Make `gen-sheets DATASET=...` + manifesto congelado (sha256 de PNG+gt canônico, nunca PDF) + guard `sample_tc-\d+` | ✅ (commits abaixo) |
 | **D6** | `evals/eval_extraction_synthetic.py` (reusa `load_curadoria(directory, valid_status)`/`run_sheet`) + `--split val` default + `reader_metrics` × `parser_ceiling` + `docs/eval_synthetic_summary.json` + Make `eval-synthetic` | ⬜ |
 
 ## Feito (com commit)
@@ -72,6 +72,16 @@ Evidência PR-D4: `make check` → **547 passed, 1 skipped**; `make privacy-chec
 Nota de design D4: bandas "duras" espelham intervalos onde menor = pior (qualidade
 JPEG, fator de downscale) para que upper20 seja SEMPRE a fatia mais difícil.
 
+| **PR-D5** guard de samples aceita `sample_tc-*` + teste | `0a0f048` |
+| `tier_c.py` — build folha→disco (split ANTES da geração p/ vocab held-out; variante C só test 25%; banda por split; PNG canônico hasheado, PDF derivado; gt canônico SEM `source_file` no hash — decisão: caminho é metadado de armazenamento, não conteúdo) + `CANONICAL_DATASETS` + `check_or_write_frozen` | `edce6fd` |
+| `test_tier_c.py` — 6 testes: arquivos, regeneração reproduz sha256, gt shape, held-out e2e, `test_frozen_manifest_matches_regeneration`, tabela canônica congelada | `d365060` |
+| fix: rótulos impressos em ASCII (Pillow default sem Ê/ç/ã — tofu MEDIDO na amostra; `Descricao`/`Acao` ⊂ ocr_aliases) | `3776992` |
+| `scripts/gen_sheets.py` + Make `gen-sheets DATASET=smoke\|bench-balanced\|bench-operational\|stress` | `cd5ce40` |
+| `samples/sample_tc-00000{0,1}.png` (inspeção visual feita: manuscrito com acentos OK, grade, S/A, rodapé) | `bc497a5` |
+
+Evidência PR-D5: `make gen-sheets DATASET=smoke` REAL → "Wrote 50 sheets ... train: 35 / val: 7 / test: 8";
+`make check` → **554 passed, 1 skipped**; `make privacy-check` OK (com PNGs tier_c commitados).
+
 ## Decisões congeladas (não rediscutir sem novo registro)
 
 - Gabarito = formato curadoria + bloco `synthetic`; `review_status: synthetic_ground_truth`
@@ -97,30 +107,24 @@ JPEG, fator de downscale) para que upper20 seja SEMPRE a fatia mais difícil.
 ```bash
 git log --oneline -20          # commits da tabela acima
 make check                     # deve estar verde antes de qualquer mudança (506+ testes)
-# Próximo passo: PR-D5 (orquestração + CLI + Make) — DATASET_CONTRACT.md §3/§4/§5.
-# D5 exige data/generators/tier_c.py com:
-#   - CANONICAL_DATASETS = tabela §4 do contrato (smoke 50/seed42, bench-balanced
-#     300/seed43, bench-operational 300/seed44, stress 1000/seed45; split_seed 0);
-#   - build_tier_c(out_dir, dataset|seed/n/profile): fluxo por doc (RNG _doc_rng como
-#     tier_b): split do id (split_dataset 70/15/15) -> vocab_for_split(split) ->
-#     generate_sheet -> build_surface -> variante (A/B em todos; C ~25% SO no test,
-#     TEST_ONLY_VARIANTS) -> difficulty (clean|scan|photo; scan/photo via band:
-#     train/val=lower80, test=upper20) -> render_sheet -> degrade -> salva PNG
-#     canonico + PDF derivado + gt (to_curadoria_dict + bloco synthetic com
-#     generator/seed/template/profile/difficulty/font/messiness/legibility/surface)
-#     -> manifests {train,val,test}.jsonl com sha256_img (PNG!) + sha256_gt (JSON
-#     canonico: sort_keys, ensure_ascii=False, separators fixos) -> meta.json
-#     (version/dataset/seed/split_seed/n/profile/counts/heldout_vocab_seed/
-#      heldout_fractions/heldout_bands/git_commit);
-#   - manifesto congelado: data/manifests/tier_c_v1_bench_{balanced,operational}_test.jsonl
-#     (gravar na 1a geracao oficial; teste de regeneracao contra fixture pequena);
-#   - scripts/gen_sheets.py (padrao gen_pdfs.py) + Make gen-sheets DATASET=smoke
-#     (ou SEED/N/PROFILE avulsos); 2-3 PNGs -> samples/sample_tc-*.png;
-#   - estender _ALLOWED_SAMPLE_NAMES em scripts/check_real_data.py p/ sample_tc-\d+
-#     + atualizar tests/test_real_data_guard.py (correcao #1 do plano);
-#   - testes: e2e n=4 em tmp_path (arquivos/manifests/meta), regeneracao mesma seed
-#     reproduz sha256, G-S3 e2e (vocab/variante C/banda ausentes de train/val),
-#     test_frozen_manifest_matches_regeneration.
+# Próximo passo: PR-D6 (eval sintético) — DATASET_CONTRACT.md §10/§12.
+# D6 exige:
+#   - MUDANÇA ÚNICA backward-compatible em evals/eval_extraction_real.py:
+#     load_curadoria(directory=..., valid_status: set[str] = VALID_REVIEW_STATUS)
+#     — default inalterado (testes reais intactos); teste novo cobre o parâmetro;
+#   - evals/eval_extraction_synthetic.py: importa load_curadoria/run_sheet/fórmulas;
+#     lê data/synthetic/tier_c/gt com valid_status={"synthetic_ground_truth"};
+#     --split {val,test} default val (anti-tuning; relatório imprime split+dataset);
+#     breakdown difficulty × template × reader (do bloco synthetic);
+#     extensões: TODAS as linhas (acurácia por campo, cer<=0.5 sobre _norm),
+#     FALSE_INCIDENT rate × ocorrência perdida, CER/WER vs surface,
+#     recusa correta em legibility=illegible, branco=>missing;
+#     reader_metrics (entra no G1-S) SEPARADO de parser_ceiling (item/acao/resolvido
+#     missing por construção do extractor line-based);
+#   - saída pública docs/eval_synthetic_summary.json (agregados apenas, scan_text_for_pii);
+#   - Make eval-synthetic VISION=... DPI=... N=... SPLIT=val DATASET=...;
+#   - failure matrix: leitor ausente => available:false; gt malformado => folha
+#     ignorada com motivo; testes nomeados (test_smoke_50_mock_no_false_incident etc.).
 # Depois: PR-D6 (eval sintetico — load_curadoria(valid_status), --split val default,
 # reader_metrics x parser_ceiling, docs/eval_synthetic_summary.json, Make eval-synthetic).
 ```
