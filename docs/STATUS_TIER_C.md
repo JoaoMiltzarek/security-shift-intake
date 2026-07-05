@@ -20,7 +20,7 @@ G1-S** (`DATASET_CONTRACT.md` §10) — decisão de leitor **sem folha real**.
 |---|---|---|
 | **D0** | Contrato normativo + amendas nos 5 docs (régua reposicionada) | ✅ (commits abaixo) |
 | **D1** | 5 fontes handwriting OFL + `FONTS.md` (registro source/license/sha256) + `tests/test_fonts_coverage.py` (cobertura ã/ç/õ…) + `assets/fonts/README.md` (política de binários) | ✅ (commits abaixo) |
-| **D2** | `data/generators/occurrences.py` (vocabulários ~18 tipos + `SheetRecord` no vocabulário da curadoria + perfis balanced/operational) + extensão de `priors.py` + `messiness_table` + held-out 20% vocab/frases | ⬜ |
+| **D2** | `data/generators/occurrences.py` (vocabulários ~18 tipos + `SheetRecord` no vocabulário da curadoria + perfis balanced/operational) + extensão de `priors.py` + `messiness_table` + held-out 20% vocab/frases | ✅ (commits abaixo) |
 | **D3** | `data/generators/templates/controle_ocorrencias.py` — render tabela 5 colunas (8–10 linhas), variantes A/B (+C só test), retorno `(Image, ideal_lines)`, teste de contrato pré-G-S0 | ⬜ (D4 pode andar em paralelo) |
 | **D4** | `degrade_photo` (perspectiva/sombra/corte ≤3%/downscale) + knob `clean\|scan\|photo` + bandas held-out 80/20 por split | ⬜ |
 | **D5** | `tier_c.py::build_tier_c` + `CANONICAL_DATASETS` + `scripts/gen_sheets.py` + Make `gen-sheets DATASET=...` + manifesto congelado (sha256 de PNG+gt canônico, nunca PDF) + estender `_ALLOWED_SAMPLE_NAMES` p/ `sample_tc-\d+` | ⬜ |
@@ -44,6 +44,17 @@ G1-S** (`DATASET_CONTRACT.md` §10) — decisão de leitor **sem folha real**.
 
 Evidência PR-D1: `make check` → **506 passed, 1 skipped**; `make privacy-check` OK.
 Nota: *Homemade Apple* descartada (Apache 2.0, não OFL); *Reenie Beanie* no lugar.
+
+| **PR-D2** priors tier_c (S/A por perfil, n ocorrências/vigilantes, riscado, hora dupla, resolvido, UNIDADES) | `0db6aa9` |
+| `occurrences.py` — SheetRecord/vocab/generate_sheet/vocab_for_split/to_curadoria_dict | `0df4ee6` |
+| `test_occurrences.py` — 11 testes incl. `test_heldout_vocab_disjoint`/`test_heldout_templates_disjoint` (G-S3) | `6280b71` |
+| `messiness_table.py` — SheetSurface por célula (ops reusadas de messiness.py, legibility, P_ILLEGIBLE=0.05) | `ac99950` |
+| `test_messiness_table.py` — 6 testes (data intacta §2.2, join vigilantes §11.2, hora dupla §11.4, ops/illegible) | `3dde19e` |
+
+Evidência PR-D2: `make check` → **523 passed, 1 skipped**; `make privacy-check` OK.
+Nota de design D2: o campo de data NÃO recebe messiness (mantém o invariante §2.2
+`cabecalho.data == string desenhada` sem exceções); `vocab_for_split` usa seed própria
+(`DEFAULT_HELDOUT_SEED=7`, fração 0.20) — registrar no meta.json na PR-D5.
 
 ## Decisões congeladas (não rediscutir sem novo registro)
 
@@ -70,13 +81,18 @@ Nota: *Homemade Apple* descartada (Apache 2.0, não OFL); *Reenie Beanie* no lug
 ```bash
 git log --oneline -20          # commits da tabela acima
 make check                     # deve estar verde antes de qualquer mudança (506+ testes)
-# Próximo passo: PR-D2 (gerador de gabarito) — ver escada acima e DATASET_CONTRACT.md §2/§5-§7.
-# D2 exige: data/generators/occurrences.py (SheetRecord no vocabulário da curadoria +
-# ~18 tipos de item com bancos descrição/ação, listas fixas revisadas), extensão de
-# priors.py (P_N_OCORRENCIAS, P_SA por perfil balanced/operational, P_RISCADO_VS_SA,
-# nº vigilantes 1-3), messiness_table (ops de messiness.py por célula + legibility),
-# held-out 20% (nomes/unidades/frases só no test, seed própria em meta), e testes:
-# determinismo, distribuição por perfil, held-out disjunto, serialização == formato
-# curadoria + review_status synthetic_ground_truth (invariante: cabecalho.data = string
-# desenhada "DD/MM/AAAA - Turno", nunca só a data).
+# Próximo passo: PR-D3 (render da folha de tabela) — DATASET_CONTRACT.md §10 (G-S0) e §11.
+# D3 exige: data/generators/templates/controle_ocorrencias.py com
+#   - título + cabeçalho impresso (rótulos ⊂ ocr_aliases da config: variante A
+#     "Data e Turno"/"Vigilantes"/"Unidade"; B "Data"/"Vigilante"/"Unidade";
+#     C "Data e Turno:"/"Vigilantes:"/"Unidade:" deslocada — C SÓ no test, ~25%),
+#   - grade de 5 colunas (8-10 linhas), valores manuscritos (load_font + jitter de
+#     render.py::_draw_handwritten/_wrap), S/A como LINHA ISOLADA (regex _SA),
+#     strikethrough p/ riscado/[risc:...], rodapé "Ronda" (regex _FOOTER),
+#   - linha em branco entre ocorrências no ideal_lines (senão _extract_rows funde rows),
+#   - retorno (Image, ideal_lines) — insumo do teste de contrato pré-G-S0:
+#     ideal_lines -> RuleBasedTableExtractor -> normalize ⇒ S/A × N-linhas corretos
+#     nas 3 variantes (test_ideal_transcription_parses_all_variants),
+#   - determinismo por dupla geração no MESMO run (nunca golden-hash commitado).
+# D4 (degrade_photo) pode andar em paralelo — não depende do template.
 ```
