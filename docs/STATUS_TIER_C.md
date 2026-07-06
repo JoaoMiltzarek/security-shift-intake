@@ -193,14 +193,18 @@ alvo numérico e escolha de leitor ficam para a calibração G1-S (val→congela
 ```bash
 git log --oneline -20          # commits da tabela acima (branch SSI-1002-tier-c-eval)
 make check                     # deve estar verde antes de qualquer mudança (561+ testes)
-# A FÁBRICA (D0–D6) ESTÁ COMPLETA. Próximos passos, nesta ordem:
-#   1. Rodadas reais de leitor no smoke/val: make eval-synthetic VISION=local_ocr DPI=150
-#      e VISION=local_vlm DPI=100 REAL_N=30 (subamostra seedada; ~177 s/folha medido).
-#      Publicar agregados; NENHUM alvo numérico antes da primeira rodada (G-S2).
-#   2. Calibração G1-S em val (DATASET_CONTRACT.md §10): escolher leitor/dpi em val,
-#      CONGELAR, rodar test UMA vez, registrar aqui + no contrato.
-#   3. Gerar bench-balanced (300/seed43) e bench-operational (300/seed44):
-#      make gen-sheets DATASET=bench-balanced etc.; commitar manifests congelados.
+# A FÁBRICA (D0–D6) ESTÁ COMPLETA. Estado pós-G-S2 (2026-07-06):
+#   [x] 1. Rodadas reais no smoke/val FEITAS (seção "Rodadas reais G-S2" acima):
+#       local_ocr dpi150 lang=por (commit edc7269) e local_vlm dpi100 (commit 32522d5).
+#   [x] 3. Benches gerados e manifests congelados COMMITADOS:
+#       bench-balanced 300/seed43 (e685a63) e bench-operational 300/seed44 (d5bf947).
+#       Geração ~2 min/300 folhas; regeneração verificada byte-a-byte (2ª run silenciosa)
+#       + tests/test_tier_c.py verde antes de cada commit; smoke regenerado ao final
+#       (gen bench sobrescreve data/synthetic/tier_c in place — smoke é seed 42, determinístico).
+#   -> PRÓXIMO: 2. Calibração G1-S em val (DATASET_CONTRACT.md §10): escolher leitor/dpi
+#      em val, CONGELAR, rodar test UMA vez, registrar aqui + no contrato.
+#      Pré-requisito externo: BRESSAY baixado (sem ele G1-S = INCOMPLETO, contrato §10);
+#      SLO de tempo/folha ainda não declarado (EVAL_PROTOCOL §5 — decisão do usuário).
 #   4. (futuro) stress 1000/seed45; segunda família de template exige config YAML nova antes.
 # Lembretes permanentes: micro-commits autor JoaoMiltzarek, nunca push,
 # atualizar ESTE arquivo ao fim de cada micro-passo, make privacy-check após docs.
