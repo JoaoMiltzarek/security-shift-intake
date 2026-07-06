@@ -137,6 +137,37 @@ inserções que texto), mas **false_incident=0 se mantém com leitor real** (G-S
 continua de pé fora do mock) e a recusa correta em campo ilegível foi 1.0. O valor
 da rodada é ser a **primeira linha de base medida** do G-S2, não um resultado bom.
 
+### Rodada 2 — VLM local (`local_vlm`, qwen2.5vl:3b via Ollama) — 2026-07-06
+
+Ambiente: Ollama local (`localhost:11434`), modelo `qwen2.5vl:3b`; DPI 100 (150
+estoura VRAM — decisão congelada). Duração real: ~21 min p/ 7 folhas (~180 s/folha,
+consistente com os ~177 s/folha medidos no eval real).
+
+Comando real `make eval-synthetic VISION=local_vlm DPI=100 REAL_N=30` (--n 30 não
+corta nada: smoke/val tem 7 folhas):
+
+```
+dataset=smoke split=val reader=local_vlm dpi=100 n=7 ran=7
+parse_table_success_rate=0.4286 chars_to_type=1371 false_incident=0 descricao_acc=0.0 hora_acc=0.2
+```
+
+`reader_metrics` (de `docs/eval_synthetic_summary.json`, commit desta rodada):
+missed_incident=0, correct_refusal_rate=1.0, CER vs surface (média)=1.1343.
+
+| by_difficulty | n_ran | parse_ok | chars_to_type | false_inc | missed_inc | hora_acc | CER vs surface |
+|---|---|---|---|---|---|---|---|
+| clean | 1 | 0.0 | 228 | 0 | 0 | 0.0 | 0.9755 |
+| scan  | 5 | 0.4 | 1102 | 0 | 0 | 0.1429 | 1.2145 |
+| photo | 1 | 1.0 | 41  | 0 | 0 | 1.0 | 0.8923 |
+
+Comparação direta com a Rodada 1 (mesmas 7 folhas, sem pass/fail): o VLM parseia a
+estrutura da tabela melhor (0.4286 vs 0.1429) e não perde ocorrência (missed 0 vs 1),
+mas **gera mais texto errado para corrigir** (chars_to_type 1371 vs 845) e CER maior
+(1.1343 vs 0.9814 — CER>1 = inserções/alucinação de texto). Nenhum leitor lê o
+manuscrito TTF de fato (descricao_acc=0.0 em ambos). **false_incident=0 nos dois
+leitores reais** — o invariante de segurança segue de pé. Régua G-S2 estabelecida;
+alvo numérico e escolha de leitor ficam para a calibração G1-S (val→congela→test).
+
 ## Decisões congeladas (não rediscutir sem novo registro)
 
 - Gabarito = formato curadoria + bloco `synthetic`; `review_status: synthetic_ground_truth`
