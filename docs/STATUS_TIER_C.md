@@ -91,6 +91,7 @@ Evidência PR-D5: `make gen-sheets DATASET=smoke` REAL → "Wrote 50 sheets ... 
 | Make `eval-synthetic VISION/DPI/REAL_N/SPLIT` (`SPLIT ?= val` anti-tuning) | `7883d8e` |
 | `tests/test_eval_synthetic.py` — 7 testes: **G-S1 nomeado** (`test_smoke_50_mock_no_false_incident`: 50 folhas, zero false_incident), split val default + público aggregates-only sem PII, `--split test` explícito, split inválido rejeitado, dataset ausente → exit 1, recusa premiada (não recuperação) | `9e24ad7` |
 | `docs/eval_synthetic_summary.json` — nascimento honesto da rodada mock smoke/val | `78a8a0e` |
+| Review Python pós-D6 (agente): 0 CRITICAL/HIGH, 2 MEDIUM corrigidos — guard `--dpi>0` (mesmo padrão do eval real) + `meta.json` corrompido não aborta o run | `3797cb9` |
 
 Evidência PR-D6 (comando real `make eval-synthetic VISION=mock`):
 `dataset=smoke split=val reader=mock dpi=150 n=7 ran=7` /
