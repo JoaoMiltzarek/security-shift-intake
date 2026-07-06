@@ -29,6 +29,7 @@ escreve). Detalhado (com valores sintéticos) fica no diretório do dataset (git
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -247,6 +248,8 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--dir", type=Path, default=TIER_C_DIR)
     args = parser.parse_args(argv)
+    if args.dpi <= 0:
+        parser.error("--dpi deve ser um inteiro positivo")
 
     gts = load_curadoria(directory=args.dir / "gt", valid_status=SYNTHETIC_STATUS)
     sheets = [g for g in gts if (g.get("synthetic") or {}).get("split") == args.split]
@@ -262,8 +265,11 @@ def main(argv: list[str]) -> int:
 
     meta_path = args.dir / "meta.json"
     dataset = "unknown"
+    # meta corrompido/ilegível não bloqueia o eval; dataset fica "unknown".
     if meta_path.exists():
-        dataset = json.loads(meta_path.read_text(encoding="utf-8")).get("dataset", "unknown")
+        with contextlib.suppress(json.JSONDecodeError, OSError):
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            dataset = meta.get("dataset", "unknown")
 
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_vision_client(args.vision)
