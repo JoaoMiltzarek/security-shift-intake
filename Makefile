@@ -22,9 +22,12 @@ REAL_N ?= 0
 # `make gen-sheets DATASET=bench-balanced`.
 DATASET ?= smoke
 
+# Tier C synthetic eval split (contract par.5: val=default anti-tuning; test=milestone).
+SPLIT ?= val
+
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval eval-bressay eval-real \
+        demo-pipeline-mock eval eval-bressay eval-real eval-synthetic \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -50,6 +53,7 @@ help:
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
 	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
+	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
 
 install:
@@ -121,3 +125,7 @@ eval-bressay:
 # Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
 eval-real:
 	PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
+
+# Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
+eval-synthetic:
+	PYTHONPATH=. uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
