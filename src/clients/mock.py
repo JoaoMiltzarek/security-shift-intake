@@ -22,7 +22,9 @@ class MockVisionClient:
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
         self.call_count += 1
         self.last_image_b64 = image_b64
-        return TranscriptionResult(text=self._text, confidence=self._confidence)
+        return TranscriptionResult(
+            text=self._text, confidence=self._confidence, confidence_source="mock"
+        )
 
 
 class MockLLMClient:

@@ -25,6 +25,13 @@ from pathlib import Path
 # Binary / attachment extensions that should never be committed (real scans etc.).
 _BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
 
+# SQLite databases (the approval-gate store) can accrue real PII — allowed only in
+# private/ (gitignored). Blocked as an extension wherever this guard inspects a file.
+# Covers the whole SQLite family: base .db/.db3, .s3db, .sqlite/.sqlite2/.sqlite3, each
+# with an OPTIONAL -wal/-shm/-journal sidecar (SQLite names sidecars <dbfile>-wal, so a
+# .sqlite3 DB yields app.sqlite3-wal). Keep in sync with preflight.py's `_DB_RE`.
+_DB_EXT = re.compile(r"\.(db3?|s3db|sqlite[23]?)(-(wal|shm|journal))?$", re.IGNORECASE)
+
 # Real-data text sentinels — patterns that should not appear in *data* files.
 _TEXT_SENTINELS: list[re.Pattern[str]] = [
     re.compile(r"\bHT\s*Micron\b", re.IGNORECASE),
@@ -48,7 +55,11 @@ _SYNTHETIC_SUBPATH = ("data", "synthetic")
 # Image files here are allowed despite the global binary block — they are generated
 # by our code from synthetic data, never real scans.
 _SAMPLES_DIR = "samples"
-_SAMPLE_IMAGE_EXT = re.compile(r"\.(png|jpe?g)$", re.IGNORECASE)
+# Only these known generated names are allowed — a stray real image (e.g. samples/leak.png)
+# must still be blocked, not silently waved through by a blanket *.png rule.
+_ALLOWED_SAMPLE_NAMES = re.compile(
+    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay)\.(png|jpe?g)$", re.IGNORECASE
+)
 
 
 def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
@@ -59,8 +70,8 @@ def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
 
 
 def _is_allowed_sample_image(path: Path) -> bool:
-    """True for synthetic sample images committed under samples/."""
-    return _SAMPLES_DIR in path.parts and bool(_SAMPLE_IMAGE_EXT.search(path.name))
+    """True only for the known generated sample images committed under samples/."""
+    return _SAMPLES_DIR in path.parts and bool(_ALLOWED_SAMPLE_NAMES.match(path.name))
 
 
 def _is_text_scan_exempt(path: Path) -> bool:
@@ -80,6 +91,12 @@ def check_file(path: Path) -> list[str]:
     if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
         violations.append(f"  {path}: binary/attachment extension not allowed in repo")
         return violations  # no need to read content
+
+    # (1b) SQLite databases belong only in private/ (gitignored). The extension is
+    # blocked wherever seen; private/ safety comes from .gitignore, not this check.
+    if _DB_EXT.search(path.name):
+        violations.append(f"  {path}: database file not allowed in repo (belongs in private/)")
+        return violations
 
     # (2) Text sentinels — only in data-bearing files.
     if _is_text_scan_exempt(path):

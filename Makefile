@@ -12,9 +12,19 @@ CONFIG ?= configs/controle_ocorrencias.yaml
 # Sample cap for the BRESSAY real-handwriting eval (override: `make eval-bressay N=20`).
 N ?= 50
 
+# Instrumented real-sheet eval (docs/EVAL_PROTOCOL.md): reader + rasterization DPI.
+# Override: `make eval-real VISION=local_vlm DPI=250 REAL_N=3`.
+VISION ?= local_ocr
+DPI ?= 150
+REAL_N ?= 0
+
+# Tier C canonical dataset name (docs/DATASET_CONTRACT.md par.4). Override:
+# `make gen-sheets DATASET=bench-balanced`.
+DATASET ?= smoke
+
 .PHONY: help install lint format format-check typecheck test check \
-        validate-config gen-data gen-pdfs demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval eval-bressay \
+        validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
+        demo-pipeline-mock eval eval-bressay eval-real \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -29,6 +39,7 @@ help:
 	@echo   make validate-config - [M1] validate configs against the schema
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
+	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
@@ -38,6 +49,7 @@ help:
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
+	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
 
 install:
@@ -72,6 +84,9 @@ gen-data:
 gen-pdfs:
 	PYTHONPATH=. uv run python scripts/gen_pdfs.py
 
+gen-sheets:
+	PYTHONPATH=. uv run python scripts/gen_sheets.py --dataset $(DATASET)
+
 demo-transcribe:
 	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
 
@@ -101,3 +116,8 @@ eval:
 # reports unavailable rather than fabricating a number. See docs/EVAL_BRESSAY.md.
 eval-bressay:
 	PYTHONPATH=. uv run python -m evals.eval_htr_bressay --n $(N)
+
+# Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
+# Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
+eval-real:
+	PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)

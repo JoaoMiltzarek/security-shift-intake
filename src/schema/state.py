@@ -86,6 +86,9 @@ class PipelineState(BaseModel):
     # --- Stage 1: transcribe ---
     transcription: str | None = None
     transcription_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Origin of the confidence, copied verbatim from TranscriptionResult (logprobs |
+    # placeholder | tesseract | mock); the eval reads it here — never inferred.
+    transcription_confidence_source: str | None = None
     # OCR word geometry (fractions 0..1) for the evidence locator; None on mock/VLM paths.
     words: list[WordBox] | None = None
     # --- OCR quality gate (table path) ---  good | low | failed

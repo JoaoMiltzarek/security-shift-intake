@@ -24,7 +24,7 @@ path runs only when you point it at a real local server.
 from __future__ import annotations
 
 import math
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 import httpx
 from pydantic import BaseModel
@@ -113,22 +113,27 @@ def _parse_text(response: _ChatResponse) -> str:
     return text
 
 
-def _confidence_from_logprobs(response: _ChatResponse, default: float) -> float:
-    """Mean per-token probability from logprobs, clamped to [0, 1]; else *default*.
+def _confidence_from_logprobs(
+    response: _ChatResponse, default: float
+) -> tuple[float, Literal["logprobs", "placeholder"]]:
+    """(confidence, source): mean per-token probability from logprobs, clamped to
+    [0, 1], with source "logprobs" — else (*default*, "placeholder").
 
     Honest by construction: returns a real signal only when the server provides
     logprobs, and a conservative placeholder otherwise (never a fabricated score).
+    The source travels with the number so downstream consumers (eval, G3 gate)
+    never have to guess where a confidence came from.
     """
     if not response.choices:
-        return default
+        return default, "placeholder"
     logprobs = response.choices[0].logprobs
     if logprobs is None or not logprobs.content:
-        return default
+        return default, "placeholder"
     probs = [math.exp(token.logprob) for token in logprobs.content]
     if not probs:
-        return default
+        return default, "placeholder"
     mean = sum(probs) / len(probs)
-    return max(0.0, min(1.0, mean))
+    return max(0.0, min(1.0, mean)), "logprobs"
 
 
 class LocalVLMVisionClient:
@@ -172,8 +177,18 @@ class LocalVLMVisionClient:
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
         payload = _build_payload(image_b64, media_type, self._model)
-        raw = self._transport(payload)
+        try:
+            raw = self._transport(payload)
+        except RuntimeError as exc:
+            # Medido (2026-07): Ollama 0.31.1 devolve HTTP 500 quando `logprobs: true`
+            # acompanha um payload de visão; sem logprobs funciona. logprobs é fonte de
+            # confiança (aprimoramento), não requisito — 1 retry sem ele, e o
+            # confidence_source registra "placeholder" honestamente. Erros de
+            # conexão/timeout propagam direto (retry não ajudaria e dobraria a espera).
+            if not isinstance(exc.__cause__, httpx.HTTPStatusError):
+                raise
+            raw = self._transport({k: v for k, v in payload.items() if k != "logprobs"})
         response = _ChatResponse.model_validate(raw)
         text = _parse_text(response)
-        confidence = _confidence_from_logprobs(response, self._default_confidence)
-        return TranscriptionResult(text=text, confidence=confidence)
+        confidence, source = _confidence_from_logprobs(response, self._default_confidence)
+        return TranscriptionResult(text=text, confidence=confidence, confidence_source=source)

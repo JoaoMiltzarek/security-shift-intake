@@ -77,7 +77,7 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (412 tests, mocked, $0) and the privacy guardrail:
+# Quality gate (457 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
@@ -99,6 +99,54 @@ INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 ```
 > The mock demo (`make demo-pipeline-mock`) has no OCR geometry, so it shows the cockpit's
 > textual-fallback layout, not the clickable overlay.
+
+### Demo de 3 minutos (dois leitores, honesta sobre o que cada um mostra)
+```bash
+# (a) Sem setup extra — Tesseract: bbox REAL no cockpit + gate humano + saída bloqueada
+#     enquanto houver pendência:
+make demo-pipeline FILE=samples/sample_doc-00000.png
+
+# (b) Com Ollama — o VLM local lê o manuscrito que o Tesseract não lê:
+ollama serve   # noutro terminal: ollama pull qwen2.5vl:3b (~3 GB, uma vez)
+INTAKE_VISION=local_vlm make demo-pipeline FILE=samples/sample_doc-00000.png
+```
+Compare a transcrição/extração lado a lado. **Honestidade:** o caminho VLM (como o mock)
+**não emite geometria** — o cockpit mostra o fallback textual, sem overlay clicável
+(a UI tolera `bbox=None`); o bbox clicável é exclusivo do caminho Tesseract.
+
+### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
+A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
+G1-S) + BRESSAY — nunca de folha real. Fábrica em construção (PRs D0–D6 do contrato);
+progresso em `docs/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
+**avaliação local opcional** (folhas 100% autorizadas, locais, nunca versionadas):
+
+```bash
+# opcional/legado — pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
+make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
+make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
+make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
+PYTHONPATH=. uv run python -m evals.eval_extraction_real --compare \
+  private/audit/eval_real_detailed_local_ocr_dpi150.json \
+  private/audit/eval_real_detailed_local_vlm_dpi150.json   # pareado por campo (gate G1)
+```
+Saídas: detalhado (PII) em `private/audit/` (gitignored); resumo público **por whitelist**
+em `docs/eval_real_summary.json`. Sanity check secundário do leitor:
+`python scripts/build_bressay_manifest.py --bressay-dir data/bressay --n 20 && make eval-bressay N=20`.
+
+## Setup & troubleshooting
+The supported platform is **Linux / WSL / CI (Ubuntu)**. Windows native works as a
+**documented fallback** — the tests and demo run, but the live browser-smoke gate runs in CI,
+not locally. Probe your environment before running:
+```bash
+python3 scripts/preflight.py --json   # stdlib only; needs no uv/venv
+```
+It reports uv/make/tesseract/chromium, symlink support, stray SQLite DBs, and the pre-commit
+hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never mutates.
+
+- **No `make`?** Run the underlying commands: `uv run pytest`, `uv run ruff check .`,
+  `uv run mypy src data scripts`.
+- **No Tesseract?** The OCR path can't read handwriting, so fields route to human review and the
+  cockpit shows its textual-fallback layout — the mock demo still runs end to end.
 
 ## Architecture (in 10 seconds)
 ```
@@ -138,12 +186,14 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-412 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+457 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
 the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /
 `token_window` / `none`), `human_edit` dropping the OCR box, path-traversal-safe page-image
-serving, XSS-safe overlay rendering, and CSV export blocked until review is complete.
+serving, XSS-safe overlay rendering, and CSV export blocked until review is complete. The
+stdlib preflight probe (DB/severity contract) and the evidence collector are unit-tested; the
+live cockpit is proven by a **blocking browser-smoke gate** in CI (real Chromium under CSP).
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
@@ -151,5 +201,13 @@ and richer occurrence-table editing — all deferred to keep v1.0 clean.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
-[MIT](LICENSE) © João Miltzarek. Synthetic data only; no real personal or organizational data
-is included.
+
+This project is source-available under the [PolyForm Noncommercial License 1.0.0](./LICENSE).
+
+Noncommercial use is allowed. Commercial use requires a separate written commercial license from the project owner.
+
+Commercial use includes internal company use, client projects, consulting, SaaS, paid products, automation pipelines, operational deployment, or processing real operational documents for commercial or organizational benefit.
+
+See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) for commercial licensing terms.
+
+Synthetic data only; no real personal or organizational data is included.

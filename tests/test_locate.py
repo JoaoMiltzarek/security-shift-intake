@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from src.clients.base import WordBox
-from src.pipeline.locate import attach_evidence, locate_value
+from src.pipeline.locate import _norm, _tokens, attach_evidence, locate_value
 from src.schema.state import ExtractedField
 
 
@@ -26,6 +26,24 @@ def test_exact_contiguous_run() -> None:
     assert match.method == "exact"
     assert match.score == 1.0
     assert match.bbox == pytest.approx((0.1, 0.0, 0.3, 0.1))  # union of both
+
+
+# --- time-format normalization: documents the exact (and asymmetric) behaviour ---
+
+
+def test_time_norm_collapses_all_separators() -> None:
+    # _norm strips ALL non-alphanumerics (incl. spaces): these spellings collapse to one.
+    assert _norm("07:30") == "0730"
+    assert _norm("0730") == "0730"
+    assert _norm("07 30") == "0730"
+
+
+def test_time_tokens_split_on_whitespace_only() -> None:
+    # Tokenization splits on whitespace *before* normalizing — so "07 30" is two tokens
+    # while "07:30" (no space) is a single token. This is the asymmetry to know about.
+    assert _tokens("07 30") == ["07", "30"]
+    assert _tokens("07:30") == ["0730"]
+    assert _tokens("7:30") == ["730"]
 
 
 def test_token_window_partial_match_same_line() -> None:

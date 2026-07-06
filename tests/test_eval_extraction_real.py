@@ -1,21 +1,46 @@
-"""Tests for the real-sheet audit (evals/eval_extraction_real.py) pure helpers.
+"""Tests for the real-sheet eval (evals/eval_extraction_real.py).
 
-No Tesseract / no pipeline run here — only the deterministic classification, status,
-and aggregation logic. One scenario per test for pinpoint failures.
+No Tesseract and no network: the protocol formulas (EVAL_PROTOCOL §2) are pure, and
+the failure-matrix tests (§8) run the pipeline with injected fake vision clients.
+One scenario per test for pinpoint failures.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
+
+import pytest
+from PIL import Image
 
 from evals.eval_extraction_real import (
     aggregate,
+    build_public_run,
     classify_errors,
+    comparable_fields,
+    compare_runs,
     curated_header,
+    effort_metrics,
     field_status,
     has_occurrence,
+    main,
+    parse_table_success,
+    render_summary,
+    repairable_ratio,
+    run_metadata,
+    run_sheet,
 )
+from src.clients.base import TranscriptionResult
+from src.schema.extraction import (
+    NormalizedIncidentModel,
+    NormalizedOccurrence,
+    NormalizedShift,
+)
+from src.schema.loader import load_config
 from src.schema.state import ExtractedField
+
+TABLE_CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 
 def _ef(name: str, value: Any, must_review: bool = False) -> ExtractedField:
@@ -159,3 +184,285 @@ def test_aggregate_counts() -> None:
     assert agg["errors_by_severity"]["BLOCKER"] == 1
     assert agg["field_status_counts"]["missing"] == 1
     assert agg["n_verified_by_user"] == 1
+
+
+# --- parse_table_success (EVAL_PROTOCOL §2.1) --------------------------------
+
+
+def _norm_sa() -> NormalizedIncidentModel:
+    return NormalizedIncidentModel(
+        shift=NormalizedShift(date="01/01", guards=["A", "B"], unit="Posto"),
+        no_occurrence=True,
+    )
+
+
+def _norm_occ(desc: str = "Prestador acessa para manutenção.") -> NormalizedIncidentModel:
+    return NormalizedIncidentModel(
+        shift=NormalizedShift(date="01/01", guards=["A"], unit="Posto"),
+        no_occurrence=False,
+        occurrences=[NormalizedOccurrence(description=desc)],
+    )
+
+
+def test_parse_table_success_sa_sheet_ok() -> None:
+    assert parse_table_success(_sa_sheet(), _norm_sa(), TABLE_CONFIG) is True
+
+
+def test_parse_table_success_occ_sheet_ok() -> None:
+    assert parse_table_success(_occ_sheet(), _norm_occ(), TABLE_CONFIG) is True
+
+
+def test_parse_table_success_fails_on_sa_mismatch() -> None:
+    # S/A curada mas o sistema diz que houve ocorrência (no_occurrence=False).
+    wrong = _norm_sa().model_copy(update={"no_occurrence": False})
+    assert parse_table_success(_sa_sheet(), wrong, TABLE_CONFIG) is False
+
+
+def test_parse_table_success_fails_on_missing_required_header() -> None:
+    norm = _norm_sa()
+    norm.shift.unit = None
+    assert parse_table_success(_sa_sheet(), norm, TABLE_CONFIG) is False
+
+
+def test_parse_table_success_fails_on_row_count_error() -> None:
+    norm = _norm_occ()
+    norm.occurrences.append(NormalizedOccurrence(description="linha inventada"))
+    assert parse_table_success(_occ_sheet(), norm, TABLE_CONFIG) is False
+
+
+# --- comparable_fields / effort_metrics (EVAL_PROTOCOL §1/§2.2) ---------------
+
+
+def test_comparable_fields_includes_first_occurrence_description() -> None:
+    comp = comparable_fields(_occ_sheet(), _norm_occ(), TABLE_CONFIG)
+    assert set(comp) == {"data_turno", "vigilantes", "unidade", "ocorrencia_1_descricao"}
+    assert comp["ocorrencia_1_descricao"][0] == "Prestador acessa para manutenção."
+
+
+def test_comparable_fields_sa_sheet_scalars_only() -> None:
+    comp = comparable_fields(_sa_sheet(), _norm_sa(), TABLE_CONFIG)
+    assert set(comp) == {"data_turno", "vigilantes", "unidade"}
+
+
+def test_effort_metrics_blank_field_costs_full_typing() -> None:
+    m = effort_metrics({"data_turno": ("01/01", None)})
+    assert m["blank_field_count"] == 1
+    assert m["estimated_chars_to_type"] == len("01/01")
+    assert m["campos_corrigidos_por_folha"] == 1
+
+
+def test_effort_metrics_wrong_field_costs_levenshtein() -> None:
+    m = effort_metrics({"unidade": ("abcdef", "zzzzzz")})
+    assert m["prefilled_but_wrong_count"] == 1
+    assert m["estimated_chars_to_type"] == 6  # levenshtein(zzzzzz -> abcdef)
+
+
+def test_effort_metrics_correct_field_costs_nothing() -> None:
+    m = effort_metrics({"unidade": ("Portaria", "portaria")})  # _norm iguala caixa
+    assert m["prefilled_but_wrong_count"] == 0
+    assert m["estimated_chars_to_type"] == 0
+    assert m["field_compare"]["unidade"]["correct"] is True
+
+
+def test_effort_metrics_skips_fields_without_ground_truth() -> None:
+    m = effort_metrics({"unidade": (None, "algo")})
+    assert m["n_fields_compared"] == 0
+
+
+# --- repairable_ratio probe (EVAL_PROTOCOL §2.3) ------------------------------
+
+
+def test_repairable_ratio_none_when_no_pending() -> None:
+    fields = [_ef("a", "x"), _ef("b", "y")]
+    assert repairable_ratio(fields) is None  # 0/0 -> indefinido, nunca 1.0
+
+
+def test_repairable_ratio_counts_geometry() -> None:
+    with_geo = ExtractedField(
+        name="a", value="x", confidence=0.4, must_review=True, bbox=(0.1, 0.1, 0.2, 0.2), page=0
+    )
+    without_geo = _ef("b", "y", must_review=True)
+    assert repairable_ratio([with_geo, without_geo]) == 0.5
+
+
+# --- failure matrix (EVAL_PROTOCOL §8) — pipeline com leitor fake, $0 ---------
+
+
+class _RaisingVision:
+    """Simula Ollama offline / modelo não baixado: transcribe levanta RuntimeError."""
+
+    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+        raise RuntimeError("Could not reach a local VLM server at http://localhost:11434/v1")
+
+
+class _EmptyVision:
+    """Simula VLM devolvendo string vazia válida (resposta sem conteúdo útil)."""
+
+    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+        return TranscriptionResult(text="", confidence=0.5, confidence_source="mock")
+
+
+def _sheet_with_file(tmp_path: Path) -> dict[str, Any]:
+    png = tmp_path / "sheet.png"
+    Image.new("RGB", (80, 80), "white").save(png)
+    cur = _occ_sheet()
+    cur["source_file"] = str(png)
+    return cur
+
+
+def test_eval_marks_vlm_runtime_error_available_false(tmp_path: Path) -> None:
+    out = run_sheet(_sheet_with_file(tmp_path), TABLE_CONFIG, vision=_RaisingVision())
+    assert out["available"] is False
+    assert out["ran"] is False
+    assert "VLM server" in str(out["reason"])
+
+
+def test_eval_vlm_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
+    out = run_sheet(_sheet_with_file(tmp_path), TABLE_CONFIG, vision=_EmptyVision())
+    assert out["available"] is True
+    assert out["ran"] is True
+    assert out["ocr_quality"] == "failed"  # <30 chars -> failed, nunca inventa
+    assert out["confidence_source"] == "mock"  # lido do schema, não inferido
+
+
+def test_public_report_whitelist_drops_pii() -> None:
+    meta = {
+        "reader": "local_vlm",
+        "model": "qwen2.5vl:3b abc123",
+        "dpi": 150,
+        "prompt_sha256": "deadbeef",
+        "git_commit": "cafe1234",
+        "timestamp": "20260704T120000Z",
+    }
+    per_sheet = [
+        {
+            "document_id": "folha-JOAO-SILVA",
+            "review_status": "verified_by_user",
+            "source_file": "private/reais/folha_joao_silva.png",
+            "ran": True,
+            "available": True,
+            "parse_table_success": True,
+            "must_review_count": 2,
+            "missing_count": 1,
+            "repairable_ratio": 0.5,
+            "estimated_chars_to_type": 7,
+            "prefilled_but_wrong_count": 1,
+            "blank_field_count": 1,
+            "illegible_token_count": 0,
+            "campos_corrigidos_por_folha": 2,
+            "n_fields_compared": 4,
+            "elapsed_sec": 12.3,
+            "ocr_quality": "low",
+            "confidence_source": "placeholder",
+            "field_compare": {"unidade": {"cer": 0.0, "correct": True}},
+            "_detail": {"transcription": "Vigilante João da Silva, portão 3"},
+        }
+    ]
+    text = json.dumps(build_public_run(meta, per_sheet), ensure_ascii=False)
+    # PII plantada NUNCA aparece — por construção (whitelist), não por subtração.
+    for forbidden in ("JOAO", "João", "folha_joao", "document_id", "_detail", "transcription"):
+        assert forbidden not in text
+    # E o que é permitido está lá.
+    assert "sheet_1" in text
+    assert '"estimated_chars_to_type": 7' in text
+
+
+def test_invalid_dpi_rejected() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--dpi", "0"])
+    assert exc.value.code == 2
+
+
+def test_invalid_vision_rejected() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--vision", "bogus"])
+    assert exc.value.code == 2
+
+
+# --- comparação pareada + merge do resumo (EVAL_PROTOCOL §2.5/§6) -------------
+
+
+def test_compare_runs_paired_counts_and_g1() -> None:
+    base_run = {
+        "meta": {"reader": "local_ocr", "dpi": 150},
+        "per_sheet": [
+            {
+                "document_id": "d1",
+                "ran": True,
+                "parse_table_success": False,
+                "estimated_chars_to_type": 40,
+                "field_compare": {
+                    "data_turno": {"correct": False},
+                    "unidade": {"correct": True},
+                },
+            }
+        ],
+    }
+    vlm_run = {
+        "meta": {"reader": "local_vlm", "dpi": 150},
+        "per_sheet": [
+            {
+                "document_id": "d1",
+                "ran": True,
+                "parse_table_success": True,
+                "estimated_chars_to_type": 10,
+                "field_compare": {
+                    "data_turno": {"correct": True},
+                    "unidade": {"correct": True},
+                },
+            }
+        ],
+    }
+    paired = compare_runs(base_run, vlm_run)
+    assert paired["counts"] == {"both": 1, "only_baseline": 0, "only_vlm": 1, "neither": 0}
+    assert paired["fields"]["sheet_1.data_turno"] == "only_vlm"
+    assert paired["g1"]["rate_ok"] is True
+    assert paired["g1"]["chars_ok"] is True
+    assert paired["g1"]["margin_ok"] is False  # margem 1 < 2 é ruído com n pequeno
+    assert paired["g1"]["slo"].startswith("pending")  # SLO é decisão humana pendente
+
+
+def test_render_summary_merges_runs_by_reader_dpi(tmp_path: Path) -> None:
+    path = tmp_path / "summary.json"
+    text, pii = render_summary(path, run={"reader": "local_ocr", "dpi": 150, "n_sheets": 1})
+    assert pii == []
+    path.write_text(text, encoding="utf-8")
+    text2, _ = render_summary(path, run={"reader": "local_ocr", "dpi": 150, "n_sheets": 2})
+    data = json.loads(text2)
+    assert len(data["runs"]) == 1  # substitui a rodada (reader, dpi), não duplica
+    assert data["runs"][0]["n_sheets"] == 2
+
+
+def test_render_summary_paired_keeps_existing_runs(tmp_path: Path) -> None:
+    path = tmp_path / "summary.json"
+    text, _ = render_summary(path, run={"reader": "local_ocr", "dpi": 150})
+    path.write_text(text, encoding="utf-8")
+    text2, _ = render_summary(path, paired={"counts": {"both": 1}})
+    data = json.loads(text2)
+    assert len(data["runs"]) == 1
+    assert data["paired"]["counts"]["both"] == 1
+
+
+# --- metadados forenses (EVAL_PROTOCOL §7) ------------------------------------
+
+
+def test_run_metadata_local_ocr_has_no_prompt_hash() -> None:
+    meta = run_metadata("local_ocr", 150)
+    assert meta["model"] == "tesseract"
+    assert meta["prompt_sha256"] is None
+    assert ":" not in meta["timestamp"]  # compacto p/ não colidir com o gate de PII
+
+
+def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import evals.eval_extraction_real as mod
+
+    def _no_network(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("no network in tests")
+
+    monkeypatch.setattr(mod.httpx, "get", _no_network)
+    meta = run_metadata("local_vlm", 250)
+    assert meta["dpi"] == 250
+    assert isinstance(meta["prompt_sha256"], str) and len(meta["prompt_sha256"]) == 64
+    assert meta["model"].endswith("unknown")  # best-effort honesto, nunca inventa digest

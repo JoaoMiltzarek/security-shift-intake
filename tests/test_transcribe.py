@@ -27,6 +27,7 @@ def test_transcribe_populates_state(sample_pdf: Path) -> None:
 
     assert result.transcription == "Guard report text"
     assert result.transcription_confidence == 0.83
+    assert result.transcription_confidence_source == "mock"  # copied from the client
     assert client.call_count == 1  # one-page PDF -> one transcription call
 
 

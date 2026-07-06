@@ -5,6 +5,38 @@ The v1.0 scope is deliberately small: a **local, privacy-first** pipeline that t
 with honest OCR, mandatory human review, and blocked unsafe automation. Everything below is
 **explicitly out of scope for v1.0** and recorded here so the core stays clean.
 
+## A escada de PRs do leitor (medição primeiro — PR-1 é a régua)
+
+> **⚠️ Régua reposicionada:** as decisões de adoção de leitor passam a vir dos gates
+> **G-S0…G-S3 e G1-S** do dataset sintético `tier_c`
+> ([`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) §10) + BRESSAY — nunca mais de folha
+> real (G1–G3 abaixo = legado / avaliação local opcional). A fábrica `tier_c` entra
+> pelas PRs D0–D6 do contrato (D0 contrato ✅ → D1 fontes OFL → D2 gabarito →
+> D3 render → D4 degradação foto → D5 CLI/manifests → D6 eval sintético).
+
+A PR-1 ("medição primeiro") construiu a régua que decide as PRs seguintes sem tocar o
+orquestrador: eval instrumentado por leitor×DPI, probes, contrato VLM congelado e o
+protocolo normativo [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md). Cada seta abaixo é um
+número dos gates G1–G3 (fórmulas exatas no protocolo; **hoje legado**):
+
+- **G1** (`parse_table_success` VLM ≥ baseline **e** vitória pareada por campo com
+  margem ≥ 2 **e** redução de `estimated_chars_to_type` **e** `tempo_por_folha` ≤ SLO)
+  → **PR-2: escalonamento de página** (1 passo, fallback em erro — erro do VLM nunca
+  apaga o baseline —, trace `escalation_*`, retenção por qualidade com tie → baseline).
+  G1 reprovado → matar/adiar a via (fine-tune HTR M-E vira candidato se o CER platear).
+- **G2** (`repairable_ratio ≥ 0.8` nos pendentes) → **PR-2b: reparo por recorte de
+  bbox** (1 chamada/campo). Se `missing` domina os pendentes, a PR-2 compara **página
+  inteira VLM × crop por região fixa** (rótulo impresso ancora a região em layout fixo)
+  antes de qualquer decisão de matar o reparo.
+- **G3** (algum leitor com `confidence_source = logprobs`, lido do schema, nunca
+  inferido; ≥ 50 campos comparados) → **PR-3: calibração + threshold**. Hoje seria
+  histograma de placeholders — por isso não existe ainda.
+- **SLO pendente (decisão do usuário):** o alvo de `tempo_por_folha` precisa ser
+  declarado em `EVAL_PROTOCOL.md` §5 **antes** de avaliar G1 como "passou".
+- **Trilha de produto pós-prova** (independente dos gates): summary dia/noite (depende
+  de `period`, hoje `None` em `normalize.py`) e export `.xlsx` (precisa replicar o
+  guard de formula injection `_csv_safe`, CWE-1236).
+
 ## Better reading (the real fidelity ceiling)
 Free local OCR (Tesseract) cannot read cursive handwriting — measured, not assumed
 (see [AUDITORIA_FOLHAS_REAIS.md](AUDITORIA_FOLHAS_REAIS.md) and the OCR-iteration note).

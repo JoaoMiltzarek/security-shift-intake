@@ -15,7 +15,8 @@ que o sistema extraiu vs. o que a folha realmente diz. Cada folha real vira um J
 | `schema_version` | string | Versão do formato (atual: `"1.0"`). Permite evoluir sem quebrar auditorias antigas. |
 | `document_id` | string | Identificador estável da folha (kebab-case). |
 | `source_file` | string | Caminho do arquivo real em `private/reais/` (PDF/JPG/PNG). |
-| `review_status` | enum | `draft_by_claude` \| `needs_review` \| `verified_by_user`. |
+| `review_status` | enum | `draft_by_claude` \| `needs_review` \| `verified_by_user` \| `synthetic_ground_truth`. |
+| `truth_source` | enum (opcional) | `human_curation` (default implícito das curadorias reais) \| `generator` (gabarito sintético). Torna a origem explícita mesmo se o arquivo for copiado de lugar. |
 | `cabecalho.data` | string\|null | Data e turno como escritos. |
 | `cabecalho.turno` | string\|null | Turno, se separável da data. |
 | `cabecalho.vigilantes` | string[] | Lista de vigilantes (a folha real tem **vários**). |
@@ -37,6 +38,12 @@ que o sistema extraiu vs. o que a folha realmente diz. Cada folha real vira um J
 - `needs_review` — marcada para conferência humana.
 - `verified_by_user` — conferida pelo usuário. **Só este status conta como ground-truth na auditoria
   final**; os demais entram apenas como pendentes de conferência.
+- `synthetic_ground_truth` — verdade **gerada** pela fábrica sintética
+  (`docs/DATASET_CONTRACT.md`), acompanhada de `truth_source: "generator"`. **Nunca significa
+  verificação humana**, **nunca aparece em `private/curadoria/`** e o eval real a **ignora por
+  default** (filtro `VALID_REVIEW_STATUS` inalterado); só o eval sintético a aceita, por opt-in
+  explícito. A distinção é semântica por construção: verdade gerada é perfeita por definição do
+  gerador, não por conferência — confundir as duas seria apresentar mock como funcionalidade.
 
 ## `S/A` e risco
 
