@@ -101,6 +101,42 @@ Evidência PR-D6 (comando real `make eval-synthetic VISION=mock`):
 Nota: mock não lê imagem ⇒ acurácias 0.0 são o esperado; o valor do run é o G-S1
 (S/A nunca vira ocorrência) e o harness pronto para `local_ocr`/`local_vlm`.
 
+## Rodadas reais G-S2 (primeira medição = régua)
+
+> **Disciplina do contrato (§10):** primeira rodada medida — **estabelece a régua**;
+> NENHUM pass/fail declarado aqui; alvo numérico só será congelado em rodada
+> subsequente. Lembrete permanente: handwriting por fonte TTF é mais fácil que real
+> ⇒ números sintéticos são **limite superior otimista**.
+
+### Rodada 1 — Tesseract (`local_ocr`) — 2026-07-06
+
+Ambiente: Tesseract 5 de `C:\Program Files\Tesseract-OCR` (fora do PATH; PATH ajustado
+na sessão). Pack `por` **instalado** em tessdata de usuário
+(`%LOCALAPPDATA%\Tesseract-OCR\tessdata`, via `TESSDATA_PREFIX` — Program Files sem
+admin); `tesseract --list-langs` → eng, osd, **por** ⇒ rodada rodou com `lang=por`
+(sem fallback `eng`).
+
+Comando real `make eval-synthetic VISION=local_ocr DPI=150` (split=val default):
+
+```
+dataset=smoke split=val reader=local_ocr dpi=150 n=7 ran=7
+parse_table_success_rate=0.1429 chars_to_type=845 false_incident=0 descricao_acc=0.0 hora_acc=0.1
+```
+
+`reader_metrics` (de `docs/eval_synthetic_summary.json`, commit desta rodada):
+missed_incident=1, correct_refusal_rate=1.0, CER vs surface (média)=0.9814.
+
+| by_difficulty | n_ran | parse_ok | chars_to_type | false_inc | missed_inc | hora_acc | CER vs surface |
+|---|---|---|---|---|---|---|---|
+| clean | 1 | 0.0 | 134 | 0 | 0 | 0.0 | 0.7592 |
+| scan  | 5 | 0.2 | 651 | 0 | 0 | 0.1429 | 1.0651 |
+| photo | 1 | 0.0 | 60  | 0 | 1 | 0.0 | 0.7846 |
+
+Leitura honesta: Tesseract mal lê o manuscrito TTF (CER ~1 em scan; CER>1 = mais
+inserções que texto), mas **false_incident=0 se mantém com leitor real** (G-S1
+continua de pé fora do mock) e a recusa correta em campo ilegível foi 1.0. O valor
+da rodada é ser a **primeira linha de base medida** do G-S2, não um resultado bom.
+
 ## Decisões congeladas (não rediscutir sem novo registro)
 
 - Gabarito = formato curadoria + bloco `synthetic`; `review_status: synthetic_ground_truth`
