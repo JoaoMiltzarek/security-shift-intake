@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
 Offline, privacy-first document-extraction pipeline for handwritten **security incident sheets**
 ("Controle de ocorrências"). It turns a scanned/photographed sheet into two useful outputs — a
@@ -77,7 +77,7 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (457 tests, mocked, $0) and the privacy guardrail:
+# Quality gate (561 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
@@ -116,8 +116,8 @@ Compare a transcrição/extração lado a lado. **Honestidade:** o caminho VLM (
 
 ### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
 A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
-G1-S) + BRESSAY — nunca de folha real. Fábrica em construção (PRs D0–D6 do contrato);
-progresso em `docs/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
+G1-S) + BRESSAY — nunca de folha real. Fábrica completa (PRs D0–D6 do contrato);
+progresso e primeiras medições reais (G-S2) em `docs/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
 **avaliação local opcional** (folhas 100% autorizadas, locais, nunca versionadas):
 
 ```bash
@@ -186,7 +186,7 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-457 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+561 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
 the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /

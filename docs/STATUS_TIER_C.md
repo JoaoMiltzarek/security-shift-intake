@@ -1,4 +1,8 @@
-# STATUS — Fábrica de dataset sintético `tier_c` (branch `SSI-1002-hardening`)
+# STATUS — Fábrica de dataset sintético `tier_c` (branch `SSI-1002-tier-c-eval`)
+
+> **Nota de branch (2026-07-05):** D0–D5 nasceram em `SSI-1002-hardening`, que foi
+> mergeada em `main` via PRs #9/#10 (+ merge do cockpit de evidência). A D6 foi
+> concluída em `SSI-1002-tier-c-eval`, criada a partir desse `main` consolidado.
 
 > **Propósito deste arquivo:** registro de retomada entre sessões (context file).
 > Diz em que ponto o plano da fábrica está, o que foi feito (com commit) e o que falta.
@@ -24,7 +28,7 @@ G1-S** (`DATASET_CONTRACT.md` §10) — decisão de leitor **sem folha real**.
 | **D3** | `data/generators/templates/controle_ocorrencias.py` — render tabela 5 colunas (9 linhas), variantes A/B (+C só test), `RenderResult(image, ideal_lines, font_name)`, teste de contrato pré-G-S0 | ✅ (commits abaixo) |
 | **D4** | `degrade_photo` (perspectiva/sombra/corte ≤3%/downscale) + bandas held-out 80/20 por split (`Band`, `_banded`; knob `clean\|scan\|photo` materializa na D5) | ✅ (commits abaixo) |
 | **D5** | `tier_c.py::build_tier_c` + `CANONICAL_DATASETS` + `scripts/gen_sheets.py` + Make `gen-sheets DATASET=...` + manifesto congelado (sha256 de PNG+gt canônico, nunca PDF) + guard `sample_tc-\d+` | ✅ (commits abaixo) |
-| **D6** | `evals/eval_extraction_synthetic.py` (reusa `load_curadoria(directory, valid_status)`/`run_sheet`) + `--split val` default + `reader_metrics` × `parser_ceiling` + `docs/eval_synthetic_summary.json` + Make `eval-synthetic` | ⬜ |
+| **D6** | `evals/eval_extraction_synthetic.py` (reusa `load_curadoria(directory, valid_status)`/`run_sheet`) + `--split val` default + `reader_metrics` × `parser_ceiling` + `docs/eval_synthetic_summary.json` + Make `eval-synthetic` | ✅ (commits abaixo) |
 
 ## Feito (com commit)
 
@@ -82,6 +86,88 @@ JPEG, fator de downscale) para que upper20 seja SEMPRE a fatia mais difícil.
 Evidência PR-D5: `make gen-sheets DATASET=smoke` REAL → "Wrote 50 sheets ... train: 35 / val: 7 / test: 8";
 `make check` → **554 passed, 1 skipped**; `make privacy-check` OK (com PNGs tier_c commitados).
 
+| **PR-D6** `load_curadoria(directory, valid_status)` backward-compatible (default inalterado; 36 testes do eval real intactos) | `459d89e` |
+| `evals/eval_extraction_synthetic.py` — reusa fórmulas §2 (`run_sheet`, `_norm`, cer≤0.5), lê `gt/` com `valid_status={"synthetic_ground_truth"}`, replay determinístico do extractor sobre a transcrição → false/missed incident, acurácia por campo em TODAS as linhas, recusa correta, CER vs surface; `reader_metrics` separado de `parser_ceiling`; breakdown difficulty × template; público = agregados apenas gateado por `scan_text_for_pii` | `5985d1f` |
+| Make `eval-synthetic VISION/DPI/REAL_N/SPLIT` (`SPLIT ?= val` anti-tuning) | `7883d8e` |
+| `tests/test_eval_synthetic.py` — 7 testes: **G-S1 nomeado** (`test_smoke_50_mock_no_false_incident`: 50 folhas, zero false_incident), split val default + público aggregates-only sem PII, `--split test` explícito, split inválido rejeitado, dataset ausente → exit 1, recusa premiada (não recuperação) | `9e24ad7` |
+| `docs/eval_synthetic_summary.json` — nascimento honesto da rodada mock smoke/val | `78a8a0e` |
+| Review Python pós-D6 (agente): 0 CRITICAL/HIGH, 2 MEDIUM corrigidos — guard `--dpi>0` (mesmo padrão do eval real) + `meta.json` corrompido não aborta o run | `3797cb9` |
+
+Evidência PR-D6 (comando real `make eval-synthetic VISION=mock`):
+`dataset=smoke split=val reader=mock dpi=150 n=7 ran=7` /
+`parse_table_success_rate=0.0 chars_to_type=644 false_incident=0 descricao_acc=0.0 hora_acc=0.0`
+(reproduz byte-a-byte a rodada da sessão anterior — determinismo confirmado após o merge).
+`make check` → **561 passed, 1 skipped**; `make privacy-check` OK.
+Nota: mock não lê imagem ⇒ acurácias 0.0 são o esperado; o valor do run é o G-S1
+(S/A nunca vira ocorrência) e o harness pronto para `local_ocr`/`local_vlm`.
+
+## Rodadas reais G-S2 (primeira medição = régua)
+
+> **Disciplina do contrato (§10):** primeira rodada medida — **estabelece a régua**;
+> NENHUM pass/fail declarado aqui; alvo numérico só será congelado em rodada
+> subsequente. Lembrete permanente: handwriting por fonte TTF é mais fácil que real
+> ⇒ números sintéticos são **limite superior otimista**.
+
+### Rodada 1 — Tesseract (`local_ocr`) — 2026-07-06
+
+Ambiente: Tesseract 5 de `C:\Program Files\Tesseract-OCR` (fora do PATH; PATH ajustado
+na sessão). Pack `por` **instalado** em tessdata de usuário
+(`%LOCALAPPDATA%\Tesseract-OCR\tessdata`, via `TESSDATA_PREFIX` — Program Files sem
+admin); `tesseract --list-langs` → eng, osd, **por** ⇒ rodada rodou com `lang=por`
+(sem fallback `eng`).
+
+Comando real `make eval-synthetic VISION=local_ocr DPI=150` (split=val default):
+
+```
+dataset=smoke split=val reader=local_ocr dpi=150 n=7 ran=7
+parse_table_success_rate=0.1429 chars_to_type=845 false_incident=0 descricao_acc=0.0 hora_acc=0.1
+```
+
+`reader_metrics` (de `docs/eval_synthetic_summary.json`, commit desta rodada):
+missed_incident=1, correct_refusal_rate=1.0, CER vs surface (média)=0.9814.
+
+| by_difficulty | n_ran | parse_ok | chars_to_type | false_inc | missed_inc | hora_acc | CER vs surface |
+|---|---|---|---|---|---|---|---|
+| clean | 1 | 0.0 | 134 | 0 | 0 | 0.0 | 0.7592 |
+| scan  | 5 | 0.2 | 651 | 0 | 0 | 0.1429 | 1.0651 |
+| photo | 1 | 0.0 | 60  | 0 | 1 | 0.0 | 0.7846 |
+
+Leitura honesta: Tesseract mal lê o manuscrito TTF (CER ~1 em scan; CER>1 = mais
+inserções que texto), mas **false_incident=0 se mantém com leitor real** (G-S1
+continua de pé fora do mock) e a recusa correta em campo ilegível foi 1.0. O valor
+da rodada é ser a **primeira linha de base medida** do G-S2, não um resultado bom.
+
+### Rodada 2 — VLM local (`local_vlm`, qwen2.5vl:3b via Ollama) — 2026-07-06
+
+Ambiente: Ollama local (`localhost:11434`), modelo `qwen2.5vl:3b`; DPI 100 (150
+estoura VRAM — decisão congelada). Duração real: ~21 min p/ 7 folhas (~180 s/folha,
+consistente com os ~177 s/folha medidos no eval real).
+
+Comando real `make eval-synthetic VISION=local_vlm DPI=100 REAL_N=30` (--n 30 não
+corta nada: smoke/val tem 7 folhas):
+
+```
+dataset=smoke split=val reader=local_vlm dpi=100 n=7 ran=7
+parse_table_success_rate=0.4286 chars_to_type=1371 false_incident=0 descricao_acc=0.0 hora_acc=0.2
+```
+
+`reader_metrics` (de `docs/eval_synthetic_summary.json`, commit desta rodada):
+missed_incident=0, correct_refusal_rate=1.0, CER vs surface (média)=1.1343.
+
+| by_difficulty | n_ran | parse_ok | chars_to_type | false_inc | missed_inc | hora_acc | CER vs surface |
+|---|---|---|---|---|---|---|---|
+| clean | 1 | 0.0 | 228 | 0 | 0 | 0.0 | 0.9755 |
+| scan  | 5 | 0.4 | 1102 | 0 | 0 | 0.1429 | 1.2145 |
+| photo | 1 | 1.0 | 41  | 0 | 0 | 1.0 | 0.8923 |
+
+Comparação direta com a Rodada 1 (mesmas 7 folhas, sem pass/fail): o VLM parseia a
+estrutura da tabela melhor (0.4286 vs 0.1429) e não perde ocorrência (missed 0 vs 1),
+mas **gera mais texto errado para corrigir** (chars_to_type 1371 vs 845) e CER maior
+(1.1343 vs 0.9814 — CER>1 = inserções/alucinação de texto). Nenhum leitor lê o
+manuscrito TTF de fato (descricao_acc=0.0 em ambos). **false_incident=0 nos dois
+leitores reais** — o invariante de segurança segue de pé. Régua G-S2 estabelecida;
+alvo numérico e escolha de leitor ficam para a calibração G1-S (val→congela→test).
+
 ## Decisões congeladas (não rediscutir sem novo registro)
 
 - Gabarito = formato curadoria + bloco `synthetic`; `review_status: synthetic_ground_truth`
@@ -105,26 +191,21 @@ Evidência PR-D5: `make gen-sheets DATASET=smoke` REAL → "Wrote 50 sheets ... 
 ## Como retomar numa sessão nova
 
 ```bash
-git log --oneline -20          # commits da tabela acima
-make check                     # deve estar verde antes de qualquer mudança (506+ testes)
-# Próximo passo: PR-D6 (eval sintético) — DATASET_CONTRACT.md §10/§12.
-# D6 exige:
-#   - MUDANÇA ÚNICA backward-compatible em evals/eval_extraction_real.py:
-#     load_curadoria(directory=..., valid_status: set[str] = VALID_REVIEW_STATUS)
-#     — default inalterado (testes reais intactos); teste novo cobre o parâmetro;
-#   - evals/eval_extraction_synthetic.py: importa load_curadoria/run_sheet/fórmulas;
-#     lê data/synthetic/tier_c/gt com valid_status={"synthetic_ground_truth"};
-#     --split {val,test} default val (anti-tuning; relatório imprime split+dataset);
-#     breakdown difficulty × template × reader (do bloco synthetic);
-#     extensões: TODAS as linhas (acurácia por campo, cer<=0.5 sobre _norm),
-#     FALSE_INCIDENT rate × ocorrência perdida, CER/WER vs surface,
-#     recusa correta em legibility=illegible, branco=>missing;
-#     reader_metrics (entra no G1-S) SEPARADO de parser_ceiling (item/acao/resolvido
-#     missing por construção do extractor line-based);
-#   - saída pública docs/eval_synthetic_summary.json (agregados apenas, scan_text_for_pii);
-#   - Make eval-synthetic VISION=... DPI=... N=... SPLIT=val DATASET=...;
-#   - failure matrix: leitor ausente => available:false; gt malformado => folha
-#     ignorada com motivo; testes nomeados (test_smoke_50_mock_no_false_incident etc.).
-# Depois: PR-D6 (eval sintetico — load_curadoria(valid_status), --split val default,
-# reader_metrics x parser_ceiling, docs/eval_synthetic_summary.json, Make eval-synthetic).
+git log --oneline -20          # commits da tabela acima (branch SSI-1002-tier-c-eval)
+make check                     # deve estar verde antes de qualquer mudança (561+ testes)
+# A FÁBRICA (D0–D6) ESTÁ COMPLETA. Estado pós-G-S2 (2026-07-06):
+#   [x] 1. Rodadas reais no smoke/val FEITAS (seção "Rodadas reais G-S2" acima):
+#       local_ocr dpi150 lang=por (commit edc7269) e local_vlm dpi100 (commit 32522d5).
+#   [x] 3. Benches gerados e manifests congelados COMMITADOS:
+#       bench-balanced 300/seed43 (e685a63) e bench-operational 300/seed44 (d5bf947).
+#       Geração ~2 min/300 folhas; regeneração verificada byte-a-byte (2ª run silenciosa)
+#       + tests/test_tier_c.py verde antes de cada commit; smoke regenerado ao final
+#       (gen bench sobrescreve data/synthetic/tier_c in place — smoke é seed 42, determinístico).
+#   -> PRÓXIMO: 2. Calibração G1-S em val (DATASET_CONTRACT.md §10): escolher leitor/dpi
+#      em val, CONGELAR, rodar test UMA vez, registrar aqui + no contrato.
+#      Pré-requisito externo: BRESSAY baixado (sem ele G1-S = INCOMPLETO, contrato §10);
+#      SLO de tempo/folha ainda não declarado (EVAL_PROTOCOL §5 — decisão do usuário).
+#   4. (futuro) stress 1000/seed45; segunda família de template exige config YAML nova antes.
+# Lembretes permanentes: micro-commits autor JoaoMiltzarek, nunca push,
+# atualizar ESTE arquivo ao fim de cada micro-passo, make privacy-check após docs.
 ```

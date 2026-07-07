@@ -1,0 +1,90 @@
+{
+  "run": {
+    "reader": "local_vlm",
+    "model": "qwen2.5vl:3b fb90415cde1ef08aa66",
+    "dpi": 100,
+    "prompt_sha256": "f640c343b6af076b6d1c35c4a940788d894977f389b4874d9bdb10078a4571aa",
+    "git_commit": "cb7c2db9429bb94c171d28539466ee56d13114ea",
+    "timestamp": "20260706T234050Z",
+    "dataset": "smoke",
+    "split": "val"
+  },
+  "n_sheets": 7,
+  "n_sheets_ran": 7,
+  "reader_metrics": {
+    "n_ran": 7,
+    "parse_table_success_rate": 0.4286,
+    "estimated_chars_to_type_total": 1371,
+    "false_incident_count": 0,
+    "missed_incident_count": 0,
+    "descricao_acc": 0.0,
+    "hora_acc": 0.2,
+    "correct_refusal_rate": 1.0,
+    "transcription_cer_vs_surface_mean": 1.1343
+  },
+  "parser_ceiling": {
+    "note": "item/acao/resolvido saem missing POR CONSTRUCAO do extractor line-based; teto estrutural, fora da comparacao de leitores (§12)",
+    "item_present": 11,
+    "acao_present": 11,
+    "resolvido_present": 8
+  },
+  "by_difficulty": {
+    "clean": {
+      "n_ran": 1,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 228,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 0.9755
+    },
+    "photo": {
+      "n_ran": 1,
+      "parse_table_success_rate": 1.0,
+      "estimated_chars_to_type_total": 41,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "descricao_acc": 0.0,
+      "hora_acc": 1.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 0.8923
+    },
+    "scan": {
+      "n_ran": 5,
+      "parse_table_success_rate": 0.4,
+      "estimated_chars_to_type_total": 1102,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.1429,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.2145
+    }
+  },
+  "by_template": {
+    "controle_A": {
+      "n_ran": 3,
+      "parse_table_success_rate": 0.6667,
+      "estimated_chars_to_type_total": 311,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.5,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.295
+    },
+    "controle_B": {
+      "n_ran": 4,
+      "parse_table_success_rate": 0.25,
+      "estimated_chars_to_type_total": 1060,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.125,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.0138
+    }
+  }
+}
