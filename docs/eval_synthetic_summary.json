@@ -1,90 +1,90 @@
 {
   "run": {
-    "reader": "local_vlm",
-    "model": "qwen2.5vl:3b fb90415cde1ef08aa66",
-    "dpi": 100,
-    "prompt_sha256": "f640c343b6af076b6d1c35c4a940788d894977f389b4874d9bdb10078a4571aa",
-    "git_commit": "cb7c2db9429bb94c171d28539466ee56d13114ea",
-    "timestamp": "20260706T234050Z",
-    "dataset": "smoke",
+    "reader": "local_ocr",
+    "model": "tesseract",
+    "dpi": 150,
+    "prompt_sha256": null,
+    "git_commit": "e0afe6efc1a394349b29d702d716e7105cdcd59e",
+    "timestamp": "20260708T194758Z",
+    "dataset": "bench-balanced",
     "split": "val"
   },
-  "n_sheets": 7,
-  "n_sheets_ran": 7,
+  "n_sheets": 45,
+  "n_sheets_ran": 45,
   "reader_metrics": {
-    "n_ran": 7,
-    "parse_table_success_rate": 0.4286,
-    "estimated_chars_to_type_total": 1371,
-    "false_incident_count": 0,
-    "missed_incident_count": 0,
+    "n_ran": 45,
+    "parse_table_success_rate": 0.4,
+    "estimated_chars_to_type_total": 3264,
+    "false_incident_count": 4,
+    "missed_incident_count": 12,
     "descricao_acc": 0.0,
-    "hora_acc": 0.2,
+    "hora_acc": 0.0714,
     "correct_refusal_rate": 1.0,
-    "transcription_cer_vs_surface_mean": 1.1343
+    "transcription_cer_vs_surface_mean": 1.5137
   },
   "parser_ceiling": {
     "note": "item/acao/resolvido saem missing POR CONSTRUCAO do extractor line-based; teto estrutural, fora da comparacao de leitores (§12)",
-    "item_present": 11,
-    "acao_present": 11,
-    "resolvido_present": 8
+    "item_present": 40,
+    "acao_present": 40,
+    "resolvido_present": 31
   },
   "by_difficulty": {
     "clean": {
-      "n_ran": 1,
-      "parse_table_success_rate": 0.0,
-      "estimated_chars_to_type_total": 228,
-      "false_incident_count": 0,
-      "missed_incident_count": 0,
-      "descricao_acc": 0.0,
-      "hora_acc": 0.0,
-      "correct_refusal_rate": 1.0,
-      "transcription_cer_vs_surface_mean": 0.9755
-    },
-    "photo": {
-      "n_ran": 1,
-      "parse_table_success_rate": 1.0,
-      "estimated_chars_to_type_total": 41,
-      "false_incident_count": 0,
-      "missed_incident_count": 0,
-      "descricao_acc": 0.0,
-      "hora_acc": 1.0,
-      "correct_refusal_rate": null,
-      "transcription_cer_vs_surface_mean": 0.8923
-    },
-    "scan": {
-      "n_ran": 5,
-      "parse_table_success_rate": 0.4,
-      "estimated_chars_to_type_total": 1102,
-      "false_incident_count": 0,
+      "n_ran": 10,
+      "parse_table_success_rate": 0.5,
+      "estimated_chars_to_type_total": 711,
+      "false_incident_count": 2,
       "missed_incident_count": 0,
       "descricao_acc": 0.0,
       "hora_acc": 0.1429,
       "correct_refusal_rate": null,
-      "transcription_cer_vs_surface_mean": 1.2145
+      "transcription_cer_vs_surface_mean": 1.9394
+    },
+    "photo": {
+      "n_ran": 16,
+      "parse_table_success_rate": 0.375,
+      "estimated_chars_to_type_total": 815,
+      "false_incident_count": 1,
+      "missed_incident_count": 6,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.3022
+    },
+    "scan": {
+      "n_ran": 19,
+      "parse_table_success_rate": 0.3684,
+      "estimated_chars_to_type_total": 1738,
+      "false_incident_count": 1,
+      "missed_incident_count": 6,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0556,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.4678
     }
   },
   "by_template": {
     "controle_A": {
-      "n_ran": 3,
-      "parse_table_success_rate": 0.6667,
-      "estimated_chars_to_type_total": 311,
-      "false_incident_count": 0,
-      "missed_incident_count": 0,
+      "n_ran": 34,
+      "parse_table_success_rate": 0.4412,
+      "estimated_chars_to_type_total": 2452,
+      "false_incident_count": 2,
+      "missed_incident_count": 7,
       "descricao_acc": 0.0,
-      "hora_acc": 0.5,
+      "hora_acc": 0.0,
       "correct_refusal_rate": null,
-      "transcription_cer_vs_surface_mean": 1.295
+      "transcription_cer_vs_surface_mean": 1.5331
     },
     "controle_B": {
-      "n_ran": 4,
-      "parse_table_success_rate": 0.25,
-      "estimated_chars_to_type_total": 1060,
-      "false_incident_count": 0,
-      "missed_incident_count": 0,
+      "n_ran": 11,
+      "parse_table_success_rate": 0.2727,
+      "estimated_chars_to_type_total": 812,
+      "false_incident_count": 2,
+      "missed_incident_count": 5,
       "descricao_acc": 0.0,
-      "hora_acc": 0.125,
+      "hora_acc": 0.2857,
       "correct_refusal_rate": 1.0,
-      "transcription_cer_vs_surface_mean": 1.0138
+      "transcription_cer_vs_surface_mean": 1.4539
     }
   }
 }
