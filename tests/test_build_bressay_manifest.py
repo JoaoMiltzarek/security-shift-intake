@@ -55,6 +55,28 @@ def test_manifest_skips_image_without_ground_truth(tmp_path: Path) -> None:
     assert all(e["image"] != "data/lines/s02.png" for e in entries)
 
 
+def _word_layout(tmp_path: Path) -> Path:
+    """words/ layout: data/words/{id}/{id}-*.png + {id}-*.txt."""
+    (tmp_path / "sets").mkdir()
+    (tmp_path / "sets" / "test.txt").write_text("w01\nw02\nw99\n", encoding="utf-8")
+    for page_id, words in [("w01", [("palavra um", "01"), ("palavra dois", "02")]),
+                            ("w02", [("terceira", "01")])]:
+        page_dir = tmp_path / "data" / "words" / page_id
+        page_dir.mkdir(parents=True)
+        for text, suffix in words:
+            stem = f"{page_id}-{suffix}"
+            (page_dir / f"{stem}.png").write_bytes(b"\x89PNG fake")
+            (page_dir / f"{stem}.txt").write_text(text, encoding="utf-8")
+    return tmp_path
+
+
+def test_manifest_word_subdir_layout(tmp_path: Path) -> None:
+    entries = build_manifest(_word_layout(tmp_path), level="word")
+    assert len(entries) == 3
+    assert entries[0]["text"] == "palavra um"
+    assert "data/words/w01/w01-01.png" in entries[0]["image"]
+
+
 def test_missing_split_fails_loudly(tmp_path: Path) -> None:
     assert main(["--bressay-dir", str(tmp_path)]) == 1
 
