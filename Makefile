@@ -25,9 +25,12 @@ DATASET ?= smoke
 # Tier C synthetic eval split (contract par.5: val=default anti-tuning; test=milestone).
 SPLIT ?= val
 
+# Watch-dir for make watch (override: make watch WATCH_DIR=private/inbox).
+WATCH_DIR ?= private/inbox
+
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval eval-bressay eval-real eval-synthetic \
+        demo-pipeline-mock eval eval-bressay eval-real eval-synthetic watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -55,6 +58,7 @@ help:
 	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
 	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
+	@echo   make watch           - poll WATCH_DIR for new PDFs; writes drafts, NEVER sends email \(Ctrl-C to stop\)
 
 install:
 	uv sync
@@ -129,3 +133,8 @@ eval-real:
 # Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
 eval-synthetic:
 	PYTHONPATH=. uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
+
+# Intake Watch — idempotent PDF watcher. Creates drafts in WATCH_DIR/drafts/.
+# NEVER sends email. Ctrl-C to stop. Override: make watch WATCH_DIR=private/inbox.
+watch:
+	PYTHONPATH=. uv run python scripts/run_watch.py --watch-dir $(WATCH_DIR)
