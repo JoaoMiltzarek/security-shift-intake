@@ -20,8 +20,9 @@ import os
 import sys
 from pathlib import Path
 
-# Nível de amostra -> subpasta da release (linha recortada ou página inteira).
-_LEVEL_DIRS = {"line": "lines", "page": "pages"}
+# Nível de amostra -> subpasta da release.
+# "word": cada amostra do split tem uma subpasta words/{id}/ com arquivos {id}-*.png.
+_LEVEL_DIRS = {"line": "lines", "page": "pages", "word": "words"}
 _SPLIT = Path("sets") / "test.txt"
 
 
@@ -45,7 +46,15 @@ def build_manifest(bressay_dir: Path, level: str = "line", n: int = 0) -> list[d
     skipped = 0
     for sample_id in ids:
         exact = subdir / f"{sample_id}.png"
-        images = [exact] if exact.exists() else sorted(subdir.glob(f"{sample_id}*.png"))
+        if exact.exists():
+            images = [exact]
+        else:
+            images = sorted(subdir.glob(f"{sample_id}*.png"))
+            if not images:
+                # words/ layout: files live in a per-sample subdirectory
+                id_subdir = subdir / sample_id
+                if id_subdir.is_dir():
+                    images = sorted(id_subdir.glob(f"{sample_id}*.png"))
         if not images:
             skipped += 1
             continue
@@ -73,7 +82,8 @@ def main(argv: list[str]) -> int:
         default=Path(os.environ.get("BRESSAY_DIR", "data/bressay")),
         help="pasta da release (contém sets/ e data/); default: $BRESSAY_DIR ou data/bressay",
     )
-    parser.add_argument("--level", choices=sorted(_LEVEL_DIRS), default="line")
+    parser.add_argument("--level", choices=sorted(_LEVEL_DIRS), default="line",
+                        help="line (default), page, or word (subdirectory layout)")
     parser.add_argument("--n", type=int, default=0, help="máx. de amostras (0 = todas)")
     parser.add_argument(
         "--out", type=Path, default=None, help="default: <bressay-dir>/manifest.jsonl"
