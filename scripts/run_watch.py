@@ -13,7 +13,9 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,17 +26,17 @@ logging.basicConfig(
 CONFIG_PATH = Path("configs/controle_ocorrencias.yaml")
 
 
-def _make_pipeline_fn(config_path: Path):
-    from src.clients.local_ocr import TesseractVisionClient
+def _make_pipeline_fn(config_path: Path) -> Callable[[Path], dict[str, Any]]:
+    from src.clients.local_ocr import LocalOCRVisionClient
     from src.clients.local_rules import RuleBasedLLMClient
     from src.orchestrator import run_pipeline
     from src.schema.loader import load_config
 
     config = load_config(config_path)
-    vision = TesseractVisionClient()
-    llm = RuleBasedLLMClient()
+    vision = LocalOCRVisionClient()
+    llm = RuleBasedLLMClient(config)
 
-    def pipeline_fn(pdf_path: Path) -> dict:
+    def pipeline_fn(pdf_path: Path) -> dict[str, Any]:
         state = run_pipeline(pdf_path, vision, llm, config)
         return {"email_draft": state.email_draft}
 

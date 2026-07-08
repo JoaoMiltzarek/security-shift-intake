@@ -12,10 +12,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-from src.intake_watch import IntakeWatcher, WatchResult
-
+from src.intake_watch import (
+    IntakeWatcher,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -170,7 +169,7 @@ def test_two_different_files_both_processed(tmp_path: Path) -> None:
 def test_watch_dir_created_on_init(tmp_path: Path) -> None:
     watch = tmp_path / "inbox"
     watch.mkdir()
-    watcher = IntakeWatcher(watch_dir=watch, pipeline_fn=_noop_pipeline)
+    IntakeWatcher(watch_dir=watch, pipeline_fn=_noop_pipeline)
     assert (watch / "drafts").is_dir()
     assert (watch / "quarantine").is_dir()
 
