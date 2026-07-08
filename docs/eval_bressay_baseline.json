@@ -1,0 +1,21 @@
+{
+  "component": "htr_bressay",
+  "available": true,
+  "n_requested": 20,
+  "n_used": 20,
+  "level": "word",
+  "bressay_dir": "datasets/bressay/bressay",
+  "caveat": "Real BR-PT handwriting (BRESSAY, ICDAR 2024). Domain gap: student essays, not occurrence forms — directional; also measure on curated real sheets. Word-level images (not lines); only 42/199 test IDs matched the downloaded subset.",
+  "baseline_tesseract": {
+    "available": true,
+    "n": 20,
+    "mean_cer": 1.0,
+    "mean_wer": 1.0
+  },
+  "vlm": {
+    "model": "local_vlm",
+    "available": false,
+    "reason": "Ollama not running at time of eval. Re-run: BRESSAY_DIR=datasets/bressay/bressay make eval-bressay N=20 with Ollama serving qwen2.5vl:3b."
+  },
+  "notes": "CER=1.0 for Tesseract on word-level handwritten images is expected: Tesseract is designed for page/line-level printed text, not isolated handwritten words. Confirms Tesseract cannot read real BR-PT handwriting. VLM column to be filled when Ollama is running."
+}
