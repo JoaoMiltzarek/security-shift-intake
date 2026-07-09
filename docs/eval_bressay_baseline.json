@@ -13,9 +13,12 @@
     "mean_wer": 1.0
   },
   "vlm": {
-    "model": "local_vlm",
-    "available": false,
-    "reason": "Ollama not running at time of eval. Re-run: BRESSAY_DIR=datasets/bressay/bressay make eval-bressay N=20 with Ollama serving qwen2.5vl:3b."
+    "model": "qwen2.5vl:3b",
+    "available": true,
+    "n": 20,
+    "mean_cer": 4.304781746031746,
+    "mean_wer": 1.0,
+    "run_note": "column produced by `BRESSAY_DIR=datasets/bressay/bressay make eval-bressay N=20` with Ollama serving qwen2.5vl:3b; same frozen manifest.jsonl (first 20 pairs, deterministic) as the Tesseract column"
   },
-  "notes": "CER=1.0 for Tesseract on word-level handwritten images is expected: Tesseract is designed for page/line-level printed text, not isolated handwritten words. Confirms Tesseract cannot read real BR-PT handwriting. VLM column to be filled when Ollama is running."
+  "notes": "CER=1.0 for Tesseract on word-level handwritten images is expected: Tesseract is designed for page/line-level printed text, not isolated handwritten words. VLM mean_cer>4 means the model hallucinates long insertions for a single word crop — worse than typing nothing. Neither zero-cost reader reads real BR-PT handwriting; columns come from two runs on the SAME frozen manifest (Tesseract column: commit 2620343; VLM column: this run) because each run had only one reader available."
 }
