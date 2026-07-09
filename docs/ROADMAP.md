@@ -38,6 +38,16 @@ número dos gates G1–G3 (fórmulas exatas no protocolo; **hoje legado**):
   guard de formula injection `_csv_safe`, CWE-1236).
 
 ## Better reading (the real fidelity ceiling)
+
+> **Desfecho G1-S (2026-07-08, branch SSI-1003): REPROVADO.** No test do `bench-balanced`,
+> `parse_table_success_rate` 0.1111 < 0.30 congelado (números em
+> [eval_g1s_calibration.json](eval_g1s_calibration.json)); o VLM local já havia sido
+> rejeitado na calibração (9 falsos incidentes). Nenhum leitor custo-zero foi adotado
+> como transcritor automático. **Próximo candidato triado: PP-OCRv5** — pip nativo no
+> Windows, < 1 GB VRAM, line-level; critério de adoção declarado em
+> [READER_DECISION.md](READER_DECISION.md). Qualquer adoção exige novo ciclo
+> val → congela → test ([DATASET_CONTRACT.md](DATASET_CONTRACT.md) §10).
+
 Free local OCR (Tesseract) cannot read cursive handwriting — measured, not assumed
 (see [AUDITORIA_FOLHAS_REAIS.md](AUDITORIA_FOLHAS_REAIS.md) and the OCR-iteration note).
 Raising fidelity requires a better reader; all of these are deferred:
