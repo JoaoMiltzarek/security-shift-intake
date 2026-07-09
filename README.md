@@ -245,13 +245,20 @@ degrades to "a human transcribes", never to silently wrong data. Verdict block w
 | Tesseract 5 | 1.0 (reads none of it) |
 | qwen2.5vl:3b | 4.30 (hallucinates long insertions — worse than typing nothing) |
 
+**Real curated sheets (human-verified ground truth, paired per field):** on the 2 real
+sheets with archived sources, the VLM reads **6 of 7 paired fields the Tesseract baseline
+cannot** (0 fields go the other way) and leaves 136 chars to type vs 318 — numbers in
+[eval_real_summary.json](docs/eval_real_summary.json). The tension is deliberate and
+measured: real sheets favour the VLM, but the synthetic bench shows it fabricates incidents
+on degraded scans — which is why it still is not trusted as an automatic transcriber.
+
 **What these numbers mean (honest limitations):** Tesseract cannot read cursive handwriting;
-the local VLM fabricates content (CER > 1 on real handwriting, phantom incidents on synthetic
-sheets). No zero-cost reader is adopted as an automatic transcriber. This system is a
-**triage assistant with a mandatory human-approval gate** — it standardises output, surfaces
-evidence, and blocks anything unreviewed — not an autonomous decision-maker. Adopting a
-better reader (Roadmap) requires beating this same frozen gate in a new val → freeze → test
-cycle.
+the local VLM fabricates content (CER > 1 on isolated real handwriting, phantom incidents on
+synthetic sheets) even though it wins on the real curated sheets. No zero-cost reader is
+adopted as an automatic transcriber. This system is a **triage assistant with a mandatory
+human-approval gate** — it standardises output, surfaces evidence, and blocks anything
+unreviewed — not an autonomous decision-maker. Adopting a better reader (Roadmap) requires
+beating this same frozen gate in a new val → freeze → test cycle.
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
