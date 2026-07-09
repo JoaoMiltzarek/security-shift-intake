@@ -79,7 +79,7 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (595 tests, mocked, $0) and the privacy guardrail:
+# Quality gate (598 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
@@ -188,7 +188,7 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-595 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+598 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
 the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /
