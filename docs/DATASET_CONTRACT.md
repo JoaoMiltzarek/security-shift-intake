@@ -234,7 +234,19 @@ ciclo val → congela → test.
 >
 > **Decisão**: local_ocr (Tesseract) preferido — menos false_incidents E menos chars_to_type;
 > VLM rejeitado por gerar 9 ocorrências fantasma em folhas degradadas.
-> **G1-S = INCOMPLETO** até BRESSAY VLM coluna estar disponível (`docs/eval_g1s_calibration.json`).
+>
+> **Resultado do test (registrado após UMA rodada; bloco `test_result` em
+> `docs/eval_g1s_calibration.json`, escrito por `scripts/g1s_verdict.py` — nunca à mão):**
+> **G1-S = REPROVADO** — `parse_table_success_rate` 0.1111 < 0.30 congelado (val 0.40 →
+> test 0.1111; o test segura a variante C e bandas de degradação nunca vistas, §5).
+> Critérios restantes passaram: `false_incident` 1 ≤ 6; `chars_to_type` 2827 ≤ 4000;
+> `hora_acc` 0.0 ≥ 0.0. BRESSAY (critério 4) completo: Tesseract mean_cer 1.0 (sem
+> regressão, mesmo manifest); qwen2.5vl:3b mean_cer 4.30 (inserções alucinadas em crops
+> de palavra). Observações não-limiarizadas: `missed_incident` 22 (val: 0);
+> `correct_refusal_rate` 1.0 (folha S/A nunca vira ocorrência — invariante intacto).
+> **Consequência**: nenhum leitor custo-zero é adotado como transcritor automático; o
+> pipeline permanece ferramenta de triagem com gate humano obrigatório. Adotar um leitor
+> novo exige novo ciclo val → congela → test (proibido reusar este test para tuning).
 
 ## 11. Detalhes que amarram gerador ↔ eval (cada um vira asserção de teste)
 

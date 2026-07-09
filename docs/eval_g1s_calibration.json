@@ -35,7 +35,7 @@
   },
   "frozen_thresholds_for_test": {
     "reader": "local_ocr",
-    "parse_table_success_rate_min": 0.30,
+    "parse_table_success_rate_min": 0.3,
     "false_incident_max": 6,
     "estimated_chars_to_type_max": 4000,
     "hora_acc_min": 0.0,
@@ -45,5 +45,63 @@
     "available": false,
     "reason": "VLM column unavailable (Ollama not running at BRESSAY eval time; see docs/eval_bressay_baseline.json)",
     "g1s_verdict": "INCOMPLETO — BRESSAY VLM column required per §10 before G1-S can be APPROVED"
+  },
+  "test_result": {
+    "protocol": "test split run ONCE (DATASET_CONTRACT §10); thresholds frozen via commit",
+    "run": {
+      "reader": "local_ocr",
+      "model": "tesseract",
+      "dpi": 150,
+      "prompt_sha256": null,
+      "git_commit": "41be9d49f788b869b30a110d1b3ce9fb21a842fc",
+      "timestamp": "20260708T235550Z",
+      "dataset": "bench-balanced",
+      "split": "test"
+    },
+    "criteria": [
+      {
+        "metric": "parse_table_success_rate",
+        "op": ">=",
+        "frozen_threshold": 0.3,
+        "value": 0.1111,
+        "pass": false
+      },
+      {
+        "metric": "false_incident_count",
+        "op": "<=",
+        "frozen_threshold": 6,
+        "value": 1,
+        "pass": true
+      },
+      {
+        "metric": "estimated_chars_to_type_total",
+        "op": "<=",
+        "frozen_threshold": 4000,
+        "value": 2827,
+        "pass": true
+      },
+      {
+        "metric": "hora_acc",
+        "op": ">=",
+        "frozen_threshold": 0.0,
+        "value": 0.0,
+        "pass": true
+      }
+    ],
+    "failed_criteria": [
+      "parse_table_success_rate"
+    ],
+    "observations_not_thresholded": {
+      "missed_incident_count": 22,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.2588
+    },
+    "bressay_criterion_4": {
+      "available": true,
+      "baseline_tesseract_mean_cer": 1.0,
+      "vlm_mean_cer": 4.304781746031746,
+      "note": "tolerance 0 (none was frozen at calibration); reader CER must not exceed the calibration value on the same frozen manifest"
+    },
+    "verdict": "REPROVADO"
   }
 }
