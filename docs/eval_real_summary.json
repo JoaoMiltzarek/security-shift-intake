@@ -419,12 +419,12 @@
       "sheet_2.vigilantes": "only_vlm"
     },
     "parse_table_success_count": {
-      "baseline": 0,
-      "vlm": 2
+      "baseline": 1,
+      "vlm": 1
     },
     "estimated_chars_to_type_total": {
-      "baseline": 319,
-      "vlm": 122
+      "baseline": 318,
+      "vlm": 136
     },
     "g1": {
       "rate_ok": true,
