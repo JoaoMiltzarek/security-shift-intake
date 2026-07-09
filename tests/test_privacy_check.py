@@ -114,3 +114,24 @@ def test_private_md_with_time_ignored(tmp_path: Path) -> None:
 def test_public_md_clean_passes(tmp_path: Path) -> None:
     _write(tmp_path / "docs" / "AUDITORIA.md", "Field-capture rate 0.42; N=4 sheets.")
     assert check_public_no_pii(tmp_path) == []
+
+
+# --- third-party benchmark exemption (BRESSAY, gitignored datasets/bressay/) -----
+
+
+def test_bressay_dataset_binary_exempt(tmp_path: Path) -> None:
+    # Published research data (ICDAR 2024), never org sheets — the eval must coexist.
+    _write(tmp_path / "datasets" / "bressay" / "data" / "words" / "w.png", "png")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+def test_non_bressay_dataset_binary_still_flagged(tmp_path: Path) -> None:
+    # The exemption is the known benchmark subtree only, not a blanket datasets/ pass.
+    _write(tmp_path / "datasets" / "other" / "scan.pdf", "%PDF")
+    assert len(check_no_sensitive_outside_private(tmp_path)) >= 1
+
+
+def test_bressay_ground_truth_text_exempt_from_pii_scan(tmp_path: Path) -> None:
+    # BRESSAY .txt ground truth legitimately contains names/times of essay authors.
+    _write(tmp_path / "datasets" / "bressay" / "gt.txt", "encontro às 14:30 com colega")
+    assert check_public_no_pii(tmp_path) == []

@@ -125,6 +125,17 @@ class RoutingRule(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Performance / SLO
+# ---------------------------------------------------------------------------
+
+
+class PerformanceConfig(BaseModel):
+    """SLO and throughput knobs for the pipeline."""
+
+    max_seconds_per_sheet: int = 300
+
+
+# ---------------------------------------------------------------------------
 # Top-level config document
 # ---------------------------------------------------------------------------
 
@@ -143,6 +154,7 @@ class ReportConfig(BaseModel):
     # Jinja template for the email draft (scalar path). Optional: the occurrence-table
     # path renders its outputs in code (build_outputs), so it declares no template.
     email_template: str | None = None
+    performance: PerformanceConfig | None = None
 
     @model_validator(mode="after")
     def routing_has_default(self) -> ReportConfig:

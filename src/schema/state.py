@@ -101,6 +101,9 @@ class PipelineState(BaseModel):
     # normalized domain model. None on the scalar path (htmicron_security).
     raw_extraction: RawDocumentExtraction | None = None
     normalized: NormalizedIncidentModel | None = None
+    # Reconciler output (stage 2b): one ReconcileResult per field when two readers
+    # were both run on the same sheet. Empty list on single-reader runs (the common case).
+    reconcile_results: list[Any] = Field(default_factory=list)
 
     # --- Stage 3: validate (critic) ---
     # Field names that the critic flagged as MUST_REVIEW.

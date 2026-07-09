@@ -75,6 +75,12 @@ def test_screenshot_overlay_under_samples_allowed(tmp_path: Path) -> None:
     assert check_file(f) == []
 
 
+def test_cockpit_screenshot_under_samples_allowed(tmp_path: Path) -> None:
+    # Portfolio cockpit screenshot (SSI-1003 F5) — generated from a synthetic draft.
+    f = _write(tmp_path / "samples" / "cockpit_screenshot.png", "png")
+    assert check_file(f) == []
+
+
 # ---------------------------------------------------------------------------
 # Source / docs / config — exempt from the text scan (may mention the org name)
 # ---------------------------------------------------------------------------

@@ -131,11 +131,11 @@ valor.
 - A alavanca mais barata do projeto é humana: **mais folhas curadas
   `verified_by_user`** valem mais que qualquer código desta PR.
 
-## 5. SLO de tempo por folha (pendente — decisão do usuário)
+## 5. SLO de tempo por folha
 
-`tempo_por_folha` alvo: **☐ não declarado ainda.** G1 não pode ser avaliado como
-"passou" sem este número. Registrar aqui (ex.: "≤ 120 s/folha em CPU") antes da
-avaliação do gate.
+`tempo_por_folha` alvo: **≤ 300 s/folha** (congelado em `configs/controle_ocorrencias.yaml`
+→ `performance.max_seconds_per_sheet: 300`, branch SSI-1003). G1.4 pode ser avaliado
+contra esta margem; nenhuma decisão de threshold antes deste número.
 
 ## 6. Artefatos com nome fixo
 

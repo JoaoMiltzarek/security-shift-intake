@@ -1,90 +1,101 @@
 {
   "run": {
-    "reader": "local_vlm",
-    "model": "qwen2.5vl:3b fb90415cde1ef08aa66",
-    "dpi": 100,
-    "prompt_sha256": "f640c343b6af076b6d1c35c4a940788d894977f389b4874d9bdb10078a4571aa",
-    "git_commit": "cb7c2db9429bb94c171d28539466ee56d13114ea",
-    "timestamp": "20260706T234050Z",
-    "dataset": "smoke",
-    "split": "val"
+    "reader": "local_ocr",
+    "model": "tesseract",
+    "dpi": 150,
+    "prompt_sha256": null,
+    "git_commit": "41be9d49f788b869b30a110d1b3ce9fb21a842fc",
+    "timestamp": "20260708T235550Z",
+    "dataset": "bench-balanced",
+    "split": "test"
   },
-  "n_sheets": 7,
-  "n_sheets_ran": 7,
+  "n_sheets": 45,
+  "n_sheets_ran": 45,
   "reader_metrics": {
-    "n_ran": 7,
-    "parse_table_success_rate": 0.4286,
-    "estimated_chars_to_type_total": 1371,
-    "false_incident_count": 0,
-    "missed_incident_count": 0,
+    "n_ran": 45,
+    "parse_table_success_rate": 0.1111,
+    "estimated_chars_to_type_total": 2827,
+    "false_incident_count": 1,
+    "missed_incident_count": 22,
     "descricao_acc": 0.0,
-    "hora_acc": 0.2,
+    "hora_acc": 0.0,
     "correct_refusal_rate": 1.0,
-    "transcription_cer_vs_surface_mean": 1.1343
+    "transcription_cer_vs_surface_mean": 1.2588
   },
   "parser_ceiling": {
     "note": "item/acao/resolvido saem missing POR CONSTRUCAO do extractor line-based; teto estrutural, fora da comparacao de leitores (§12)",
-    "item_present": 11,
-    "acao_present": 11,
-    "resolvido_present": 8
+    "item_present": 36,
+    "acao_present": 36,
+    "resolvido_present": 28
   },
   "by_difficulty": {
     "clean": {
-      "n_ran": 1,
+      "n_ran": 9,
+      "parse_table_success_rate": 0.5556,
+      "estimated_chars_to_type_total": 305,
+      "false_incident_count": 1,
+      "missed_incident_count": 3,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 2.0026
+    },
+    "photo": {
+      "n_ran": 11,
       "parse_table_success_rate": 0.0,
-      "estimated_chars_to_type_total": 228,
+      "estimated_chars_to_type_total": 818,
       "false_incident_count": 0,
-      "missed_incident_count": 0,
+      "missed_incident_count": 6,
       "descricao_acc": 0.0,
       "hora_acc": 0.0,
       "correct_refusal_rate": 1.0,
-      "transcription_cer_vs_surface_mean": 0.9755
-    },
-    "photo": {
-      "n_ran": 1,
-      "parse_table_success_rate": 1.0,
-      "estimated_chars_to_type_total": 41,
-      "false_incident_count": 0,
-      "missed_incident_count": 0,
-      "descricao_acc": 0.0,
-      "hora_acc": 1.0,
-      "correct_refusal_rate": null,
-      "transcription_cer_vs_surface_mean": 0.8923
+      "transcription_cer_vs_surface_mean": 0.9429
     },
     "scan": {
-      "n_ran": 5,
-      "parse_table_success_rate": 0.4,
-      "estimated_chars_to_type_total": 1102,
+      "n_ran": 25,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 1704,
       "false_incident_count": 0,
-      "missed_incident_count": 0,
+      "missed_incident_count": 13,
       "descricao_acc": 0.0,
-      "hora_acc": 0.1429,
-      "correct_refusal_rate": null,
-      "transcription_cer_vs_surface_mean": 1.2145
+      "hora_acc": 0.0,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.1301
     }
   },
   "by_template": {
     "controle_A": {
-      "n_ran": 3,
-      "parse_table_success_rate": 0.6667,
-      "estimated_chars_to_type_total": 311,
+      "n_ran": 13,
+      "parse_table_success_rate": 0.0769,
+      "estimated_chars_to_type_total": 854,
       "false_incident_count": 0,
-      "missed_incident_count": 0,
+      "missed_incident_count": 7,
       "descricao_acc": 0.0,
-      "hora_acc": 0.5,
-      "correct_refusal_rate": null,
-      "transcription_cer_vs_surface_mean": 1.295
+      "hora_acc": 0.0,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.267
     },
     "controle_B": {
-      "n_ran": 4,
-      "parse_table_success_rate": 0.25,
-      "estimated_chars_to_type_total": 1060,
-      "false_incident_count": 0,
-      "missed_incident_count": 0,
+      "n_ran": 20,
+      "parse_table_success_rate": 0.1,
+      "estimated_chars_to_type_total": 1270,
+      "false_incident_count": 1,
+      "missed_incident_count": 8,
       "descricao_acc": 0.0,
-      "hora_acc": 0.125,
+      "hora_acc": 0.0,
       "correct_refusal_rate": 1.0,
-      "transcription_cer_vs_surface_mean": 1.0138
+      "transcription_cer_vs_surface_mean": 1.2155
+    },
+    "controle_C": {
+      "n_ran": 12,
+      "parse_table_success_rate": 0.1667,
+      "estimated_chars_to_type_total": 703,
+      "false_incident_count": 0,
+      "missed_incident_count": 7,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.3221
     }
   }
 }

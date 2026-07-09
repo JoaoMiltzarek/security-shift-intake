@@ -37,6 +37,12 @@ _SKIP_DIRS = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".py
 # The private folder is gitignored and is the ONLY place real data may live.
 _PRIVATE_DIR = "private"
 
+# Third-party public benchmark (BRESSAY, ICDAR 2024) — published research data used by
+# `make eval-bressay`, never org sheets. Gitignored (`/datasets/`). Exempt from the
+# working-tree scans, and narrow on purpose: only this known subtree, not all of
+# datasets/, so a stray real sheet anywhere else still trips the scan.
+_BRESSAY_SUBPATH = ("datasets", "bressay")
+
 # Synthetic sample images committed for eyeballing are allowed (generated, not real).
 _SAMPLES_DIR = "samples"
 
@@ -134,6 +140,8 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _PRIVATE_DIR in rel.parts or _has_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
+        if _has_subpath(rel, _BRESSAY_SUBPATH):
+            continue
         if _DB_EXT.search(p.name):
             violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
         if _BINARY_EXT.search(p.name) and not _is_allowed_sample_image(rel):
@@ -148,6 +156,8 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
         if _PRIVATE_DIR in rel.parts or _SAMPLES_DIR in rel.parts:
+            continue
+        if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue
         if p.suffix.lower() not in _PUBLIC_TEXT_EXT:
             continue

@@ -77,5 +77,8 @@ routing:
   # Default catch-all — must be last.
   - recipients: [general_support]
 
+performance:
+  max_seconds_per_sheet: 300  # SLO oficial congelado — ver EVAL_PROTOCOL §5
+
 # No email_template: the occurrence-table path renders its outputs in code
 # (src/pipeline/outputs.py: build_outputs), not from a Jinja template.

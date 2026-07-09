@@ -56,6 +56,8 @@ fields, and clicking a field highlights the **probable region** the value came f
 value answers *where it came from, with what confidence, by which method, and whether a human
 reviewed it*:
 
+![Evidence cockpit — synthetic occurrence-table draft, clicked field highlighted on the sheet](samples/cockpit_screenshot.png)
+
 - **`exact`** — the value matched a contiguous run of OCR words (box = union of those words).
 - **`token_window`** — the value's tokens matched within one OCR line (partial score).
 - **`none`** — no match; the field shows a textual fallback, never a blank or a wrong box.
@@ -77,7 +79,7 @@ make demo-pipeline-mock        # creates review drafts; prints the URLs
 INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
 #   open http://127.0.0.1:8000/
 
-# Quality gate (561 tests, mocked, $0) and the privacy guardrail:
+# Quality gate (598 tests, mocked, $0) and the privacy guardrail:
 make check
 make privacy-check
 ```
@@ -186,7 +188,7 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-561 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
+598 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
 includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
 critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
 the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /
@@ -194,6 +196,61 @@ the outputs, the review UI, and the evidence cockpit — the 3-level locator (`e
 serving, XSS-safe overlay rendering, and CSV export blocked until review is complete. The
 stdlib preflight probe (DB/severity contract) and the evidence collector are unit-tested; the
 live cockpit is proven by a **blocking browser-smoke gate** in CI (real Chromium under CSP).
+
+## Evaluation results (synthetic benchmark + real-handwriting check)
+
+Every number below is produced by committed code and read from a committed JSON — never
+hand-typed: [eval_g1s_calibration.json](docs/eval_g1s_calibration.json),
+[eval_synthetic_summary.json](docs/eval_synthetic_summary.json),
+[eval_bressay_baseline.json](docs/eval_bressay_baseline.json). Protocol
+([DATASET_CONTRACT.md](docs/DATASET_CONTRACT.md) §10): calibrate on `val`, freeze thresholds
+in a commit, then run `test` exactly **once** — no target moves after seeing the test.
+
+**Reader ruler — `bench-balanced` val (45 synthetic sheets):**
+
+| Metric (val) | Tesseract 5 (DPI 150) | qwen2.5vl:3b (DPI 100) |
+|---|---|---|
+| parse_table_success_rate | 0.40 | 0.5556 |
+| estimated_chars_to_type | 3264 | 4902 |
+| false_incident_count | **4** | 9 |
+| hora_acc | 0.0714 | 0.3929 |
+| correct_refusal_rate (S/A) | 1.0 | 1.0 |
+
+Chosen reader: **Tesseract (local_ocr)** — fewer hallucinated incidents and fewer characters
+left for a human to type. The local VLM was rejected: it invents occurrences on degraded
+sheets, the one error a triage tool must never make.
+
+**G1-S gate — `bench-balanced` test (45 sheets, run once, Tesseract):**
+
+| Criterion (frozen before the test) | Threshold | Test | Pass |
+|---|---|---|---|
+| parse_table_success_rate | ≥ 0.30 | 0.1111 | ❌ |
+| false_incident_count | ≤ 6 | 1 | ✅ |
+| estimated_chars_to_type | ≤ 4000 | 2827 | ✅ |
+| hora_acc | ≥ 0.0 | 0.0 | ✅ |
+
+**Verdict: G1-S FAILED — published as-is.** The test split holds out an unseen layout
+variant and unseen degradation bands (anti-memorisation, contract §5); table parsing
+collapsed from 0.40 (val) to 0.11 (test) and 22 incidents were missed (val: 0). The safety
+invariants held: no `S/A` sheet ever became an incident (correct_refusal_rate = 1.0, one
+false incident in 45 sheets), and every unparsed sheet routes to human review — the pipeline
+degrades to "a human transcribes", never to silently wrong data. Verdict block written by
+[scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses a second test run.
+
+**BRESSAY (real Brazilian-Portuguese handwriting, 20 word crops, frozen manifest):**
+
+| Reader | mean CER |
+|---|---|
+| Tesseract 5 | 1.0 (reads none of it) |
+| qwen2.5vl:3b | 4.30 (hallucinates long insertions — worse than typing nothing) |
+
+**What these numbers mean (honest limitations):** Tesseract cannot read cursive handwriting;
+the local VLM fabricates content (CER > 1 on real handwriting, phantom incidents on synthetic
+sheets). No zero-cost reader is adopted as an automatic transcriber. This system is a
+**triage assistant with a mandatory human-approval gate** — it standardises output, surfaces
+evidence, and blocks anything unreviewed — not an autonomous decision-maker. Adopting a
+better reader (Roadmap) requires beating this same frozen gate in a new val → freeze → test
+cycle.
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
