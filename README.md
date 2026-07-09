@@ -174,7 +174,8 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
 > tool — do **not** expose it to a network or deploy it publicly without adding auth first.
 
 ## Results & honest limitations
-- **The pipeline is correct and safe** (verified on real sheets, preliminary):
+- **The pipeline is correct and safe** (real sheets, human-verified ground truth —
+  4/4 curated sheets verified, the 2 with archived sources ran):
   reshaping to the occurrence-table model + the OCR gate took **blocking errors from 2 → 0**
   (no false incident on an `S/A` sheet; a real occurrence is now represented, not dropped).
   Numbers and methodology: [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
