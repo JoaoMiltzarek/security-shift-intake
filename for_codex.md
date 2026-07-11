@@ -128,7 +128,8 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       AttributeError hoje → xfail; strict força o flip em F2.A2).
 - [x] F1.2 feito: `test_consecutive_content_rows_without_separator_merge` (documental,
       passa hoje). SAÍDA REAL: `pytest tests/test_table_rules.py -q` → **9 passed, 2 xfailed**.
-- [ ] F1.3 `tests/test_normalize.py`: xfail — zero rows sem S/A → `unknown`; ≥1 `sem_alteracao=True` → `none`; conteúdo → `present` + commit
+- [x] F1.3 feito: 5 xfail(strict) em test_normalize — zero-rows→unknown, blank-rows→unknown,
+      S/A→none, conteúdo→present, misto→present. SAÍDA REAL: **11 passed, 5 xfailed**.
 - [ ] F1.4 `tests/test_local_ocr.py`: integração REAL — renderizar fixture 0/1/2 linhas
       (gerador `data/generators/templates/controle_ocorrencias.py`), Tesseract real, caminho de
       produção; 2 linhas nunca viram "sem alteração" aceito; skip limpo sem tesseract + commit
