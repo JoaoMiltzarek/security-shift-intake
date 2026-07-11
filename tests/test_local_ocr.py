@@ -59,6 +59,49 @@ def test_transcribe_real_or_clear_error() -> None:
             client.transcribe(_png_b64())
 
 
+# --- Contrato F1 (SSI-1005): integração REAL — Tesseract sobre folha sintética ---
+# Propriedade de segurança leitor-independente: uma folha renderizada COM ocorrências,
+# lida pelo Tesseract REAL e passada pelo caminho de produção (extract → normalize),
+# NUNCA pode afirmar "sem ocorrência" (disposition "none"). Pós-F2 vale para qualquer
+# resultado do OCR: linhas lidas → present; linhas perdidas → unknown (nunca none).
+# Sondagem 2026-07-11 (seed 123/val, 3 variantes): OCR lê o header de coluna mas FUNDE
+# as ocorrências em 1 linha (rows=1) — a fusão é segura (must_review); o perigo é o none.
+
+
+@pytest.mark.skipif(not tesseract_available(), reason="tesseract não instalado")
+@pytest.mark.xfail(
+    strict=True,
+    reason="F2.A3: disposição tri-state — folha com ocorrências nunca vira 'none'",
+)
+def test_real_ocr_multi_occurrence_sheet_never_claims_none() -> None:
+    import random
+    from pathlib import Path
+
+    from data.generators.messiness_table import build_surface
+    from data.generators.occurrences import generate_sheet, vocab_for_split
+    from data.generators.templates.controle_ocorrencias import render_sheet
+    from src.clients.table_rules import RuleBasedTableExtractor
+    from src.pipeline.normalize import normalize
+    from src.schema.loader import load_config
+
+    config = load_config(Path("configs/controle_ocorrencias.yaml"))
+    rng = random.Random(123)
+    vocab = vocab_for_split("val")
+    record = next(
+        r
+        for i in range(800)
+        if len((r := generate_sheet(rng, f"f14-{i:06d}", "balanced", vocab)).ocorrencias) >= 2
+        and not r.riscado
+    )
+    result = render_sheet(random.Random(7), record, build_surface(rng, record))
+
+    transcription = LocalOCRVisionClient().transcribe(image_to_base64_png(result.image))
+    normalized = normalize(RuleBasedTableExtractor(config).extract(transcription.text))
+
+    assert normalized.disposition != "none"  # nunca afirma ausência numa folha com ocorrências
+    assert normalized.no_occurrence is False
+
+
 # --- debug logging must never leak OCR text (may be PII) to stdout ---
 
 
