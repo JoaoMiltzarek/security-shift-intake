@@ -27,11 +27,13 @@
 
 ## Avaliações realizadas (branch SSI-1003, 2026-07-08)
 
-### qwen2.5vl:3b (via Ollama) — LEITOR ATUAL
+### qwen2.5vl:3b (via Ollama) — LEITOR OPCIONAL (medido, não promovido)
 - VRAM: ~3 GB → cabe na GPU (DPI 100, não 150 — OOM a 150 confirmado)
-- Rodadas G-S2: smoke/val local_vlm CER=1.1343 vs local_ocr CER=0.9814
+- Rodadas G-S2: smoke/val local_vlm CER=1.1343 vs local_ocr CER=0.9814 — **pior que o
+  Tesseract na régua desta folha**; não atende o critério 5 (chars_to_type ≤ baseline)
 - false_incident = 0 em ambas as rodadas → G-S1 mantido
-- **Status: leitor em uso, já testado.**
+- **Status: disponível via `INTAKE_VISION=local_vlm` (opt-in); NÃO é o default. O leitor
+  default do v1 é Tesseract (`local_ocr`), conforme Makefile/factory/README.**
 
 ### qwen2.5vl:7b (via Ollama) — **VETADO**
 - VRAM necessária: ~8 GB → 2× a VRAM disponível (4 GB)

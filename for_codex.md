@@ -17,10 +17,10 @@
 
 - **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
 - **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
-- **Último commit:** F0.3d (`test(SSI-1004): fixa config escalar explícita nos testes do formulário legado`)
-- **Micro-step corrente:** F0.4 — reconciliar narrativa do reader
-- **RETOME AQUI:** editar `docs/READER_DECISION.md` (seção "qwen2.5vl:3b — LEITOR ATUAL" →
-  leitor opcional medido; v1 default = Tesseract) + checar consistência no README + commit.
+- **Último commit:** F0.4 (`docs(SSI-1004): reconcilia narrativa do reader no READER_DECISION`)
+- **Micro-step corrente:** F0.5 — baseline make check + privacy-check
+- **RETOME AQUI:** Git Bash: `make check` e `make privacy-check`; colar saídas reais no LEDGER;
+  commit de fechamento da fase F0.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -100,8 +100,9 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
       load_config(Path("configs/htmicron_security.yaml"))` passado a `create_app(config=...)`.
       `test_page_image.py` verificado config-agnóstico (só submit + GET imagem — sem mudança).
       SAÍDA REAL: `uv run pytest` nos 6 arquivos → **33 passed, 1 skipped** (skip pré-existente).
-- [ ] F0.4 `docs/READER_DECISION.md` — "qwen2.5vl:3b LEITOR ATUAL" → "v1 default = Tesseract;
-      qwen = opcional medido (CER 1.13 vs 0.98, pior)"; conferir consistência README + commit
+- [x] F0.4 `docs/READER_DECISION.md` reconciliado (qwen → "LEITOR OPCIONAL (medido, não
+      promovido)"; default v1 = Tesseract). README verificado: já era consistente (qwen
+      aparece só como opt-in INTAKE_VISION=local_vlm com números honestos) — sem mudança.
 - [ ] F0.5 baseline: `make check` + `make privacy-check` (Git Bash), colar saída real aqui + commit de fechamento da fase
 - [ ] F0.6 PR da fase (usuário faz push; preparar corpo do PR)
 
