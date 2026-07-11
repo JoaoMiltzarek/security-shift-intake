@@ -192,15 +192,22 @@ def test_aggregate_counts() -> None:
 def _norm_sa() -> NormalizedIncidentModel:
     return NormalizedIncidentModel(
         shift=NormalizedShift(date="01/01", guards=["A", "B"], unit="Posto"),
-        no_occurrence=True,
+        disposition="none",
     )
 
 
 def _norm_occ(desc: str = "Prestador acessa para manutenção.") -> NormalizedIncidentModel:
     return NormalizedIncidentModel(
         shift=NormalizedShift(date="01/01", guards=["A"], unit="Posto"),
-        no_occurrence=False,
+        disposition="present",
         occurrences=[NormalizedOccurrence(description=desc)],
+    )
+
+
+def _norm_unknown() -> NormalizedIncidentModel:
+    return NormalizedIncidentModel(
+        shift=NormalizedShift(date="01/01", guards=["A", "B"], unit="Posto"),
+        disposition="unknown",
     )
 
 
@@ -212,9 +219,17 @@ def test_parse_table_success_occ_sheet_ok() -> None:
     assert parse_table_success(_occ_sheet(), _norm_occ(), TABLE_CONFIG) is True
 
 
+def test_parse_table_success_rejects_unknown_disposition() -> None:
+    assert parse_table_success(_sa_sheet(), _norm_unknown(), TABLE_CONFIG) is False
+
+
 def test_parse_table_success_fails_on_sa_mismatch() -> None:
-    # S/A curada mas o sistema diz que houve ocorrência (no_occurrence=False).
-    wrong = _norm_sa().model_copy(update={"no_occurrence": False})
+    # S/A curada mas o sistema produziu uma ocorrência espúria estruturalmente válida.
+    wrong = NormalizedIncidentModel(
+        shift=_norm_sa().shift,
+        disposition="present",
+        occurrences=[NormalizedOccurrence(description="ocorrência espúria")],
+    )
     assert parse_table_success(_sa_sheet(), wrong, TABLE_CONFIG) is False
 
 

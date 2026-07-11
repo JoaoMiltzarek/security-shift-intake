@@ -4,7 +4,9 @@ A única fronteira entre o layout da folha e o domínio. Regras:
 - `S/A`/linha riscada ou linha vazia → NÃO vira ocorrência (mata FALSE_INCIDENT).
 - hora com dois horários → entrada/saída; com um → só entrada.
 - qualquer célula da linha com status != accepted → a ocorrência fica `needs_review`.
-- sem nenhuma ocorrência real → `no_occurrence = True`.
+- ocorrências reais → `disposition="present"`;
+- sem ocorrências + linha S/A explícita → `disposition="none"`;
+- vazio sem evidência positiva de S/A → `disposition="unknown"`.
 
 Puro e determinístico (sem modelo, sem rede).
 """
@@ -15,6 +17,7 @@ import re
 
 from src.schema.extraction import (
     AuditedField,
+    Disposition,
     NormalizedIncidentModel,
     NormalizedOccurrence,
     NormalizedShift,
@@ -107,8 +110,16 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
             )
         )
 
+    disposition: Disposition
+    if occurrences:
+        disposition = "present"
+    elif any(row.sem_alteracao for row in raw.rows):
+        disposition = "none"
+    else:
+        disposition = "unknown"
+
     return NormalizedIncidentModel(
         shift=shift,
-        no_occurrence=len(occurrences) == 0,
+        disposition=disposition,
         occurrences=occurrences,
     )

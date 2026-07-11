@@ -53,6 +53,10 @@ def test_smoke_50_mock_no_false_incident(smoke_dir: Path) -> None:
     results = [ev.evaluate_sheet(cur, config, vision, dpi=150) for cur in gts]
     assert all(r["available"] and r["ran"] for r in results)  # sem crash, 50/50
     assert sum(1 for r in results if r.get("false_incident")) == 0
+    unknown = [r for r in results if r.get("unknown_disposition")]
+    assert unknown  # o mock não contém S/A explícito em todas as folhas sem ocorrência
+    assert all(not r["false_incident"] and not r["missed_incident"] for r in unknown)
+    assert ev.aggregate(results)["reader_metrics"]["unknown_disposition_count"] == len(unknown)
 
 
 # --- anti-tuning: default val; test é explícito; público só-agregados -------

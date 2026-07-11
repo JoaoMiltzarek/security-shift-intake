@@ -175,7 +175,8 @@ def parse_table_success(
 ) -> bool:
     """Fórmula §2.1: S/A×ocorrência correto + header mínimo + contagem de linhas."""
     occ = has_occurrence(cur)
-    if normalized.no_occurrence == occ:  # deve ser o oposto exato
+    expected_disposition = "present" if occ else "none"
+    if normalized.disposition != expected_disposition:
         return False
     for name in _required_scalars(config):
         if not _normalized_header_value(normalized, name):
@@ -328,9 +329,9 @@ def classify_errors_normalized(
             add("OCR_MISS", ckey)
 
     occ = has_occurrence(cur)
-    if not occ and not normalized.no_occurrence and normalized.occurrences:
+    if not occ and normalized.disposition == "present":
         add("FALSE_INCIDENT", "ocorrencias")
-    if occ and normalized.no_occurrence:
+    if occ and normalized.disposition == "none":
         add("MISSED_INCIDENT", "ocorrencias")
     if occ and len(cur.get("ocorrencias", [])) > len(normalized.occurrences):
         add("TABLE_ROW_SPLIT_ERROR", "ocorrencias")
@@ -507,7 +508,7 @@ def run_sheet(
         base["errors"] = classify_errors_normalized(cur, state.normalized, extracted)
         base["parse_table_success"] = parse_table_success(cur, state.normalized, config)
         base.update(effort_metrics(comparable_fields(cur, state.normalized, config)))
-        if has_occurrence(cur) and not state.normalized.no_occurrence:
+        if has_occurrence(cur) and state.normalized.disposition == "present":
             base["n_occurrences_represented"] = 1
             first = cur["ocorrencias"][0].get("descricao", "") or ""
             for o in state.normalized.occurrences:

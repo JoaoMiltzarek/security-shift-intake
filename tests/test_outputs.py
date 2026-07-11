@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.pipeline.outputs import build_copy_message, build_spreadsheet, export_blockers
 from src.schema.extraction import (
+    Disposition,
     NormalizedIncidentModel,
     NormalizedOccurrence,
     NormalizedShift,
@@ -15,7 +16,8 @@ from src.schema.state import PipelineState
 
 def _norm(occ: list[NormalizedOccurrence], no_occurrence: bool = False) -> NormalizedIncidentModel:
     shift = NormalizedShift(date="25/06/2026", unit="1", guards=["Ana", "Bruno"])
-    return NormalizedIncidentModel(shift=shift, no_occurrence=no_occurrence, occurrences=occ)
+    disposition: Disposition = "none" if no_occurrence else ("present" if occ else "unknown")
+    return NormalizedIncidentModel(shift=shift, disposition=disposition, occurrences=occ)
 
 
 def test_spreadsheet_incident_row() -> None:
@@ -47,7 +49,7 @@ def test_spreadsheet_double_time() -> None:
 
 def test_missing_unit_becomes_revisar() -> None:
     shift = NormalizedShift(date="25/06/2026", unit=None, guards=["Ana"])
-    m = NormalizedIncidentModel(shift=shift, no_occurrence=True)
+    m = NormalizedIncidentModel(shift=shift, disposition="none")
     assert build_spreadsheet(m)[0].unidade == "(revisar)"
 
 

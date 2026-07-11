@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.pipeline.normalize import normalize
 from src.schema.extraction import AuditedField, RawDocumentExtraction, RawHeader, RawRow
 
@@ -27,10 +25,11 @@ def test_sem_alteracao_rows_make_no_occurrence() -> None:
     assert m.occurrences == []
 
 
-def test_empty_rows_make_no_occurrence() -> None:
+def test_empty_rows_without_sa_are_unknown() -> None:
     raw = _raw([RawRow(), RawRow()])
     m = normalize(raw)
-    assert m.no_occurrence is True
+    assert m.disposition == "unknown"
+    assert m.no_occurrence is False
 
 
 def test_single_occurrence_built() -> None:
@@ -106,40 +105,29 @@ def test_mixed_rows_only_real_occurrence_kept() -> None:
 # "unknown" (o parser pode ter perdido a tabela) e NUNCA vira "sem alteração" válido.
 
 
-@pytest.mark.xfail(
-    strict=True, reason="F2.A3: zero linhas sem evidência S/A deve ser unknown, não none"
-)
 def test_zero_rows_without_sa_is_unknown() -> None:
     m = normalize(_raw([]))
     assert m.disposition == "unknown"
     assert m.no_occurrence is False  # unknown não é uma afirmação de ausência
 
 
-@pytest.mark.xfail(
-    strict=True, reason="F2.A3: linhas vazias/riscadas sem S/A explícito também é unknown"
-)
 def test_blank_rows_without_sa_is_unknown() -> None:
     m = normalize(_raw([RawRow(), RawRow()]))
     assert m.disposition == "unknown"
 
 
-@pytest.mark.xfail(strict=True, reason="F2.A3: S/A explícito parseado é evidência de none")
 def test_sa_row_is_explicit_none() -> None:
     m = normalize(_raw([RawRow(sem_alteracao=True)]))
     assert m.disposition == "none"
     assert m.no_occurrence is True
 
 
-@pytest.mark.xfail(strict=True, reason="F2.A3: conteúdo real é present")
 def test_content_row_is_present() -> None:
     m = normalize(_raw([RawRow(item=_af("Alarme"), descricao=_af("Disparo no setor B."))]))
     assert m.disposition == "present"
     assert m.no_occurrence is False
 
 
-@pytest.mark.xfail(
-    strict=True, reason="F2.A3: S/A + conteúdo misturados → conteúdo vence (present)"
-)
 def test_mixed_sa_and_content_is_present() -> None:
     m = normalize(
         _raw(

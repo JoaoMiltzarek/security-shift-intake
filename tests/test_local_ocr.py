@@ -69,10 +69,6 @@ def test_transcribe_real_or_clear_error() -> None:
 
 
 @pytest.mark.skipif(not tesseract_available(), reason="tesseract não instalado")
-@pytest.mark.xfail(
-    strict=True,
-    reason="F2.A3: disposição tri-state — folha com ocorrências nunca vira 'none'",
-)
 def test_real_ocr_multi_occurrence_sheet_never_claims_none() -> None:
     import random
     from pathlib import Path

@@ -163,8 +163,9 @@ def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> d
     transcription = (result.get("_detail") or {}).get("transcription") or ""
     # Replay determinístico do estágio extract (mesmo código do pipeline, $0).
     normalized = normalize(RuleBasedTableExtractor(config).extract(transcription))
-    result["false_incident"] = (not has_occurrence(cur)) and (not normalized.no_occurrence)
-    result["missed_incident"] = has_occurrence(cur) and normalized.no_occurrence
+    result["false_incident"] = (not has_occurrence(cur)) and normalized.disposition == "present"
+    result["missed_incident"] = has_occurrence(cur) and normalized.disposition == "none"
+    result["unknown_disposition"] = normalized.disposition == "unknown"
     result.update(row_metrics(cur, normalized))
     result.update(refusal_metrics(cur, normalized))
     if syn.get("surface"):
@@ -199,6 +200,7 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             "estimated_chars_to_type_total": _sum("estimated_chars_to_type", sheets),
             "false_incident_count": _sum("false_incident", sheets),
             "missed_incident_count": _sum("missed_incident", sheets),
+            "unknown_disposition_count": _sum("unknown_disposition", sheets),
             "descricao_acc": _rate(_sum("descricao_ok", sheets), _sum("descricao_total", sheets)),
             "hora_acc": _rate(_sum("hora_ok", sheets), _sum("hora_total", sheets)),
             "correct_refusal_rate": _rate(

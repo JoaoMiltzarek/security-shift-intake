@@ -9,7 +9,7 @@ from src.clients.local_rules import RuleBasedLLMClient
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ocr_quality import OCR_FAILED, OCR_GOOD, OCR_LOW, assess_ocr_quality
-from src.schema.extraction import NormalizedIncidentModel, NormalizedOccurrence
+from src.schema.extraction import Disposition, NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config
 from src.schema.state import PipelineState
 
@@ -20,7 +20,8 @@ _LABELS = "Data e Turno Vigilantes Unidade Item Hora Descricao da Ocorrencia Aca
 
 def _state(text: str, *, no_occurrence: bool, occ: bool = False) -> PipelineState:
     occs = [NormalizedOccurrence(category="x", description="x")] if occ else []
-    norm = NormalizedIncidentModel(no_occurrence=no_occurrence, occurrences=occs)
+    disposition: Disposition = "none" if no_occurrence else ("present" if occs else "unknown")
+    norm = NormalizedIncidentModel(disposition=disposition, occurrences=occs)
     return PipelineState(source_pdf=Path("x.pdf"), transcription=text, normalized=norm)
 
 
