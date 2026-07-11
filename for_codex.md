@@ -17,12 +17,10 @@
 
 - **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
 - **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
-- **Último commit:** F0.3c (`docs(SSI-1004): atualiza exemplo do loader para config tabular`)
-- **Micro-step corrente:** F0.3d — ajustar os 5 pontos de teste do novo default
-- **RETOME AQUI:** ler `tests/test_app_config.py:12`, `tests/test_api.py:38`,
-  `tests/test_ui.py:33`, `tests/test_edit_review.py:36`, `tests/test_approve_gate.py:54`;
-  inverter a asserção do primeiro; nos outros 4, passar `config=` explícito do escalar
-  (`configs/htmicron_security.yaml`) aos fixtures; rodar o pytest dos 5 arquivos + commit.
+- **Último commit:** F0.3d (`test(SSI-1004): fixa config escalar explícita nos testes do formulário legado`)
+- **Micro-step corrente:** F0.4 — reconciliar narrativa do reader
+- **RETOME AQUI:** editar `docs/READER_DECISION.md` (seção "qwen2.5vl:3b — LEITOR ATUAL" →
+  leitor opcional medido; v1 default = Tesseract) + checar consistência no README + commit.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -97,9 +95,11 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
 - [x] F0.3a `scripts/demo_pipeline.py:32` `DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
 - [x] F0.3b `src/api/app.py:146` `_DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
 - [x] F0.3c docstring `src/schema/loader.py` atualizada + commit
-- [ ] F0.3d ajustar 5 pontos de teste: `test_app_config.py:12` (inverte asserção);
-      `test_api.py:38`, `test_ui.py:33`, `test_edit_review.py:36`, `test_approve_gate.py:54`
-      (config= explícito do escalar). Rodar `uv run pytest tests/test_app_config.py tests/test_api.py tests/test_ui.py tests/test_edit_review.py tests/test_approve_gate.py -q` + commit
+- [x] F0.3d ajustar 5 pontos de teste — feito: `test_app_config.py` invertido (default =
+      controle_ocorrencias; override provado com htmicron); nos 4 fixtures, `_SCALAR_CONFIG =
+      load_config(Path("configs/htmicron_security.yaml"))` passado a `create_app(config=...)`.
+      `test_page_image.py` verificado config-agnóstico (só submit + GET imagem — sem mudança).
+      SAÍDA REAL: `uv run pytest` nos 6 arquivos → **33 passed, 1 skipped** (skip pré-existente).
 - [ ] F0.4 `docs/READER_DECISION.md` — "qwen2.5vl:3b LEITOR ATUAL" → "v1 default = Tesseract;
       qwen = opcional medido (CER 1.13 vs 0.98, pior)"; conferir consistência README + commit
 - [ ] F0.5 baseline: `make check` + `make privacy-check` (Git Bash), colar saída real aqui + commit de fechamento da fase

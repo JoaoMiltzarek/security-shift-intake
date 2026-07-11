@@ -7,9 +7,15 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+from pathlib import Path
+
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
+from src.schema.loader import load_config
+
+# Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
+_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
 
 _BODY = {
     "source_pdf": "report.pdf",
@@ -30,7 +36,7 @@ _BODY = {
 @pytest.fixture
 def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     sender = MockSender()
-    app = create_app(engine=make_engine("sqlite://"), sender=sender)
+    app = create_app(engine=make_engine("sqlite://"), sender=sender, config=_SCALAR_CONFIG)
     with TestClient(app) as client:
         yield client, sender
 
