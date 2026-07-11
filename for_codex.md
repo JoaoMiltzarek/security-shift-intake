@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A2 — sinal estrutural de tabela encontrada
-  (este commit; núcleo: 50 passed; bloco tabular/evals exit 0; OCR real: 6 passed).
-- **Micro-step corrente:** F2.A3b — publicar parsers de hora/resolução para o cockpit futuro.
-- **RETOME AQUI:** renomear `_parse_times`/`_parse_resolved` para API interna pública estável,
-  ajustar chamadas/testes e executar o bloco de normalização. Depois iniciar F2.A4.
+- **Último micro-step concluído:** F2.A3b.1 — contratos públicos dos parsers
+  (este commit; 16 passed, 2 xfailed).
+- **Micro-step corrente:** F2.A3b.2 — publicar parsers de hora/resolução.
+- **RETOME AQUI:** renomear `_parse_times`/`_parse_resolved`, ajustar chamadas, remover os dois
+  xfails e executar o bloco de normalização. Depois iniciar F2.A4.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -128,6 +128,9 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
   `RawDocumentExtraction.tabela_encontrada` persiste o sinal. Os dois xfails F1.1 foram removidos.
   SAÍDAS REAIS: núcleo schema/extractor/normalize **50 passed**; bloco tabular/evals exit 0;
   Tesseract real **6 passed**; Ruff/mypy verdes.
+- **[feito] F2.A3b.1 — contratos dos parsers públicos** — dois xfails estritos exigem imports
+  públicos de `parse_times` e `parse_resolved` sem alterar sua semântica. SAÍDA REAL:
+  **16 passed, 2 xfailed**.
 
 ---
 

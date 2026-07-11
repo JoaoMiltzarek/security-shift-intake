@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.pipeline.normalize import normalize
 from src.schema.extraction import AuditedField, RawDocumentExtraction, RawHeader, RawRow
 
@@ -138,3 +140,17 @@ def test_mixed_sa_and_content_is_present() -> None:
         )
     )
     assert m.disposition == "present"
+
+
+@pytest.mark.xfail(strict=True, reason="F2.A3b: parser de horários deve ser API reutilizável")
+def test_parse_times_is_public() -> None:
+    from src.pipeline.normalize import parse_times
+
+    assert parse_times(_af("17:19 saída 17:52")) == ("17:19", "17:52")
+
+
+@pytest.mark.xfail(strict=True, reason="F2.A3b: parser de resolução deve ser API reutilizável")
+def test_parse_resolved_is_public() -> None:
+    from src.pipeline.normalize import parse_resolved
+
+    assert parse_resolved(_af("não")) is False
