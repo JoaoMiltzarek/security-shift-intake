@@ -50,7 +50,7 @@ def _split_guards(field: AuditedField) -> list[str]:
     return [g.strip() for g in _GUARD_SEP.split(text) if g.strip()]
 
 
-def _parse_times(field: AuditedField) -> tuple[str | None, str | None]:
+def parse_times(field: AuditedField) -> tuple[str | None, str | None]:
     text = _as_text(field)
     if not text:
         return None, None
@@ -62,7 +62,7 @@ def _parse_times(field: AuditedField) -> tuple[str | None, str | None]:
     return times[0], times[1]
 
 
-def _parse_resolved(field: AuditedField) -> bool | None:
+def parse_resolved(field: AuditedField) -> bool | None:
     text = _as_text(field)
     if not text:
         return None
@@ -97,7 +97,7 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
     for row in raw.rows:
         if row.sem_alteracao or not _row_has_content(row):
             continue  # S/A, riscada ou vazia → não é ocorrência
-        entry, exit_ = _parse_times(row.hora)
+        entry, exit_ = parse_times(row.hora)
         occurrences.append(
             NormalizedOccurrence(
                 category=_as_text(row.item),
@@ -105,7 +105,7 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
                 exit_time=exit_,
                 description=_as_text(row.descricao),
                 action=_as_text(row.acao),
-                resolved=_parse_resolved(row.resolvido),
+                resolved=parse_resolved(row.resolvido),
                 needs_review=_row_needs_review(row),
             )
         )
