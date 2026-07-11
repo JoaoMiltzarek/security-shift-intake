@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from src.clients.table_rules import RuleBasedTableExtractor
 from src.pipeline.normalize import normalize
 from src.schema.loader import load_config
@@ -87,3 +89,64 @@ def test_occurrence_sheet_is_not_no_occurrence() -> None:
 def test_config_without_table_yields_no_rows() -> None:
     raw = RuleBasedTableExtractor(HTMICRON).extract(_OCC_SHEET)
     assert raw.rows == []
+
+
+# --- Contratos F1 (SSI-1005): falha estrutural NUNCA vira "sem ocorrência" ---
+
+# Folha com cabeçalho legível mas SEM a linha de header de coluna ("Item ... Descricao ...")
+# — o caso real em que o OCR perde a estrutura da tabela e some com as ocorrências.
+_HEADERLESS_SHEET = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+14:20 Alarme disparou no setor B vigilante acionado
+Ronda x
+"""
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="F2.A2: header de coluna não encontrado deve sinalizar tabela_encontrada=False",
+)
+def test_missing_column_header_sets_tabela_nao_encontrada() -> None:
+    raw = RuleBasedTableExtractor(CONFIG).extract(_HEADERLESS_SHEET)
+    assert raw.tabela_encontrada is False
+    assert raw.rows == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="F2.A2: header encontrado com região vazia é distinto de header ausente",
+)
+def test_found_but_empty_region_sets_tabela_encontrada() -> None:
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
+Ronda x
+"""
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    assert raw.tabela_encontrada is True
+    assert raw.rows == []
+
+
+def test_consecutive_content_rows_without_separator_merge() -> None:
+    """Contrato documental (limitação conhecida do v1): sem linha em branco ou S/A entre
+    duas ocorrências, o parser as funde em UMA RawRow. A fusão é segura porque toda linha de
+    conteúdo nasce must_review (revisor separa no cockpit F4); o caso perigoso — zero linhas —
+    é coberto pelos contratos de disposição acima e em test_normalize."""
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
+14:20 Alarme disparou no setor B
+15:10 Portao lateral aberto sem autorizacao
+Ronda x
+"""
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    content = [r for r in raw.rows if not r.sem_alteracao]
+    assert len(content) == 1  # fundidas — ver docstring
+    assert "Alarme" in str(content[0].descricao.value)
+    assert "Portao" in str(content[0].descricao.value)

@@ -15,8 +15,9 @@
 
 ## ESTADO ATUAL
 
-- **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
-- **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
+- **Fase corrente:** F1 — Contratos vermelhos (SSI-1005)
+- **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
+  F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último commit:** F0.5 (`chore(SSI-1004): registra baseline verde da fase F0`)
 - **Micro-step corrente:** F0.6 — preparar corpo do PR da fase (push é do usuário)
 - **RETOME AQUI:** F0 completo. Próxima fase: F1 — criar branch `SSI-1005-tri-state-estrutural`
@@ -122,9 +123,11 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - [ ] F0.6 PR da fase (usuário faz push; corpo do PR no fechamento abaixo)
 
 ### F1 — Contratos vermelhos (SSI-1005, branch `SSI-1005-tri-state-estrutural`)
-- [ ] F1.1 `tests/test_table_rules.py`: teste xfail(strict) — texto sem linha `_COLHDR` deve
-      sinalizar estrutura-não-encontrada (hoje indistinguível de vazio) + commit
-- [ ] F1.2 `tests/test_table_rules.py`: contrato documentando fusão de linhas consecutivas sem separador + commit
+- [x] F1.1 feito: 2 xfail(strict) em test_table_rules — `test_missing_column_header_sets_
+      tabela_nao_encontrada` e `test_found_but_empty_region_sets_tabela_encontrada` (ambos
+      AttributeError hoje → xfail; strict força o flip em F2.A2).
+- [x] F1.2 feito: `test_consecutive_content_rows_without_separator_merge` (documental,
+      passa hoje). SAÍDA REAL: `pytest tests/test_table_rules.py -q` → **9 passed, 2 xfailed**.
 - [ ] F1.3 `tests/test_normalize.py`: xfail — zero rows sem S/A → `unknown`; ≥1 `sem_alteracao=True` → `none`; conteúdo → `present` + commit
 - [ ] F1.4 `tests/test_local_ocr.py`: integração REAL — renderizar fixture 0/1/2 linhas
       (gerador `data/generators/templates/controle_ocorrencias.py`), Tesseract real, caminho de
