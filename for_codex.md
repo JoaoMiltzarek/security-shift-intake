@@ -18,12 +18,12 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F1.4 — contrato OCR real para múltiplas ocorrências
-  (este commit; F1.1–F1.5 completos em quatro microcommits).
-- **Micro-step corrente:** F2.A1 — contrato tri-state no schema normalizado.
-- **RETOME AQUI:** criar primeiro os testes de compatibilidade/invariantes em
-  `tests/test_schema_extraction.py`; depois implementar `Disposition` e a compatibilidade segura
-  de `no_occurrence` em `src/schema/extraction.py`. Não iniciar F2.A2 antes do loop focado verde.
+- **Último micro-step concluído:** F2.A1.1 — doze contratos xfail do schema tri-state
+  (este commit; saída focada: 9 passed, 12 xfailed).
+- **Micro-step corrente:** F2.A1.2 — implementar o contrato em `src/schema/extraction.py`.
+- **RETOME AQUI:** implementar `Disposition`, default seguro/compatibilidade legada e tornar
+  `no_occurrence` derivado somente leitura; remover os sete xfails e rodar o bloco de regressão.
+  Não iniciar F2.A2 antes do loop focado verde.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -97,6 +97,20 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - **[feito] F0.2** — `git rm progress.md`: arquivo era UTF-16/mojibake tracked na raiz (finding
   P-1 do scan de portfólio — "primeira coisa que um juiz vê"). Conteúdo era changelog stub sem
   valor; nada a preservar (os docs de status reais estão em docs/).
+
+### Sessão 2026-07-11 (Codex) — retomada F1/F2
+
+- **[feito] Recuperação F1.4** — preservado o diff deixado pelo Claude; teste OCR validado sem
+  Tesseract (5 passed, 1 skipped) e com engine real (5 passed, 1 xfailed); Ruff verde; commit
+  `7866c1ca`.
+- **[feito] F2.A1.1 — contratos do schema** — doze xfails estritos cobrem default `unknown`,
+  derivação de `no_occurrence`, inferência `present` para ocorrência legada, reabertura segura de
+  payload legado vazio, resistência a `model_copy(update=...)`, roundtrip JSON e rejeição de valor
+  inválido; incluem ainda upgrade 1.0→1.1 e três combinações disposição/linhas inconsistentes.
+  SAÍDA REAL: `pytest tests/test_schema_extraction.py -q -rxX` → **9 passed, 12 xfailed**.
+  DESVIO TÉCNICO APROVADO PELA EVIDÊNCIA: o plano dizia sincronizar um campo mutável em validator
+  `after`, mas Pydantic não valida `model_copy(update=...)`; a implementação usará
+  `@computed_field` read-only para realizar a invariância pretendida sem drift.
 
 ---
 
