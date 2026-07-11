@@ -5,6 +5,8 @@ One scenario per test. Models are pure data contracts (R1/R2).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -16,6 +18,7 @@ from src.schema.extraction import (
     RawDocumentExtraction,
     RawRow,
 )
+from src.schema.state import PipelineState
 
 
 def test_audited_field_defaults_to_missing() -> None:
@@ -133,6 +136,27 @@ def test_normalized_roundtrip_preserves_disposition() -> None:
 
     assert restored.disposition == "none"
     assert restored.no_occurrence is True
+
+
+@pytest.mark.xfail(strict=True, reason="F2.A1: dump deve expor flag derivada compatível")
+def test_normalized_dump_includes_derived_compatibility_flag() -> None:
+    dumped = NormalizedIncidentModel(disposition="unknown").model_dump()
+
+    assert dumped["disposition"] == "unknown"
+    assert dumped["no_occurrence"] is False
+
+
+@pytest.mark.xfail(strict=True, reason="F2.A1: pipeline persistido deve preservar disposição")
+def test_pipeline_state_roundtrip_preserves_disposition() -> None:
+    state = PipelineState(
+        source_pdf=Path("synthetic.pdf"),
+        normalized=NormalizedIncidentModel(disposition="none"),
+    )
+    restored = PipelineState.model_validate_json(state.model_dump_json())
+
+    assert restored.normalized is not None
+    assert restored.normalized.disposition == "none"
+    assert restored.normalized.no_occurrence is True
 
 
 @pytest.mark.xfail(strict=True, reason="F2.A1: disposição fora do contrato deve ser rejeitada")

@@ -18,8 +18,8 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A1.1 — doze contratos xfail do schema tri-state
-  (este commit; saída focada: 9 passed, 12 xfailed).
+- **Último micro-step concluído:** F2.A1.1b — contratos de serialização do tri-state
+  (este commit; saída acumulada focada: 9 passed, 14 xfailed).
 - **Micro-step corrente:** F2.A1.2 — implementar o contrato em `src/schema/extraction.py`.
 - **RETOME AQUI:** implementar `Disposition`, default seguro/compatibilidade legada e tornar
   `no_occurrence` derivado somente leitura; remover os sete xfails e rodar o bloco de regressão.
@@ -111,6 +111,9 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
   DESVIO TÉCNICO APROVADO PELA EVIDÊNCIA: o plano dizia sincronizar um campo mutável em validator
   `after`, mas Pydantic não valida `model_copy(update=...)`; a implementação usará
   `@computed_field` read-only para realizar a invariância pretendida sem drift.
+- **[feito] F2.A1.1b — fronteira de persistência** — dois contratos xfail adicionais exigem
+  que `model_dump()` publique `no_occurrence` derivado e que um roundtrip de `PipelineState`
+  preserve `disposition`. SAÍDA REAL acumulada: **9 passed, 14 xfailed**.
 
 ---
 
