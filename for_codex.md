@@ -17,9 +17,10 @@
 
 - **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
 - **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
-- **Último commit:** F0.1 (`docs(SSI-1004): cria diário de execução for_codex`)
-- **Micro-step corrente:** F0.2 — remover progress.md
-- **RETOME AQUI:** `git rm progress.md` + commit `chore(SSI-1004): remove progress.md quebrado da raiz`.
+- **Último commit:** F0.2 (`chore(SSI-1004): remove progress.md quebrado da raiz`)
+- **Micro-step corrente:** F0.3a — default do demo_pipeline
+- **RETOME AQUI:** editar `scripts/demo_pipeline.py:32` `DEFAULT_CONFIG` →
+  `configs/controle_ocorrencias.yaml` + commit.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -79,7 +80,10 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
   commits por micro-alteração ("bilhões"). + este arquivo for_codex.md.
 - **[feito] F0.0** — branch `SSI-1004-base-primeira-impressao` criada de `main@f359b129`
   (worktree limpa confirmada por `git status --porcelain` vazio).
-- **[em-curso] F0.1** — criação deste arquivo. Próximo: commit.
+- **[feito] F0.1** — for_codex.md criado e commitado (`4d0f0eba`).
+- **[feito] F0.2** — `git rm progress.md`: arquivo era UTF-16/mojibake tracked na raiz (finding
+  P-1 do scan de portfólio — "primeira coisa que um juiz vê"). Conteúdo era changelog stub sem
+  valor; nada a preservar (os docs de status reais estão em docs/).
 
 ---
 
@@ -87,7 +91,7 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
 
 ### F0 — Base + primeira impressão (SSI-1004, branch `SSI-1004-base-primeira-impressao`)
 - [x] F0.1 criar for_codex.md + commit `docs(SSI-1004): cria diário de execução for_codex`
-- [ ] F0.2 `git rm progress.md` (mojibake na raiz) + commit `chore(SSI-1004): remove progress.md quebrado da raiz`
+- [x] F0.2 `git rm progress.md` (mojibake na raiz) + commit `chore(SSI-1004): remove progress.md quebrado da raiz`
 - [ ] F0.3a `scripts/demo_pipeline.py:32` `DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
 - [ ] F0.3b `src/api/app.py:146` `_DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
 - [ ] F0.3c docstring `src/schema/loader.py` atualizada + commit
