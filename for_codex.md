@@ -133,7 +133,9 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - [ ] F1.4 `tests/test_local_ocr.py`: integração REAL — renderizar fixture 0/1/2 linhas
       (gerador `data/generators/templates/controle_ocorrencias.py`), Tesseract real, caminho de
       produção; 2 linhas nunca viram "sem alteração" aceito; skip limpo sem tesseract + commit
-- [ ] F1.5 `tests/test_api.py`: xfail — approve→edit→send deve bloquear; edit de enviado → 409 + commit
+- [x] F1.5 feito: 2 xfail(strict) em test_api — `test_approve_edit_send_is_blocked` (send pós-
+      edit retorna 200 + sender chamado hoje) e `test_edit_sent_draft_is_rejected` (edit de
+      enviado retorna 200 hoje). SAÍDA REAL: **5 passed, 2 xfailed, 2.67s**.
 
 ### F2 — Tri-state estrutural (SSI-1005, mesma branch) — design A1..A6
 - [ ] F2.A1 `src/schema/extraction.py`: `Disposition = Literal["unknown","none","present"]`;
