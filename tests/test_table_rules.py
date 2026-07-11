@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from src.clients.table_rules import RuleBasedTableExtractor
 from src.pipeline.normalize import normalize
 from src.schema.loader import load_config
@@ -104,20 +102,12 @@ Ronda x
 """
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F2.A2: header de coluna não encontrado deve sinalizar tabela_encontrada=False",
-)
 def test_missing_column_header_sets_tabela_nao_encontrada() -> None:
     raw = RuleBasedTableExtractor(CONFIG).extract(_HEADERLESS_SHEET)
     assert raw.tabela_encontrada is False
     assert raw.rows == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F2.A2: header encontrado com região vazia é distinto de header ausente",
-)
 def test_found_but_empty_region_sets_tabela_encontrada() -> None:
     sheet = """Controle de ocorrencias
 Data e Turno 23/06/26

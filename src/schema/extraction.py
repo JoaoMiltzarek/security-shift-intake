@@ -67,6 +67,8 @@ class RawDocumentExtraction(BaseModel):
     schema_version: str = "1.0"
     report_type: str
     header: RawHeader = Field(default_factory=RawHeader)
+    # False distingue falha estrutural (header de colunas ausente) de tabela encontrada e vazia.
+    tabela_encontrada: bool = True
     rows: list[RawRow] = Field(default_factory=list)
 
 

@@ -3,7 +3,7 @@
 Determinístico, zero-custo (sem modelo). Estratégia honesta dado o limite do OCR cursivo:
 - **Cabeçalho** ancorado nos rótulos impressos (`ocr_aliases`) — que o Tesseract lê bem.
 - **Tabela** delimitada entre a linha de cabeçalho de coluna ("Item ... Descrição ...") e o rodapé
-  ("Ronda"). Linhas `S/A`/riscadas → `sem_alteracao` (mata FALSE_INCIDENT). Linhas com conteúdo
+  ("Ronda"). Linhas `S/A` textuais → `sem_alteracao` (mata FALSE_INCIDENT). Linhas com conteúdo
   viram linha com `descricao` e **status must_review** (humano confirma/corrige — estilo ExpenseIt).
 
 Design (plano "nunca adivinhar"): todo valor lido entra com confiança < limiar → `must_review`;
@@ -83,10 +83,10 @@ class RuleBasedTableExtractor:
             unidade=cells.get("unidade", AuditedField()),
         )
 
-    def _table_region(self, lines: list[str]) -> list[str]:
+    def _table_region(self, lines: list[str]) -> list[str] | None:
         start = next((i for i, ln in enumerate(lines) if _COLHDR.search(ln)), None)
         if start is None:
-            return []
+            return None
         end = next(
             (i for i in range(start + 1, len(lines)) if _FOOTER.search(lines[i])), len(lines)
         )
@@ -103,8 +103,7 @@ class RuleBasedTableExtractor:
             hora=hora,
         )
 
-    def _extract_rows(self, lines: list[str]) -> list[RawRow]:
-        region = self._table_region(lines)
+    def _extract_rows(self, region: list[str]) -> list[RawRow]:
         rows: list[RawRow] = []
         buffer: list[str] = []
 
@@ -127,8 +126,10 @@ class RuleBasedTableExtractor:
 
     def extract(self, transcription: str) -> RawDocumentExtraction:
         lines = transcription.splitlines()
+        region = self._table_region(lines) if self._has_table else []
         return RawDocumentExtraction(
             report_type=self._report_type,
             header=self._extract_header(lines),
-            rows=self._extract_rows(lines) if self._has_table else [],
+            tabela_encontrada=region is not None,
+            rows=self._extract_rows(region or []),
         )
