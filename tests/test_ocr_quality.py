@@ -45,6 +45,16 @@ def test_no_occurrence_sheet_not_failed_for_low_content() -> None:
     assert status in {OCR_LOW, OCR_GOOD}
 
 
+def test_unknown_disposition_does_not_relax_low_content_gate() -> None:
+    text = _LABELS + "\nS/A S/A"
+    state = _state(text, no_occurrence=False)
+    assert state.normalized is not None and state.normalized.disposition == "unknown"
+
+    status, _ = assess_ocr_quality(state, CFG)
+
+    assert status == OCR_FAILED
+
+
 def test_rich_content_is_good() -> None:
     text = (
         _LABELS

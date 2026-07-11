@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A4.2 — bloqueio estrutural implementado
-  (este commit; focado: 8 passed; bloco API/gate/UI exit 0 com 2 xfails de F3).
-- **Micro-step corrente:** F2.A5 — limitar relaxamento do OCR a `disposition="none"`.
-- **RETOME AQUI:** criar contratos para `unknown` com pouco conteúdo continuar FAILED e S/A
-  explícito poder relaxar; implementar em `ocr_quality.py` e executar o bloco do quality gate.
+- **Último micro-step concluído:** F2.A5.1 — regressão do relaxamento OCR
+  (este commit; 7 passed).
+- **Micro-step corrente:** F2.A5.2 — tornar a condição do quality gate tri-state explícita.
+- **RETOME AQUI:** substituir o booleano intermediário em `ocr_quality.py` por comparação direta
+  com `disposition == "none"`; rodar testes focados/orquestrador e iniciar F2.A6.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -143,6 +143,9 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
   confiança 0.0/status must_review e razão estrutural sanitizada; `unknown` bloqueia aprovação e
   output limpo, enquanto `none` permanece aceito. SAÍDAS REAIS: **8 passed** focados; bloco
   validação/API/gate/UI exit 0, apenas 2 xfails esperados de F3; Ruff/mypy verdes.
+- **[feito] F2.A5.1 — regressão do quality gate** — o mesmo conteúdo curto `S/A S/A` pode ser
+  relaxado quando `none`, mas permanece `OCR_FAILED` quando a disposição é `unknown`.
+  SAÍDA REAL: **7 passed**.
 
 ---
 
