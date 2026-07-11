@@ -17,10 +17,10 @@
 
 - **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
 - **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
-- **Último commit:** F0.3a (`fix(SSI-1004): muda default do demo_pipeline para config tabular`)
-- **Micro-step corrente:** F0.3b — default da API
-- **RETOME AQUI:** editar `src/api/app.py:146` `_DEFAULT_CONFIG` →
-  `configs/controle_ocorrencias.yaml` + commit.
+- **Último commit:** F0.3b (`fix(SSI-1004): muda default da API para config tabular`)
+- **Micro-step corrente:** F0.3c — docstring do loader
+- **RETOME AQUI:** atualizar docstring `src/schema/loader.py:5` (exemplo usa
+  htmicron_security.yaml → controle_ocorrencias.yaml) + commit.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -93,7 +93,7 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
 - [x] F0.1 criar for_codex.md + commit `docs(SSI-1004): cria diário de execução for_codex`
 - [x] F0.2 `git rm progress.md` (mojibake na raiz) + commit `chore(SSI-1004): remove progress.md quebrado da raiz`
 - [x] F0.3a `scripts/demo_pipeline.py:32` `DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
-- [ ] F0.3b `src/api/app.py:146` `_DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
+- [x] F0.3b `src/api/app.py:146` `_DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
 - [ ] F0.3c docstring `src/schema/loader.py` atualizada + commit
 - [ ] F0.3d ajustar 5 pontos de teste: `test_app_config.py:12` (inverte asserção);
       `test_api.py:38`, `test_ui.py:33`, `test_edit_review.py:36`, `test_approve_gate.py:54`

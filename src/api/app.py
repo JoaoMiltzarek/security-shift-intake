@@ -143,7 +143,7 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     return build_outputs(state.model_copy(update=updates), config)
 
 _templates = Jinja2Templates(directory="ui/templates")
-_DEFAULT_CONFIG = Path("configs/htmicron_security.yaml")
+_DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
 
 
 def _default_config_path() -> Path:
