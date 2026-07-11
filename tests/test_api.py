@@ -7,11 +7,10 @@ Also asserts the invariant at the HTTP layer: an unapproved draft cannot be sent
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from pathlib import Path
 
 from src.api.app import create_app
 from src.api.db import make_engine

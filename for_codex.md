@@ -17,10 +17,11 @@
 
 - **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
 - **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
-- **Último commit:** F0.4 (`docs(SSI-1004): reconcilia narrativa do reader no READER_DECISION`)
-- **Micro-step corrente:** F0.5 — baseline make check + privacy-check
-- **RETOME AQUI:** Git Bash: `make check` e `make privacy-check`; colar saídas reais no LEDGER;
-  commit de fechamento da fase F0.
+- **Último commit:** F0.5 (`chore(SSI-1004): registra baseline verde da fase F0`)
+- **Micro-step corrente:** F0.6 — preparar corpo do PR da fase (push é do usuário)
+- **RETOME AQUI:** F0 completo. Próxima fase: F1 — criar branch `SSI-1005-tri-state-estrutural`
+  a partir desta branch (F1/F2 dependem do F-12 já aplicado aqui) e escrever os contratos
+  vermelhos (ver MAPA F1.1–F1.5).
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -80,6 +81,16 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
   commits por micro-alteração ("bilhões"). + este arquivo for_codex.md.
 - **[feito] F0.0** — branch `SSI-1004-base-primeira-impressao` criada de `main@f359b129`
   (worktree limpa confirmada por `git status --porcelain` vazio).
+### Fechamento F0 (2026-07-11)
+Commits da fase: `4d0f0eba` (for_codex), `259c6488` (rm progress.md), `6047dfef` (default
+demo_pipeline), `b570614a` (default API), `020e3b52` (docstring loader), `a5ca2d99` (testes
+config escalar explícita), `b1f0b621` (READER_DECISION), + fechamento F0.5.
+Corpo de PR sugerido: "F0 (SSI-1004): base do release — remove progress.md quebrado, unifica o
+default de config no produto tabular v1 (F-12: script/API/loader alinhados ao Makefile),
+reconcilia a narrativa do reader (Tesseract default; qwen opcional medido) e registra baseline
+verde (598 passed/1 skipped + privacy-check OK)."
+Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (incluído em F0.5).
+
 - **[feito] F0.1** — for_codex.md criado e commitado (`4d0f0eba`).
 - **[feito] F0.2** — `git rm progress.md`: arquivo era UTF-16/mojibake tracked na raiz (finding
   P-1 do scan de portfólio — "primeira coisa que um juiz vê"). Conteúdo era changelog stub sem
@@ -103,8 +114,12 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
 - [x] F0.4 `docs/READER_DECISION.md` reconciliado (qwen → "LEITOR OPCIONAL (medido, não
       promovido)"; default v1 = Tesseract). README verificado: já era consistente (qwen
       aparece só como opt-in INTAKE_VISION=local_vlm com números honestos) — sem mudança.
-- [ ] F0.5 baseline: `make check` + `make privacy-check` (Git Bash), colar saída real aqui + commit de fechamento da fase
-- [ ] F0.6 PR da fase (usuário faz push; preparar corpo do PR)
+- [x] F0.5 baseline verde. SAÍDAS REAIS (2026-07-11):
+      `make check` → ruff acusou 3 erros de import-order nos testes editados → `uv run ruff
+      check --fix .` (3 fixed) → re-run: lint OK, mypy OK, **pytest: 598 passed, 1 skipped,
+      84.61s**. `make privacy-check` → "privacy-check OK — no real data tracked, none outside
+      private/, no PII in public files."
+- [ ] F0.6 PR da fase (usuário faz push; corpo do PR no fechamento abaixo)
 
 ### F1 — Contratos vermelhos (SSI-1005, branch `SSI-1005-tri-state-estrutural`)
 - [ ] F1.1 `tests/test_table_rules.py`: teste xfail(strict) — texto sem linha `_COLHDR` deve
