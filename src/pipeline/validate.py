@@ -132,6 +132,7 @@ def validate_table(
     A header cell is flagged when required-but-blank, or its `status` != accepted, or
     confidence < threshold. Each occurrence becomes one field flagged by `needs_review`.
     `S/A` sheets yield a single, non-flagged "(sem alteração)" field — never an incident.
+    Structural uncertainty yields one explicit pending field and blocks approval/export.
     """
     raw = state.raw_extraction
     normalized = state.normalized
@@ -169,7 +170,24 @@ def validate_table(
         if flagged:
             must_review.append(field.name)
 
-    if normalized.no_occurrence:
+    if normalized.disposition == "unknown":
+        reason = (
+            "(tabela não encontrada no OCR)"
+            if not raw.tabela_encontrada
+            else "(nenhuma linha legível)"
+        )
+        fields.append(
+            ExtractedField(
+                name="ocorrencias",
+                value=reason,
+                confidence=0.0,
+                must_review=True,
+                source="rule",
+                status="must_review",
+            )
+        )
+        must_review.append("ocorrencias")
+    elif normalized.disposition == "none":
         fields.append(
             ExtractedField(
                 name="ocorrencias", value="(sem alteração)", confidence=1.0, must_review=False,

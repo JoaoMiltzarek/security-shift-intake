@@ -135,7 +135,6 @@ def test_table_path_attaches_evidence_when_words_present() -> None:
     ],
     ids=["header-ausente", "regiao-vazia"],
 )
-@pytest.mark.xfail(strict=True, reason="F2.A4: unknown deve criar pendência estrutural")
 def test_unknown_disposition_blocks_approval_and_clean_output(
     text: str, expected_reason: str
 ) -> None:
