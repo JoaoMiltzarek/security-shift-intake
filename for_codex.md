@@ -17,10 +17,12 @@
 
 - **Fase corrente:** F0 — Base + primeira impressão (SSI-1004)
 - **Branch:** `SSI-1004-base-primeira-impressao` (criada de `main@f359b129`, worktree limpa)
-- **Último commit:** F0.3b (`fix(SSI-1004): muda default da API para config tabular`)
-- **Micro-step corrente:** F0.3c — docstring do loader
-- **RETOME AQUI:** atualizar docstring `src/schema/loader.py:5` (exemplo usa
-  htmicron_security.yaml → controle_ocorrencias.yaml) + commit.
+- **Último commit:** F0.3c (`docs(SSI-1004): atualiza exemplo do loader para config tabular`)
+- **Micro-step corrente:** F0.3d — ajustar os 5 pontos de teste do novo default
+- **RETOME AQUI:** ler `tests/test_app_config.py:12`, `tests/test_api.py:38`,
+  `tests/test_ui.py:33`, `tests/test_edit_review.py:36`, `tests/test_approve_gate.py:54`;
+  inverter a asserção do primeiro; nos outros 4, passar `config=` explícito do escalar
+  (`configs/htmicron_security.yaml`) aos fixtures; rodar o pytest dos 5 arquivos + commit.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -94,7 +96,7 @@ imutável; send re-valida) + cockpit com editor 0/1/N (radios de disposição + 
 - [x] F0.2 `git rm progress.md` (mojibake na raiz) + commit `chore(SSI-1004): remove progress.md quebrado da raiz`
 - [x] F0.3a `scripts/demo_pipeline.py:32` `DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
 - [x] F0.3b `src/api/app.py:146` `_DEFAULT_CONFIG` → `configs/controle_ocorrencias.yaml` + commit
-- [ ] F0.3c docstring `src/schema/loader.py` atualizada + commit
+- [x] F0.3c docstring `src/schema/loader.py` atualizada + commit
 - [ ] F0.3d ajustar 5 pontos de teste: `test_app_config.py:12` (inverte asserção);
       `test_api.py:38`, `test_ui.py:33`, `test_edit_review.py:36`, `test_approve_gate.py:54`
       (config= explícito do escalar). Rodar `uv run pytest tests/test_app_config.py tests/test_api.py tests/test_ui.py tests/test_edit_review.py tests/test_approve_gate.py -q` + commit
