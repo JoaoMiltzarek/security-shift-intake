@@ -18,12 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A3b.2 — parsers de hora/resolução publicados
-  (este commit; bloco focado: 52 passed; Ruff/mypy verdes).
-- **Micro-step corrente:** F2.A4 — validação tri-state e bloqueio de `unknown`.
-- **RETOME AQUI:** escrever primeiro os contratos de `validate_table` para distinguir header
-  ausente de nenhuma linha legível; implementar o campo `ocorrencias` must_review e provar que
-  `assert_reviewable`/exports bloqueiam `unknown`.
+- **Último micro-step concluído:** F2.A4.1 — contratos do bloqueio estrutural
+  (este commit; 6 passed, 2 xfailed).
+- **Micro-step corrente:** F2.A4.2 — implementar validação de `unknown`.
+- **RETOME AQUI:** adicionar a terceira via em `validate_table`, remover os dois xfails e repetir
+  os testes de validação, aprovação e outputs. `none` deve continuar aceito.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -135,6 +134,11 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - **[feito] F2.A3b.2 — parsers publicados** — `_parse_times`/`_parse_resolved` foram promovidos
   para `parse_times`/`parse_resolved`; chamadas internas e contratos ajustados. SAÍDA REAL:
   **52 passed** no bloco schema/normalize/extractor; Ruff/mypy verdes.
+- **[feito] F2.A4.1 — contratos do bloqueio estrutural** — dois xfails parametrizados isolam
+  headers já aceitos e exigem que `unknown` crie exatamente a pendência `ocorrencias`, com
+  confiança 0.0, razão distinta para header ausente/região vazia, bloqueio em
+  `assert_reviewable`/`export_blockers` e mensagem `RASCUNHO INCOMPLETO`. SAÍDA REAL:
+  **6 passed, 2 xfailed**.
 
 ---
 
