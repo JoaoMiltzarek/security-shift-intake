@@ -29,7 +29,7 @@ from src.orchestrator import run_pipeline
 from src.pipeline.ingest import OCR_DPI, load_source_images
 from src.schema.loader import load_config
 
-DEFAULT_CONFIG = Path("configs/htmicron_security.yaml")
+DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
 
 
 def build_and_store(
