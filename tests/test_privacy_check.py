@@ -88,10 +88,6 @@ def test_other_gifs_outside_private_remain_flagged(tmp_path: Path, relpath: str)
     assert check_no_sensitive_outside_private(tmp_path)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: privacy allowlist ainda aceita archive/samples",
-)
 def test_archive_samples_does_not_inherit_media_allowlist(tmp_path: Path) -> None:
     _write(tmp_path / "archive" / "samples" / "cockpit_demo.gif", "gif")
     assert check_no_sensitive_outside_private(tmp_path)
@@ -128,10 +124,6 @@ def test_tracked_source_files_ok(monkeypatch) -> None:  # type: ignore[no-untype
     assert pc.check_no_sensitive_tracked() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: tracked guard ainda aceita GIF em archive/samples",
-)
 def test_tracked_showcase_gif_is_allowed_only_at_repo_root(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     import scripts.privacy_check as pc
 
@@ -145,7 +137,7 @@ def test_tracked_showcase_gif_is_allowed_only_at_repo_root(monkeypatch) -> None:
     )
     violations = pc.check_no_sensitive_tracked()
     assert len(violations) == 1
-    assert "archive/samples/cockpit_demo.gif" in violations[0]
+    assert str(Path("archive/samples/cockpit_demo.gif")) in violations[0]
 
 
 # --- check_public_no_pii ----------------------------------------------------

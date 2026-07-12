@@ -54,12 +54,14 @@ _SYNTHETIC_SUBPATH = ("data", "synthetic")
 # Directory holding committed SYNTHETIC sample media for eyeballing (Tier B output).
 # Known files here are allowed despite the global binary block — they are generated
 # by our code from synthetic data, never real scans.
-_SAMPLES_DIR = "samples"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SAMPLES_DIR = Path("samples")
+_ALLOWED_SHOWCASE_GIF = _SAMPLES_DIR / "cockpit_demo.gif"
 # Only these known generated names are allowed — a stray real image/GIF must still be
 # blocked, not silently waved through by a blanket extension or directory rule.
 _ALLOWED_SAMPLE_NAMES = re.compile(
-    r"^(?:(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay|cockpit_screenshot)"
-    r"\.(png|jpe?g)|cockpit_demo\.gif)$",
+    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay|cockpit_screenshot)"
+    r"\.(png|jpe?g)$",
     re.IGNORECASE,
 )
 
@@ -72,9 +74,16 @@ def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
 
 
 def _is_allowed_sample_image(path: Path) -> bool:
-    """True only for known generated media directly inside ``samples/``."""
-    return path.parent.name == _SAMPLES_DIR and bool(
-        _ALLOWED_SAMPLE_NAMES.fullmatch(path.name)
+    """True only for known generated media at the repo-root ``samples/`` path."""
+    if path.is_absolute():
+        try:
+            rel = path.resolve().relative_to(_REPO_ROOT)
+        except ValueError:
+            return False
+    else:
+        rel = path
+    return rel == _ALLOWED_SHOWCASE_GIF or (
+        rel.parent == _SAMPLES_DIR and bool(_ALLOWED_SAMPLE_NAMES.fullmatch(rel.name))
     )
 
 

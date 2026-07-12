@@ -48,15 +48,21 @@ def test_binary_blocked_even_under_synthetic(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
-def test_sample_png_under_samples_allowed(tmp_path: Path) -> None:
+def test_sample_png_under_samples_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Synthetic sample images committed under samples/ are allowed.
-    f = _write(tmp_path / "samples" / "sample_doc-00000.png", "fake-png")
+    monkeypatch.chdir(tmp_path)
+    f = _write(Path("samples/sample_doc-00000.png"), "fake-png")
     assert check_file(f) == []
 
 
-def test_sample_tc_png_under_samples_allowed(tmp_path: Path) -> None:
+def test_sample_tc_png_under_samples_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Tier C sample images (PR-D5, docs/DATASET_CONTRACT.md §3) are also allowed.
-    f = _write(tmp_path / "samples" / "sample_tc-000000.png", "fake-png")
+    monkeypatch.chdir(tmp_path)
+    f = _write(Path("samples/sample_tc-000000.png"), "fake-png")
     assert check_file(f) == []
 
 
@@ -72,19 +78,28 @@ def test_unknown_image_under_samples_blocked(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
-def test_screenshot_overlay_under_samples_allowed(tmp_path: Path) -> None:
-    f = _write(tmp_path / "samples" / "screenshot_review_overlay.png", "png")
+def test_screenshot_overlay_under_samples_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    f = _write(Path("samples/screenshot_review_overlay.png"), "png")
     assert check_file(f) == []
 
 
-def test_cockpit_screenshot_under_samples_allowed(tmp_path: Path) -> None:
+def test_cockpit_screenshot_under_samples_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Portfolio cockpit screenshot (SSI-1003 F5) — generated from a synthetic draft.
-    f = _write(tmp_path / "samples" / "cockpit_screenshot.png", "png")
+    monkeypatch.chdir(tmp_path)
+    f = _write(Path("samples/cockpit_screenshot.png"), "png")
     assert check_file(f) == []
 
 
-def test_exact_cockpit_demo_gif_under_samples_allowed(tmp_path: Path) -> None:
-    f = _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
+def test_exact_cockpit_demo_gif_under_samples_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    f = _write(Path("samples/cockpit_demo.gif"), "gif")
     assert check_file(f) == []
 
 
@@ -102,10 +117,6 @@ def test_other_gif_paths_remain_blocked(tmp_path: Path, relpath: str) -> None:
     assert check_file(f)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: allowlist ainda confia em qualquer diretório chamado samples",
-)
 @pytest.mark.parametrize(
     "name",
     ["cockpit_demo.gif", "sample_tc-000000.png"],
