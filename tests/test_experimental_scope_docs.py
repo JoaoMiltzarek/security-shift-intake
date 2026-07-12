@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -75,3 +77,20 @@ def test_privacy_policy_limits_locality_guarantee_to_default_flow() -> None:
 
     assert all(_has_phrase(privacy, value) for value in required)
     assert all(value not in privacy for value in forbidden)
+
+
+@pytest.mark.xfail(strict=True, reason="SSI-1012: docs ainda não explicam a semântica por fonte")
+def test_confidence_is_documented_as_source_specific_signal() -> None:
+    readme = _read("README.md")
+    architecture = _read("docs/ARCHITECTURE.md")
+    roadmap = _read("docs/ROADMAP.md")
+    required = (
+        "Confidence values are source-specific routing signals, not calibrated probabilities",
+        "rule-based values use conservative fixed placeholders",
+        "Tesseract supplies mean word confidence",
+        "VLM fallback values are labeled placeholders",
+    )
+
+    assert all(_has_phrase(readme, value) for value in required)
+    assert all(_has_phrase(architecture, value) for value in required)
+    assert _has_phrase(roadmap, "Confidence calibration once a real labeled set exists")
