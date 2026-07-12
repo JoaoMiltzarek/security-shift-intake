@@ -55,8 +55,14 @@ def test_run_pipeline_is_deterministic(sample_pdf: Path) -> None:
 def test_build_and_store_creates_pending_draft(sample_pdf: Path, tmp_path: Path) -> None:
     engine = make_engine(f"sqlite:///{tmp_path / 'demo.db'}")
     init_db(engine)
+    page_images_root = tmp_path / "pending_page_images"
     draft_id = build_and_store(
-        sample_pdf, MockVisionClient(text="x"), _mock_llm(), CONFIG_PATH, engine
+        sample_pdf,
+        MockVisionClient(text="x"),
+        _mock_llm(),
+        CONFIG_PATH,
+        engine,
+        page_images_root=page_images_root,
     )
 
     with Session(engine) as session:
@@ -65,10 +71,6 @@ def test_build_and_store_creates_pending_draft(sample_pdf: Path, tmp_path: Path)
     assert draft.status == ApprovalStatus.PENDING
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F8.1: build_and_store ainda não permite isolar as imagens persistidas",
-)
 def test_build_and_store_accepts_isolated_page_images_root(
     sample_pdf: Path, tmp_path: Path
 ) -> None:

@@ -20,7 +20,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
-from src.api.page_images import save_page_images
+from src.api.page_images import PAGE_IMAGES_ROOT, save_page_images
 from src.api.repository import create_draft
 from src.clients.base import LLMClient, VisionClient
 from src.clients.factory import get_vision_client
@@ -33,14 +33,22 @@ DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
 
 
 def build_and_store(
-    file: Path, vision: VisionClient, llm: LLMClient, config_path: Path, engine: Engine
+    file: Path,
+    vision: VisionClient,
+    llm: LLMClient,
+    config_path: Path,
+    engine: Engine,
+    *,
+    page_images_root: Path = PAGE_IMAGES_ROOT,
 ) -> int:
     """Run the pipeline on *file* and persist a pending draft. Returns the draft id."""
     config = load_config(config_path)
     init_db(engine)
     state = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
     # Persist the OCR page images (same downscale) so the cockpit overlay lines up.
-    page_paths = save_page_images(load_source_images(file, dpi=OCR_DPI))
+    page_paths = save_page_images(
+        load_source_images(file, dpi=OCR_DPI), root=page_images_root
+    )
     state = state.model_copy(update={"page_image_paths": page_paths})
     with Session(engine) as session:
         draft = create_draft(session, state, actor="demo")
