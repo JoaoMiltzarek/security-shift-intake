@@ -110,3 +110,39 @@ def test_sdk_engine_parses_result_and_converts_rgb_to_bgr() -> None:
     ]
     assert predictor.image is not None
     assert predictor.image[0, 0].tolist() == [30, 20, 10]
+
+
+@pytest.mark.parametrize(
+    ("payload", "error"),
+    [
+        ({"res": {}}, "missing recognition lists"),
+        (
+            {"res": {"rec_texts": ["SEGREDO_OCR"], "rec_scores": []}},
+            "recognition list lengths differ",
+        ),
+        (
+            {"res": {"rec_texts": ["SEGREDO_OCR"], "rec_scores": [float("nan")]}},
+            "invalid recognition score",
+        ),
+        (
+            {"res": {"rec_texts": ["SEGREDO_OCR"], "rec_scores": [1.2]}},
+            "invalid recognition score",
+        ),
+    ],
+)
+def test_sdk_engine_rejects_malformed_results_without_echoing_text(
+    payload: dict[str, object], error: str
+) -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+
+    class FakeResult:
+        json = payload
+
+    class FakePredictor:
+        def predict(self, image: object) -> list[FakeResult]:
+            return [FakeResult()]
+
+    engine = module._PaddleSDKEngine(predictor=FakePredictor())
+    with pytest.raises(RuntimeError, match=error) as exc_info:
+        engine.recognize(Image.new("RGB", (1, 1), "white"))
+    assert "SEGREDO_OCR" not in str(exc_info.value)
