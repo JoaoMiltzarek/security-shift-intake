@@ -40,6 +40,10 @@ class _StartedServer(Protocol):
     started: bool
 
 
+class _RunnableServer(Protocol):
+    def run(self) -> object: ...
+
+
 UrlOpener = Callable[[str], bool]
 Sleeper = Callable[[float], None]
 
@@ -102,6 +106,15 @@ def _schedule_browser_open(server: uvicorn.Server, review_url: str) -> None:
         name="showcase-browser",
         daemon=True,
     ).start()
+
+
+def _run_server(server: _RunnableServer) -> int:
+    """Treat the operator's expected Ctrl+C as a clean showcase shutdown."""
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        print("\nLocal showcase stopped.")
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -171,8 +184,7 @@ def main(argv: list[str]) -> int:
     if not args.no_open:
         _schedule_browser_open(server, review_url)
     print("Press Ctrl+C to stop the local server.")
-    server.run()
-    return 0
+    return _run_server(server)
 
 
 if __name__ == "__main__":

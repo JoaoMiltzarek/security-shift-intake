@@ -268,10 +268,6 @@ def test_no_open_still_serves_without_scheduling_browser(
     assert server.run_calls == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: Ctrl+C ainda propaga traceback pelo launcher",
-)
 def test_expected_keyboard_interrupt_exits_showcase_cleanly(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
