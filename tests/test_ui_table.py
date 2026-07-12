@@ -19,6 +19,14 @@ from src.schema.loader import load_config
 
 CFG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
+_OCR_UNKNOWN = """Controle de ocorrencias
+Data e Turno 25/06/2026 diurno
+Vigilantes Ana Silva, Bruno Costa
+Unidade 1
+14:20 Alarme disparou repetidamente no setor B e vigilante verificou toda a area
+Ronda x
+"""
+
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
@@ -31,6 +39,16 @@ def _submit_table_draft(client: TestClient) -> int:
     state = run_pipeline(SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedLLMClient(CFG), CFG)
     body = state.model_dump(mode="json")
     return int(client.post("/drafts", json=body).json()["id"])
+
+
+def _submit_unknown_without_derived_pending(client: TestClient) -> int:
+    state = run_pipeline(
+        SAMPLE,
+        MockVisionClient(text=_OCR_UNKNOWN),
+        RuleBasedLLMClient(CFG),
+        CFG,
+    ).model_copy(update={"must_review_fields": []})
+    return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 
 def test_review_shows_table_outputs(client: TestClient) -> None:
@@ -82,6 +100,22 @@ def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     # Pending fields -> approval blocked (R4).
     assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
+
+
+@pytest.mark.xfail(strict=True, reason="F2.V: status visual não pode chamar unknown de pronto")
+def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
+    client: TestClient,
+) -> None:
+    draft_id = _submit_unknown_without_derived_pending(client)
+
+    html = client.get(f"/drafts/{draft_id}/review").text
+    assert "ocorrências não confirmadas" in html
+    assert "Pronto para gerar/aprovar" not in html
+
+    response = client.post(f"/ui/drafts/{draft_id}/approve")
+    assert "Blocked" in response.text
+    assert "disposition is unknown" in response.text
+    assert client.get(f"/drafts/{draft_id}").json()["status"] == "pending"
 
 
 # --- PR4: cockpit overlay rendering + XSS safety ---------------------------------

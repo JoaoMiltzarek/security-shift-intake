@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A6.2 — outputs/gate seguros para `unknown`
-  (este commit; focado: 17 passed; bloco integrado exit 0 com 2 xfails de F3).
-- **Micro-step corrente:** F2.V — verification loop Chromium para bloqueio de `unknown`.
-- **RETOME AQUI:** inspecionar `scripts/browser_smoke.py`, adicionar cenário
-  `unknown_blocks_approve`, executar no navegador real e então rodar os gates finais da fase F2.
+- **Último micro-step concluído:** F2.V.1 — contrato do status visual de `unknown`
+  (este commit; 7 passed, 1 xfailed).
+- **Micro-step corrente:** F2.V.2 — corrigir status e incorporar cenário ao browser smoke.
+- **RETOME AQUI:** tornar `_document_status` tri-state, remover o xfail e adicionar
+  `unknown_blocks_approve` a `scripts/browser_smoke.py`; validar por TestClient e navegador real.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -157,6 +157,10 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
   duplicar e `assert_reviewable` bloqueia diretamente estado estrutural desconhecido mesmo se a
   lista derivada estiver ausente. SAÍDAS REAIS: **17 passed** focados; bloco integrado exit 0,
   apenas 2 xfails esperados de F3; Ruff/mypy verdes.
+- **[feito] F2.V.1 — descoberta do loop de UI** — ao preparar o navegador, um estado `unknown`
+  sem a lista derivada apareceu como “Pronto para gerar/aprovar”, embora gate/export bloqueassem.
+  Contrato xfail exige status não confirmatório, resposta HTMX `Blocked` mencionando unknown e
+  persistência em pending. SAÍDA REAL: **7 passed, 1 xfailed**.
 
 ---
 
