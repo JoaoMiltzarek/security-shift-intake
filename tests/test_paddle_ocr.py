@@ -148,10 +148,6 @@ def test_sdk_engine_rejects_malformed_results_without_echoing_text(
     assert "SEGREDO_OCR" not in str(exc_info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: cliente ainda não instancia o SDK sob demanda",
-)
 def test_sdk_engine_is_built_once_on_first_transcription(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

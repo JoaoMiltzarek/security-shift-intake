@@ -118,7 +118,7 @@ class PaddleOCRVisionClient:
             raise RuntimeError("PaddleOCR received invalid image data.") from exc
 
         if self._engine is None:
-            raise RuntimeError("PaddleOCR optional engine is not initialized.")
+            self._engine = _PaddleSDKEngine()
         try:
             lines = self._engine.recognize(image)
         except Exception:  # noqa: BLE001 — third-party engine boundary
