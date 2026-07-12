@@ -15,7 +15,7 @@ from src.clients.base import ClassificationResult, ExtractedFieldRaw
 from src.clients.mock import MockLLMClient, MockVisionClient
 from src.orchestrator import run_pipeline
 from src.schema.loader import load_config
-from src.schema.state import ApprovalStatus
+from src.schema.state import ApprovalStatus, PipelineState
 
 CONFIG_PATH = Path("configs/htmicron_security.yaml")
 CONFIG = load_config(CONFIG_PATH)
@@ -63,3 +63,30 @@ def test_build_and_store_creates_pending_draft(sample_pdf: Path, tmp_path: Path)
         draft = get_draft(session, draft_id)
     assert draft is not None
     assert draft.status == ApprovalStatus.PENDING
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="F8.1: build_and_store ainda não permite isolar as imagens persistidas",
+)
+def test_build_and_store_accepts_isolated_page_images_root(
+    sample_pdf: Path, tmp_path: Path
+) -> None:
+    engine = make_engine(f"sqlite:///{tmp_path / 'isolated-demo.db'}")
+    page_images_root = tmp_path / "page_images"
+
+    draft_id = build_and_store(
+        sample_pdf,
+        MockVisionClient(text="x"),
+        _mock_llm(),
+        CONFIG_PATH,
+        engine,
+        page_images_root=page_images_root,
+    )
+
+    with Session(engine) as session:
+        draft = get_draft(session, draft_id)
+    assert draft is not None
+    state = PipelineState.model_validate_json(draft.state_json)
+    assert state.page_image_paths
+    assert all((page_images_root / rel).is_file() for rel in state.page_image_paths)
