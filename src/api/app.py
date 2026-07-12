@@ -41,37 +41,144 @@ from src.api.gate import (
 )
 from src.api.models import Draft
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
+from src.clients.base import LLMClient
+from src.clients.local_rules import RuleBasedLLMClient
+from src.pipeline.classify import classify
 from src.pipeline.draft import draft as draft_stage
+from src.pipeline.normalize import parse_resolved, parse_times
 from src.pipeline.outputs import build_outputs, export_blockers
+from src.pipeline.route import route
 from src.pipeline.validate import validate
 from src.schema.config import ReportConfig
+from src.schema.extraction import (
+    AuditedField,
+    Disposition,
+    NormalizedIncidentModel,
+    NormalizedOccurrence,
+    NormalizedShift,
+)
 from src.schema.loader import load_config
 from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
 
 _GUARD_SPLIT = re.compile(r"[;,]| e ")
 
+# Linhas do editor 0/1/N: occ__<índice>__<coluna> — índices são POSICIONAIS
+# (full-replace a cada save; nunca patch por índice na lista antiga).
+_OCC_KEY = re.compile(r"^occ__(\d+)__(item|hora|descricao|acao|resolvido)$")
 
-def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> PipelineState:
-    """Apply human edits on the table path: update the normalized model from the form,
-    mark edited values human-confirmed, recompute pending, and regenerate the outputs.
+
+class DispositionConflictError(ValueError):
+    """O input humano se contradiz (radio vs linhas) — nada é persistido."""
+
+
+def _parse_occurrence_rows(form: Any) -> list[NormalizedOccurrence]:
+    """Reconstrói a lista COMPLETA de ocorrências do form (linhas todas em branco caem)."""
+    grouped: dict[int, dict[str, str]] = {}
+    for key in form:
+        match = _OCC_KEY.match(str(key))
+        if not match:
+            continue
+        raw = form.get(key)
+        text = raw.strip() if isinstance(raw, str) else ""
+        if text:
+            grouped.setdefault(int(match.group(1)), {})[match.group(2)] = text
+    rows: list[NormalizedOccurrence] = []
+    for idx in sorted(grouped):
+        cells = grouped[idx]
+        entry, exit_ = parse_times(AuditedField(value=cells.get("hora")))
+        rows.append(
+            NormalizedOccurrence(
+                category=cells.get("item"),
+                entry_time=entry,
+                exit_time=exit_,
+                description=cells.get("descricao"),
+                action=cells.get("acao"),
+                resolved=parse_resolved(AuditedField(value=cells.get("resolvido"))),
+                # Linha confirmada pelo humano quando as colunas essenciais existem.
+                needs_review=not (cells.get("item") and cells.get("descricao")),
+            )
+        )
+    return rows
+
+
+def _resolve_disposition(
+    form: Any, current: NormalizedIncidentModel, rows: list[NormalizedOccurrence]
+) -> tuple[Disposition, list[NormalizedOccurrence]]:
+    """Disposição vem de confirmação explícita; contradições nunca persistem."""
+    disposicao = form.get("disposicao")
+    if disposicao == "sem_alteracao" and rows:
+        raise DispositionConflictError(
+            "Você marcou 'sem alteração' mas há linhas de ocorrência preenchidas — "
+            "limpe as linhas ou confirme 'com ocorrências'."
+        )
+    if disposicao == "com_ocorrencias" and not rows:
+        raise DispositionConflictError(
+            "Você marcou 'com ocorrências' mas nenhuma linha foi preenchida — "
+            "preencha ao menos uma linha ou confirme 'sem alteração'."
+        )
+    if disposicao is None and rows:
+        raise DispositionConflictError(
+            "Há linhas preenchidas sem a confirmação da disposição — marque "
+            "'com ocorrências' (ou limpe as linhas e marque 'sem alteração')."
+        )
+    if disposicao == "sem_alteracao":
+        return "none", []
+    if disposicao == "com_ocorrencias":
+        return "present", rows
+    # Sem radio e sem linhas: unknown/none continuam como estão; um draft 'present'
+    # sem radio é ambíguo (as linhas sumiram?) → erro em vez de adivinhar.
+    if current.disposition == "present":
+        raise DispositionConflictError(
+            "Confirme a disposição: 'sem alteração' ou 'com ocorrências'."
+        )
+    return current.disposition, []
+
+
+def _revised_content(norm: NormalizedIncidentModel) -> str:
+    """Texto canônico do conteúdo REVISADO — a base da reclassificação pós-edição."""
+    if norm.disposition == "none":
+        return "sem alteração"
+    return "\n".join(
+        " ".join(p for p in (occ.category, occ.description, occ.action) if p)
+        for occ in norm.occurrences
+    )
+
+
+def _edit_table(
+    state: PipelineState, form: Any, config: ReportConfig, llm: LLMClient
+) -> PipelineState:
+    """Apply human edits on the table path (editor 0/1/N, SSI-1007).
+
+    A disposição (sem alteração × com ocorrências) exige confirmação explícita do
+    revisor; as linhas são full-replace com as 5 colunas; conteúdo confirmado é
+    reclassificado e re-roteado no mesmo save. Contradições levantam
+    `DispositionConflictError` e nada é persistido.
     """
     assert state.normalized is not None
-    norm = state.normalized.model_copy(deep=True)
+    current = state.normalized
 
     def fval(name: str) -> str | None:
         raw = form.get(f"field__{name}")
         return raw.strip() if isinstance(raw, str) and raw.strip() else None
 
-    norm.shift.date = fval("data_turno")
-    guards = fval("vigilantes")
-    norm.shift.guards = (
-        [g.strip() for g in _GUARD_SPLIT.split(guards) if g.strip()] if guards else []
+    rows = _parse_occurrence_rows(form)
+    disposition, occurrences = _resolve_disposition(form, current, rows)
+    guards_text = fval("vigilantes")
+    norm = NormalizedIncidentModel(
+        schema_version=current.schema_version,
+        shift=NormalizedShift(
+            date=fval("data_turno"),
+            period=current.shift.period,
+            guards=(
+                [g.strip() for g in _GUARD_SPLIT.split(guards_text) if g.strip()]
+                if guards_text
+                else []
+            ),
+            unit=fval("unidade"),
+        ),
+        disposition=disposition,
+        occurrences=occurrences,
     )
-    norm.shift.unit = fval("unidade")
-    for i, occ in enumerate(norm.occurrences, start=1):
-        occ.category = fval(f"ocorrencia_{i}_objeto")
-        occ.description = fval(f"ocorrencia_{i}")
-        occ.needs_review = False  # human-confirmed; blank handled per-field below
 
     # Annotate the raw audit trail: edited header cells become human-sourced/accepted.
     raw = state.raw_extraction.model_copy(deep=True) if state.raw_extraction is not None else None
@@ -101,11 +208,24 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
                 cell.source = "human"
                 cell.status = "accepted"
                 cell.value = norm.shift.guards if name == "vigilantes" else value
-    if norm.no_occurrence or not norm.occurrences:
+    if norm.disposition == "none":
+        # "(sem alteração)" humano SÓ nasce da confirmação explícita via radio — nunca
+        # da mera ausência de linhas (fecha a lavagem de falha de parse, SSI-1007).
         fields.append(ExtractedField(name="ocorrencias", value="(sem alteração)",
                                      confidence=1.0, must_review=False,
                                      source="human", status="accepted",
                                      evidence_method="human_edit"))
+    elif norm.disposition == "unknown":
+        # Disposição segue não confirmada: a pendência estrutural continua bloqueando.
+        reason = (
+            "(tabela não encontrada no OCR)"
+            if state.raw_extraction is not None and not state.raw_extraction.tabela_encontrada
+            else "(nenhuma linha legível)"
+        )
+        fields.append(ExtractedField(name="ocorrencias", value=reason, confidence=0.0,
+                                     must_review=True, source="rule",
+                                     status="must_review"))
+        must_review.append("ocorrencias")
     else:
         for i, occ in enumerate(norm.occurrences, start=1):
             obj_blank = occ.category is None
@@ -140,7 +260,18 @@ def _edit_table(state: PipelineState, form: Any, config: ReportConfig) -> Pipeli
     if state.ocr_quality == "failed":
         updates["ocr_quality"] = "low"
         updates["ocr_quality_reason"] = "Transcrição/correção manual aplicada."
-    return build_outputs(state.model_copy(update=updates), config)
+
+    new_state = state.model_copy(update=updates)
+    # Conteúdo confirmado → classificação e roteamento derivam da MESMA revisão
+    # humana (F-03); a reaprovação obrigatória é a confirmação do novo destino.
+    if norm.disposition != "unknown":
+        new_state = classify(
+            new_state, llm, config,
+            text=_revised_content(norm),
+            reason="reclassificado a partir da revisão humana",
+        )
+        new_state = route(new_state, config)
+    return build_outputs(new_state, config)
 
 _templates = Jinja2Templates(directory="ui/templates")
 _DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
@@ -171,8 +302,27 @@ def _document_status(state: PipelineState) -> str:
 def _review_context(draft: Draft) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
     state = PipelineState.model_validate_json(draft.state_json)
+    normalized = state.normalized
+    occurrence_rows: list[dict[str, str]] = []
+    if normalized is not None:
+        for occ in normalized.occurrences:
+            occurrence_rows.append(
+                {
+                    "item": occ.category or "",
+                    "hora": " ".join(t for t in (occ.entry_time, occ.exit_time) if t),
+                    "descricao": occ.description or "",
+                    "acao": occ.action or "",
+                    "resolvido": (
+                        "" if occ.resolved is None else ("sim" if occ.resolved else "nao")
+                    ),
+                }
+            )
     return {
         "draft": draft,
+        # Editor 0/1/N (SSI-1007): grid de ocorrências + disposição pré-marcada.
+        "table_mode": normalized is not None,
+        "disposicao": normalized.disposition if normalized is not None else None,
+        "occurrence_rows": occurrence_rows,
         "transcription": state.transcription,
         "fields": state.extracted_fields,
         "classification": state.classification,
@@ -223,12 +373,15 @@ def create_app(
     sender: Sender | None = None,
     config: ReportConfig | None = None,
     page_images_root: Path | None = None,
+    llm: LLMClient | None = None,
 ) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
     active_sender: Sender = sender or MockSender()
     active_config: ReportConfig = config or load_config(_default_config_path())
     active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
+    # Reclassificação pós-edição (SSI-1007): determinística/offline por default.
+    active_llm: LLMClient = llm or RuleBasedLLMClient(active_config)
 
     app = FastAPI(
         title="security-shift-intake",
@@ -451,7 +604,17 @@ def create_app(
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
-            state = _edit_table(state, form, active_config)
+            try:
+                state = _edit_table(state, form, active_config, active_llm)
+            except DispositionConflictError as exc:
+                # Contradição no input: NADA persiste; re-renderiza com o erro visível.
+                ctx_err: dict[str, Any] = {
+                    "audit": repository.get_audit(session, draft_id),
+                    "status_oob": True,
+                    "edit_error": str(exc),
+                }
+                ctx_err.update(_review_context(draft))
+                return _render(request, "_review_body.html", ctx_err)
         else:
             # Scalar path: human-confirmed values get full confidence; the critic still
             # flags type-invalid or required-but-blank.

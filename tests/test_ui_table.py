@@ -68,8 +68,12 @@ def test_edit_regenerates_clean_message(client: TestClient) -> None:
         "field__data_turno": "25/06/2026",
         "field__vigilantes": "Ana Silva, Bruno Costa",
         "field__unidade": "1",
-        "field__ocorrencia_1_objeto": "Alarme",
-        "field__ocorrencia_1": "14:32 - Alarme disparou 4 vezes",
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__hora": "14:32",
+        "occ__1__descricao": "Alarme disparou 4 vezes",
+        "occ__1__acao": "Verificado",
+        "occ__1__resolvido": "sim",
     }
     r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
     assert r.status_code == 200
@@ -84,8 +88,12 @@ def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
         "field__data_turno": "25/06/2026",
         "field__vigilantes": "Ana Silva, Bruno Costa",
         "field__unidade": "1",
-        "field__ocorrencia_1_objeto": "Alarme",
-        "field__ocorrencia_1": "14:32 - Alarme disparou 4 vezes",
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__hora": "14:32",
+        "occ__1__descricao": "Alarme disparou 4 vezes",
+        "occ__1__acao": "Verificado",
+        "occ__1__resolvido": "sim",
     }
     client.post(f"/ui/drafts/{draft_id}/edit", data=form)
     state = client.get(f"/drafts/{draft_id}").json()["state"]

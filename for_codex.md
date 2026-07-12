@@ -20,13 +20,11 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Fase F3 COMPLETA.** Micro-step corrente: F4.C1 — cockpit 0/1/N.
-- **RETOME AQUI:** criar branch `SSI-1007-cockpit-0-1-n` desta branch; começar F4.C1 com
-  contratos vermelhos em `tests/test_ui_table.py` (radios `disposicao`, inputs
-  `occ__{i}__{item|hora|descricao|acao|resolvido}`, linha sobressalente, full-replace,
-  contradição rejeitada, "(sem alteração)" humano só com confirmação explícita — fecha a
-  lavagem de app.py:104-108). Design completo na seção "Design F-01/F-02" do plan file e
-  no MAPA F4 abaixo. Ler `_edit_table` atual (mudou no F2) antes de reescrever.
+- **Micro-step corrente:** F4.C3b — painel de status mostra Revisão N / aprovada M + aviso legado.
+- **RETOME AQUI:** teste vermelho (painel contém "Revisão 1" e, para aprovado legado sem stamp,
+  o aviso "aprovação anterior ao vínculo por revisão — reaprove") → editar
+  `ui/templates/_status_panel.html`; depois F4.V (probe HTTP + cenário `row_editor_0_1_N`
+  no browser_smoke) e F4.PR.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -307,16 +305,28 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       approve→edit→send no browser-smoke (CI)."
 
 ### F4 — Cockpit 0/1/N (SSI-1007) — design C1..C3
-- [ ] F4.C1 `_edit_table` reescrito: radios `disposicao` (`sem_alteracao`|`com_ocorrencias`,
-      nenhum marcado se unknown); parsing `^occ__(\d+)__(item|hora|descricao|acao|resolvido)$`
-      full-replace; linha em branco descartada; contradição → não persiste + re-renderiza com
-      erro; "(sem alteração)" humano SÓ com confirmação explícita (fecha a lavagem
-      app.py:104-108) + commits
-- [ ] F4.C2 reclassificação: `classify(..., text=None)` compat; pós-edit texto canônico
-      revisado → classify → route → build_outputs; reason menciona rev; `create_app(llm=)` + commits
-- [ ] F4.C3 templates: `_review_body.html` grid 5 colunas + sobressalente + "Limpar linha"
-      (`data-clear-row` em app.js); `_status_panel.html` mostra Revisão N/aprovada M + aviso
-      legado; caminho escalar intocado (branch `normalized is not None`) + commits
+- [x] F4.C1 feito: `_edit_table` reescrito — `_parse_occurrence_rows` (regex occ__N__col,
+      full-replace, linha em branco cai), `_resolve_disposition` (4 contradições viram
+      `DispositionConflictError`: S/A+linhas, com_ocorrencias sem linhas, linhas sem radio,
+      present sem radio e sem linhas), `NormalizedIncidentModel` reconstruído (validador do
+      modelo garante consistência disposition×linhas); unknown persiste pendência
+      "ocorrencias"; "(sem alteração)" humano SÓ nasce do radio (lavagem fechada);
+      `ui_edit` re-renderiza com `edit_error` sem persistir. Commits: `fcc53538` (vermelho:
+      7 failed/8 passed) → implementação.
+- [x] F4.C2 feito: `classify(text=, reason=)` compat; `_revised_content(norm)` (categoria+
+      descrição+ação confirmadas; "sem alteração" p/ none); pós-edit (disposition != unknown):
+      classify → route → build_outputs; reason="reclassificado a partir da revisão humana";
+      `create_app(llm=)` com `RuleBasedLLMClient(active_config)` default.
+      Teste furto→theft→tech_security verde.
+- [x] F4.C3 (parcial) feito: `_review_body.html` — campos `ocorrencia*` viram somente-leitura
+      no caminho tabular; seção "Ocorrências (0/1/N)" com radios (nenhum marcado se unknown +
+      aviso), grid 5 colunas + select resolvido, sobressalente, botão "Limpar linha"; banner
+      `#edit-error`; `app.js` handler delegado `data-clear-row`. `_review_context` ganhou
+      table_mode/disposicao/occurrence_rows. Testes legados migrados p/ nova codificação
+      (test_ui_table ×2, test_export_csv _CLEAN_FORM). mypy pegou 1 erro real de tipo
+      (Disposition Literal) — corrigido. SAÍDA REAL: `make check` →
+      **650 passed, 2 skipped, 81.07s**, lint+mypy verdes.
+      PENDENTE C3b: painel com Revisão N/aprovada M + aviso legado.
 - [ ] F4.V loop: browser — adicionar/limpar linha, contradição rejeitada; cenário
       `row_editor_0_1_N` no browser_smoke + commits
 - [ ] F4.PR fechamento

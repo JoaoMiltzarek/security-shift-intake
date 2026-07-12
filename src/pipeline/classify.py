@@ -12,11 +12,22 @@ from src.schema.config import ReportConfig
 from src.schema.state import Classification, PipelineState
 
 
-def classify(state: PipelineState, client: LLMClient, config: ReportConfig) -> PipelineState:
-    """Classify the transcription against the config taxonomy; return updated state."""
+def classify(
+    state: PipelineState,
+    client: LLMClient,
+    config: ReportConfig,
+    text: str | None = None,
+    reason: str | None = None,
+) -> PipelineState:
+    """Classify the transcription against the config taxonomy; return updated state.
+
+    `text` (opcional) classifica um conteúdo canônico revisado no lugar da transcrição
+    bruta — usado pelo re-classify pós-edição humana (SSI-1007); `reason` registra a
+    procedência da classificação para o revisor.
+    """
     taxonomy = config.classification
     result = client.classify(
-        state.transcription or "",
+        text if text is not None else (state.transcription or ""),
         types=taxonomy.type.labels,
         urgencies=taxonomy.urgency.labels,
         sectors=taxonomy.sector.labels,
@@ -26,5 +37,6 @@ def classify(state: PipelineState, client: LLMClient, config: ReportConfig) -> P
         urgency=result.urgency,
         sector=result.sector,
         confidence=result.confidence,
+        reason=reason,
     )
     return state.model_copy(update={"classification": classification})

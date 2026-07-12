@@ -10,6 +10,16 @@ document.addEventListener("click", function (event) {
   }
 });
 
+// Editor 0/1/N: "Limpar linha" esvazia os inputs da linha; o servidor descarta linhas
+// todas em branco no save (full-replace). Delegação para sobreviver aos swaps HTMX.
+document.addEventListener("click", function (event) {
+  const btn = event.target.closest("[data-clear-row]");
+  if (!btn) return;
+  btn.closest("tr").querySelectorAll("input, select").forEach(function (el) {
+    el.value = "";
+  });
+});
+
 // Cockpit evidence overlay: click a field row -> highlight its probable region on the
 // page image. Field data arrives as HTML-safe JSON in data-* attrs; we JSON.parse it and
 // write only via textContent (never innerHTML), so OCR/human text can never inject markup.
