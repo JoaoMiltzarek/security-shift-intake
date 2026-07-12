@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import DraftNotReviewableError, MockSender, assert_reviewable
+from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
 from src.schema.state import PipelineState
 
@@ -76,6 +77,18 @@ def test_assert_reviewable_blocks_failed_ocr_even_without_pending_fields() -> No
     state = PipelineState(
         source_pdf=Path("x.pdf"), ocr_quality="failed", must_review_fields=[]
     )
+    with pytest.raises(DraftNotReviewableError):
+        assert_reviewable(state)
+
+
+@pytest.mark.xfail(strict=True, reason="F2.A6: unknown deve bloquear mesmo sem lista derivada")
+def test_assert_reviewable_blocks_unknown_without_pending_fields() -> None:
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(disposition="unknown"),
+        must_review_fields=[],
+    )
+
     with pytest.raises(DraftNotReviewableError):
         assert_reviewable(state)
 

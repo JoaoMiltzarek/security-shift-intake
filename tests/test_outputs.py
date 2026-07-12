@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from src.pipeline.outputs import build_copy_message, build_spreadsheet, export_blockers
 from src.schema.extraction import (
     Disposition,
@@ -37,6 +39,18 @@ def test_spreadsheet_no_occurrence_row() -> None:
     assert len(rows) == 1
     assert rows[0].objeto == "Sem alteração"
     assert rows[0].descricao == ""
+
+
+@pytest.mark.xfail(strict=True, reason="F2.A6: unknown nunca pode parecer sem alteração")
+def test_unknown_disposition_uses_placeholder_and_blocks_clean_output() -> None:
+    normalized = _norm([])
+    state = PipelineState(source_pdf=Path("x.pdf"), normalized=normalized)
+
+    rows = build_spreadsheet(normalized)
+
+    assert rows[0].objeto == "(ocorrências não confirmadas)"
+    assert export_blockers(state) == ["ocorrencias"]
+    assert "RASCUNHO INCOMPLETO" in build_copy_message(state, normalized)
 
 
 def test_spreadsheet_double_time() -> None:

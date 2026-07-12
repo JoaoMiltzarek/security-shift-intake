@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A5.2 — quality gate tri-state explícito
-  (este commit; bloco quality/orquestrador: 22 passed; Ruff/mypy verdes).
-- **Micro-step corrente:** F2.A6 — impedir que outputs rotulem `unknown` como sem alteração.
-- **RETOME AQUI:** escrever contratos para planilha/mensagem em `unknown`; implementar placeholder
-  não confirmatório e provar que export continua bloqueado. Depois executar o fechamento F2.
+- **Último micro-step concluído:** F2.A6.1 — contratos de output/gate para `unknown`
+  (este commit; 15 passed, 2 xfailed).
+- **Micro-step corrente:** F2.A6.2 — implementar placeholder e defesa em profundidade.
+- **RETOME AQUI:** tornar `build_spreadsheet` tri-state, adicionar blocker estrutural idempotente
+  em `export_blockers` e bloqueio direto em `assert_reviewable`; remover dois xfails e fechar F2.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -149,6 +149,9 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - **[feito] F2.A5.2 — condição explícita** — o relaxamento do mínimo de conteúdo agora compara
   diretamente `state.normalized.disposition == "none"`; `unknown` não depende mais da semântica
   de um booleano legado. SAÍDA REAL: bloco quality/orquestrador **22 passed**; Ruff/mypy verdes.
+- **[feito] F2.A6.1 — contratos de saída e gate** — dois xfails exigem placeholder
+  `(ocorrências não confirmadas)`, blocker de export mesmo sem lista derivada e bloqueio direto
+  de aprovação para estado tabular `unknown`. SAÍDA REAL: **15 passed, 2 xfailed**.
 
 ---
 
