@@ -208,6 +208,47 @@ def test_ocr_failure_never_starts_server_or_browser(
     assert "Local OCR failed" in capsys.readouterr().err
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: showcase ainda aceita INTAKE_DB_URL herdado",
+)
+def test_hostile_database_env_is_refused_before_seeding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    demo = _showcase_demo()
+    monkeypatch.setenv("INTAKE_DB_URL", "sqlite:///outside-showcase.db")
+    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.setattr(
+        demo,
+        "_seed_demo",
+        lambda *args: pytest.fail("env hostil deve falhar antes de persistir"),
+    )
+
+    assert demo.main(["--no-serve"]) == 2
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: seed ainda depende do default capturado por make_engine",
+)
+def test_showcase_pins_database_url_for_seed_and_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    demo = _showcase_demo()
+    database_urls: list[str] = []
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
+    monkeypatch.setattr(
+        demo,
+        "make_engine",
+        lambda url: database_urls.append(url) or object(),
+    )
+    monkeypatch.setattr(demo, "_seed_demo", lambda *args: 43)
+
+    assert demo.main(["--no-serve"]) == 0
+    assert database_urls == [demo.SHOWCASE_DB_URL]
+    assert os.environ["INTAKE_DB_URL"] == demo.SHOWCASE_DB_URL
+
+
 def test_no_open_still_serves_without_scheduling_browser(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
