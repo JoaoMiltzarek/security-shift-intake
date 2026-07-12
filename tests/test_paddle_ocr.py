@@ -12,6 +12,13 @@ from PIL import Image
 from src.clients.base import VisionClient
 
 
+def _png_b64(width: int = 20, height: int = 10) -> str:
+    image = Image.new("RGB", (width, height), "white")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.standard_b64encode(buffer.getvalue()).decode("ascii")
+
+
 def test_paddle_client_module_is_lazy_and_protocol_compatible() -> None:
     module = importlib.import_module("src.clients.paddle_ocr")
     client = module.PaddleOCRVisionClient()
@@ -32,12 +39,7 @@ def test_transcribe_preserves_lines_and_reported_confidence() -> None:
                 line_type(text="TURNO: NOTURNO", confidence=0.6),
             ]
 
-    image = Image.new("RGB", (20, 10), "white")
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    encoded = base64.standard_b64encode(buffer.getvalue()).decode("ascii")
-
-    result = module.PaddleOCRVisionClient(engine=FakeEngine()).transcribe(encoded)
+    result = module.PaddleOCRVisionClient(engine=FakeEngine()).transcribe(_png_b64())
 
     assert result.text == "DATA: 12/07/2026\nTURNO: NOTURNO"
     assert result.confidence == pytest.approx(0.7)
