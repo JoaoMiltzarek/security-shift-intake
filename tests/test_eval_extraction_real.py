@@ -481,3 +481,28 @@ def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(
     assert meta["dpi"] == 250
     assert isinstance(meta["prompt_sha256"], str) and len(meta["prompt_sha256"]) == 64
     assert meta["model"].endswith("unknown")  # best-effort honesto, nunca inventa digest
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: metadado PaddleOCR ainda cai incorretamente no branch Ollama",
+)
+def test_run_metadata_paddle_is_local_versioned_and_never_calls_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import evals.eval_extraction_real as mod
+
+    def _no_http(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("PaddleOCR metadata must not query Ollama")
+
+    versions = {"paddleocr": "3.5.0", "paddlepaddle": "3.3.0"}
+    monkeypatch.setattr(mod.httpx, "get", _no_http)
+    monkeypatch.setattr(mod.importlib_metadata, "version", versions.__getitem__)
+
+    meta = run_metadata("paddle_ocr", 150)
+
+    assert meta["model"] == (
+        "PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec; "
+        "device=cpu; paddleocr=3.5.0; paddlepaddle=3.3.0"
+    )
+    assert meta["prompt_sha256"] is None
