@@ -310,7 +310,11 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Tier C synthetic extraction eval.")
-    parser.add_argument("--vision", choices=["mock", "local_ocr", "local_vlm"], default="mock")
+    parser.add_argument(
+        "--vision",
+        choices=["mock", "local_ocr", "paddle_ocr", "local_vlm"],
+        default="mock",
+    )
     parser.add_argument("--dpi", type=int, default=150)
     parser.add_argument("--n", type=int, default=0, help="cap de folhas (0 = todas)")
     parser.add_argument(
