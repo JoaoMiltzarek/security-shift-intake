@@ -37,6 +37,7 @@ import sys
 import time
 import unicodedata
 from datetime import UTC, datetime
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,7 @@ from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
 from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
+from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MODEL
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import OCR_DPI
@@ -393,6 +395,17 @@ def _model_tag(reader: str) -> str:
         return "tesseract"
     if reader == "mock":
         return "mock"
+    if reader == "paddle_ocr":
+        versions: dict[str, str] = {}
+        for package in ("paddleocr", "paddlepaddle"):
+            try:
+                versions[package] = importlib_metadata.version(package)
+            except importlib_metadata.PackageNotFoundError:
+                versions[package] = "not-installed"
+        return (
+            f"{PADDLE_DETECTION_MODEL} + {PADDLE_RECOGNITION_MODEL}; device=cpu; "
+            f"paddleocr={versions['paddleocr']}; paddlepaddle={versions['paddlepaddle']}"
+        )
     model = get_vlm_model()
     root = get_vlm_base_url().split("/v1")[0]
     try:

@@ -483,10 +483,6 @@ def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(
     assert meta["model"].endswith("unknown")  # best-effort honesto, nunca inventa digest
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: metadado PaddleOCR ainda cai incorretamente no branch Ollama",
-)
 def test_run_metadata_paddle_is_local_versioned_and_never_calls_http(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
