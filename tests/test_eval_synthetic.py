@@ -215,3 +215,31 @@ def test_require_safety_gates_green_on_smoke_mock(smoke_dir: Path, tmp_path: Pat
         ]
     )
     assert rc == 0
+
+
+def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
+    smoke_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Prova a ligação main → gate; helper correto mas desconectado não basta."""
+
+    def unavailable_reader(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {"ran": False, "available": False, "reason": "reader unavailable"}
+
+    monkeypatch.setattr(ev, "evaluate_sheet", unavailable_reader)
+    out = tmp_path / "unavailable"
+    rc = ev.main(
+        [
+            "--dir", str(smoke_dir),
+            "--output-dir", str(out),
+            "--require-safety-gates",
+        ]
+    )
+
+    assert rc == 1
+    assert "n_sheets_ran=0" in capsys.readouterr().err
+    summary = json.loads((out / "eval_synthetic_summary.json").read_text(encoding="utf-8"))
+    assert summary["n_sheets"] > 0
+    assert summary["n_sheets_ran"] == 0
