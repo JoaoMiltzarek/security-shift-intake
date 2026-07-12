@@ -9,10 +9,6 @@ from types import ModuleType
 import pytest
 from PIL import Image, ImageChops, ImageDraw
 
-_WRITER_PENDING = pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: montador determinístico do GIF ainda não existe",
-)
 _ASSET_PENDING = pytest.mark.xfail(
     strict=True,
     reason="SSI-1011: samples/cockpit_demo.gif ainda não foi capturado",
@@ -45,7 +41,6 @@ def _gif_contract(path: Path, writer: ModuleType) -> list[Image.Image]:
     return frames
 
 
-@_WRITER_PENDING
 def test_writer_builds_three_frame_gif_with_shared_contract(tmp_path: Path) -> None:
     writer = _writer()
     source_paths: list[Path] = []
