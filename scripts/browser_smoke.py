@@ -7,8 +7,9 @@ Rendering an overlay outside a browser proves nothing, so this drives a real Chr
   1. seed a synthetic table draft (mock reader, one field given a bbox) and open its review;
   2. click the bbox field  -> assert the highlight overlay becomes visible in the DOM;
   3. submit "Salvar revisão" -> assert the edited field is now `human_edit` and lost its bbox;
-  4. capture console errors + CSP violations -> fail on any;
-  5. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
+  4. seed a structurally `unknown` draft and assert placeholder/export/approval stay blocked;
+  5. capture console errors + CSP violations -> fail on any;
+  6. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
 
 Authority: on CI Linux (Chromium installable) this is BLOCKING. Locally, headless is
 flaky, so a missing browser/server exits 2 ("reported", not the authority); a genuine
@@ -48,6 +49,16 @@ Vigilantes Ana Silva, Bruno Costa
 Unidade 1
 Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
 Alarme 14:32 Alarme disparou 4 vezes no setor B Verificado, sem intrusao sim
+Ronda x
+"""
+
+# Header fields and content are legible, but the printed table-column header is absent. The
+# production extractor must preserve this as structural `unknown`, never as "sem alteração".
+_OCR_UNKNOWN = """Controle de ocorrencias
+Data e Turno 25/06/2026 diurno
+Vigilantes Ana Silva, Bruno Costa
+Unidade 1
+14:20 Alarme disparou repetidamente no setor B e vigilante verificou toda a area
 Ronda x
 """
 
@@ -96,6 +107,26 @@ def _seed_draft(base_url: str) -> int:
     return int(resp.json()["id"])
 
 
+def _seed_unknown_draft(base_url: str) -> int:
+    """POST an unknown table draft with the derived pending list intentionally absent."""
+    config = load_config(CONFIG)
+    state = run_pipeline(
+        SAMPLE,
+        MockVisionClient(text=_OCR_UNKNOWN, confidence=0.95),
+        RuleBasedLLMClient(config),
+        config,
+        dpi=OCR_DPI,
+    )
+    if state.normalized is None or state.normalized.disposition != "unknown":
+        raise SmokeError("unknown seed did not preserve structural uncertainty")
+    # Defense-in-depth scenario: even a legacy/tampered state missing this derived list must
+    # remain visibly pending and impossible to approve/export.
+    payload = state.model_copy(update={"must_review_fields": []}).model_dump(mode="json")
+    resp = httpx.post(f"{base_url}/drafts", json=payload, timeout=30)
+    resp.raise_for_status()
+    return int(resp.json()["id"])
+
+
 def _wait_for_server(base_url: str) -> None:
     try:
         httpx.get(f"{base_url}/health", timeout=5).raise_for_status()
@@ -113,6 +144,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
     _wait_for_server(base_url)
     draft_id = _seed_draft(base_url)
     review_url = f"{base_url}/drafts/{draft_id}/review"
+    screenshot = Path(os.environ.get("BROWSER_SMOKE_SCREENSHOT", str(SCREENSHOT)))
 
     console_errors: list[str] = []
     with sync_playwright() as pw:
@@ -146,18 +178,38 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         if edited.get_attribute("data-bbox") not in (None, "null"):
             raise SmokeError("edited field still carries a bbox (human_edit must drop it)")
 
-        # (5) screenshot the real page.
-        SCREENSHOT.parent.mkdir(parents=True, exist_ok=True)
-        page.screenshot(path=str(SCREENSHOT), full_page=True)
+        # (6) screenshot the real evidence page before navigating to the safety scenario.
+        screenshot.parent.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot), full_page=True)
+
+        # (4) structural unknown: never "Sem alteração", never exportable/approvable.
+        unknown_draft_id = _seed_unknown_draft(base_url)
+        page.goto(f"{base_url}/drafts/{unknown_draft_id}/review", wait_until="networkidle")
+        body = page.locator("#review-body").inner_text()
+        if "(ocorrências não confirmadas)" not in body:
+            raise SmokeError("unknown draft lacks the non-confirmatory output placeholder")
+        if "Em revisão — ocorrências não confirmadas" not in body:
+            raise SmokeError("unknown draft is not visibly marked as under review")
+        export_button = page.get_by_role("button", name="Exportar CSV")
+        if not export_button.is_disabled():
+            raise SmokeError("unknown draft exposes an enabled CSV export")
+        page.get_by_role("button", name="Approve", exact=True).click()
+        page.wait_for_selector("#status-panel strong", timeout=5000)
+        status_panel = page.locator("#status-panel").inner_text()
+        if "Blocked:" not in status_panel or "disposition is unknown" not in status_panel:
+            raise SmokeError("unknown draft approval was not explicitly blocked")
+        if page.locator("#status-panel .badge").inner_text().strip() != "pending":
+            raise SmokeError("unknown draft left pending state after blocked approval")
         browser.close()
 
     # (4) console errors / CSP violations are fatal.
     if console_errors:
         raise SmokeError(f"console errors / CSP violations: {console_errors}")
 
-    digest = hashlib.sha256(SCREENSHOT.read_bytes()).hexdigest()
+    digest = hashlib.sha256(screenshot.read_bytes()).hexdigest()
     return {
-        "draft_id": draft_id, "screenshot": str(SCREENSHOT),
+        "draft_id": draft_id, "unknown_draft_id": unknown_draft_id,
+        "screenshot": str(screenshot),
         "sha256": digest, "console_errors": console_errors,
     }
 

@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.V.2a — status visual tri-state
-  (este commit; bloco UI/gate/output: 25 passed; Ruff/mypy verdes).
-- **Micro-step corrente:** F2.V.2b — incorporar `unknown_blocks_approve` ao browser smoke.
-- **RETOME AQUI:** adicionar seed `unknown` defensivo e interação HTMX de aprovação bloqueada em
-  `scripts/browser_smoke.py`; validar sintaxe/typing e executar o fluxo no navegador real.
+- **Último micro-step concluído:** F2.V.2b — verification loop reader/browser real
+  (este commit; Tesseract real + Edge 150 real verdes; Ruff/mypy do smoke verdes).
+- **Micro-step corrente:** F2.PR — fechamento técnico da fase.
+- **RETOME AQUI:** rodar `make check`, `make privacy-check`, teste OCR real e verificar status Git;
+  registrar saídas finais, commitar o fechamento e preparar a próxima branch F3 sem push.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -165,6 +165,19 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
   ocorrências não confirmadas” mesmo se `must_review_fields` estiver ausente; o xfail foi
   removido e a aprovação HTMX permanece bloqueada/pending. SAÍDA REAL: bloco UI/gate/output
   **25 passed**; Ruff/mypy verdes.
+- **[feito] F2.V.2b — browser-smoke + reader real** — `scripts/browser_smoke.py` ganhou seed
+  estrutural `unknown`, placeholder/status/export e clique HTMX em Approve, inclusive defesa com
+  `must_review_fields` deliberadamente ausente; screenshot local pode ser redirecionado para fora
+  do repo por `BROWSER_SMOKE_SCREENSHOT`. Ruff/mypy verdes. A `.venv` local não tem Playwright e
+  o runtime do navegador embutido falhou antes de abrir aba (`failed to write kernel assets`):
+  limitação ambiental, enquanto a CI continua autoritativa e já instala Chromium. Fallback sem
+  instalação executou **Microsoft Edge 150 real**, via protocolo local: placeholder/status/export
+  todos true; após clique em Approve → `Blocked=true`, motivo unknown=true, `pending=true`;
+  screenshot só em memória SHA-256 `9fec6d895003c49db3b1e4c067d5975dbde9b0066186762e030647ccd78d3e99`
+  (23.254 bytes). Tesseract 5.4.0 ENG real sobre PNG temporário sem header: `unknown`,
+  `tabela_encontrada=false`, OCR good, ocorrencias pendente e aprovação bloqueada; fixture apagada
+  ao sair. Primeira tentativa do probe falhou só porque o pipe PowerShell corrompeu o literal
+  acentuado esperado; diagnóstico sanitizado confirmou o valor e o rerun ASCII/Unicode passou.
 
 ---
 
@@ -232,7 +245,7 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       "nenhuma linha legível" via tabela_encontrada) + commits
 - [x] F2.A5 `ocr_quality.py:65-66`: relaxamento só p/ `disposition=="none"` + commits
 - [x] F2.A6 `outputs.py:38-39`: unknown → "(ocorrências não confirmadas)"; "Sem alteração" só p/ none + commits
-- [ ] F2.V loop de verificação: `make demo-pipeline` Tesseract real numa fixture sem header →
+- [x] F2.V loop de verificação: pipeline Tesseract real numa fixture temporária sem header →
       cockpit no browser mostra "(ocorrências não confirmadas)" + aprovação bloqueada; cenário
       `unknown_blocks_approve` no `scripts/browser_smoke.py` + commit; flip dos xfails F1.1/F1.4
 - [ ] F2.PR fechamento de fase (make check + saída real aqui)
