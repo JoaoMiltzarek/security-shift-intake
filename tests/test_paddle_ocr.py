@@ -46,3 +46,18 @@ def test_transcribe_preserves_lines_and_reported_confidence() -> None:
     assert result.confidence_source == "paddleocr"
     assert result.words is None  # Paddle retorna regiões de linha, não caixas de palavras.
     assert (result.image_width, result.image_height) == (20, 10)
+
+
+def test_empty_recognition_is_an_explicit_zero_confidence_transcription() -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+
+    class EmptyEngine:
+        def recognize(self, image: Image.Image) -> list[object]:
+            return []
+
+    result = module.PaddleOCRVisionClient(engine=EmptyEngine()).transcribe(_png_b64())
+
+    assert result.text == ""
+    assert result.confidence == 0.0
+    assert result.confidence_source == "paddleocr"
+    assert result.words is None
