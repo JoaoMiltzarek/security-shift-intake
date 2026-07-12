@@ -339,3 +339,16 @@ def test_makefile_exposes_demo_target_with_passthrough_args() -> None:
     assert recipe is not None
     assert "-m scripts.showcase_demo" in recipe.group("body")
     assert "$(DEMO_ARGS)" in recipe.group("body")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: CI com Tesseract ainda não executa o contrato do showcase",
+)
+def test_ci_job_with_tesseract_runs_showcase_fixture_contract() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "SSI_REQUIRE_TESSERACT: \"1\"" in workflow
+    assert (
+        "tests/test_showcase_demo.py::"
+        "test_committed_showcase_fixture_persists_real_ocr_geometry"
+    ) in workflow
