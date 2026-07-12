@@ -117,6 +117,157 @@ def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
     assert client.get(f"/drafts/{draft_id}").json()["status"] == "pending"
 
 
+# --- Contratos F4 (SSI-1007): cockpit 0/1/N — disposição explícita + 5 colunas ---
+
+
+def _headers_form() -> dict[str, str]:
+    return {
+        "field__data_turno": "25/06/2026 diurno",
+        "field__vigilantes": "Ana Silva, Bruno Costa",
+        "field__unidade": "1",
+    }
+
+
+def _submit_unknown_draft(client: TestClient) -> int:
+    state = run_pipeline(SAMPLE, MockVisionClient(text=_OCR_UNKNOWN), RuleBasedLLMClient(CFG), CFG)
+    return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
+
+
+def _state_of(client: TestClient, draft_id: int) -> dict:
+    return client.get(f"/drafts/{draft_id}").json()["state"]
+
+
+def test_unknown_stays_unknown_without_explicit_disposition(client: TestClient) -> None:
+    """Editar só o cabeçalho não resolve a disposição: unknown continua unknown e
+    a aprovação continua bloqueada — nada de 'sem alteração' implícito (a lavagem)."""
+    draft_id = _submit_unknown_draft(client)
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data=_headers_form())  # sem radio
+    assert r.status_code == 200
+
+    state = _state_of(client, draft_id)
+    assert state["normalized"]["disposition"] == "unknown"
+    occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
+    assert occ["value"] != "(sem alteração)"
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
+
+
+def test_human_confirms_sem_alteracao(client: TestClient) -> None:
+    """Radio 'sem alteração' + zero linhas = confirmação humana explícita: vira none,
+    campo humano aceito, e o draft fica aprovável."""
+    draft_id = _submit_unknown_draft(client)
+    form = {**_headers_form(), "disposicao": "sem_alteracao"}
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+
+    state = _state_of(client, draft_id)
+    assert state["normalized"]["disposition"] == "none"
+    occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
+    assert occ["value"] == "(sem alteração)"
+    assert occ["source"] == "human"
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+
+
+def test_add_row_with_all_five_columns(client: TestClient) -> None:
+    """A linha sobressalente preenchida adiciona uma ocorrência com as 5 colunas;
+    sobressalente em branco é descartada (não vira ocorrência vazia)."""
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__hora": "14:32",
+        "occ__1__descricao": "Alarme disparou 4 vezes no setor B",
+        "occ__1__acao": "Verificado, sem intrusao",
+        "occ__1__resolvido": "sim",
+        "occ__2__item": "Portao",
+        "occ__2__hora": "15:10 16:00",
+        "occ__2__descricao": "Portao lateral aberto sem autorizacao",
+        "occ__2__acao": "Fechado e registrado",
+        "occ__2__resolvido": "nao",
+        "occ__3__item": "", "occ__3__hora": "", "occ__3__descricao": "",
+        "occ__3__acao": "", "occ__3__resolvido": "",
+    }
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+
+    norm = _state_of(client, draft_id)["normalized"]
+    assert norm["disposition"] == "present"
+    assert len(norm["occurrences"]) == 2
+    added = norm["occurrences"][1]
+    assert added["category"] == "Portao"
+    assert added["entry_time"] == "15:10"
+    assert added["exit_time"] == "16:00"
+    assert added["action"] == "Fechado e registrado"
+    assert added["resolved"] is False
+
+
+def test_clearing_rows_with_sa_confirmation_removes_them(client: TestClient) -> None:
+    """Limpar todas as linhas + confirmar S/A remove as ocorrências (cardinalidade 0)."""
+    draft_id = _submit_table_draft(client)  # nasce com 1 ocorrência
+    form = {
+        **_headers_form(),
+        "disposicao": "sem_alteracao",
+        "occ__1__item": "", "occ__1__hora": "", "occ__1__descricao": "",
+        "occ__1__acao": "", "occ__1__resolvido": "",
+    }
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+
+    norm = _state_of(client, draft_id)["normalized"]
+    assert norm["disposition"] == "none"
+    assert norm["occurrences"] == []
+
+
+def test_contradictory_disposition_is_rejected_without_persisting(
+    client: TestClient,
+) -> None:
+    """Radio 'sem alteração' com linha preenchida é contradição: nada persiste e o
+    formulário volta com erro visível (nunca descartar input humano em silêncio)."""
+    draft_id = _submit_table_draft(client)
+    before = _state_of(client, draft_id)
+
+    form = {
+        **_headers_form(),
+        "disposicao": "sem_alteracao",
+        "occ__1__descricao": "Ainda tem ocorrencia aqui",
+    }
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    assert r.status_code == 200
+    assert "edit-error" in r.text  # banner de erro renderizado
+
+    assert _state_of(client, draft_id) == before  # nada foi persistido
+
+
+def test_rows_without_disposition_radio_are_rejected(client: TestClient) -> None:
+    """Linhas preenchidas sem confirmar a disposição também é ambíguo → erro, sem persistir."""
+    draft_id = _submit_unknown_draft(client)
+    before = _state_of(client, draft_id)
+
+    form = {**_headers_form(), "occ__1__descricao": "Ocorrencia sem radio"}
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    assert r.status_code == 200
+    assert "edit-error" in r.text
+    assert _state_of(client, draft_id) == before
+
+
+def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
+    """Mudar o conteúdo revisado muda classificação e destinatários (F-03): o texto
+    canônico revisado é reclassificado e o routing recalculado no mesmo save."""
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Furto",
+        "occ__1__hora": "14:32",
+        "occ__1__descricao": "Furto de equipamento no almoxarifado",
+        "occ__1__acao": "Acionada a policia",
+        "occ__1__resolvido": "nao",
+    }
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+
+    state = _state_of(client, draft_id)
+    assert state["classification"]["incident_type"] == "theft"
+    assert "tech_security" in state["recipients"]
+    assert "revisão humana" in (state["classification"]["reason"] or "")
+
+
 # --- PR4: cockpit overlay rendering + XSS safety ---------------------------------
 
 _XSS = "</script><svg/onload=alert(1)>"
