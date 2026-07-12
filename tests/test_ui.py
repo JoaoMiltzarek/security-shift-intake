@@ -112,10 +112,6 @@ def test_htmx_is_vendored_locally_not_cdn(
     assert "htmx" in asset.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: base template ainda dispara GET /favicon.ico (404 no console)",
-)
 def test_review_declares_no_request_favicon(
     client_and_sender: tuple[TestClient, MockSender],
 ) -> None:
