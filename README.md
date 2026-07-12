@@ -56,12 +56,15 @@ honestly: the sheets are **handwritten** (free OCR fails on cursive), the data i
 PII** (must not go to an external API), and automation **must not invent** information.
 
 ## The solution
-A staged, **config-driven** pipeline that runs **100% locally** (no paid API, no cloud):
+A staged, **config-driven** pipeline whose supported default path runs fully locally (no paid
+API, no cloud):
 local OCR → best-effort extraction → an **OCR quality gate** → auditable per-field results →
 normalization → **human review** → blocked drafts when unsafe → an append-only audit trail
 with per-revision content snapshots (every approval provably references the exact content
 the reviewer saw).
 It doesn't replace the human; it **reduces transcription load and surfaces uncertainty**.
+External Anthropic and remote-VLM utilities exist only as explicit opt-in experiments; they are
+not used by `make demo` or by the default pipeline.
 
 ### Two outputs
 **Output 1 — standardized spreadsheet**
@@ -155,9 +158,10 @@ em `docs/eval_real_summary.json`. Sanity check secundário do leitor:
 `uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20 && make eval-bressay N=20`.
 
 ## Setup & troubleshooting
-The supported platform is **Linux / WSL / CI (Ubuntu)**. Windows native works as a
-**documented fallback** — the tests and demo run, but the live browser-smoke gate runs in CI,
-not locally. Probe your environment before running:
+The release CI target is Ubuntu. Windows native is also exercised: `make check`, the real
+Tesseract showcase, browser interaction and purge have been run end to end. The blocking
+browser-smoke remains canonical in CI so every change is checked in the same clean environment.
+Probe your machine before running:
 ```console
 python scripts/preflight.py --json   # stdlib only; needs no uv/venv
 ```
@@ -169,10 +173,11 @@ hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never 
 - **No Tesseract?** The OCR path can't read handwriting, so fields route to human review and the
   cockpit shows its textual-fallback layout — the mock demo still runs end to end.
 
-## Architecture (in 10 seconds)
-```
-ingest → transcribe → extract → normalize → validate → OCR quality gate → classify/route → outputs → human gate
-```
+## Architecture
+The Mermaid flow above shows the executable default path. Draft outputs are built before review
+so the operator can inspect them, but export/copy/send remain gated until pending fields are
+resolved and the exact revision is approved.
+
 Two decoupled models keep the domain stable as the sheet layout changes:
 - **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
   (value + confidence + source `ocr|rule|human` + status + evidence).
@@ -193,25 +198,27 @@ the default flow. Public artifacts carry **aggregate metrics + synthetic example
 > tool — do **not** expose it to a network or deploy it publicly without adding auth first.
 
 ## Results & honest limitations
-- **The pipeline is correct and safe** (real sheets, human-verified ground truth —
-  4/4 curated sheets verified, the 2 with archived sources ran):
+- **Safety behavior is evidenced on a small curated set; OCR accuracy is not generalized.**
+  Four curated sheets have human-verified ground truth, and the two with archived sources ran:
   reshaping to the occurrence-table model + the OCR gate took **blocking errors from 2 → 0**
   (no false incident on an `S/A` sheet; a real occurrence is now represented, not dropped).
-  Numbers and methodology: [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
-- **OCR fidelity is the honest ceiling.** Tesseract reads printed labels well but **cannot read
-  cursive handwriting** — measured across DPIs and preprocessing variants, no meaningful gain.
-  So real handwritten values come back low-confidence and are routed to **human review**; the
-  system never presents OCR noise as trustworthy data, and never auto-classifies a document it
-  couldn't read. Raising fidelity needs a better reader — see Roadmap.
+  This proves those safety cases, not production-wide field accuracy. Numbers and methodology:
+  [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
+- **OCR fidelity is the honest ceiling.** Tesseract reads printed labels well but is **not
+  reliable on cursive handwriting** — the current real-handwriting baseline reads none of the
+  frozen BRESSAY slice. Uncertain/garbled values route to **human review** and cannot leave as a
+  clean approved output. Raising fidelity requires a reader that beats the frozen safety gate.
 - **Synthetic evals** (classification/routing) are reproducible via `make eval`
   ([EVAL_REPORT.md](EVAL_REPORT.md)); their caveats (templated labels are partly circular) are
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-598 tests (ruff + mypy strict + pytest), all mocked and offline at $0, green in CI. Coverage
-includes: OCR quality gate, the two-model schema, normalization, the table extractor, the
-critic, the human-approval gate (an unapproved/pending draft **cannot** be approved or sent),
-the outputs, the review UI, and the evidence cockpit — the 3-level locator (`exact` /
+`make check` runs Ruff, strict mypy and hundreds of pytest cases offline at $0. Model/network
+boundaries are mock-first, while CI also exercises the committed fixture through real Tesseract
+and drives the cockpit in real Chromium. Coverage includes: OCR quality gate, the two-model
+schema, normalization, the table extractor, the critic, the human-approval gate (pending fields
+block approval/export/send; an edit revokes approval; a sent draft is immutable), the outputs,
+the review UI, and the evidence cockpit — the 3-level locator (`exact` /
 `token_window` / `none`), `human_edit` dropping the OCR box, path-traversal-safe page-image
 serving, XSS-safe overlay rendering, and CSV export blocked until review is complete. The
 stdlib preflight probe (DB/severity contract) and the evidence collector are unit-tested; the
@@ -271,7 +278,8 @@ cannot** (0 fields go the other way) and leaves 136 chars to type vs 318 — num
 measured: real sheets favour the VLM, but the synthetic bench shows it fabricates incidents
 on degraded scans — which is why it still is not trusted as an automatic transcriber.
 
-**What these numbers mean (honest limitations):** Tesseract cannot read cursive handwriting;
+**What these numbers mean (honest limitations):** Tesseract is not reliable on cursive
+handwriting in the measured datasets;
 the local VLM fabricates content (CER > 1 on isolated real handwriting, phantom incidents on
 synthetic sheets) even though it wins on the real curated sheets. No zero-cost reader is
 adopted as an automatic transcriber. This system is a **triage assistant with a mandatory
@@ -281,7 +289,7 @@ beating this same frozen gate in a new val → freeze → test cycle.
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
-and richer occurrence-table editing — all deferred to keep v1.0 clean.
+and authenticated/multi-user deployment are deferred to keep v1.0 focused.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License

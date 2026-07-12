@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: README de 30 segundos ainda não foi concluído",
-)
 def test_readme_showcase_is_current_and_evidence_backed() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
