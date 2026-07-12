@@ -23,7 +23,7 @@ def test_readme_showcase_is_current_and_evidence_backed() -> None:
         "RawDocumentExtraction",
         "NormalizedIncidentModel",
         "Tesseract is not reliable on cursive handwriting",
-        "728 passed, 3 skipped",
+        "729 passed, 3 skipped",
     )
     assert all(value in readme for value in required)
 

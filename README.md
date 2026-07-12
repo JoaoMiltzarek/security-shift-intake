@@ -227,8 +227,8 @@ targets clean up without destroying validated curadoria. See
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-The latest local Windows baseline (`d5c115bb`, 2026-07-12) ran `make check`: Ruff passed, strict
-mypy passed across 86 source files, and pytest reported **728 passed, 3 skipped** offline at $0.
+The latest local Windows baseline (`d170ad55`, 2026-07-12) ran `make check`: Ruff passed, strict
+mypy passed across 86 source files, and pytest reported **729 passed, 3 skipped** offline at $0.
 Model/network boundaries are mock-first, while CI also exercises the committed fixture through
 real Tesseract and drives the cockpit in real Chromium. Coverage includes: OCR quality gate, the two-model
 schema, normalization, the table extractor, the critic, the human-approval gate (pending fields
