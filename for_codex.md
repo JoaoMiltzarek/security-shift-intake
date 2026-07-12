@@ -467,12 +467,31 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       comum e metadados fixos; provenance inclui hashes/versões e não promete bytes
       cross-platform. Fechamento focado: **71 passed**, Ruff/mypy verdes,
       `make privacy-check` OK; servidor/DB/page_images/temporários purgados.
-- [ ] F8.3 README: topo "In 30 seconds" EN, linha 1 honesta sobre cursiva, GIF, 4 diferenciais
-      (browser-smoke CI, eval anti-memorização que publicou gate falho, ~599 testes $0,
-      anti-corruption Raw/Normalized), Mermaid; limitações depois do valor + commits
-- [ ] F8.4 docs/: STATUS_PR1.md, SSI-1002_EVIDENCE.md, STATUS_TIER_C.md → docs/archive/ + commit
-- [ ] F8.V loop: clone limpo → make demo → roteiro 0/1/N + S/A + bloqueios no browser
-- [ ] F8.PR fechamento
+- [x] F8.3 README fechado: topo EN com GIF, 4 diferenciais, Mermaid e quickstart
+      `make demo`; claims de aprovação/export/send, privacidade, Tesseract/VLM e métricas
+      foram alinhados aos gates executáveis. `READER_DECISION.md` agora separa release safety
+      (`unsafe_clean=0`, `safe_review_recall=1.0`, `false_incident_unreviewed=0`) de candidate
+      promotion (`false_incident_count=0`, chars ≤ baseline fallback) e publica val congelado
+      Tesseract=4/Qwen=9 sem promover nenhum dos dois. Seção ativa do reader ficou em EN e
+      aponta apenas `DATASET_CONTRACT.md` + `READER_DECISION.md`. Commits principais:
+      `f0e7ed34..d77e78cf`, `efa8ef7f..6486179a`, `e656cfba..d5c115bb`.
+- [x] F8.4 docs/ fechado: `SSI-1002_EVIDENCE.md`, `STATUS_PR1.md` e `STATUS_TIER_C.md`
+      movidos para `docs/archive/`; links relativos rebaseados, collector default arquivado e
+      browser-smoke hint corrigido de step 5→8. Checker leu 15 Markdown e encontrou **0 links
+      ausentes**. Commits `0c227d9d..c6ecfc6a`.
+- [x] F8.V loop REAL fechado. Clone limpo `b68cbfa4` + Tesseract 5.4 + Playwright CLI:
+      estado inicial com 5 pendências/CSV bloqueado; revisão 1 linha → 2 linhas → zero linhas
+      com S/A explícito; outputs e reclassificação acompanharam cada save; approve rev 4 → edit
+      rev 5 registrou `approval_revoked`; send ficou bloqueado + audit `send_blocked`; console
+      0 errors/warnings e rede somente 127.0.0.1. O loop achou traceback ao Ctrl+C → contratos
+      `db77da62`, fix `d170ad55`; reteste em clone limpo `0b0f3fed`: health/review/page=200,
+      CSP presente, page/99=404, shutdown sem traceback. GNU Make ainda retorna 1 ao receber o
+      Ctrl+C do grupo, mas o launcher trata KeyboardInterrupt, imprime mensagem curta e retorna
+      0 quando chamado diretamente. Clones/DB/page_images/sessões removidos; Git limpo.
+- [x] F8.PR fechamento. SAÍDAS FINAIS: `make check` → Ruff OK, mypy **86 source files**,
+      **729 passed, 3 skipped**, 1 warning de depreciação Starlette/httpx; `make privacy-check`
+      → OK; `make purge-demo-data` → artefatos conhecidos ausentes. Baseline publicada no README
+      em `0b0f3fed`; nenhuma instalação/lockfile/push foi feito no repositório principal.
 
 ### F9 — Narrativa menor (SSI-1012)
 - [ ] F9.1 watcher/reconciler/AnthropicLLM marcados experimentais (docstring+README, sem deletar) + commits
