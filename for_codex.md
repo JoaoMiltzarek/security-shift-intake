@@ -20,11 +20,11 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F3.B3 — gate.send_draft revalida revisão/hash + assert_reviewable.
-- **RETOME AQUI:** teste vermelho em test_gate.py (hash-tamper direto no state_json mantendo
-  status approved → send bloqueado; legado approved_revision=None → bloqueado; estado corrente
-  com must_review → bloqueado) → implementar em `gate.send_draft`; depois F3.ui (ui_edit 409
-  para DraftAlreadySentError) que destrava o flip do xfail `test_edit_sent_draft_is_rejected`.
+- **Micro-step corrente:** F3.ui — ui_edit retorna 409 para draft enviado.
+- **RETOME AQUI:** em `src/api/app.py::ui_edit`, checar `draft.sent_at is not None` → HTTP 409
+  antes de qualquer trabalho (+ backstop `except DraftAlreadySentError` → 409); flip do xfail
+  `test_edit_sent_draft_is_rejected` em test_api.py; depois F3.V (cenário
+  `approve_edit_send_blocked` no browser_smoke) e F3.PR.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -272,9 +272,13 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       o contrato F1.5 `test_approve_edit_send_is_blocked` virou XPASS-strict → marcador
       removido (flip). SAÍDA REAL: repo+api+gate+ui+edit_review → **40 passed, 1 xfailed,
       5.10s**; mypy OK; ruff OK. (1 xfail restante: edit de enviado → 409, destravado em F3.ui.)
-- [ ] F3.B3 `gate.send_draft`: re-roda `assert_reviewable(estado corrente)` + exige
-      `approved_revision==revision` + hash igual; testes: approve→edit→send bloqueado +
-      sender.call_count==0; hash-tamper bloqueado; legado approved_revision=None bloqueado + commits
+- [x] F3.B3 feito: `send_draft` exige `approved_revision==revision` + hash igual (audit
+      `stale_approval`) e re-roda `assert_reviewable` no estado corrente (audit
+      `not_reviewable`). Contratos: hash-tamper direto no state_json bloqueado; aprovado
+      legado sem stamp bloqueado; estado com must_review bloqueado mesmo com stamp válido.
+      Commits: `fac03f1d` (vermelho: 3 failed/6 passed) → implementação. SAÍDA REAL:
+      gate+api+approve_gate+repo+ui+edit_review → **52 passed, 1 xfailed, 5.30s**;
+      mypy OK; ruff OK.
 - [ ] F3.ui `app.py ui_edit`: sent → HTTP 409 antes de qualquer trabalho + commit
 - [ ] F3.V loop: browser — approve → edit → painel mostra rev N+1 + aprovação revogada; send
       bloqueado; cenário `approve_edit_send_blocked` no browser_smoke + flip xfail F1.5
