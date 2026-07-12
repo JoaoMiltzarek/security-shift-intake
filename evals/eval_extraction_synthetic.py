@@ -166,6 +166,19 @@ def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> d
     result["false_incident"] = (not has_occurrence(cur)) and normalized.disposition == "present"
     result["missed_incident"] = has_occurrence(cur) and normalized.disposition == "none"
     result["unknown_disposition"] = normalized.disposition == "unknown"
+    # Segurança estrutural (SSI-1010): a folha TEM ocorrência mas a extração não chegou
+    # a "present" — o único desfecho aceitável é unknown (vai para revisão). "none" seria
+    # a folha errada apresentada como LIMPA/aceita: o colapso F-01 (unsafe_clean).
+    result["structural_failure"] = has_occurrence(cur) and normalized.disposition != "present"
+    result["unsafe_clean"] = result["missed_incident"]
+    # Incidente inventado que NÃO chegaria sinalizado ao revisor (linhas sem
+    # needs_review). No caminho OCR+regras toda linha nasce must_review, então isto
+    # só dispararia com um reader/config que emitisse linhas "aceitas" — exatamente
+    # o buraco que o gate deve vigiar. false_incident_count segue REPORTADO como
+    # métrica de ruído do reader (custa tempo de revisão), mas não bloqueia.
+    result["false_incident_unreviewed"] = result["false_incident"] and not all(
+        occ.needs_review for occ in normalized.occurrences
+    )
     result.update(row_metrics(cur, normalized))
     result.update(refusal_metrics(cur, normalized))
     if syn.get("surface"):
@@ -177,6 +190,27 @@ def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> d
 
 def _rate(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 4) if denominator else None
+
+
+def _safety_gate_failures(reader: dict[str, Any]) -> list[str]:
+    """Gates binários do eval-safety (SSI-1010) — release exige lista vazia.
+
+    O invariante é sobre o que pode SAIR errado sem um humano notar:
+    - unsafe_clean==0: falha estrutural nunca vira "sem alteração" aceito;
+    - safe_review_recall==1.0: toda falha estrutural é encaminhada a revisão;
+    - false_incident_unreviewed==0: incidente inventado nunca chega sem sinalização.
+    false_incident_count (ruído do reader, sempre sinalizado ao revisor) é REPORTADO
+    mas não bloqueia — medição de 2026-07-12 no val@150: 4/45, todos must_review.
+    """
+    failures: list[str] = []
+    for metric in ("false_incident_unreviewed_count", "unsafe_clean_count"):
+        value = reader.get(metric)
+        if value != 0:  # None/malformado também reprova: gate de release falha fechado.
+            failures.append(f"{metric}={value} (exigido 0)")
+    recall = reader.get("safe_review_recall")
+    if recall != 1.0:
+        failures.append(f"safe_review_recall={recall} (exigido 1.0)")
+    return failures
 
 
 def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
@@ -201,6 +235,20 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             "false_incident_count": _sum("false_incident", sheets),
             "missed_incident_count": _sum("missed_incident", sheets),
             "unknown_disposition_count": _sum("unknown_disposition", sheets),
+            "structural_failure_count": _sum("structural_failure", sheets),
+            "unsafe_clean_count": _sum("unsafe_clean", sheets),
+            "false_incident_unreviewed_count": _sum("false_incident_unreviewed", sheets),
+            # Das falhas estruturais, a fração encaminhada a revisão (unknown). 1.0 =
+            # nenhuma falha virou "sem alteração" aceito; sem falhas => vacuamente 1.0.
+            "safe_review_recall": (
+                round(
+                    (_sum("structural_failure", sheets) - _sum("unsafe_clean", sheets))
+                    / _sum("structural_failure", sheets),
+                    4,
+                )
+                if _sum("structural_failure", sheets)
+                else 1.0
+            ),
             "descricao_acc": _rate(_sum("descricao_ok", sheets), _sum("descricao_total", sheets)),
             "hora_acc": _rate(_sum("hora_ok", sheets), _sum("hora_total", sheets)),
             "correct_refusal_rate": _rate(
@@ -211,13 +259,23 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             ),
         }
 
+    difficulty_labels = sorted(
+        value
+        for value in {s.get("difficulty") for s in ran}
+        if isinstance(value, str) and value
+    )
+    template_labels = sorted(
+        value
+        for value in {s.get("template") for s in ran}
+        if isinstance(value, str) and value
+    )
     by_difficulty = {
-        str(d): _bucket([s for s in ran if s.get("difficulty") == d])
-        for d in sorted({s.get("difficulty") for s in ran if s.get("difficulty")})
+        label: _bucket([s for s in ran if s.get("difficulty") == label])
+        for label in difficulty_labels
     }
     by_template = {
-        str(t): _bucket([s for s in ran if s.get("template") == t])
-        for t in sorted({s.get("template") for s in ran if s.get("template")})
+        label: _bucket([s for s in ran if s.get("template") == label])
+        for label in template_labels
     }
     return {
         "n_sheets": len(per_sheet),
@@ -249,6 +307,20 @@ def main(argv: list[str]) -> int:
         help="default val (anti-tuning §5); test é ato explícito de milestone",
     )
     parser.add_argument("--dir", type=Path, default=TIER_C_DIR)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="redireciona resumo público + detalhado (não toca docs/ nem <dir>/eval)",
+    )
+    parser.add_argument(
+        "--require-safety-gates",
+        action="store_true",
+        help=(
+            "exit 1 se unsafe_clean/false_incident_unreviewed != 0 "
+            "ou safe_review_recall != 1.0"
+        ),
+    )
     args = parser.parse_args(argv)
     if args.dpi <= 0:
         parser.error("--dpi deve ser um inteiro positivo")
@@ -285,7 +357,13 @@ def main(argv: list[str]) -> int:
         **aggregate(per_sheet),
     }
 
-    eval_dir = args.dir / "eval"
+    # --output-dir isola a rodada (gate contínuo/CI) dos artefatos congelados do repo.
+    eval_dir = args.output_dir if args.output_dir is not None else args.dir / "eval"
+    summary_path = (
+        args.output_dir / "eval_synthetic_summary.json"
+        if args.output_dir is not None
+        else SUMMARY_PATH
+    )
     eval_dir.mkdir(parents=True, exist_ok=True)
     detailed_path = eval_dir / f"detailed_{args.vision}_dpi{args.dpi}_{args.split}.json"
     detailed_path.write_text(
@@ -298,7 +376,7 @@ def main(argv: list[str]) -> int:
     if hits:
         print("PII no resumo público — NÃO escrito:", *hits, sep="\n", file=sys.stderr)
         return 2
-    SUMMARY_PATH.write_text(public_text + "\n", encoding="utf-8")
+    summary_path.write_text(public_text + "\n", encoding="utf-8")
 
     reader = summary["reader_metrics"]
     print(
@@ -312,7 +390,18 @@ def main(argv: list[str]) -> int:
         f"descricao_acc={reader['descricao_acc']} hora_acc={reader['hora_acc']}"
     )
     print(f"Detalhado: {detailed_path}")
-    print(f"Público (agregados): {SUMMARY_PATH}")
+    print(f"Público (agregados): {summary_path}")
+
+    if args.require_safety_gates:
+        failures = _safety_gate_failures(reader)
+        if failures:
+            print("EVAL-SAFETY GATES FALHARAM:", *failures, sep="\n  ", file=sys.stderr)
+            return 1
+        print(
+            "eval-safety gates OK: unsafe_clean=0 safe_review_recall=1.0 "
+            f"false_incident_unreviewed=0 (false_incident reportado: "
+            f"{reader.get('false_incident_count')})"
+        )
     return 0
 
 

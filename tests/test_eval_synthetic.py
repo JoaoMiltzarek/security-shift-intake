@@ -128,13 +128,17 @@ def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> 
     artefatos congelados em docs/ nem o eval/ do dataset (anti-tuning §5)."""
     out = tmp_path / "safety_out"
     frozen = Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8")
+    # smoke_dir é compartilhado entre testes: compara o eval/ do dataset antes/depois.
+    eval_dir = smoke_dir / "eval"
+    eval_before = set(eval_dir.glob("*")) if eval_dir.exists() else set()
 
     assert ev.main(["--dir", str(smoke_dir), "--output-dir", str(out)]) == 0
 
     assert (out / "eval_synthetic_summary.json").exists()
     assert list(out.glob("detailed_*.json"))
     assert Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8") == frozen
-    assert not (smoke_dir / "eval").exists()  # dataset intocado
+    eval_after = set(eval_dir.glob("*")) if eval_dir.exists() else set()
+    assert eval_after == eval_before  # dataset intocado por esta rodada
 
 
 def test_safety_formulas_from_per_sheet_flags() -> None:
@@ -152,10 +156,28 @@ def test_safety_formulas_from_per_sheet_flags() -> None:
 
 
 def test_safety_gate_failures_helper() -> None:
-    ok = {"false_incident_count": 0, "unsafe_clean_count": 0, "safe_review_recall": 1.0}
+    ok = {
+        "false_incident_unreviewed_count": 0,
+        "unsafe_clean_count": 0,
+        "safe_review_recall": 1.0,
+        # ruído do reader NÃO bloqueia (sempre chega must_review ao revisor):
+        "false_incident_count": 4,
+    }
     assert ev._safety_gate_failures(ok) == []
-    bad = {"false_incident_count": 1, "unsafe_clean_count": 2, "safe_review_recall": 0.5}
+    bad = {
+        "false_incident_unreviewed_count": 1,
+        "unsafe_clean_count": 2,
+        "safe_review_recall": 0.5,
+    }
     assert len(ev._safety_gate_failures(bad)) == 3
+    assert len(ev._safety_gate_failures({})) == 3  # fail closed: métrica ausente nunca é zero
+    assert ev._safety_gate_failures(
+        {
+            "false_incident_unreviewed_count": 0,
+            "unsafe_clean_count": 0,
+            "safe_review_recall": 1.1,
+        }
+    ) == ["safe_review_recall=1.1 (exigido 1.0)"]
 
 
 def test_require_safety_gates_green_on_smoke_mock(smoke_dir: Path, tmp_path: Path) -> None:
