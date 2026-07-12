@@ -9,7 +9,6 @@ import pytest
 from scripts import evidence_report
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1011: documentos históricos ainda estão em docs/")
 def test_historical_docs_live_only_in_archive() -> None:
     names = ("SSI-1002_EVIDENCE.md", "STATUS_PR1.md", "STATUS_TIER_C.md")
 
@@ -35,7 +34,6 @@ def test_evidence_report_defaults_to_archive_and_current_smoke_step() -> None:
     assert "scripts/browser_smoke.py step (5)" not in report
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1011: links ainda assumem docs/ como diretório")
 @pytest.mark.parametrize(
     ("document", "target"),
     (

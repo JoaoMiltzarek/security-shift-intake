@@ -199,7 +199,7 @@ NÃO mede) registrados aqui.
 
 ## 9. Escala honesta
 
-Medido nesta máquina (`docs/STATUS_PR1.md`): VLM ≈ 177 s/folha a DPI 100; DPI 150 estoura
+Medido nesta máquina (`docs/archive/STATUS_PR1.md`): VLM ≈ 177 s/folha a DPI 100; DPI 150 estoura
 a VRAM. Portanto:
 
 - conjunto cheio (300/1000) roda **só com `mock`/`local_ocr`**;

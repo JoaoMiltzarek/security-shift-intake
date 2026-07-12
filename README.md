@@ -143,7 +143,7 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
 ### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
 A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
 G1-S) + BRESSAY — nunca de folha real. Fábrica completa (PRs D0–D6 do contrato);
-progresso e primeiras medições reais (G-S2) em `docs/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
+progresso e primeiras medições reais (G-S2) em `docs/archive/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
 **avaliação local opcional** (folhas 100% autorizadas, locais, nunca versionadas):
 
 ```console
