@@ -203,3 +203,18 @@ def test_missing_optional_sdk_fails_only_when_transcribing(
     with pytest.raises(RuntimeError, match="optional dependencies are not installed") as exc_info:
         client.transcribe(_png_b64())
     assert exc_info.value.__cause__ is None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: erro de imagem ainda encadeia detalhe do decoder",
+)
+def test_invalid_image_error_is_constant_and_unchained() -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        module.PaddleOCRVisionClient(engine=object()).transcribe("NÃO É BASE64")
+
+    assert str(exc_info.value) == "PaddleOCR received invalid image data."
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__ is True
