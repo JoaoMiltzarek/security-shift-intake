@@ -69,6 +69,29 @@ def test_sample_image_allowed(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: privacy-check ainda bloqueia o GIF sintético exato",
+)
+def test_exact_cockpit_demo_gif_allowed(tmp_path: Path) -> None:
+    _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "samples/leak.gif",
+        "samples/cockpit_demo-copy.gif",
+        "samples/nested/cockpit_demo.gif",
+        "assets/cockpit_demo.gif",
+    ],
+)
+def test_other_gifs_outside_private_remain_flagged(tmp_path: Path, relpath: str) -> None:
+    _write(tmp_path / relpath, "gif")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
 def test_db_outside_private_flagged(tmp_path: Path) -> None:
     _write(tmp_path / "data" / "app.db", "sqlite")
     assert check_no_sensitive_outside_private(tmp_path)

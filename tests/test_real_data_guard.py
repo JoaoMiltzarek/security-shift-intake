@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.check_real_data import check_file
 
 
@@ -79,6 +81,29 @@ def test_cockpit_screenshot_under_samples_allowed(tmp_path: Path) -> None:
     # Portfolio cockpit screenshot (SSI-1003 F5) — generated from a synthetic draft.
     f = _write(tmp_path / "samples" / "cockpit_screenshot.png", "png")
     assert check_file(f) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: o GIF sintético do cockpit ainda não está na allowlist",
+)
+def test_exact_cockpit_demo_gif_under_samples_allowed(tmp_path: Path) -> None:
+    f = _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
+    assert check_file(f) == []
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "samples/leak.gif",
+        "samples/cockpit_demo-copy.gif",
+        "samples/nested/cockpit_demo.gif",
+        "assets/cockpit_demo.gif",
+    ],
+)
+def test_other_gif_paths_remain_blocked(tmp_path: Path, relpath: str) -> None:
+    f = _write(tmp_path / relpath, "gif")
+    assert check_file(f)
 
 
 # ---------------------------------------------------------------------------
