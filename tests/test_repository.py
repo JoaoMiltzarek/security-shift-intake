@@ -95,6 +95,56 @@ def test_audit_records_actor_and_detail(session: Session) -> None:
     assert entry.detail == "looks ok"
 
 
+# --- F5 (SSI-1008): snapshot por revisão — provar o que foi aprovado/enviado ---
+
+
+def test_every_revision_snapshot_is_preserved(session: Session) -> None:
+    from sqlmodel import select
+
+    from src.api.models import DraftRevision
+    from src.api.repository import state_sha256, update_state
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    update_state(
+        session, draft.id,
+        PipelineState(source_pdf=Path("report.pdf"), transcription="v2"),
+        actor="reviewer",
+    )
+
+    revs = list(
+        session.exec(
+            select(DraftRevision)
+            .where(DraftRevision.draft_id == draft.id)
+            .order_by(DraftRevision.revision)  # type: ignore[arg-type]
+        )
+    )
+    assert [r.revision for r in revs] == [1, 2]
+    assert "hello" in revs[0].state_json  # a revisão substituída continua provável
+    assert "v2" in revs[1].state_json
+    current = get_draft(session, draft.id)
+    assert current is not None
+    assert revs[1].state_sha256 == state_sha256(current.state_json)
+
+
+def test_approved_hash_matches_a_preserved_revision(session: Session) -> None:
+    from sqlmodel import select
+
+    from src.api.models import DraftRevision
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    approved = set_status(session, draft.id, ApprovalStatus.APPROVED, actor="reviewer")
+
+    hashes = {
+        r.state_sha256
+        for r in session.exec(
+            select(DraftRevision).where(DraftRevision.draft_id == draft.id)
+        )
+    }
+    assert approved.approved_state_sha256 in hashes  # aprovação sempre prova o conteúdo
+
+
 # --- F3.B1 (SSI-1006): revisão do draft + migração de DB legado ---
 
 
