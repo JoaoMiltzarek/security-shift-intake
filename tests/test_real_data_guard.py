@@ -102,6 +102,21 @@ def test_other_gif_paths_remain_blocked(tmp_path: Path, relpath: str) -> None:
     assert check_file(f)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: allowlist ainda confia em qualquer diretório chamado samples",
+)
+@pytest.mark.parametrize(
+    "name",
+    ["cockpit_demo.gif", "sample_tc-000000.png"],
+)
+def test_allowlisted_name_under_archive_samples_is_blocked(
+    tmp_path: Path, name: str
+) -> None:
+    f = _write(tmp_path / "archive" / "samples" / name, "media")
+    assert check_file(f)
+
+
 # ---------------------------------------------------------------------------
 # Source / docs / config — exempt from the text scan (may mention the org name)
 # ---------------------------------------------------------------------------
