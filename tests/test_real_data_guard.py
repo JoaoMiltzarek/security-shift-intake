@@ -86,13 +86,17 @@ def test_screenshot_overlay_under_samples_allowed(
     assert check_file(f) == []
 
 
-def test_cockpit_screenshot_under_samples_allowed(
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: screenshot estático legado ainda consta na allowlist",
+)
+def test_legacy_cockpit_screenshot_name_is_blocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Portfolio cockpit screenshot (SSI-1003 F5) — generated from a synthetic draft.
+    # O GIF real substituiu este screenshot obsoleto; o nome não deve mais furar o guard.
     monkeypatch.chdir(tmp_path)
     f = _write(Path("samples/cockpit_screenshot.png"), "png")
-    assert check_file(f) == []
+    assert check_file(f)
 
 
 def test_exact_cockpit_demo_gif_under_samples_allowed(
