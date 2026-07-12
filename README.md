@@ -147,6 +147,8 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
   and is not restored after restart.
 - The two-reader reconciler is unit-tested but not wired into the v1 orchestrator; supported
   paths select exactly one reader.
+- `AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline. Anthropic Vision is a
+  separate, paid external opt-in and is never selected by the default showcase.
 
 ### Evaluate a reader (the decision protocol)
 Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S) and BRESSAY,

@@ -65,6 +65,6 @@ The `normalize` stage is the only boundary between them. Models live in
 ## Stack
 Python 3.11 · Pydantic v2 (typed contracts) · PyMuPDF + Pillow (ingest) · Tesseract/pytesseract
 (local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) · SQLModel + SQLite (drafts,
-audit) · pytest + ruff + mypy(strict) + GitHub Actions. The Anthropic vision/LLM clients exist
-behind the same interface as an **optional, non-default** path (proves swappability) — they are
-not used in the local zero-cost flow.
+audit) · pytest + ruff + mypy(strict) + GitHub Actions. Anthropic Vision is factory-selectable
+only through explicit external opt-in. The Anthropic LLM adapter is not wired into the v1
+executable path; offline fake-SDK tests cover request/response shape, not live integration.

@@ -1,8 +1,8 @@
 """Pipeline orchestrator — runs the staged pipeline end to end.
 
-A typed function pipeline + explicit orchestrator (spec §2): no agents, no hidden
-control flow. Provider-agnostic — pass any `VisionClient` + `LLMClient` (mock,
-local/Tesseract+rules, or Anthropic), the stages are identical.
+A typed function pipeline + explicit orchestrator (spec §2): no agents, no hidden control flow.
+The interfaces are provider-agnostic, but supported v1 entrypoints pass local Tesseract +
+deterministic rules; experimental external adapters require manual injection.
 
     ingest+transcribe → extract → validate (critic) → classify → route → draft
 """

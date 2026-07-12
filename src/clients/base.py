@@ -97,7 +97,8 @@ class ClassificationResult(BaseModel):
 class LLMClient(Protocol):
     """Extracts structured fields and classifies a transcription.
 
-    Implementations: MockLLMClient (tests, $0) and AnthropicLLMClient (real).
+    Implementations include MockLLMClient (tests, $0) and the external experimental
+    AnthropicLLMClient, which has no supported v1 entrypoint.
     """
 
     def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:

@@ -11,6 +11,10 @@ def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+def _has_phrase(text: str, phrase: str) -> bool:
+    return phrase in " ".join(text.split())
+
+
 def test_watcher_is_documented_as_standalone_experiment() -> None:
     watcher = _read("src/intake_watch.py")
     entrypoint = _read("scripts/run_watch.py")
@@ -39,7 +43,6 @@ def test_reconciler_is_documented_as_unwired_prototype() -> None:
     assert "two-reader reconciler is unit-tested but not wired into the v1 orchestrator" in readme
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1012: Anthropic LLM ainda parece integração live")
 def test_anthropic_llm_is_documented_as_unwired_external_adapter() -> None:
     adapter = _read("src/clients/anthropic_llm.py")
     protocol = _read("src/clients/base.py")
@@ -49,9 +52,13 @@ def test_anthropic_llm_is_documented_as_unwired_external_adapter() -> None:
     assert "EXPERIMENTAL paid external adapter, outside v1" in adapter
     assert "No official entrypoint constructs it" in adapter
     assert "fake SDK and do not prove live integration" in adapter
-    assert "external experimental AnthropicLLMClient" in protocol
-    assert "Anthropic LLM adapter is not wired into the v1 executable path" in architecture
-    assert "`AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline" in readme
+    assert _has_phrase(protocol, "external experimental AnthropicLLMClient")
+    assert _has_phrase(
+        architecture, "Anthropic LLM adapter is not wired into the v1 executable path"
+    )
+    assert _has_phrase(
+        readme, "`AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline"
+    )
 
 
 @pytest.mark.xfail(strict=True, reason="SSI-1012: política ainda promete localidade absoluta")
