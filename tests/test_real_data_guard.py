@@ -83,10 +83,6 @@ def test_cockpit_screenshot_under_samples_allowed(tmp_path: Path) -> None:
     assert check_file(f) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: o GIF sintético do cockpit ainda não está na allowlist",
-)
 def test_exact_cockpit_demo_gif_under_samples_allowed(tmp_path: Path) -> None:
     f = _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
     assert check_file(f) == []

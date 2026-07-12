@@ -51,15 +51,15 @@ _SOURCE_DOC_EXT = {
 # Path components under which content is synthetic by construction (text-scan exempt).
 _SYNTHETIC_SUBPATH = ("data", "synthetic")
 
-# Directory holding committed SYNTHETIC sample images for eyeballing (Tier B output).
-# Image files here are allowed despite the global binary block — they are generated
+# Directory holding committed SYNTHETIC sample media for eyeballing (Tier B output).
+# Known files here are allowed despite the global binary block — they are generated
 # by our code from synthetic data, never real scans.
 _SAMPLES_DIR = "samples"
-# Only these known generated names are allowed — a stray real image (e.g. samples/leak.png)
-# must still be blocked, not silently waved through by a blanket *.png rule.
+# Only these known generated names are allowed — a stray real image/GIF must still be
+# blocked, not silently waved through by a blanket extension or directory rule.
 _ALLOWED_SAMPLE_NAMES = re.compile(
-    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay|cockpit_screenshot)"
-    r"\.(png|jpe?g)$",
+    r"^(?:(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay|cockpit_screenshot)"
+    r"\.(png|jpe?g)|cockpit_demo\.gif)$",
     re.IGNORECASE,
 )
 
@@ -72,8 +72,10 @@ def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
 
 
 def _is_allowed_sample_image(path: Path) -> bool:
-    """True only for the known generated sample images committed under samples/."""
-    return _SAMPLES_DIR in path.parts and bool(_ALLOWED_SAMPLE_NAMES.match(path.name))
+    """True only for known generated media directly inside ``samples/``."""
+    return path.parent.name == _SAMPLES_DIR and bool(
+        _ALLOWED_SAMPLE_NAMES.fullmatch(path.name)
+    )
 
 
 def _is_text_scan_exempt(path: Path) -> bool:

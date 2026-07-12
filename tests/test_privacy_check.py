@@ -69,10 +69,6 @@ def test_sample_image_allowed(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: privacy-check ainda bloqueia o GIF sintético exato",
-)
 def test_exact_cockpit_demo_gif_allowed(tmp_path: Path) -> None:
     _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
     assert check_no_sensitive_outside_private(tmp_path) == []
