@@ -6,13 +6,7 @@ import importlib
 from pathlib import Path
 from types import ModuleType
 
-import pytest
 from PIL import Image, ImageChops, ImageDraw
-
-_ASSET_PENDING = pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: samples/cockpit_demo.gif ainda não foi capturado",
-)
 
 
 def _writer() -> ModuleType:
@@ -60,7 +54,6 @@ def test_writer_builds_three_frame_gif_with_shared_contract(tmp_path: Path) -> N
     _gif_contract(output, writer)
 
 
-@_ASSET_PENDING
 def test_versioned_cockpit_demo_gif_matches_contract() -> None:
     writer = _writer()
     asset = Path("samples/cockpit_demo.gif")
