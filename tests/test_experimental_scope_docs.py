@@ -11,7 +11,6 @@ def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1012: watcher ainda parece idempotente e integrado")
 def test_watcher_is_documented_as_standalone_experiment() -> None:
     watcher = _read("src/intake_watch.py")
     entrypoint = _read("scripts/run_watch.py")

@@ -63,7 +63,7 @@ help:
 	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
 	@echo   make eval-safety     - [SSI-1010] structural-safety gates on val (exit 1 if unsafe); OUT=... redirects artifacts
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
-	@echo   make watch           - poll WATCH_DIR for new PDFs; writes drafts, NEVER sends email \(Ctrl-C to stop\)
+	@echo   make watch           - experimental standalone watcher; process-local duplicate suppression
 
 install:
 	uv sync --locked
@@ -156,7 +156,7 @@ OUT ?= private/audit/eval_safety
 eval-safety:
 	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
 
-# Intake Watch — idempotent PDF watcher. Creates drafts in WATCH_DIR/drafts/.
-# NEVER sends email. Ctrl-C to stop. Override: make watch WATCH_DIR=private/inbox.
+# Intake Watch — experimental standalone watcher; process-local duplicate suppression.
+# Writes detached text drafts, NEVER sends email. Override: make watch WATCH_DIR=private/inbox.
 watch:
 	uv run --locked python -m scripts.run_watch --watch-dir $(WATCH_DIR)
