@@ -337,6 +337,8 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     if args.dpi <= 0:
         parser.error("--dpi deve ser um inteiro positivo")
+    if args.require_safety_gates and args.n != 0:
+        parser.error("--require-safety-gates exige o split completo; remova --n")
 
     gts = load_curadoria(directory=args.dir / "gt", valid_status=SYNTHETIC_STATUS)
     sheets = [g for g in gts if (g.get("synthetic") or {}).get("split") == args.split]

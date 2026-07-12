@@ -245,10 +245,6 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
     assert summary["n_sheets_ran"] == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: --n ainda permite certificar uma amostra como split completo",
-)
 def test_require_safety_gates_rejects_sheet_cap(smoke_dir: Path, tmp_path: Path) -> None:
     """O gate de release deve medir o split inteiro, não uma amostra escolhida."""
     with pytest.raises(SystemExit) as exc_info:
