@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 
 def _has_phrase(text: str, phrase: str) -> bool:
     return re.search(r"\s+".join(re.escape(word) for word in phrase.split()), text) is not None
@@ -64,18 +62,17 @@ def test_readme_distinguishes_observed_state_from_stronger_guarantees() -> None:
     assert all(not _has_phrase(readme, value) for value in forbidden)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: Mermaid ainda coloca aprovação antes de CSV/copy",
-)
 def test_readme_flow_matches_export_and_send_gates() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
-    required = (
+    required_mermaid = (
         'G["Draft outputs — incomplete preview; CSV blocked"]',
         'H -- "No" --> K["CSV + clean copy-ready message"]',
         'K --> J["Approve revision + state hash"]',
         'J --> L["Send gate — mock by default"]',
-        "Human review is mandatory for clean output; approval is mandatory for send.",
+    )
+    required_prose = (
+        "Human review is mandatory for clean output",
+        "approval is mandatory for send",
         "mandatory human-review gate",
     )
     forbidden = (
@@ -85,5 +82,6 @@ def test_readme_flow_matches_export_and_send_gates() -> None:
         "blocks anything unreviewed",
     )
 
-    assert all(_has_phrase(readme, value) for value in required)
+    assert all(value in readme for value in required_mermaid)
+    assert all(_has_phrase(readme, value) for value in required_prose)
     assert all(not _has_phrase(readme, value) for value in forbidden)

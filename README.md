@@ -8,8 +8,8 @@ Local, privacy-first triage for handwritten **security incident sheets** ("Contr
 ocorrências"). The default path turns a photo or scan into a reviewable draft, a standardized
 spreadsheet and a copy-ready message without sending the document to a cloud service.
 
-> **Tesseract is not reliable on cursive handwriting. Human approval is mandatory, and unsafe
-> output remains blocked.**
+> **Tesseract is not reliable on cursive handwriting. Human review is mandatory for clean output;
+> approval is mandatory for send.**
 
 ## In 30 seconds
 
@@ -41,12 +41,13 @@ flowchart LR
     C --> D["NormalizedIncidentModel"]
     D --> E["Validate + OCR safety gate"]
     E --> F["Classify + route"]
-    F --> G["Draft outputs — export blocked"]
+    F --> G["Draft outputs — incomplete preview; CSV blocked"]
     G --> H{"Pending fields?"}
     H -- "Yes" --> I["Human review — 0/1/N"]
     I --> F
-    H -- "No" --> J["Approve revision + state hash"]
-    J --> K["CSV + copy-ready message"]
+    H -- "No" --> K["CSV + clean copy-ready message"]
+    K --> J["Approve revision + state hash"]
+    J --> L["Send gate — mock by default"]
 ```
 
 ## The problem
@@ -294,9 +295,10 @@ handwriting in the measured datasets;
 the local VLM fabricates content (CER > 1 on isolated real handwriting, phantom incidents on
 synthetic sheets) even though it wins on the real curated sheets. No zero-cost reader is
 adopted as an automatic transcriber. This system is a **triage assistant with a mandatory
-human-approval gate** — it standardises output, surfaces evidence, and blocks anything
-unreviewed — not an autonomous decision-maker. Adopting a better reader (Roadmap) requires
-beating this same frozen gate in a new val → freeze → test cycle.
+human-review gate**; send additionally requires approval of the current revision and stored-state
+hash. Pending outputs remain visibly incomplete and CSV-blocked. It is not an autonomous
+decision-maker. Adopting a better reader (Roadmap) requires beating this same frozen gate in a
+new val → freeze → test cycle.
 
 ## Roadmap
 A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
