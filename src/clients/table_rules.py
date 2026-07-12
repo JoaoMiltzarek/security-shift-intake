@@ -23,9 +23,11 @@ from src.schema.extraction import (
     RawRow,
 )
 
-# Valores lidos ficam abaixo do limiar do crítico (0.70) → sempre must_review.
-HEADER_CONFIDENCE = 0.65
-ROW_CONFIDENCE = 0.40
+# Conservative heuristic placeholders, not calibrated probabilities. They distinguish
+# rule-prefilled values from missing=0.0 and remain deliberately below the 0.70 critic
+# threshold. Review routing is also enforced by status="must_review".
+HEADER_REVIEW_PLACEHOLDER_CONFIDENCE = 0.65
+ROW_REVIEW_PLACEHOLDER_CONFIDENCE = 0.40
 
 _TIME = re.compile(r"\d{1,2}:\d{2}")
 # S/A e variações de OCR (barra lida como I/1/l/|, S como 5, etc.).
@@ -75,7 +77,9 @@ class RuleBasedTableExtractor:
             aliases = field.ocr_aliases or [name]
             hit = self._find_after_label(lines, aliases)
             cells[name] = (
-                _found(hit[0], hit[1], HEADER_CONFIDENCE) if hit else AuditedField()
+                _found(hit[0], hit[1], HEADER_REVIEW_PLACEHOLDER_CONFIDENCE)
+                if hit
+                else AuditedField()
             )
         return RawHeader(
             data_turno=cells.get("data_turno", AuditedField()),
@@ -96,10 +100,12 @@ class RuleBasedTableExtractor:
         joined = " ".join(buffer).strip()
         times = _TIME.findall(joined)
         hora = (
-            _found(" ".join(times), joined, ROW_CONFIDENCE) if times else AuditedField()
+            _found(" ".join(times), joined, ROW_REVIEW_PLACEHOLDER_CONFIDENCE)
+            if times
+            else AuditedField()
         )
         return RawRow(
-            descricao=_found(joined, joined, ROW_CONFIDENCE),
+            descricao=_found(joined, joined, ROW_REVIEW_PLACEHOLDER_CONFIDENCE),
             hora=hora,
         )
 

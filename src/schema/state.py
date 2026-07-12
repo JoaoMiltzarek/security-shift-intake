@@ -38,7 +38,11 @@ class ApprovalStatus(StrEnum):
 
 
 class ExtractedField(BaseModel):
-    """One extracted field with its value and the model's confidence score."""
+    """One extracted field with its value and source-specific confidence signal.
+
+    The signal may be OCR-derived, model-reported, or a fixed rule placeholder; it is not
+    necessarily a calibrated probability. ``must_review`` is the operational gate.
+    """
 
     name: str
     value: Any = None

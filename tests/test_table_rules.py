@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from src.clients import table_rules
 from src.clients.table_rules import RuleBasedTableExtractor
 from src.pipeline import validate as validate_module
@@ -55,7 +53,6 @@ def test_header_values_are_must_review() -> None:
     assert raw.header.unidade.source == "rule"
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1012: scores heurísticos ainda têm nomes genéricos")
 def test_rule_confidences_are_conservative_review_placeholders() -> None:
     header_confidence = table_rules.HEADER_REVIEW_PLACEHOLDER_CONFIDENCE
     row_confidence = table_rules.ROW_REVIEW_PLACEHOLDER_CONFIDENCE
