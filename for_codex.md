@@ -20,11 +20,11 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F3.B2 — repository: state_sha256 + update_state/set_status.
-- **RETOME AQUI:** em `src/api/repository.py`: (teste vermelho primeiro em test_repository)
-  `state_sha256()` sobre o STRING armazenado; `DraftAlreadySentError`; `update_state` bloqueia
-  sent + revision++ + APPROVED→PENDING + audit `approval_revoked` + audit `edited` com
-  `rev=N sha256=<12hex>`; `set_status(APPROVED)` estampa approved_revision+hash (REJECTED limpa).
+- **Micro-step corrente:** F3.B3 — gate.send_draft revalida revisão/hash + assert_reviewable.
+- **RETOME AQUI:** teste vermelho em test_gate.py (hash-tamper direto no state_json mantendo
+  status approved → send bloqueado; legado approved_revision=None → bloqueado; estado corrente
+  com must_review → bloqueado) → implementar em `gate.send_draft`; depois F3.ui (ui_edit 409
+  para DraftAlreadySentError) que destrava o flip do xfail `test_edit_sent_draft_is_rejected`.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -264,11 +264,14 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       (vermelho: 2 failed/8 passed) → implementação. SAÍDA REAL pós-impl:
       `pytest test_repository+test_api+test_gate` → **21 passed, 2 xfailed, 3.25s**;
       mypy 2 files OK; ruff OK.
-- [ ] F3.B2 `repository.py`: `state_sha256()` (sha256 do STRING armazenado, nunca re-serializar);
-      `update_state`: bloqueia sent (`DraftAlreadySentError`), revision++, APPROVED→PENDING +
-      limpa approved_* + audit `approval_revoked`; audit `edited` com rev+sha12 (sem PII);
-      `set_status(APPROVED)` estampa approved_revision+hash + commits (testes: bump, reset,
-      sent-raise, stamp)
+- [x] F3.B2 feito: `state_sha256()` + `DraftAlreadySentError`; `update_state` bloqueia sent
+      (audit `edit_blocked`), revision++, APPROVED→PENDING + limpa stamp + audit
+      `approval_revoked` + audit `edited` com `rev=N sha256=<12hex>`; `set_status` estampa em
+      APPROVED (detail com rev/sha) e limpa nos demais. Commits: `18f64a01` (vermelho: 5
+      failed/11 passed por ImportError localizado) → implementação. EFEITO COLATERAL PREVISTO:
+      o contrato F1.5 `test_approve_edit_send_is_blocked` virou XPASS-strict → marcador
+      removido (flip). SAÍDA REAL: repo+api+gate+ui+edit_review → **40 passed, 1 xfailed,
+      5.10s**; mypy OK; ruff OK. (1 xfail restante: edit de enviado → 409, destravado em F3.ui.)
 - [ ] F3.B3 `gate.send_draft`: re-roda `assert_reviewable(estado corrente)` + exige
       `approved_revision==revision` + hash igual; testes: approve→edit→send bloqueado +
       sender.call_count==0; hash-tamper bloqueado; legado approved_revision=None bloqueado + commits

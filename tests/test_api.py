@@ -122,10 +122,6 @@ def test_list_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
 # --- Contratos F1 (SSI-1005/F3): aprovação vinculada à revisão do conteúdo ---
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F3: edição após aprovação deve derrubar a aprovação — send bloqueia até reaprovar",
-)
 def test_approve_edit_send_is_blocked(
     client_and_sender: tuple[TestClient, MockSender],
 ) -> None:
