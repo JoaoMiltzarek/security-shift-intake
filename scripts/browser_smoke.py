@@ -10,8 +10,10 @@ Rendering an overlay outside a browser proves nothing, so this drives a real Chr
   4. seed a structurally `unknown` draft and assert placeholder/export/approval stay blocked;
   5. approve -> edit -> send on the first draft: editing revokes the approval (badge back to
      pending) and the send stays Blocked — approval is bound to the reviewed revision (SSI-1006);
-  6. capture console errors + CSP violations -> fail on any;
-  7. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
+  6. row editor 0/1/N (SSI-1007): a contradictory disposition shows #edit-error without
+     persisting; filling the spare row adds an occurrence; "Limpar linha" + save removes it;
+  7. capture console errors + CSP violations -> fail on any;
+  8. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
 
 Authority: on CI Linux (Chromium installable) this is BLOCKING. Locally, headless is
 flaky, so a missing browser/server exits 2 ("reported", not the authority); a genuine
@@ -219,6 +221,34 @@ def run_smoke(base_url: str) -> dict[str, Any]:
             raise SmokeError("send after post-approval edit was not blocked")
         if page.locator("#status-panel .badge").inner_text().strip() != "pending":
             raise SmokeError("draft did not stay pending after the blocked send")
+
+        # (6) row editor 0/1/N: contradiction -> visible error, nothing persisted;
+        # spare row adds; "Limpar linha" + save removes (full-replace).
+        page.goto(review_url, wait_until="networkidle")
+        page.check('input[name="disposicao"][value="sem_alteracao"]')  # contradiz a linha 1
+        page.click('button[type="submit"]')
+        page.wait_for_selector("#edit-error", timeout=5000)
+
+        page.goto(review_url, wait_until="networkidle")  # estado intacto pós-erro
+        if not page.locator('input[name="occ__1__descricao"]').input_value().strip():
+            raise SmokeError("row 1 was lost after the rejected contradictory save")
+        page.check('input[name="disposicao"][value="com_ocorrencias"]')
+        page.fill('input[name="occ__2__item"]', "Portao")
+        page.fill('input[name="occ__2__hora"]', "15:10")
+        page.fill('input[name="occ__2__descricao"]', "Portao lateral aberto sem autorizacao")
+        page.fill('input[name="occ__2__acao"]', "Fechado e registrado")
+        page.click('button[type="submit"]')
+        page.wait_for_selector('input[name="occ__3__descricao"]', timeout=5000)  # 2 linhas + spare
+
+        page.locator("tr.occ-row").first.get_by_role("button", name="Limpar linha").click()
+        page.click('button[type="submit"]')
+        # a linha 3 (spare antiga) some do DOM quando volta a haver 1 linha + spare 2
+        page.wait_for_selector(
+            'input[name="occ__3__descricao"]', state="detached", timeout=5000
+        )
+        remaining = page.locator('input[name="occ__1__descricao"]').input_value()
+        if "Portao" not in remaining:
+            raise SmokeError("full-replace row removal did not keep the surviving row")
         browser.close()
 
     # (4) console errors / CSP violations are fatal.

@@ -20,11 +20,13 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F4.C3b — painel de status mostra Revisão N / aprovada M + aviso legado.
-- **RETOME AQUI:** teste vermelho (painel contém "Revisão 1" e, para aprovado legado sem stamp,
-  o aviso "aprovação anterior ao vínculo por revisão — reaprove") → editar
-  `ui/templates/_status_panel.html`; depois F4.V (probe HTTP + cenário `row_editor_0_1_N`
-  no browser_smoke) e F4.PR.
+- **Fase F4 COMPLETA.** Micro-step corrente: F5.1 — auditoria rastreável.
+- **RETOME AQUI:** criar branch `SSI-1008-auditoria-rastreavel`. NOTA: F5 está PARCIALMENTE
+  pronto — F3.B2 já grava `rev=N sha256=<12hex>` nos audits de edit/approve. Restam: (F5.2)
+  snapshot por revisão para PROVAR o que foi aprovado/enviado (decidir: tabela DraftRevision
+  ou audit detail suficiente — avaliar custo/benefício e registrar decisão); (F5.3) trocar
+  "immutable" por "append-only pela aplicação" em models.py:36-37 (docstring AuditEntry),
+  repository.py docstring, README (linha ~27 "immutable audit trail") e demais docs.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -327,9 +329,21 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       (Disposition Literal) — corrigido. SAÍDA REAL: `make check` →
       **650 passed, 2 skipped, 81.07s**, lint+mypy verdes.
       PENDENTE C3b: painel com Revisão N/aprovada M + aviso legado.
-- [ ] F4.V loop: browser — adicionar/limpar linha, contradição rejeitada; cenário
-      `row_editor_0_1_N` no browser_smoke + commits
-- [ ] F4.PR fechamento
+- [x] F4.C3b feito: painel mostra "Revisão N · aprovada: rev M" + aviso "reaprove" p/
+      aprovado legado sem stamp (commits 3de3262b vermelho → bf2c7ab5 verde).
+- [x] F4.V feito: cenário (6) `row editor 0/1/N` no browser_smoke (contradição → #edit-error
+      sem persistir; sobressalente adiciona; Limpar+save remove com wait detached do occ__3;
+      ruff+mypy verdes). Playwright local ausente (CI autoritativa). PROBE HTTP REAL
+      (uvicorn :8125, `probe_f4v.py`): A) unknown → S/A humano → aprovado; B) adicionar linha
+      5 colunas (exit_time/resolvido corretos); C) contradição rejeitada sem persistir;
+      D) reclassificação furto → theft/tech_security. TODOS VERDES.
+- [x] F4.PR fechamento. SAÍDAS REAIS: `make check` → **652 passed, 2 skipped, 81.16s**,
+      lint+mypy verdes; `make privacy-check` → OK. Commits da fase: fcc53538 (contratos),
+      4697d923 (editor+reclassificação), 3de3262b/bf2c7ab5 (painel), + smoke scenario.
+      Corpo de PR sugerido: "F4 (SSI-1007): editor 0/1/N no cockpit — disposição por
+      confirmação explícita (fecha a lavagem de falha de parse como 'sem alteração' humano),
+      linhas full-replace com 5 colunas + sobressalente + Limpar linha, contradições nunca
+      persistem, e o conteúdo confirmado é reclassificado/re-roteado no mesmo save (F-03)."
 
 ### F5 — Auditoria rastreável (SSI-1008)
 - [ ] F5.1 AuditEntry += revision + state_hash (detail sem PII) + testes + commits
