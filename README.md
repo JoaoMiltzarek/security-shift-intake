@@ -128,7 +128,7 @@ the gitignored `private/` folder, never committed):
 ```console
 # Defaults to the v1 occurrence-table config (configs/controle_ocorrencias.yaml);
 # override with CONFIG=configs/htmicron_security.yaml for the legacy scalar form.
-make demo-pipeline FILE=private/reais/example.pdf
+make demo-pipeline FILE="private/reais/your-file.pdf"  # replace with your private file
 make serve SERVE_ARGS="--port 8000"
 make purge-demo-data           # wipe temporary demo artifacts when done
 ```
@@ -144,18 +144,20 @@ G1-S) + BRESSAY — nunca de folha real. Fábrica completa (PRs D0–D6 do contr
 progresso e primeiras medições reais (G-S2) em `docs/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
 **avaliação local opcional** (folhas 100% autorizadas, locais, nunca versionadas):
 
-```bash
+```console
 # opcional/legado — pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
 make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
 make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
 make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
-uv run --locked python -m evals.eval_extraction_real --compare \
-  private/audit/eval_real_detailed_local_ocr_dpi150.json \
-  private/audit/eval_real_detailed_local_vlm_dpi150.json   # pareado por campo (gate G1)
+uv run --locked python -m evals.eval_extraction_real --compare private/audit/eval_real_detailed_local_ocr_dpi150.json private/audit/eval_real_detailed_local_vlm_dpi150.json
 ```
 Saídas: detalhado (PII) em `private/audit/` (gitignored); resumo público **por whitelist**
 em `docs/eval_real_summary.json`. Sanity check secundário do leitor:
-`uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20 && make eval-bressay N=20`.
+
+```console
+uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20
+make eval-bressay N=20
+```
 
 ## Setup & troubleshooting
 The release CI target is Ubuntu. Windows native is also exercised: `make check`, the real
@@ -168,8 +170,12 @@ python scripts/preflight.py --json   # stdlib only; needs no uv/venv
 It reports uv/make/tesseract/chromium, symlink support, stray SQLite DBs, and the pre-commit
 hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never mutates.
 
-- **No `make`?** Run the underlying commands: `uv run --locked pytest`,
-  `uv run --locked ruff check .`, `uv run --locked mypy src data scripts evals`.
+- **No `make`?** The showcase equivalents are
+  `uv run --locked python -m scripts.showcase_demo`,
+  `uv run --locked python -m scripts.serve`, and
+  `uv run --locked python -m scripts.purge_demo_data demo`. Quality equivalents are
+  `uv run --locked pytest`, `uv run --locked ruff check .`, and
+  `uv run --locked mypy src data scripts evals`.
 - **No Tesseract?** The OCR path can't read handwriting, so fields route to human review and the
   cockpit shows its textual-fallback layout — the mock demo still runs end to end.
 
