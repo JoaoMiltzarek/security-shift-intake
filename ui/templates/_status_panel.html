@@ -3,8 +3,12 @@
 <div id="status-panel"{% if status_oob %} hx-swap-oob="true"{% endif %}>
   <p>
     Status: <span class="badge {{ draft.status }}">{{ draft.status }}</span>
+    · Revisão {{ draft.revision }}{% if draft.approved_revision is not none %} · aprovada: rev {{ draft.approved_revision }}{% endif %}
     {% if draft.sent_at %}<em>(sent {{ draft.sent_at.isoformat() }})</em>{% endif %}
   </p>
+  {% if draft.status == 'approved' and draft.approved_revision is none %}
+  <p><strong>⚠ aprovação anterior ao vínculo por revisão — reaprove antes de enviar.</strong></p>
+  {% endif %}
   {% if message %}<p><strong>{{ message }}</strong></p>{% endif %}
 
   <div>
