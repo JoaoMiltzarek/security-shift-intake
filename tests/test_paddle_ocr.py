@@ -77,3 +77,40 @@ def test_engine_error_does_not_chain_or_expose_ocr_text() -> None:
     assert "SEGREDO_OCR_DE_USUARIO" not in str(exc_info.value)
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__suppress_context__ is True
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: wrapper do payload real PaddleOCR ainda não existe",
+)
+def test_sdk_engine_parses_result_and_converts_rgb_to_bgr() -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+
+    class FakeResult:
+        json = {
+            "res": {
+                "rec_texts": ["PRIMEIRA", "SEGUNDA"],
+                "rec_scores": [0.91, 0.72],
+                # Regiões existem, mas são de linha e não devem virar WordBox.
+                "rec_boxes": [[1, 2, 30, 10], [1, 12, 40, 22]],
+            }
+        }
+
+    class FakePredictor:
+        def __init__(self) -> None:
+            self.image: object | None = None
+
+        def predict(self, image: object) -> list[FakeResult]:
+            self.image = image
+            return [FakeResult()]
+
+    predictor = FakePredictor()
+    engine = module._PaddleSDKEngine(predictor=predictor)
+    lines = engine.recognize(Image.new("RGB", (1, 1), (10, 20, 30)))
+
+    assert [(line.text, line.confidence) for line in lines] == [
+        ("PRIMEIRA", 0.91),
+        ("SEGUNDA", 0.72),
+    ]
+    assert predictor.image is not None
+    assert predictor.image[0, 0].tolist() == [30, 20, 10]
