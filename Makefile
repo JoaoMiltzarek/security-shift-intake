@@ -89,63 +89,63 @@ check: lint typecheck test
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
 validate-config:
-	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
+	uv run python -m scripts.validate_config configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
 
 gen-data:
-	PYTHONPATH=. uv run python scripts/gen_data.py
+	uv run python -m scripts.gen_data
 
 gen-pdfs:
-	PYTHONPATH=. uv run python scripts/gen_pdfs.py
+	uv run python -m scripts.gen_pdfs
 
 gen-sheets:
-	PYTHONPATH=. uv run python scripts/gen_sheets.py --dataset $(DATASET)
+	uv run python -m scripts.gen_sheets --dataset $(DATASET)
 
 demo-transcribe:
-	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
+	uv run python -m scripts.demo_transcribe --file "$(FILE)"
 
 demo-pipeline:
-	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)" --config "$(CONFIG)"
+	uv run python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"
 
 # Portfolio showcase: committed synthetic sheet -> real local Tesseract -> loopback UI.
 demo:
 	uv run python -m scripts.showcase_demo $(DEMO_ARGS)
 
 demo-pipeline-mock:
-	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
+	uv run python -m scripts.demo_pipeline_mock
 
 # Launcher oficial da UI de revisão — recusa bind fora de loopback (sem auth + PII).
 serve:
-	PYTHONPATH=. uv run python scripts/serve.py $(SERVE_ARGS)
+	uv run python -m scripts.serve $(SERVE_ARGS)
 
 purge-demo-data:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py demo
+	uv run python -m scripts.purge_demo_data demo
 
 purge-real-data:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py real --confirm "$(CONFIRM)"
+	uv run python -m scripts.purge_demo_data real --confirm "$(CONFIRM)"
 
 purge-all-private:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py all --confirm "$(CONFIRM)"
+	uv run python -m scripts.purge_demo_data all --confirm "$(CONFIRM)"
 
 privacy-check:
-	PYTHONPATH=. uv run python scripts/privacy_check.py
+	uv run python -m scripts.privacy_check
 
 eval:
-	PYTHONPATH=. uv run python -m evals.run_eval
+	uv run python -m evals.run_eval
 
 # Real-handwriting eval (BRESSAY). Kept out of the default `eval`/CI: it needs the
 # third-party dataset and (for the VLM column) a local server. Fails loudly /
 # reports unavailable rather than fabricating a number. See docs/EVAL_BRESSAY.md.
 eval-bressay:
-	PYTHONPATH=. uv run python -m evals.eval_htr_bressay --n $(N)
+	uv run python -m evals.eval_htr_bressay --n $(N)
 
 # Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
 # Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
 eval-real:
-	PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
+	uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
 
 # Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
 eval-synthetic:
-	PYTHONPATH=. uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
+	uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
 
 # Structural-safety gate (SSI-1010): proves the core promise on val — nothing wrong
 # EXITS unnoticed. Binary gates: exit 1 on unsafe_clean>0, safe_review_recall<1.0 or
@@ -154,9 +154,9 @@ eval-synthetic:
 # the repo's frozen docs/ artifacts (OUT default lives under gitignored private/).
 OUT ?= private/audit/eval_safety
 eval-safety:
-	PYTHONPATH=. uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
+	uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
 
 # Intake Watch — idempotent PDF watcher. Creates drafts in WATCH_DIR/drafts/.
 # NEVER sends email. Ctrl-C to stop. Override: make watch WATCH_DIR=private/inbox.
 watch:
-	PYTHONPATH=. uv run python scripts/run_watch.py --watch-dir $(WATCH_DIR)
+	uv run python -m scripts.run_watch --watch-dir $(WATCH_DIR)
