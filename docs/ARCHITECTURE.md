@@ -50,6 +50,11 @@ The domain is deliberately decoupled from the sheet layout (the layout can chang
 The `normalize` stage is the only boundary between them. Models live in
 [src/schema/extraction.py](../src/schema/extraction.py).
 
+Confidence values are source-specific routing signals, not calibrated probabilities:
+rule-based values use conservative fixed placeholders, Tesseract supplies mean word confidence,
+and VLM fallback values are labeled placeholders. The critic's `must_review` decision, not the
+numeric signal alone, drives the human gate.
+
 ## Safety properties
 
 - **OCR is honest.** Free OCR can't read cursive; the OCR Quality Gate

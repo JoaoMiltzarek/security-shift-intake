@@ -97,6 +97,10 @@ fields, and clicking a field highlights the **probable region** the value came f
 value answers *where it came from, with what confidence, by which method, and whether a human
 reviewed it*:
 
+Confidence values are source-specific routing signals, not calibrated probabilities:
+rule-based values use conservative fixed placeholders, Tesseract supplies mean word confidence,
+and VLM fallback values are labeled placeholders. Review status remains the operational gate.
+
 The animation above is captured from the committed synthetic sheet through the real Tesseract
 path; its hashes, tool versions and regeneration procedure are in
 [samples/README.md](samples/README.md).
