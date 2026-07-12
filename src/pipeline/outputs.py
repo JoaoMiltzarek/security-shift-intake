@@ -16,6 +16,7 @@ from src.schema.extraction import NormalizedIncidentModel, SpreadsheetRow
 from src.schema.state import PipelineState
 
 _PENDING = "(revisar)"
+_UNKNOWN_OCCURRENCES = "(ocorrências não confirmadas)"
 
 
 def _format_descricao(
@@ -35,7 +36,16 @@ def build_spreadsheet(normalized: NormalizedIncidentModel) -> list[SpreadsheetRo
     """Output 1 — uma linha por ocorrência (ou uma linha 'Sem alteração')."""
     dia = normalized.shift.date or _PENDING
     unidade = normalized.shift.unit or _PENDING
-    if normalized.no_occurrence or not normalized.occurrences:
+    if normalized.disposition == "unknown":
+        return [
+            SpreadsheetRow(
+                dia=dia,
+                unidade=unidade,
+                objeto=_UNKNOWN_OCCURRENCES,
+                descricao="",
+            )
+        ]
+    if normalized.disposition == "none":
         return [SpreadsheetRow(dia=dia, unidade=unidade, objeto="Sem alteração", descricao="")]
     rows: list[SpreadsheetRow] = []
     for occ in normalized.occurrences:
@@ -56,6 +66,12 @@ def export_blockers(state: PipelineState) -> list[str]:
     if state.ocr_quality == "failed":
         blockers.append("OCR insuficiente")
     blockers.extend(state.must_review_fields)
+    if (
+        state.normalized is not None
+        and state.normalized.disposition == "unknown"
+        and "ocorrencias" not in blockers
+    ):
+        blockers.append("ocorrencias")
     return blockers
 
 

@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A6.1 — contratos de output/gate para `unknown`
-  (este commit; 15 passed, 2 xfailed).
-- **Micro-step corrente:** F2.A6.2 — implementar placeholder e defesa em profundidade.
-- **RETOME AQUI:** tornar `build_spreadsheet` tri-state, adicionar blocker estrutural idempotente
-  em `export_blockers` e bloqueio direto em `assert_reviewable`; remover dois xfails e fechar F2.
+- **Último micro-step concluído:** F2.A6.2 — outputs/gate seguros para `unknown`
+  (este commit; focado: 17 passed; bloco integrado exit 0 com 2 xfails de F3).
+- **Micro-step corrente:** F2.V — verification loop Chromium para bloqueio de `unknown`.
+- **RETOME AQUI:** inspecionar `scripts/browser_smoke.py`, adicionar cenário
+  `unknown_blocks_approve`, executar no navegador real e então rodar os gates finais da fase F2.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -152,6 +152,11 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - **[feito] F2.A6.1 — contratos de saída e gate** — dois xfails exigem placeholder
   `(ocorrências não confirmadas)`, blocker de export mesmo sem lista derivada e bloqueio direto
   de aprovação para estado tabular `unknown`. SAÍDA REAL: **15 passed, 2 xfailed**.
+- **[feito] F2.A6.2 — saída não confirmatória + defesa em profundidade** — planilha usa
+  `(ocorrências não confirmadas)` para `unknown`; `export_blockers` acrescenta `ocorrencias` sem
+  duplicar e `assert_reviewable` bloqueia diretamente estado estrutural desconhecido mesmo se a
+  lista derivada estiver ausente. SAÍDAS REAIS: **17 passed** focados; bloco integrado exit 0,
+  apenas 2 xfails esperados de F3; Ruff/mypy verdes.
 
 ---
 
@@ -218,7 +223,7 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       conf 0.0 must_review com valor explicativo (distingue "tabela não encontrada" vs
       "nenhuma linha legível" via tabela_encontrada) + commits
 - [x] F2.A5 `ocr_quality.py:65-66`: relaxamento só p/ `disposition=="none"` + commits
-- [ ] F2.A6 `outputs.py:38-39`: unknown → "(ocorrências não confirmadas)"; "Sem alteração" só p/ none + commits
+- [x] F2.A6 `outputs.py:38-39`: unknown → "(ocorrências não confirmadas)"; "Sem alteração" só p/ none + commits
 - [ ] F2.V loop de verificação: `make demo-pipeline` Tesseract real numa fixture sem header →
       cockpit no browser mostra "(ocorrências não confirmadas)" + aprovação bloqueada; cenário
       `unknown_blocks_approve` no `scripts/browser_smoke.py` + commit; flip dos xfails F1.1/F1.4

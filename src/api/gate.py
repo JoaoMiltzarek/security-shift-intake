@@ -47,6 +47,10 @@ def assert_reviewable(state: PipelineState) -> None:
             f"{len(state.must_review_fields)} field(s) need review before approval: "
             f"{', '.join(state.must_review_fields)}."
         )
+    if state.normalized is not None and state.normalized.disposition == "unknown":
+        raise DraftNotReviewableError(
+            "Occurrence disposition is unknown — explicit human confirmation required."
+        )
 
 
 @runtime_checkable

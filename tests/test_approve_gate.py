@@ -81,7 +81,6 @@ def test_assert_reviewable_blocks_failed_ocr_even_without_pending_fields() -> No
         assert_reviewable(state)
 
 
-@pytest.mark.xfail(strict=True, reason="F2.A6: unknown deve bloquear mesmo sem lista derivada")
 def test_assert_reviewable_blocks_unknown_without_pending_fields() -> None:
     state = PipelineState(
         source_pdf=Path("x.pdf"),
