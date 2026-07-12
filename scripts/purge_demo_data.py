@@ -23,7 +23,15 @@ from pathlib import Path
 PRIVATE_DIR = Path("private")
 
 # Artefatos temporários do demo (seguros de apagar; não incluem curadoria/folhas).
-_DEMO_TARGETS = ("app.db", "app.db-journal", "app.db-wal", "audit")
+_DEMO_TARGETS = (
+    "app.db",
+    "app.db-journal",
+    "app.db-wal",
+    "app.db-shm",
+    "audit",
+    "page_images",
+    "debug",
+)
 # Folhas reais de entrada.
 _REAL_TARGETS = ("reais",)
 
