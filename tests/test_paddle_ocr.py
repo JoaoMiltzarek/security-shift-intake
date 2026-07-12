@@ -146,3 +146,31 @@ def test_sdk_engine_rejects_malformed_results_without_echoing_text(
     with pytest.raises(RuntimeError, match=error) as exc_info:
         engine.recognize(Image.new("RGB", (1, 1), "white"))
     assert "SEGREDO_OCR" not in str(exc_info.value)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: cliente ainda não instancia o SDK sob demanda",
+)
+def test_sdk_engine_is_built_once_on_first_transcription(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+    builds = 0
+
+    class FakeSDKEngine:
+        def __init__(self) -> None:
+            nonlocal builds
+            builds += 1
+
+        def recognize(self, image: Image.Image) -> list[object]:
+            return []
+
+    monkeypatch.setattr(module, "_PaddleSDKEngine", FakeSDKEngine)
+    client = module.PaddleOCRVisionClient()
+    assert builds == 0
+
+    client.transcribe(_png_b64())
+    client.transcribe(_png_b64())
+
+    assert builds == 1
