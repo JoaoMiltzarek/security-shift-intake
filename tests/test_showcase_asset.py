@@ -6,7 +6,6 @@ import importlib
 from pathlib import Path
 from types import ModuleType
 
-import pytest
 from PIL import Image, ImageChops, ImageDraw
 
 
@@ -63,10 +62,6 @@ def test_versioned_cockpit_demo_gif_matches_contract() -> None:
     assert len(frames) == 3
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: proveniência factual do GIF ainda não foi publicada",
-)
 def test_samples_readme_records_gif_provenance() -> None:
     readme = Path("samples/README.md").read_text(encoding="utf-8")
     required = (
