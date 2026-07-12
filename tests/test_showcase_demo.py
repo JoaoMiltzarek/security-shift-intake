@@ -29,7 +29,6 @@ def _showcase_demo() -> ModuleType:
     return importlib.import_module("scripts.showcase_demo")
 
 
-@_PENDING
 def test_seed_uses_committed_fixture_and_forces_local_ocr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -69,7 +68,6 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
     assert isinstance(captured["vision"], LocalOCRVisionClient)
 
 
-@_PENDING
 def test_no_serve_seeds_and_prints_exact_loopback_review_url(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -95,7 +93,6 @@ def test_no_serve_seeds_and_prints_exact_loopback_review_url(
     assert os.environ["INTAKE_CONFIG"] == str(demo.DEFAULT_CONFIG)
 
 
-@_PENDING
 def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -128,7 +125,6 @@ def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
     assert server.run_calls == 1
 
 
-@_PENDING
 def test_server_config_is_fixed_to_loopback() -> None:
     demo = _showcase_demo()
     server = demo._build_server(8125)
@@ -137,7 +133,6 @@ def test_server_config_is_fixed_to_loopback() -> None:
     assert server.config.port == 8125
 
 
-@_PENDING
 def test_browser_waits_for_own_server_before_opening_review() -> None:
     demo = _showcase_demo()
     server = SimpleNamespace(started=False)
@@ -161,7 +156,6 @@ def test_browser_waits_for_own_server_before_opening_review() -> None:
     assert sleeps == [0.01, 0.01]
 
 
-@_PENDING
 def test_invalid_port_fails_before_seeding(monkeypatch: pytest.MonkeyPatch) -> None:
     demo = _showcase_demo()
     monkeypatch.delenv("INTAKE_CONFIG", raising=False)
