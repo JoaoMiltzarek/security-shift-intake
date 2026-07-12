@@ -16,8 +16,13 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
+from sqlmodel import Session
 
+from evals.eval_transcription import tesseract_available
+from src.api.db import make_engine
+from src.api.repository import get_draft
 from src.clients.local_ocr import LocalOCRVisionClient
+from src.schema.state import ApprovalStatus, PipelineState
 
 
 def _showcase_demo() -> ModuleType:
@@ -253,6 +258,35 @@ def test_cli_does_not_offer_a_host_override() -> None:
     with pytest.raises(SystemExit) as exc_info:
         demo.main(["--host", "0.0.0.0"])
     assert exc_info.value.code == 2
+
+
+@pytest.mark.skipif(not tesseract_available(), reason="tesseract não instalado")
+def test_committed_showcase_fixture_persists_real_ocr_geometry(
+    tmp_path: Path,
+) -> None:
+    demo = _showcase_demo()
+    engine = make_engine(f"sqlite:///{tmp_path / 'showcase.db'}")
+    page_images_root = tmp_path / "page_images"
+
+    draft_id = demo._seed_demo(
+        demo.DEFAULT_SAMPLE,
+        demo.DEFAULT_CONFIG,
+        engine,
+        page_images_root=page_images_root,
+    )
+
+    with Session(engine) as session:
+        draft = get_draft(session, draft_id)
+    assert draft is not None
+    assert draft.status == ApprovalStatus.PENDING
+
+    state = PipelineState.model_validate_json(draft.state_json)
+    assert state.transcription_confidence_source == "tesseract"
+    assert state.words
+    assert state.page_image_paths
+    assert all((page_images_root / rel).is_file() for rel in state.page_image_paths)
+    assert state.normalized is not None
+    assert state.normalized.disposition != "none"
 
 
 def test_makefile_exposes_demo_target_with_passthrough_args() -> None:
