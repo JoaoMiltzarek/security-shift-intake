@@ -184,3 +184,22 @@ def test_factory_selects_paddle_without_importing_optional_sdk(
 
     assert isinstance(client, module.PaddleOCRVisionClient)
     assert client._engine is None
+
+
+def test_missing_optional_sdk_fails_only_when_transcribing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+    real_import = module.importlib.import_module
+
+    def missing_paddle(name: str) -> object:
+        if name == "paddleocr":
+            raise ModuleNotFoundError(name)
+        return real_import(name)
+
+    monkeypatch.setattr(module.importlib, "import_module", missing_paddle)
+    client = module.PaddleOCRVisionClient()
+
+    with pytest.raises(RuntimeError, match="optional dependencies are not installed") as exc_info:
+        client.transcribe(_png_b64())
+    assert exc_info.value.__cause__ is None
