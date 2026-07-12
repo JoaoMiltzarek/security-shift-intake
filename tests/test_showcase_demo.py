@@ -19,11 +19,6 @@ import pytest
 
 from src.clients.local_ocr import LocalOCRVisionClient
 
-_PENDING = pytest.mark.xfail(
-    strict=True,
-    reason="F8.1: contrato do showcase ainda não implementado",
-)
-
 
 def _showcase_demo() -> ModuleType:
     return importlib.import_module("scripts.showcase_demo")
@@ -168,7 +163,6 @@ def test_invalid_port_fails_before_seeding(monkeypatch: pytest.MonkeyPatch) -> N
     assert demo.main(["--port", "65536", "--no-serve"]) == 2
 
 
-@_PENDING
 def test_makefile_exposes_demo_target_with_passthrough_args() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
     recipe = re.search(r"(?ms)^demo:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)

@@ -9,6 +9,9 @@
 # override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
 CONFIG ?= configs/controle_ocorrencias.yaml
 
+# Optional arguments for the one-command synthetic showcase (e.g. --no-open).
+DEMO_ARGS ?=
+
 # Sample cap for the BRESSAY real-handwriting eval (override: `make eval-bressay N=20`).
 N ?= 50
 
@@ -30,7 +33,7 @@ WATCH_DIR ?= private/inbox
 
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
-        demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
+        demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -48,6 +51,7 @@ help:
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
+	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
 	@echo   make purge-demo-data - wipe temp demo artifacts (DB+sidecars, audit/, page_images/, debug/)
 	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
@@ -101,6 +105,10 @@ demo-transcribe:
 
 demo-pipeline:
 	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)" --config "$(CONFIG)"
+
+# Portfolio showcase: committed synthetic sheet -> real local Tesseract -> loopback UI.
+demo:
+	uv run python -m scripts.showcase_demo $(DEMO_ARGS)
 
 demo-pipeline-mock:
 	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
