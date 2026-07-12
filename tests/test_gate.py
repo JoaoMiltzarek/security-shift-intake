@@ -90,3 +90,57 @@ def test_already_sent_draft_cannot_be_resent(session: Session) -> None:
 def test_send_missing_draft_raises(session: Session) -> None:
     with pytest.raises(KeyError):
         send_draft(session, 999, MockSender(), actor="r")
+
+
+# --- F3.B3 (SSI-1006): o envio é do CONTEÚDO aprovado, não só do status ---
+
+
+def test_hash_tampered_state_cannot_be_sent(session: Session) -> None:
+    """Escrita direta em state_json (fora de update_state) mantendo status approved:
+    o hash estampado não bate → send bloqueia. Defesa em profundidade além do reset
+    de status feito por update_state."""
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+
+    tampered = _state().model_copy(update={"email_draft": "Subject: outro\n\ncorpo trocado"})
+    draft.state_json = tampered.model_dump_json()  # bypass deliberado de update_state
+    session.add(draft)
+    session.commit()
+
+    sender = MockSender()
+    with pytest.raises(DraftNotApprovedError):
+        send_draft(session, draft.id, sender, actor="r")
+    assert sender.call_count == 0
+    blocked = [a for a in get_audit(session, draft.id) if a.action == "send_blocked"]
+    assert blocked and blocked[-1].detail is not None
+    assert "stale_approval" in blocked[-1].detail
+
+
+def test_legacy_approved_without_stamp_cannot_be_sent(session: Session) -> None:
+    """Draft aprovado ANTES do vínculo por revisão (approved_revision NULL, como após a
+    migração de DB legado) não pode ser enviado até reaprovação."""
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    draft.status = ApprovalStatus.APPROVED  # aprovação legada: sem stamp
+    session.add(draft)
+    session.commit()
+
+    sender = MockSender()
+    with pytest.raises(DraftNotApprovedError):
+        send_draft(session, draft.id, sender, actor="r")
+    assert sender.call_count == 0
+
+
+def test_send_reruns_assert_reviewable_on_current_state(session: Session) -> None:
+    """Mesmo com status/revisão/hash válidos, um estado corrente com pendências de
+    revisão nunca é enviado — send re-roda assert_reviewable."""
+    pending_state = _state().model_copy(update={"must_review_fields": ["guard_name"]})
+    draft = create_draft(session, pending_state)
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")  # stamp válido
+
+    sender = MockSender()
+    with pytest.raises(DraftNotApprovedError):
+        send_draft(session, draft.id, sender, actor="r")
+    assert sender.call_count == 0
