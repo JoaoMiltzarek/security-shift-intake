@@ -15,17 +15,18 @@
 
 ## ESTADO ATUAL
 
-- **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
-- **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
-  F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
-  2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Fase F5 COMPLETA.** Micro-step corrente: F6.1 — retenção + privacidade.
-- **RETOME AQUI:** criar branch `SSI-1009-retencao-privacidade`. Ordem: F6.1 purge
-  (`purge_demo_data.py:26` _DEMO_TARGETS += page_images, app.db-shm, debug + teste em
-  tests/test_purge.py) → F6.2 privacy_check extensões → F6.3 check_real_data .json →
-  F6.4 make serve loopback → F6.5 guards externos (demo_transcribe --allow-external;
-  local_vlm loopback salvo INTAKE_VLM_ALLOW_REMOTE=1) → F6.V purge real + cockpit degrada.
+- **Fases COMPLETAS:** F0 (SSI-1004), F1+F2 (SSI-1005), F3 (SSI-1006), F4 (SSI-1007),
+  F5 (SSI-1008), F6 (SSI-1009). Última suíte: **674 passed, 2 skipped** + privacy OK.
+- **Branch corrente:** `SSI-1009-retencao-privacidade` (F6 fechado; falta commitar o
+  fechamento e criar a branch F7).
+- **Micro-step corrente:** F7.1 — eval-safety (branch `SSI-1010-ci-eval-safety`).
+- **RETOME AQUI:** ordem F7: (1) `--output-dir` no eval_extraction_synthetic (SUMMARY_PATH
+  hardcoded ~linha 56; não sobrescrever docs/ congelado); (2) conferir bucket `unknown` nos
+  evals (Codex adiantou parte no F2 — verificar o que falta); (3) métrica
+  `unsafe_clean_count` + target `make eval-safety` com gates binários (false_incident==0,
+  unsafe_clean_count==0, recall estrutural 1.0) em smoke/val + Tesseract; (4) job CI
+  eval-safety (runner já instala tesseract; adicionar por). Test split CONGELADO
+  (re-medição só no milestone F11).
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -361,15 +362,36 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       lint+mypy verdes; `make privacy-check` → OK.
 
 ### F6 — Retenção + privacidade (SSI-1009)
-- [ ] F6.1 `purge_demo_data.py:26` _DEMO_TARGETS += page_images, app.db-shm, debug + teste + commits
-- [ ] F6.2 `privacy_check.py:50` _PUBLIC_TEXT_EXT += {.json,.jsonl,.csv,.html,.js,.j2,.toml,.py};
-      teste com marcador sintético por formato; PRIVACY.md exato + commits
-- [ ] F6.3 `check_real_data.py`: .json via scan de conteúdo + commits
-- [ ] F6.4 `make serve` launcher loopback-only (recusa INTAKE_HOST não-loopback sem flag) + teste + commits
-- [ ] F6.5 `demo_transcribe.py` exige --allow-external; `local_vlm.py:152` valida loopback salvo
-      INTAKE_VLM_ALLOW_REMOTE=1 + testes + commits
-- [ ] F6.V loop: purge real + cockpit degrada limpo (imagem 404 → layout textual)
-- [ ] F6.PR fechamento
+- [x] F6.1 feito: _DEMO_TARGETS += app.db-shm, page_images, debug (commits 13512093 vermelho
+      → a8031f74 verde; 9 passed).
+- [x] F6.2 feito (commits 778160d6 vermelho → 88858ef5): prosa = org+HH:MM+pii_terms;
+      código/dados (.py .js .html .j2 .json .jsonl .csv .toml) = org (formatos de dados) +
+      pii_terms EXCETO árvores sintéticas data/ e tests/ (vocabulário colide por design —
+      "Portaria" é palavra da própria folha impressa); HH:MM é prose-only (limitação
+      documentada em PRIVACY.md). **ACHADO REAL do scanner novo:** o mock usava "Pedro"
+      (colidia com termo privado) → renomeado "Otavio Lemos". privacy-check real: OK.
+- [x] F6.3 verificado SEM mudança de código: check_real_data JÁ escaneia .json por conteúdo
+      (não está em _SOURCE_DOC_EXT); o gap era o PRIVACY.md prometer "bloqueio" — texto
+      corrigido junto do F6.2.
+- [x] F6.4 feito: `scripts/serve.py` + `make serve` — recusa host não-loopback (exit 2) sem
+      `--i-know-this-exposes-pii`; INTAKE_HOST/INTAKE_PORT respeitados. 4 testes + recusa
+      executada de verdade (exit=2).
+- [x] F6.5 feito: `demo_transcribe --allow-external` obrigatório (exit 2 sem consentimento);
+      `get_vlm_base_url()` valida loopback salvo `INTAKE_VLM_ALLOW_REMOTE=1` (guard no choke
+      point do env; base_url explícito no construtor = decisão de código). 4 testes novos em
+      test_external_guards.py + 2 legados do transcribe ganharam o flag. Bloco
+      vlm/transcribe/guards: **31 passed**.
+- [x] F6.V loop REAL: artefatos criados em private/ → `make purge-demo-data` → "Removido:
+      app.db, app.db-shm, audit, page_images, debug"; curadoria/reais/pii_terms preservados.
+      Labels do purge atualizados (script + Makefile help). Degradação imagem-404→textual já
+      coberta por test_page_image.
+- [x] F6.PR fechamento. SAÍDAS REAIS: `make check` → **674 passed, 2 skipped, 246s** (suite
+      cresceu 654→674), lint+mypy verdes; `make privacy-check` → OK. Corpo de PR sugerido:
+      "F6 (SSI-1009): fecha retenção e superfícies locais — purge cobre todas as cópias
+      transitórias com PII; privacy-check varre todos os formatos de texto públicos (com
+      exceções sintéticas documentadas — e já pegou uma colisão real no mock); launcher
+      `make serve` loopback-only; envio externo (Anthropic/VLM remoto) exige opt-in
+      explícito."
 
 ### F7 — CI eval-safety (SSI-1010)
 - [ ] F7.1 `eval_extraction_synthetic.py`: --output-dir (SUMMARY_PATH hardcoded hoje na linha 56) + commits

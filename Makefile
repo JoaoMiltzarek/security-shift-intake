@@ -49,7 +49,7 @@ help:
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
-	@echo   make purge-demo-data - wipe only temp demo artifacts (DB + audit/) in private/
+	@echo   make purge-demo-data - wipe temp demo artifacts (DB+sidecars, audit/, page_images/, debug/)
 	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
 	@echo   make purge-all-private - wipe ALL of private/ (incl. curadoria), needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/

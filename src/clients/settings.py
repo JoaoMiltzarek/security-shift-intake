@@ -13,6 +13,7 @@ machine — the project's privacy-first invariant.
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 # Default vision/LLM model. Confirmed current model ID (Anthropic API reference).
 DEFAULT_VISION_MODEL = "claude-opus-4-8"
@@ -55,9 +56,25 @@ def get_max_tokens() -> int:
     return int(raw) if raw else DEFAULT_MAX_TOKENS
 
 
+_LOOPBACK_VLM_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
 def get_vlm_base_url() -> str:
-    """Base URL of the local OpenAI-compatible server (env override > default)."""
-    return os.environ.get("INTAKE_VLM_BASE_URL", DEFAULT_VLM_BASE_URL)
+    """Base URL of the local OpenAI-compatible server (env override > default).
+
+    Guard SSI-1009/F-11: a promessa "nothing leaves the machine" não pode estar a
+    uma env var de distância — um host fora de loopback só é aceito com o opt-in
+    explícito INTAKE_VLM_ALLOW_REMOTE=1 (as imagens das folhas contêm PII).
+    """
+    url = os.environ.get("INTAKE_VLM_BASE_URL", DEFAULT_VLM_BASE_URL)
+    host = urlparse(url).hostname or ""
+    if host not in _LOOPBACK_VLM_HOSTS and os.environ.get("INTAKE_VLM_ALLOW_REMOTE") != "1":
+        raise RuntimeError(
+            f"INTAKE_VLM_BASE_URL aponta para fora de loopback ({host!r}) — as imagens "
+            "das folhas (PII) seriam enviadas a outra máquina. Se é intencional, "
+            "defina INTAKE_VLM_ALLOW_REMOTE=1."
+        )
+    return url
 
 
 def get_vlm_model() -> str:

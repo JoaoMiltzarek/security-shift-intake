@@ -85,7 +85,7 @@ def main(argv: list[str]) -> int:
 
     if args.mode == "demo":
         removed = purge_selected(PRIVATE_DIR, _DEMO_TARGETS)
-        scope = "artefatos temporários do demo (DB + audit/)"
+        scope = "artefatos temporários do demo (DB + sidecars + audit/ + page_images/ + debug/)"
     elif args.mode == "real":
         removed = purge_selected(PRIVATE_DIR, _REAL_TARGETS)
         scope = "folhas reais (reais/)"
