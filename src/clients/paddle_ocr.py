@@ -7,13 +7,27 @@ unless a caller explicitly selects this experimental reader.
 
 from __future__ import annotations
 
+import base64
+import io
 from typing import Protocol
+
+from PIL import Image
+from pydantic import BaseModel, Field
 
 from src.clients.base import TranscriptionResult
 
 
+class RecognizedLine(BaseModel):
+    """One line and the recognition score reported by PaddleOCR."""
+
+    text: str
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 class PaddleOCREngine(Protocol):
     """Small injectable boundary around the optional third-party SDK."""
+
+    def recognize(self, image: Image.Image) -> list[RecognizedLine]: ...
 
 
 class PaddleOCRVisionClient:
@@ -23,4 +37,29 @@ class PaddleOCRVisionClient:
         self._engine = engine
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
-        raise RuntimeError("PaddleOCR reader integration is not implemented yet.")
+        try:
+            image_bytes = base64.b64decode(image_b64, validate=True)
+            image = Image.open(io.BytesIO(image_bytes))
+            image.load()
+        except (OSError, ValueError) as exc:
+            raise RuntimeError("PaddleOCR received invalid image data.") from exc
+
+        if self._engine is None:
+            raise RuntimeError("PaddleOCR optional engine is not initialized.")
+        try:
+            lines = self._engine.recognize(image)
+        except Exception as exc:  # noqa: BLE001 — third-party engine boundary
+            # Do not copy the SDK exception into this message: it may contain OCR text.
+            raise RuntimeError("PaddleOCR failed to process the page.") from exc
+
+        confidence = sum(line.confidence for line in lines) / len(lines) if lines else 0.0
+        return TranscriptionResult(
+            text="\n".join(line.text for line in lines),
+            confidence=confidence,
+            confidence_source="paddleocr",
+            # Paddle's public OCR result exposes line regions, while WordBox promises
+            # token-level geometry. Fabricating words would mislead the evidence locator.
+            words=None,
+            image_width=image.width,
+            image_height=image.height,
+        )

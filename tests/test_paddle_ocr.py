@@ -20,10 +20,6 @@ def test_paddle_client_module_is_lazy_and_protocol_compatible() -> None:
     assert client._engine is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: adapter ainda não converte linhas reconhecidas em transcrição",
-)
 def test_transcribe_preserves_lines_and_reported_confidence() -> None:
     module = importlib.import_module("src.clients.paddle_ocr")
     line_type = module.RecognizedLine
