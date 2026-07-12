@@ -46,8 +46,11 @@ class TranscriptionResult(BaseModel):
     # Where `confidence` came from — filled by the client that KNOWS, never inferred
     # downstream (EVAL_PROTOCOL §2.4/G3): "logprobs" = derived from real token
     # logprobs; "placeholder" = conservative default (no calibration signal);
-    # "tesseract" = mean per-word OCR confidence; "mock" = canned test value.
-    confidence_source: Literal["logprobs", "placeholder", "tesseract", "mock"] | None = None
+    # "tesseract" = mean per-word OCR confidence; "paddleocr" = mean recognition
+    # score reported by PaddleOCR; "mock" = canned test value.
+    confidence_source: (
+        Literal["logprobs", "placeholder", "tesseract", "paddleocr", "mock"] | None
+    ) = None
     words: list[WordBox] | None = None
     # Pixel size of the image the words were measured against (for reconstruction).
     image_width: int | None = None
