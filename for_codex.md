@@ -18,11 +18,13 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.V.2b — verification loop reader/browser real
-  (este commit; Tesseract real + Edge 150 real verdes; Ruff/mypy do smoke verdes).
-- **Micro-step corrente:** F2.PR — fechamento técnico da fase.
-- **RETOME AQUI:** rodar `make check`, `make privacy-check`, teste OCR real e verificar status Git;
-  registrar saídas finais, commitar o fechamento e preparar a próxima branch F3 sem push.
+- **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
+  2 xfailed esperados; privacy OK; OCR real 6 passed).
+- **Micro-step corrente:** F3.B1 — Draft revision/hash + migração de DB.
+- **RETOME AQUI:** branch `SSI-1006-aprovacao-revisao` (criada de
+  `SSI-1005-tri-state-estrutural`); escrever teste de migração (DB antigo em tmp_path →
+  init_db adiciona colunas revision/approved_revision/approved_state_sha256) e implementar
+  `_ensure_draft_columns` em `src/api/db.py` + campos no `src/api/models.py`.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -248,7 +250,11 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - [x] F2.V loop de verificação: pipeline Tesseract real numa fixture temporária sem header →
       cockpit no browser mostra "(ocorrências não confirmadas)" + aprovação bloqueada; cenário
       `unknown_blocks_approve` no `scripts/browser_smoke.py` + commit; flip dos xfails F1.1/F1.4
-- [ ] F2.PR fechamento de fase (make check + saída real aqui)
+- [x] F2.PR fechamento de fase. SAÍDAS REAIS (2026-07-11, sessão Claude retomando pós-Codex):
+      `make check` → lint OK, mypy OK, **pytest: 629 passed, 2 skipped, 2 xfailed, 79.18s**
+      (os 2 xfails são os contratos F3 de F1.5 — esperados até F3.B3).
+      `make privacy-check` → OK. OCR real (PATH+TESSDATA exportados) →
+      `pytest tests/test_local_ocr.py` → **6 passed, 3.78s**. Worktree limpa em `4fd8e11b`.
 
 ### F3 — Aprovação↔revisão (SSI-1006) — design B1..B3
 - [ ] F3.B1 `src/api/models.py`: Draft += `revision:int=1`, `approved_revision:int|None`,
