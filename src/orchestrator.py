@@ -50,8 +50,8 @@ def run_pipeline(
 
     if _has_table(config):
         state = extract_table(state, config)
-        # Stage 2b (two-reader mode): call reconcile_sheet() here and store results in
-        # state.reconcile_results before validate_table. Single-reader runs skip this.
+        # Reserved experimental extension point: v1 is single-reader and does not invoke
+        # dual-reader arbitration. ``state.reconcile_results`` therefore stays empty.
         state = validate_table(state, config)
         status, reason = assess_ocr_quality(state, config)
         state = state.model_copy(

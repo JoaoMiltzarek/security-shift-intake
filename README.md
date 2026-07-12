@@ -145,6 +145,8 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
 - `make watch` is an experimental standalone file-drop utility. It writes detached `.txt` drafts outside the review database,
   cockpit, and approval gate; duplicate suppression is process-local
   and is not restored after restart.
+- The two-reader reconciler is unit-tested but not wired into the v1 orchestrator; supported
+  paths select exactly one reader.
 
 ### Evaluate a reader (the decision protocol)
 Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S) and BRESSAY,

@@ -1,14 +1,16 @@
 """Deterministic field reconciler — compares two reader outputs and arbitrates.
 
+Status: EXPERIMENTAL two-reader arbitration prototype, outside v1. No supported entrypoint
+invokes this module; unit tests cover its standalone semantics only.
+
 Design rules (CLAUDE.md invariants):
 - Zero ML imports: stdlib + typing only.
 - Critical fields NEVER auto-resolved when readers disagree.
 - `justification` is always a non-empty string.
 - Confidence is capped at "HIGH" even when readers agree (never "CERTAIN").
 
-Typical call site: after two readers (e.g. local_ocr + local_vlm) have produced
-extraction results for the same sheet, reconcile_sheet() merges them and surfaces
-disagreements for the cockpit's evidence block.
+It is a reserved design experiment for a future dual-reader pipeline, not evidence that the
+current cockpit consumes reconciled fields.
 """
 
 from __future__ import annotations

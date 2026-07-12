@@ -25,7 +25,6 @@ def test_watcher_is_documented_as_standalone_experiment() -> None:
     assert "detached `.txt` drafts outside the review database" in readme
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1012: reconciler ainda descreve wiring inexistente")
 def test_reconciler_is_documented_as_unwired_prototype() -> None:
     reconciler = _read("src/pipeline/reconcile.py")
     orchestrator = _read("src/orchestrator.py")
