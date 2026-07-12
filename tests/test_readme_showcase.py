@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 
 def _has_phrase(text: str, phrase: str) -> bool:
     return re.search(r"\s+".join(re.escape(word) for word in phrase.split()), text) is not None
@@ -89,17 +87,12 @@ def test_readme_flow_matches_export_and_send_gates() -> None:
     assert all(not _has_phrase(readme, value) for value in forbidden)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: seção de reader ainda mistura status interno e instruções antigas",
-)
 def test_readme_reader_section_points_to_normative_contracts() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
-    required = (
+    required_exact = (
         "### Evaluate a reader (the decision protocol)",
         "docs/DATASET_CONTRACT.md",
         "docs/READER_DECISION.md",
-        "does not select the default reader",
     )
     forbidden = (
         "### Medir o leitor",
@@ -109,5 +102,6 @@ def test_readme_reader_section_points_to_normative_contracts() -> None:
         "a medição que decide",
     )
 
-    assert all(value in readme for value in required)
+    assert all(value in readme for value in required_exact)
+    assert _has_phrase(readme, "does not select the default reader")
     assert all(value not in readme for value in forbidden)

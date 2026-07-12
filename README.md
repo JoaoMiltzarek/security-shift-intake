@@ -140,21 +140,25 @@ no OCR geometry and therefore cannot demonstrate click-to-highlight. The local V
 experimental reader that is loopback by default (remote use requires an explicit unsafe opt-in):
 it emits no geometry and the current frozen benchmark does **not** admit it as the default.
 
-### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
-A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
-G1-S) + BRESSAY — nunca de folha real. Fábrica completa (PRs D0–D6 do contrato);
-progresso e primeiras medições reais (G-S2) em `docs/archive/STATUS_TIER_C.md`. O eval em folha real abaixo segue funcionando como
-**avaliação local opcional** (folhas 100% autorizadas, locais, nunca versionadas):
+### Evaluate a reader (the decision protocol)
+Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S) and BRESSAY,
+not private real sheets. The normative protocol is
+[docs/DATASET_CONTRACT.md](docs/DATASET_CONTRACT.md); hardware, release-safety and candidate
+promotion criteria are frozen in [docs/READER_DECISION.md](docs/READER_DECISION.md) before a
+new val run.
+
+The real-sheet eval below is an optional local diagnostic for fully authorized files. It does not
+select the default reader, and neither its private detail nor source sheets may be committed:
 
 ```console
-# opcional/legado — pré-requisito humano: curadorias verified_by_user (docs/CURADORIA_FORMATO.md)
-make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
-make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
-make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
+# Optional diagnostic: curations must be verified_by_user (docs/CURADORIA_FORMATO.md).
+make eval-real VISION=local_ocr DPI=150      # instrumented baseline
+make eval-real VISION=local_vlm DPI=150      # explicit opt-in; requires Ollama
+make eval-real VISION=local_vlm DPI=250      # DPI sensitivity; lower to 100 after VRAM OOM
 uv run --locked python -m evals.eval_extraction_real --compare private/audit/eval_real_detailed_local_ocr_dpi150.json private/audit/eval_real_detailed_local_vlm_dpi150.json
 ```
-Saídas: detalhado (PII) em `private/audit/` (gitignored); resumo público **por whitelist**
-em `docs/eval_real_summary.json`. Sanity check secundário do leitor:
+Detailed output (PII) stays in gitignored `private/audit/`; only the allowlisted aggregate summary
+may be published as `docs/eval_real_summary.json`. A secondary reader sanity check is available:
 
 ```console
 uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20
