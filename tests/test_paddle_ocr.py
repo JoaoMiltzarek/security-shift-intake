@@ -61,3 +61,23 @@ def test_empty_recognition_is_an_explicit_zero_confidence_transcription() -> Non
     assert result.confidence == 0.0
     assert result.confidence_source == "paddleocr"
     assert result.words is None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: traceback ainda encadeia exceção potencialmente contendo PII",
+)
+def test_engine_error_does_not_chain_or_expose_ocr_text() -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+
+    class LeakyEngine:
+        def recognize(self, image: Image.Image) -> list[object]:
+            raise RuntimeError("SEGREDO_OCR_DE_USUARIO")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        module.PaddleOCRVisionClient(engine=LeakyEngine()).transcribe(_png_b64())
+
+    assert str(exc_info.value) == "PaddleOCR failed to process the page."
+    assert "SEGREDO_OCR_DE_USUARIO" not in str(exc_info.value)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__ is True
