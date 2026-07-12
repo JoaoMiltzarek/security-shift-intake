@@ -30,7 +30,7 @@ WATCH_DIR ?= private/inbox
 
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval eval-bressay eval-real eval-synthetic watch \
+        demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -103,6 +103,10 @@ demo-pipeline:
 
 demo-pipeline-mock:
 	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
+
+# Launcher oficial da UI de revisão — recusa bind fora de loopback (sem auth + PII).
+serve:
+	PYTHONPATH=. uv run python scripts/serve.py $(SERVE_ARGS)
 
 purge-demo-data:
 	PYTHONPATH=. uv run python scripts/purge_demo_data.py demo
