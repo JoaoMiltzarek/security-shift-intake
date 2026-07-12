@@ -5,11 +5,13 @@ from __future__ import annotations
 import base64
 import importlib
 import io
+import sys
 
 import pytest
 from PIL import Image
 
 from src.clients.base import VisionClient
+from src.clients.factory import get_vision_client
 
 
 def _png_b64(width: int = 20, height: int = 10) -> str:
@@ -170,3 +172,19 @@ def test_sdk_engine_is_built_once_on_first_transcription(
     client.transcribe(_png_b64())
 
     assert builds == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: factory ainda não registra paddle_ocr",
+)
+def test_factory_selects_paddle_without_importing_optional_sdk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("src.clients.paddle_ocr")
+    monkeypatch.setitem(sys.modules, "paddleocr", None)
+
+    client = get_vision_client("paddle_ocr")
+
+    assert isinstance(client, module.PaddleOCRVisionClient)
+    assert client._engine is None
