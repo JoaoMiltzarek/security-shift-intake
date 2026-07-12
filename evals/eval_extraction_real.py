@@ -3,7 +3,7 @@
 Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates):
 
 1. **Instrumentado (default)** — roda o pipeline (config de TABELA) com o leitor
-   escolhido (`--vision local_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
+   escolhido (`--vision local_ocr|paddle_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
    com curadoria em `private/curadoria/`, e registra por folha as métricas do
    protocolo: `parse_table_success`, esforço humano (`estimated_chars_to_type`,
    `prefilled_but_wrong_count`, `blank_field_count`, `illegible_token_count`),
@@ -906,7 +906,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--vision",
-        choices=["local_ocr", "local_vlm", "mock"],
+        choices=["local_ocr", "paddle_ocr", "local_vlm", "mock"],
         default="local_ocr",
         help="leitor da rodada instrumentada (resolvido via factory)",
     )
