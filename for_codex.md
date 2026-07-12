@@ -20,9 +20,13 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F3.PR — fechamento da fase (make check + privacy + saídas reais).
-- **RETOME AQUI:** rodar `make check` e `make privacy-check`; registrar; commit de fechamento;
-  próxima fase F4 (branch `SSI-1007-cockpit-0-1-n`).
+- **Fase F3 COMPLETA.** Micro-step corrente: F4.C1 — cockpit 0/1/N.
+- **RETOME AQUI:** criar branch `SSI-1007-cockpit-0-1-n` desta branch; começar F4.C1 com
+  contratos vermelhos em `tests/test_ui_table.py` (radios `disposicao`, inputs
+  `occ__{i}__{item|hora|descricao|acao|resolvido}`, linha sobressalente, full-replace,
+  contradição rejeitada, "(sem alteração)" humano só com confirmação explícita — fecha a
+  lavagem de app.py:104-108). Design completo na seção "Design F-01/F-02" do plan file e
+  no MAPA F4 abaixo. Ler `_edit_table` atual (mudou no F2) antes de reescrever.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -292,7 +296,15 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       `test_edit_response_refreshes_status_panel_oob` (vermelho `291ed954` → verde).
       SAÍDA REAL do probe (2ª rodada, servidor novo): aprovado OK; edição revogou (pending)
       OK; send bloqueado OK; reaprovado+enviado OK; edit de enviado → 409 OK.
-- [ ] F3.PR fechamento de fase
+- [x] F3.PR fechamento. SAÍDAS REAIS (2026-07-11): `make check` → lint OK, mypy OK,
+      **pytest: 643 passed, 2 skipped, 0 xfail, 79.64s** (todos os contratos F1 flipados);
+      `make privacy-check` → OK. Commits da fase: 1df1a333/ea7bc4a0 (B1), 18f64a01/e8deb62d
+      (B2), fac03f1d/4c5e60fd (B3), d642f23b (ui 409), 291ed954/b47fd467 (OOB + smoke).
+      Corpo de PR sugerido: "F3 (SSI-1006): vincula aprovação à revisão do conteúdo —
+      Draft.revision+approved_revision+sha256 com migração idempotente de DB; edição revoga
+      aprovação e é bloqueada pós-envio (409); send exige revisão/hash aprovados e re-roda
+      assert_reviewable; painel de status reflete revogação via OOB; cenário
+      approve→edit→send no browser-smoke (CI)."
 
 ### F4 — Cockpit 0/1/N (SSI-1007) — design C1..C3
 - [ ] F4.C1 `_edit_table` reescrito: radios `disposicao` (`sem_alteracao`|`com_ocorrencias`,
