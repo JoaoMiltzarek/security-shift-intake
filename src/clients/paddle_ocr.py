@@ -114,8 +114,8 @@ class PaddleOCRVisionClient:
             image_bytes = base64.b64decode(image_b64, validate=True)
             image = Image.open(io.BytesIO(image_bytes))
             image.load()
-        except (OSError, ValueError) as exc:
-            raise RuntimeError("PaddleOCR received invalid image data.") from exc
+        except (OSError, ValueError):
+            raise RuntimeError("PaddleOCR received invalid image data.") from None
 
         if self._engine is None:
             self._engine = _PaddleSDKEngine()

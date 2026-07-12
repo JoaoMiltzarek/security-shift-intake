@@ -205,10 +205,6 @@ def test_missing_optional_sdk_fails_only_when_transcribing(
     assert exc_info.value.__cause__ is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: erro de imagem ainda encadeia detalhe do decoder",
-)
 def test_invalid_image_error_is_constant_and_unchained() -> None:
     module = importlib.import_module("src.clients.paddle_ocr")
 
