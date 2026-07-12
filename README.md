@@ -92,7 +92,9 @@ fields, and clicking a field highlights the **probable region** the value came f
 value answers *where it came from, with what confidence, by which method, and whether a human
 reviewed it*:
 
-![Evidence cockpit — synthetic occurrence-table draft, clicked field highlighted on the sheet](samples/cockpit_screenshot.png)
+The animation above is captured from the committed synthetic sheet through the real Tesseract
+path; its hashes, tool versions and regeneration procedure are in
+[samples/README.md](samples/README.md).
 
 - **`exact`** — the value matched a contiguous run of OCR words (box = union of those words).
 - **`token_window`** — the value's tokens matched within one OCR line (partial score).
@@ -107,50 +109,31 @@ plain review layout. Reviewed sheets export to **CSV** — but the button is **b
 field is pending**, and the CSV always carries the post-review values, never the raw OCR.
 
 ## Quick demo
-```bash
-uv sync
+```console
+# One command: synthetic fixture -> real Tesseract -> loopback review UI.
+make demo
 
-# Public synthetic demo — no real file, no API, $0:
-make demo-pipeline-mock        # creates review drafts; prints the URLs
-INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
-#   open http://127.0.0.1:8000/
+# After Ctrl+C:
+make purge-demo-data
 
-# Quality gate (598 tests, mocked, $0) and the privacy guardrail:
+# Local quality and privacy gates:
 make check
 make privacy-check
 ```
 Process a **real** sheet locally (needs Tesseract + the `por` language data; the file stays in
 the gitignored `private/` folder, never committed):
-```bash
+```console
 # Defaults to the v1 occurrence-table config (configs/controle_ocorrencias.yaml);
 # override with CONFIG=configs/htmicron_security.yaml for the legacy scalar form.
 make demo-pipeline FILE=private/reais/example.pdf
+make serve SERVE_ARGS="--port 8000"
 make purge-demo-data           # wipe temporary demo artifacts when done
 ```
 
-### See the evidence cockpit
-The clickable overlay needs real OCR geometry, so run the **Tesseract** path on the committed
-synthetic sheet, then open the printed review URL (image left, fields right, click to highlight):
-```bash
-make demo-pipeline FILE=samples/sample_doc-00000.png CONFIG=configs/controle_ocorrencias.yaml
-INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app
-```
-> The mock demo (`make demo-pipeline-mock`) has no OCR geometry, so it shows the cockpit's
-> textual-fallback layout, not the clickable overlay.
-
-### Demo de 3 minutos (dois leitores, honesta sobre o que cada um mostra)
-```bash
-# (a) Sem setup extra — Tesseract: bbox REAL no cockpit + gate humano + saída bloqueada
-#     enquanto houver pendência:
-make demo-pipeline FILE=samples/sample_doc-00000.png
-
-# (b) Com Ollama — o VLM local lê o manuscrito que o Tesseract não lê:
-ollama serve   # noutro terminal: ollama pull qwen2.5vl:3b (~3 GB, uma vez)
-INTAKE_VISION=local_vlm make demo-pipeline FILE=samples/sample_doc-00000.png
-```
-Compare a transcrição/extração lado a lado. **Honestidade:** o caminho VLM (como o mock)
-**não emite geometria** — o cockpit mostra o fallback textual, sem overlay clicável
-(a UI tolera `bbox=None`); o bbox clicável é exclusivo do caminho Tesseract.
+`make demo-pipeline-mock` remains available as a no-Tesseract UI fallback. It deliberately has
+no OCR geometry and therefore cannot demonstrate click-to-highlight. The local VLM path is an
+experimental, loopback-only reader: it also emits no geometry and the current frozen benchmark
+does **not** admit it as the default reader.
 
 ### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
 A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
@@ -163,26 +146,26 @@ progresso e primeiras medições reais (G-S2) em `docs/STATUS_TIER_C.md`. O eval
 make eval-real VISION=local_ocr DPI=150      # baseline instrumentado
 make eval-real VISION=local_vlm DPI=150      # a medição que decide (precisa de Ollama)
 make eval-real VISION=local_vlm DPI=250      # sensibilidade a DPI (OOM de VRAM? reduza p/ 100)
-PYTHONPATH=. uv run python -m evals.eval_extraction_real --compare \
+uv run --locked python -m evals.eval_extraction_real --compare \
   private/audit/eval_real_detailed_local_ocr_dpi150.json \
   private/audit/eval_real_detailed_local_vlm_dpi150.json   # pareado por campo (gate G1)
 ```
 Saídas: detalhado (PII) em `private/audit/` (gitignored); resumo público **por whitelist**
 em `docs/eval_real_summary.json`. Sanity check secundário do leitor:
-`python scripts/build_bressay_manifest.py --bressay-dir data/bressay --n 20 && make eval-bressay N=20`.
+`uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20 && make eval-bressay N=20`.
 
 ## Setup & troubleshooting
 The supported platform is **Linux / WSL / CI (Ubuntu)**. Windows native works as a
 **documented fallback** — the tests and demo run, but the live browser-smoke gate runs in CI,
 not locally. Probe your environment before running:
-```bash
-python3 scripts/preflight.py --json   # stdlib only; needs no uv/venv
+```console
+python scripts/preflight.py --json   # stdlib only; needs no uv/venv
 ```
 It reports uv/make/tesseract/chromium, symlink support, stray SQLite DBs, and the pre-commit
 hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never mutates.
 
-- **No `make`?** Run the underlying commands: `uv run pytest`, `uv run ruff check .`,
-  `uv run mypy src data scripts`.
+- **No `make`?** Run the underlying commands: `uv run --locked pytest`,
+  `uv run --locked ruff check .`, `uv run --locked mypy src data scripts evals`.
 - **No Tesseract?** The OCR path can't read handwriting, so fields route to human review and the
   cockpit shows its textual-fallback layout — the mock demo still runs end to end.
 
