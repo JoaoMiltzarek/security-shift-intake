@@ -438,8 +438,25 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       Commits: `ac724b4e` (contratos) → `01cc80f7` (implementação + CI + typecheck).
 
 ### F8 — Showcase honesto (SSI-1011)
-- [ ] F8.1 `make demo` one-command: fixture sintética → Tesseract REAL → uvicorn 127.0.0.1 → URL + commits
-- [ ] F8.2 GIF do cockpit via Playwright screencast na fixture sintética → assets/ + commits
+- [x] F8.1 `make demo` one-command: fixture sintética → Tesseract REAL → uvicorn 127.0.0.1 → URL.
+      Fechado em **17 microcommits** (`9bc9d89e..5f79eba1`), todos Conventional Commits.
+      O launcher fixa `sample_tc-000000.png`, Tesseract local, config tabular, banco
+      `private/app.db` e bind 127.0.0.1; recusa `INTAKE_DB_URL` herdado, espera o
+      `uvicorn.Server.started` antes de abrir browser e nunca imprime valores OCR.
+      Descobertas do loop: testes gravavam page images em `private/` (root agora injetável),
+      receitas `PYTHONPATH=.` quebravam no Windows (todas migradas para `python -m`) e
+      `uv run` podia re-resolver o lock (todos os alvos usam `--locked`; install usa
+      `uv sync --locked`). CI `eval-safety` agora roda a fixture real com Tesseract e
+      exige bbox de campo, não só word boxes.
+      GATE REAL em clone temporário limpo no SHA `5f79eba1`: Tesseract 5.4 ENG,
+      health/review/page PNG/404/CSP OK, bind=127.0.0.1, draft pending, words=55,
+      pages=1, bboxes=4, disposition=present, purge=OK, Git limpo; clone removido.
+      Fechamento local: `make check` → Ruff + mypy (85 source files) + **697 passed,
+      3 skipped**, 1 warning de depreciação Starlette/httpx; `make privacy-check` → OK;
+      `make purge-demo-data` → OK e app.db/page_images ausentes.
+- [ ] F8.2 GIF do cockpit via Playwright na fixture sintética →
+      `samples/cockpit_demo.gif` + allowlist EXATA nos guards + proveniência. Não usar
+      o smoke atual sem correção: ele combina imagem escalar, OCR tabular e bbox injetada.
 - [ ] F8.3 README: topo "In 30 seconds" EN, linha 1 honesta sobre cursiva, GIF, 4 diferenciais
       (browser-smoke CI, eval anti-memorização que publicou gate falho, ~599 testes $0,
       anti-corruption Raw/Normalized), Mermaid; limitações depois do valor + commits
