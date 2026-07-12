@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.privacy_check import (
     check_no_sensitive_outside_private,
     check_public_no_pii,
@@ -134,4 +136,43 @@ def test_non_bressay_dataset_binary_still_flagged(tmp_path: Path) -> None:
 def test_bressay_ground_truth_text_exempt_from_pii_scan(tmp_path: Path) -> None:
     # BRESSAY .txt ground truth legitimately contains names/times of essay authors.
     _write(tmp_path / "datasets" / "bressay" / "gt.txt", "encontro às 14:30 com colega")
+    assert check_public_no_pii(tmp_path) == []
+
+
+# --- F6.2 (SSI-1009): formatos de código/dados públicos também são varridos ---
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "data/out.json",
+        "evals/rows.csv",
+        "ui/x.html",
+        "templates/mail.j2",
+        "scripts/tool.py",
+        "notes.jsonl",
+        "config/extra.toml",
+        "ui/static/x.js",
+    ],
+)
+def test_public_code_formats_scanned_for_private_terms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relpath: str
+) -> None:
+    """Um termo real (pii_terms) escondido em QUALQUER formato de texto commitável
+    precisa reprovar o privacy-check — não só em .md/.yaml (finding F-06)."""
+    import re
+
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(
+        pc, "_load_extra_terms", lambda: [re.compile("NOMEREALTESTE", re.IGNORECASE)]
+    )
+    _write(tmp_path / relpath, "valor com NOMEREALTESTE dentro")
+    assert pc.check_public_no_pii(tmp_path)
+
+
+def test_code_formats_ignore_clock_times(tmp_path: Path) -> None:
+    """Fixtures sintéticas contêm horários legítimos — HH:MM não é sinal de PII em
+    código/dados (limitação documentada; o heurístico de hora vale só para prosa)."""
+    _write(tmp_path / "tests" / "test_x.py", "hora = '14:32'")
     assert check_public_no_pii(tmp_path) == []
