@@ -1,12 +1,17 @@
 # Privacy & Security
 
 Security shift sheets contain **PII** (guard names, people, units, incident details). This
-project is built so that data never leaves the operator's machine and never lands in the repo.
+project keeps the supported default flow on the operator's machine and keeps real data out of
+the repository.
 
 ## Principles
 - **Local-first, offline.** The default flow uses local OCR (Tesseract) + deterministic rules.
-  **No external API** is called — not Anthropic, OpenAI, Google, AWS or Azure. A real sheet is
-  never uploaded anywhere.
+  **No external API** is called — not Anthropic, OpenAI, Google, AWS or Azure. No default command
+  uploads a sheet.
+- **External experiments cross a trust boundary.** Anthropic and remote-VLM paths can transmit
+  document data outside the machine. They require explicit opt-in (`--allow-external`,
+  `INTAKE_VISION=anthropic`, or `INTAKE_VLM_ALLOW_REMOTE=1`) and must not receive real PII without
+  authorization and an applicable external-data policy.
 - **Localhost only — no authentication.** The FastAPI review API/UI has no auth, and endpoints
   like `GET /drafts/{id}` return the full pipeline state (including the transcription). Run it
   bound to `127.0.0.1` for a single operator; **never expose it to a network or deploy it

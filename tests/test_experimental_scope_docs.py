@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -61,7 +59,6 @@ def test_anthropic_llm_is_documented_as_unwired_external_adapter() -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1012: política ainda promete localidade absoluta")
 def test_privacy_policy_limits_locality_guarantee_to_default_flow() -> None:
     privacy = _read("docs/PRIVACY.md")
 
@@ -76,5 +73,5 @@ def test_privacy_policy_limits_locality_guarantee_to_default_flow() -> None:
         "A real sheet is never uploaded anywhere",
     )
 
-    assert all(value in privacy for value in required)
+    assert all(_has_phrase(privacy, value) for value in required)
     assert all(value not in privacy for value in forbidden)
