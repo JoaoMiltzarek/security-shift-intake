@@ -63,10 +63,6 @@ def test_empty_recognition_is_an_explicit_zero_confidence_transcription() -> Non
     assert result.words is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: traceback ainda encadeia exceção potencialmente contendo PII",
-)
 def test_engine_error_does_not_chain_or_expose_ocr_text() -> None:
     module = importlib.import_module("src.clients.paddle_ocr")
 

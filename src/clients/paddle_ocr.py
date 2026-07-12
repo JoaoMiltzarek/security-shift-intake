@@ -48,9 +48,9 @@ class PaddleOCRVisionClient:
             raise RuntimeError("PaddleOCR optional engine is not initialized.")
         try:
             lines = self._engine.recognize(image)
-        except Exception as exc:  # noqa: BLE001 — third-party engine boundary
+        except Exception:  # noqa: BLE001 — third-party engine boundary
             # Do not copy the SDK exception into this message: it may contain OCR text.
-            raise RuntimeError("PaddleOCR failed to process the page.") from exc
+            raise RuntimeError("PaddleOCR failed to process the page.") from None
 
         confidence = sum(line.confidence for line in lines) / len(lines) if lines else 0.0
         return TranscriptionResult(
