@@ -20,11 +20,11 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F3.B1 — Draft revision/hash + migração de DB.
-- **RETOME AQUI:** branch `SSI-1006-aprovacao-revisao` (criada de
-  `SSI-1005-tri-state-estrutural`); escrever teste de migração (DB antigo em tmp_path →
-  init_db adiciona colunas revision/approved_revision/approved_state_sha256) e implementar
-  `_ensure_draft_columns` em `src/api/db.py` + campos no `src/api/models.py`.
+- **Micro-step corrente:** F3.B2 — repository: state_sha256 + update_state/set_status.
+- **RETOME AQUI:** em `src/api/repository.py`: (teste vermelho primeiro em test_repository)
+  `state_sha256()` sobre o STRING armazenado; `DraftAlreadySentError`; `update_state` bloqueia
+  sent + revision++ + APPROVED→PENDING + audit `approval_revoked` + audit `edited` com
+  `rev=N sha256=<12hex>`; `set_status(APPROVED)` estampa approved_revision+hash (REJECTED limpa).
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -257,9 +257,13 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       `pytest tests/test_local_ocr.py` → **6 passed, 3.78s**. Worktree limpa em `4fd8e11b`.
 
 ### F3 — Aprovação↔revisão (SSI-1006) — design B1..B3
-- [ ] F3.B1 `src/api/models.py`: Draft += `revision:int=1`, `approved_revision:int|None`,
-      `approved_state_sha256:str|None`; `src/api/db.py init_db` += ALTER TABLE idempotente via
-      PRAGMA table_info + teste de migração (DB velho em tmp_path) + commits
+- [x] F3.B1 feito: Draft += revision/approved_revision/approved_state_sha256 (models.py);
+      `init_db` += `_ensure_draft_columns` (PRAGMA table_info + ALTER TABLE idempotente,
+      testado com init_db 2×). Contratos: draft novo nasce revision=1 sem stamp; DB legado
+      migra preservando linha aprovada com approved_revision NULL. Commits: `1df1a333`
+      (vermelho: 2 failed/8 passed) → implementação. SAÍDA REAL pós-impl:
+      `pytest test_repository+test_api+test_gate` → **21 passed, 2 xfailed, 3.25s**;
+      mypy 2 files OK; ruff OK.
 - [ ] F3.B2 `repository.py`: `state_sha256()` (sha256 do STRING armazenado, nunca re-serializar);
       `update_state`: bloqueia sent (`DraftAlreadySentError`), revision++, APPROVED→PENDING +
       limpa approved_* + audit `approval_revoked`; audit `edited` com rev+sha12 (sem PII);

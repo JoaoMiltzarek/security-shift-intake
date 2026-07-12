@@ -46,6 +46,28 @@ def make_engine(url: str = DEFAULT_DB_URL) -> Engine:
     return create_engine(url, echo=False, connect_args=connect_args)
 
 
+# Colunas adicionadas ao Draft depois do primeiro release de demo (SSI-1006).
+# ALTER TABLE idempotente preserva drafts e trilha de auditoria existentes; um draft
+# aprovado legado fica com approved_revision NULL => o gate bloqueia o envio até
+# reaprovação (o caminho seguro para aprovações anteriores ao vínculo por revisão).
+_DRAFT_MIGRATIONS = {
+    "revision": "INTEGER NOT NULL DEFAULT 1",
+    "approved_revision": "INTEGER",
+    "approved_state_sha256": "VARCHAR",
+}
+
+
+def _ensure_draft_columns(engine: Engine) -> None:
+    """Adiciona colunas novas à tabela `draft` de DBs antigos (idempotente)."""
+    with engine.connect() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(draft)")}
+        for column, ddl in _DRAFT_MIGRATIONS.items():
+            if column not in existing:
+                conn.exec_driver_sql(f"ALTER TABLE draft ADD COLUMN {column} {ddl}")
+        conn.commit()
+
+
 def init_db(engine: Engine) -> None:
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then apply in-place column migrations."""
     SQLModel.metadata.create_all(engine)
+    _ensure_draft_columns(engine)
