@@ -5,11 +5,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 
 def _has_phrase(text: str, phrase: str) -> bool:
     return re.search(r"\s+".join(re.escape(word) for word in phrase.split()), text) is not None
 
 
+@pytest.mark.xfail(strict=True, reason="SSI-1011: baseline completa ainda não publicada")
 def test_readme_showcase_is_current_and_evidence_backed() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
@@ -23,6 +26,7 @@ def test_readme_showcase_is_current_and_evidence_backed() -> None:
         "RawDocumentExtraction",
         "NormalizedIncidentModel",
         "Tesseract is not reliable on cursive handwriting",
+        "728 passed, 3 skipped",
     )
     assert all(value in readme for value in required)
 
