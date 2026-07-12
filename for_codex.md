@@ -20,13 +20,12 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Fase F4 COMPLETA.** Micro-step corrente: F5.1 — auditoria rastreável.
-- **RETOME AQUI:** criar branch `SSI-1008-auditoria-rastreavel`. NOTA: F5 está PARCIALMENTE
-  pronto — F3.B2 já grava `rev=N sha256=<12hex>` nos audits de edit/approve. Restam: (F5.2)
-  snapshot por revisão para PROVAR o que foi aprovado/enviado (decidir: tabela DraftRevision
-  ou audit detail suficiente — avaliar custo/benefício e registrar decisão); (F5.3) trocar
-  "immutable" por "append-only pela aplicação" em models.py:36-37 (docstring AuditEntry),
-  repository.py docstring, README (linha ~27 "immutable audit trail") e demais docs.
+- **Fase F5 COMPLETA.** Micro-step corrente: F6.1 — retenção + privacidade.
+- **RETOME AQUI:** criar branch `SSI-1009-retencao-privacidade`. Ordem: F6.1 purge
+  (`purge_demo_data.py:26` _DEMO_TARGETS += page_images, app.db-shm, debug + teste em
+  tests/test_purge.py) → F6.2 privacy_check extensões → F6.3 check_real_data .json →
+  F6.4 make serve loopback → F6.5 guards externos (demo_transcribe --allow-external;
+  local_vlm loopback salvo INTAKE_VLM_ALLOW_REMOTE=1) → F6.V purge real + cockpit degrada.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -346,10 +345,20 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       persistem, e o conteúdo confirmado é reclassificado/re-roteado no mesmo save (F-03)."
 
 ### F5 — Auditoria rastreável (SSI-1008)
-- [ ] F5.1 AuditEntry += revision + state_hash (detail sem PII) + testes + commits
-- [ ] F5.2 snapshot por revisão (provar o que foi aprovado/enviado) + commits
-- [ ] F5.3 "immutable" → "append-only pela aplicação" em models.py:36-37, README, docstrings + commit
-- [ ] F5.PR fechamento
+- [x] F5.1 já coberto em F3.B2 (audits de edit/approve carregam `rev=N sha256=<12hex>`, sem PII).
+- [x] F5.2 feito: tabela `DraftRevision` (draft_id, revision, state_sha256, state_json,
+      created_at) gravada em create_draft e update_state via `_record_revision` (nunca
+      sobrescrita; criada pelo create_all — sem migração extra). DECISÃO registrada:
+      snapshot em tabela (e não só hash no audit) porque provar o conteúdo aprovado exige
+      os bytes, não só o digest. Contratos: revisões 1..N preservadas com hashes corretos;
+      `approved_state_sha256` sempre corresponde a um snapshot existente.
+      Commits: `8b6e73ea` (vermelho 2 failed/16 passed) → implementação.
+- [x] F5.3 feito: "immutable" → append-only + snapshots em README:27 (agora descreve
+      DraftRevision), models.py module docstring e docstring do AuditEntry (explicita
+      "append-only PELA APLICAÇÃO, não imutabilidade criptográfica"). Mantidos os
+      comentários "draft enviado é imutável" (esses são verdadeiros: 409 + guard).
+- [x] F5.PR fechamento. SAÍDAS REAIS: `make check` → **654 passed, 2 skipped, 81.14s**,
+      lint+mypy verdes; `make privacy-check` → OK.
 
 ### F6 — Retenção + privacidade (SSI-1009)
 - [ ] F6.1 `purge_demo_data.py:26` _DEMO_TARGETS += page_images, app.db-shm, debug + teste + commits

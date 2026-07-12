@@ -2,8 +2,8 @@
 
 A `Draft` is a submitted report awaiting human review; its `status` is the
 authoritative state for the send gate. Every state change is recorded as an
-immutable `AuditEntry` (who / what / when) — required by the human-approval-gate
-invariant.
+append-only `AuditEntry` (who / what / when) plus a `DraftRevision` content
+snapshot — required by the human-approval-gate invariant.
 """
 
 from __future__ import annotations
@@ -40,7 +40,12 @@ class Draft(SQLModel, table=True):
 
 
 class AuditEntry(SQLModel, table=True):
-    """An immutable audit-log row: who did what to which draft, and when."""
+    """An audit-log row: who did what to which draft, and when.
+
+    Append-only PELA APLICAÇÃO (nenhum caminho de código atualiza/apaga linhas) —
+    não é imutabilidade criptográfica; a prova de conteúdo vem do `DraftRevision`
+    (snapshot + sha256 por revisão) referenciado pelos details `rev=N sha256=...`.
+    """
 
     id: int | None = Field(default=None, primary_key=True)
     draft_id: int = Field(foreign_key="draft.id", index=True)
@@ -48,3 +53,19 @@ class AuditEntry(SQLModel, table=True):
     action: str
     detail: str | None = Field(default=None)
     timestamp: datetime = Field(default_factory=utcnow)
+
+
+class DraftRevision(SQLModel, table=True):
+    """Snapshot de UMA revisão do conteúdo de um draft (SSI-1008).
+
+    Gravado em toda criação/edição; nunca sobrescrito. Permite provar exatamente
+    qual conteúdo cada aprovação/envio referenciou (via `approved_state_sha256`).
+    Contém PII como o próprio draft — vive no mesmo DB gitignorado em private/.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    draft_id: int = Field(foreign_key="draft.id", index=True)
+    revision: int
+    state_sha256: str
+    state_json: str
+    created_at: datetime = Field(default_factory=utcnow)

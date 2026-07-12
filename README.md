@@ -24,7 +24,9 @@ PII** (must not go to an external API), and automation **must not invent** infor
 ## The solution
 A staged, **config-driven** pipeline that runs **100% locally** (no paid API, no cloud):
 local OCR → best-effort extraction → an **OCR quality gate** → auditable per-field results →
-normalization → **human review** → blocked drafts when unsafe → an immutable audit trail.
+normalization → **human review** → blocked drafts when unsafe → an append-only audit trail
+with per-revision content snapshots (every approval provably references the exact content
+the reviewer saw).
 It doesn't replace the human; it **reduces transcription load and surfaces uncertainty**.
 
 ### Two outputs

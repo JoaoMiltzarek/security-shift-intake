@@ -15,7 +15,7 @@ import hashlib
 
 from sqlmodel import Session, col, select
 
-from src.api.models import AuditEntry, Draft, utcnow
+from src.api.models import AuditEntry, Draft, DraftRevision, utcnow
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -45,6 +45,20 @@ def add_audit(
     return entry
 
 
+def _record_revision(session: Session, draft: Draft) -> None:
+    """Grava o snapshot da revisão corrente (nunca sobrescrito — SSI-1008)."""
+    assert draft.id is not None
+    session.add(
+        DraftRevision(
+            draft_id=draft.id,
+            revision=draft.revision,
+            state_sha256=state_sha256(draft.state_json),
+            state_json=draft.state_json,
+        )
+    )
+    session.commit()
+
+
 def create_draft(session: Session, state: PipelineState, actor: str = "system") -> Draft:
     """Persist a new pending draft from a PipelineState and audit the submission."""
     draft = Draft(status=ApprovalStatus.PENDING, state_json=state.model_dump_json())
@@ -52,6 +66,7 @@ def create_draft(session: Session, state: PipelineState, actor: str = "system") 
     session.commit()
     session.refresh(draft)
     assert draft.id is not None
+    _record_revision(session, draft)
     add_audit(session, draft.id, actor=actor, action="submitted")
     return draft
 
@@ -129,6 +144,7 @@ def update_state(
     session.add(draft)
     session.commit()
     session.refresh(draft)
+    _record_revision(session, draft)
     add_audit(
         session, draft_id, actor=actor, action=action,
         detail=f"rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}",
