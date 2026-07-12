@@ -1,9 +1,8 @@
-"""F8.1 (SSI-1011): contrato do showcase local executado por ``make demo``.
+"""F8.1 (SSI-1011): contratos do showcase local executado por ``make demo``.
 
-Os testes nascem como ``xfail(strict)`` porque o entry point ainda não existe. Eles
-fixam as garantias que importam antes da implementação: fixture versionada, reader
-Tesseract local (independente de env), bind somente em loopback e abertura do browser
-apenas depois que o health check responder.
+As garantias centrais são fixture versionada, reader Tesseract local (independente de
+env), banco purgável, bind somente em loopback e abertura do browser apenas depois que
+o servidor Uvicorn desta execução confirmar que iniciou.
 """
 
 from __future__ import annotations
@@ -297,7 +296,10 @@ def test_cli_does_not_offer_a_host_override() -> None:
     assert exc_info.value.code == 2
 
 
-@pytest.mark.skipif(not tesseract_available(), reason="tesseract não instalado")
+@pytest.mark.skipif(
+    not tesseract_available() and os.environ.get("SSI_REQUIRE_TESSERACT") != "1",
+    reason="tesseract não instalado",
+)
 def test_committed_showcase_fixture_persists_real_ocr_geometry(
     tmp_path: Path,
 ) -> None:
@@ -320,6 +322,11 @@ def test_committed_showcase_fixture_persists_real_ocr_geometry(
     state = PipelineState.model_validate_json(draft.state_json)
     assert state.transcription_confidence_source == "tesseract"
     assert state.words
+    located_fields = [field for field in state.extracted_fields if field.bbox is not None]
+    assert located_fields
+    assert all(
+        field.evidence_method in {"exact", "token_window"} for field in located_fields
+    )
     assert state.page_image_paths
     assert all((page_images_root / rel).is_file() for rel in state.page_image_paths)
     assert state.normalized is not None
