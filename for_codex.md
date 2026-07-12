@@ -494,9 +494,24 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       em `0b0f3fed`; nenhuma instalação/lockfile/push foi feito no repositório principal.
 
 ### F9 — Narrativa menor (SSI-1012)
-- [ ] F9.1 watcher/reconciler/AnthropicLLM marcados experimentais (docstring+README, sem deletar) + commits
-- [ ] F9.2 F-09: constantes table_rules.py:27-28 comentadas "piso heurístico deliberado <0.70" + commit
-- [ ] F9.PR fechamento
+- [x] F9.1 fechado sem deletar/integrar protótipos. Watcher agora declara que grava `.txt`
+      destacado do DB/cockpit/gate e que deduplicação é só process-local (o JSONL não é
+      restaurado); reconciler declara implementação unitária sem call site; AnthropicLLM declara
+      adaptador externo pago, testado só com SDK fake e sem entrypoint. Architecture/orchestrator/
+      Make help/README alinhados. Achado adicional P1: PRIVACY.md prometia localidade absoluta,
+      contradizendo opt-ins Anthropic/VLM remoto; corrigido para garantia do fluxo default + trust
+      boundary explícita. Commits `d4c2a233..e1721467`.
+- [x] F9.2 fechado: `HEADER_REVIEW_PLACEHOLDER_CONFIDENCE=0.65` e
+      `ROW_REVIEW_PLACEHOLDER_CONFIDENCE=0.40`; comentário explicita placeholders heurísticos não
+      calibrados, deliberadamente `<0.70`, com `status=must_review` como gate independente.
+      `validate_table` ganhou `NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE=0.40` porque normalize
+      reduz metadata numérica a `needs_review` (não se finge propagação). README/ARCHITECTURE
+      distinguem Tesseract mean-word, rule placeholders e VLM placeholder. Contratos + implementação
+      `b7da58ee..d57755b8`; bloco focado 37 passed, Ruff/mypy verdes.
+- [x] F9.PR fechamento. SAÍDAS: `make check` → Ruff OK, mypy **86 source files**,
+      **735 passed, 3 skipped**, 1 warning Starlette/httpx; `make privacy-check` → OK;
+      `make purge-demo-data` → app.db/sidecars/page_images/debug/eval_safety ausentes; checker
+      Markdown → 15 arquivos, 0 links ausentes. Baseline publicada em `1f246428`.
 
 ### F10 — Bake-off PP-OCRv5 (SSI-1013, timeboxed, NÃO bloqueia release)
 - [ ] F10.1 timebox de instalação: pip install paddleocr/paddlepaddle Windows nativo; falhou →
