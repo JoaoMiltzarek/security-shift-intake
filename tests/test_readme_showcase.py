@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
-import pytest
+
+def _has_phrase(text: str, phrase: str) -> bool:
+    return re.search(r"\s+".join(re.escape(word) for word in phrase.split()), text) is not None
 
 
 def test_readme_showcase_is_current_and_evidence_backed() -> None:
@@ -34,10 +37,6 @@ def test_readme_showcase_is_current_and_evidence_backed() -> None:
     assert all(value not in readme for value in stale_or_misleading)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: review independente encontrou claims de gate imprecisos",
-)
 def test_readme_distinguishes_observed_state_from_stronger_guarantees() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     required = (
@@ -51,7 +50,7 @@ def test_readme_distinguishes_observed_state_from_stronger_guarantees() -> None:
         "configured PII patterns",
         "loopback by default",
     )
-    assert all(value in readme for value in required)
+    assert all(_has_phrase(readme, value) for value in required)
 
     forbidden = (
         "exact content the reviewer saw",
@@ -60,4 +59,4 @@ def test_readme_distinguishes_observed_state_from_stronger_guarantees() -> None:
         "fails on any tracked real data or PII",
         "experimental, loopback-only reader",
     )
-    assert all(value not in readme for value in forbidden)
+    assert all(not _has_phrase(readme, value) for value in forbidden)

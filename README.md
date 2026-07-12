@@ -60,8 +60,9 @@ A staged, **config-driven** pipeline whose supported default path runs fully loc
 API, no cloud):
 local OCR → best-effort extraction → an **OCR quality gate** → auditable per-field results →
 normalization → **human review** → blocked drafts when unsafe → an append-only audit trail
-with per-revision content snapshots (every approval provably references the exact content
-the reviewer saw).
+with per-revision content snapshots. Approval records the revision and hashes the stored state
+at approval time; it does not claim optimistic-concurrency proof of what a separate browser tab
+displayed.
 It doesn't replace the human; it **reduces transcription load and surfaces uncertainty**.
 External Anthropic and remote-VLM utilities exist only as explicit opt-in experiments; they are
 not used by `make demo` or by the default pipeline.
@@ -123,11 +124,11 @@ make purge-demo-data
 make check
 make privacy-check
 ```
-Process a **real** sheet locally (needs Tesseract + the `por` language data; the file stays in
-the gitignored `private/` folder, never committed):
+Process a **real** sheet locally (the Tesseract executable is required; the Portuguese language
+pack is recommended, with an `eng` fallback; the file stays in the gitignored `private/`
+folder, never committed):
 ```console
-# Defaults to the v1 occurrence-table config (configs/controle_ocorrencias.yaml);
-# override with CONFIG=configs/htmicron_security.yaml for the legacy scalar form.
+# Uses the v1 occurrence-table config (configs/controle_ocorrencias.yaml).
 make demo-pipeline FILE="private/reais/your-file.pdf"  # replace with your private file
 make serve SERVE_ARGS="--port 8000"
 make purge-demo-data           # wipe temporary demo artifacts when done
@@ -135,8 +136,8 @@ make purge-demo-data           # wipe temporary demo artifacts when done
 
 `make demo-pipeline-mock` remains available as a no-Tesseract UI fallback. It deliberately has
 no OCR geometry and therefore cannot demonstrate click-to-highlight. The local VLM path is an
-experimental, loopback-only reader: it also emits no geometry and the current frozen benchmark
-does **not** admit it as the default reader.
+experimental reader that is loopback by default (remote use requires an explicit unsafe opt-in):
+it emits no geometry and the current frozen benchmark does **not** admit it as the default.
 
 ### Medir o leitor (a régua que decide — docs/DATASET_CONTRACT.md)
 A decisão de adoção de leitor vem do **dataset sintético `tier_c`** (gates G-S0…G-S3 +
@@ -176,13 +177,14 @@ hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never 
   `uv run --locked python -m scripts.purge_demo_data demo`. Quality equivalents are
   `uv run --locked pytest`, `uv run --locked ruff check .`, and
   `uv run --locked mypy src data scripts evals`.
-- **No Tesseract?** The OCR path can't read handwriting, so fields route to human review and the
-  cockpit shows its textual-fallback layout — the mock demo still runs end to end.
+- **No Tesseract?** The real OCR path exits with a clear installation error before creating a
+  draft. Use `make demo-pipeline-mock` only as an explicit UI fallback; it has no OCR geometry.
 
 ## Architecture
 The Mermaid flow above shows the executable default path. Draft outputs are built before review
-so the operator can inspect them, but export/copy/send remain gated until pending fields are
-resolved and the exact revision is approved.
+so the operator can inspect them. **CSV export requires no pending fields** and uses the reviewed
+state; the copy-ready preview is visibly incomplete while fields are pending. Only send requires
+the approved revision and matching stored-state hash.
 
 Two decoupled models keep the domain stable as the sheet layout changes:
 - **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
@@ -195,8 +197,9 @@ Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why this schema:
 ## Privacy & security
 Real sheets are PII and stay **only in `private/`** (gitignored). No external API is used in
 the default flow. Public artifacts carry **aggregate metrics + synthetic examples only**.
-`make privacy-check` fails on any tracked real data or PII in public files; scoped
-`purge-*` targets clean up without destroying validated curadoria. See
+`make privacy-check` blocks known sensitive file classes and configured PII patterns; it is a
+documented heuristic, not a proof that every possible identifier is detected. Scoped `purge-*`
+targets clean up without destroying validated curadoria. See
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
 > **Run it on localhost only.** The review API/UI has **no authentication** and its endpoints
@@ -247,11 +250,12 @@ in a commit, then run `test` exactly **once** — no target moves after seeing t
 | estimated_chars_to_type | 3264 | 4902 |
 | false_incident_count | **4** | 9 |
 | hora_acc | 0.0714 | 0.3929 |
-| correct_refusal_rate (S/A) | 1.0 | 1.0 |
+| correct_refusal_rate (planted illegible fields) | 1.0 | 1.0 |
 
-Chosen reader: **Tesseract (local_ocr)** — fewer hallucinated incidents and fewer characters
-left for a human to type. The local VLM was rejected: it invents occurrences on degraded
-sheets, the one error a triage tool must never make.
+Current default: **Tesseract (local_ocr)** — fewer false incidents and fewer characters left
+for a human to type than the measured local VLM. The four val false incidents are still reader
+errors and review burden, not successes; the release safety gate separately requires
+`false_incident_unreviewed=0` so none can appear clean without human attention.
 
 **G1-S gate — `bench-balanced` test (45 sheets, run once, Tesseract):**
 
@@ -264,11 +268,12 @@ sheets, the one error a triage tool must never make.
 
 **Verdict: G1-S FAILED — published as-is.** The test split holds out an unseen layout
 variant and unseen degradation bands (anti-memorisation, contract §5); table parsing
-collapsed from 0.40 (val) to 0.11 (test) and 22 incidents were missed (val: 0). The safety
-invariants held: no `S/A` sheet ever became an incident (correct_refusal_rate = 1.0, one
-false incident in 45 sheets), and every unparsed sheet routes to human review — the pipeline
-degrades to "a human transcribes", never to silently wrong data. Verdict block written by
-[scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses a second test run.
+collapsed from 0.40 (val) to 0.11 (test) and 22 incidents were missed (val: 0). There was one
+false incident in 45 sheets; it passed the historical frozen threshold but is not described as
+perfect refusal. The current structural gate instead requires `unsafe_clean=0`,
+`false_incident_unreviewed=0`, and safe-review recall of 1.0. Verdict block written by
+[scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses to overwrite the recorded
+verdict; project governance, not the evaluator CLI, enforces the one-test-run rule.
 
 **BRESSAY (real Brazilian-Portuguese handwriting, 20 word crops, frozen manifest):**
 
