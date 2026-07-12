@@ -118,6 +118,13 @@ jobs:
       - name: Sync dependencies (from uv.lock)
         run: uv sync --locked
 
+      - name: Run committed showcase fixture through real Tesseract
+        env:
+          SSI_REQUIRE_TESSERACT: "1"
+        run: >-
+          uv run --locked pytest
+          tests/test_showcase_demo.py::test_committed_showcase_fixture_persists_real_ocr_geometry
+
       - name: Run structural-safety gates (val split, Tesseract)
         run: make eval-safety VISION=local_ocr DPI=150 OUT=/tmp/eval_safety
 
