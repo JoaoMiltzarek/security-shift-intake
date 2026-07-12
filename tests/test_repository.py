@@ -9,6 +9,7 @@ import pytest
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
+from src.api.models import Draft
 from src.api.repository import (
     add_audit,
     create_draft,
@@ -92,3 +93,47 @@ def test_audit_records_actor_and_detail(session: Session) -> None:
     entry = get_audit(session, draft.id)[-1]
     assert entry.actor == "reviewer@x"
     assert entry.detail == "looks ok"
+
+
+# --- F3.B1 (SSI-1006): revisão do draft + migração de DB legado ---
+
+
+def test_new_draft_starts_at_revision_1_without_approval_stamp(session: Session) -> None:
+    draft = create_draft(session, _state())
+    assert draft.revision == 1
+    assert draft.approved_revision is None
+    assert draft.approved_state_sha256 is None
+
+
+def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
+    """Um DB criado ANTES do vínculo aprovação↔revisão ganha as colunas novas sem
+    perder linhas; o draft aprovado legado fica com approved_revision NULL (send
+    bloqueado até reaprovação — o caminho seguro)."""
+    import sqlite3
+
+    db = tmp_path / "legacy.db"
+    con = sqlite3.connect(db)
+    con.execute(
+        "CREATE TABLE draft ("
+        "id INTEGER PRIMARY KEY, status VARCHAR NOT NULL, state_json VARCHAR NOT NULL, "
+        "created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, sent_at DATETIME)"
+    )
+    con.execute(
+        "INSERT INTO draft (status, state_json, created_at, updated_at) "
+        "VALUES ('approved', '{\"source_pdf\": \"legacy.pdf\"}', "
+        "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+    )
+    con.commit()
+    con.close()
+
+    engine = make_engine(f"sqlite:///{db.as_posix()}")
+    init_db(engine)  # deve migrar in-place, idempotente
+    init_db(engine)  # segunda chamada não pode falhar nem duplicar colunas
+
+    with Session(engine) as s:
+        draft = s.get(Draft, 1)
+        assert draft is not None
+        assert draft.status == "approved"
+        assert draft.revision == 1
+        assert draft.approved_revision is None
+        assert draft.approved_state_sha256 is None
