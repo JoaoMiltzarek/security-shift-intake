@@ -79,10 +79,6 @@ def test_engine_error_does_not_chain_or_expose_ocr_text() -> None:
     assert exc_info.value.__suppress_context__ is True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: wrapper do payload real PaddleOCR ainda não existe",
-)
 def test_sdk_engine_parses_result_and_converts_rgb_to_bgr() -> None:
     module = importlib.import_module("src.clients.paddle_ocr")
 
