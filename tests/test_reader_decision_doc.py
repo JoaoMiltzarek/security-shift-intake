@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: READER_DECISION ainda descreve o critério anterior ao eval-safety",
-)
 def test_reader_decision_separates_candidate_quality_from_release_safety() -> None:
     decision = Path("docs/READER_DECISION.md").read_text(encoding="utf-8")
     required = (
