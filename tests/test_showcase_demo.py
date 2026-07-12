@@ -73,7 +73,8 @@ def test_no_serve_seeds_and_prints_exact_loopback_review_url(
 ) -> None:
     demo = _showcase_demo()
     monkeypatch.delenv("INTAKE_CONFIG", raising=False)
-    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
+    monkeypatch.setattr(demo, "make_engine", lambda _url: object())
     monkeypatch.setattr(demo, "_seed_demo", lambda *args: 23)
     monkeypatch.setattr(
         demo.uvicorn,
@@ -98,6 +99,7 @@ def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
 ) -> None:
     demo = _showcase_demo()
     monkeypatch.delenv("INTAKE_CONFIG", raising=False)
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
     scheduled: list[tuple[object, str]] = []
     server = SimpleNamespace(started=False, run_calls=0)
 
@@ -105,7 +107,7 @@ def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
         server.run_calls += 1
 
     server.run = fake_run
-    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.setattr(demo, "make_engine", lambda _url: object())
     monkeypatch.setattr(demo, "_seed_demo", lambda *args: 31)
     monkeypatch.setattr(demo, "_build_server", lambda _port: server)
     monkeypatch.setattr(
@@ -187,7 +189,8 @@ def test_ocr_failure_never_starts_server_or_browser(
 ) -> None:
     demo = _showcase_demo()
     monkeypatch.delenv("INTAKE_CONFIG", raising=False)
-    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
+    monkeypatch.setattr(demo, "make_engine", lambda _url: object())
 
     def fail_ocr(*args: object) -> int:
         raise RuntimeError("tesseract indisponível")
@@ -208,16 +211,12 @@ def test_ocr_failure_never_starts_server_or_browser(
     assert "Local OCR failed" in capsys.readouterr().err
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: showcase ainda aceita INTAKE_DB_URL herdado",
-)
 def test_hostile_database_env_is_refused_before_seeding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     demo = _showcase_demo()
     monkeypatch.setenv("INTAKE_DB_URL", "sqlite:///outside-showcase.db")
-    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.setattr(demo, "make_engine", lambda _url: object())
     monkeypatch.setattr(
         demo,
         "_seed_demo",
@@ -227,10 +226,6 @@ def test_hostile_database_env_is_refused_before_seeding(
     assert demo.main(["--no-serve"]) == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: seed ainda depende do default capturado por make_engine",
-)
 def test_showcase_pins_database_url_for_seed_and_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -254,13 +249,14 @@ def test_no_open_still_serves_without_scheduling_browser(
 ) -> None:
     demo = _showcase_demo()
     monkeypatch.delenv("INTAKE_CONFIG", raising=False)
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
     server = SimpleNamespace(started=False, run_calls=0)
 
     def fake_run() -> None:
         server.run_calls += 1
 
     server.run = fake_run
-    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.setattr(demo, "make_engine", lambda _url: object())
     monkeypatch.setattr(demo, "_seed_demo", lambda *args: 41)
     monkeypatch.setattr(demo, "_build_server", lambda _port: server)
     monkeypatch.setattr(

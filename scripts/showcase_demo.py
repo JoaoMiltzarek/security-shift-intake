@@ -23,7 +23,7 @@ import uvicorn
 from sqlalchemy.engine import Engine
 
 from scripts.demo_pipeline import build_and_store
-from src.api.db import make_engine
+from src.api.db import DEFAULT_DB_URL, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
@@ -33,6 +33,7 @@ DEFAULT_SAMPLE = Path("samples/sample_tc-000000.png")
 DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
 LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
+SHOWCASE_DB_URL = "sqlite:///private/app.db"
 
 
 class _StartedServer(Protocol):
@@ -130,12 +131,29 @@ def main(argv: list[str]) -> int:
         print(f"Showcase config not found: {DEFAULT_CONFIG}", file=sys.stderr)
         return 2
 
+    inherited_db_url = os.environ.get("INTAKE_DB_URL")
+    if (
+        inherited_db_url not in (None, SHOWCASE_DB_URL)
+        or DEFAULT_DB_URL != SHOWCASE_DB_URL
+    ):
+        print(
+            "Refusing INTAKE_DB_URL override: the synthetic showcase always uses "
+            "private/app.db so its artifacts can be purged safely.",
+            file=sys.stderr,
+        )
+        return 2
+
     # The app module reads this when Uvicorn imports it. This fixed value keeps the
-    # served schema identical to the one used while seeding the synthetic draft.
+    # served schema and DB identical to the ones used while seeding the draft.
     os.environ["INTAKE_CONFIG"] = str(DEFAULT_CONFIG)
+    os.environ["INTAKE_DB_URL"] = SHOWCASE_DB_URL
 
     try:
-        draft_id = _seed_demo(DEFAULT_SAMPLE, DEFAULT_CONFIG, make_engine())
+        draft_id = _seed_demo(
+            DEFAULT_SAMPLE,
+            DEFAULT_CONFIG,
+            make_engine(SHOWCASE_DB_URL),
+        )
     except RuntimeError as exc:
         print(f"Local OCR failed: {exc}", file=sys.stderr)
         return 1
