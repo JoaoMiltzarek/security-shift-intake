@@ -4,15 +4,49 @@
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
-Offline, privacy-first document-extraction pipeline for handwritten **security incident sheets**
-("Controle de ocorrências"). It turns a scanned/photographed sheet into two useful outputs — a
-**standardized spreadsheet** and a **copy-ready message** — with local OCR, mandatory human
-review, audit trails, and safe automation gates.
+Local, privacy-first triage for handwritten **security incident sheets** ("Controle de
+ocorrências"). The default path turns a photo or scan into a reviewable draft, a standardized
+spreadsheet and a copy-ready message without sending the document to a cloud service.
 
-> **OCR is best-effort. Human approval is mandatory. Unsafe automation is blocked.**
+> **Tesseract is not reliable on cursive handwriting. Human approval is mandatory, and unsafe
+> output remains blocked.**
 
+## In 30 seconds
+
+![Evidence cockpit on a synthetic sheet: real OCR bbox, then human edit invalidates the old evidence](samples/cockpit_demo.gif)
+
+```console
+uv sync --locked
+make demo
 ```
-folha (PDF/foto) → OCR local → extração estruturada → revisão humana → planilha + mensagem
+
+`make demo` runs the committed synthetic sheet through real local Tesseract, starts the review
+UI on `127.0.0.1`, opens the draft, and sends nothing. Stop with `Ctrl+C`, then run
+`make purge-demo-data`.
+
+What is already enforced, not merely planned:
+
+- a blocking **browser-smoke** job drives the cockpit under its real CSP in Chromium;
+- **eval-safety** gates structural failures continuously, while the held-out benchmark publishes
+  its failed gate instead of retuning on the test split;
+- hundreds of offline unit, integration, security and privacy tests run at **$0**; the showcase
+  fixture also exercises real Tesseract in CI;
+- an anti-corruption boundary separates layout-coupled `RawDocumentExtraction` from the stable
+  domain `NormalizedIncidentModel`.
+
+```mermaid
+flowchart LR
+    A["PDF or photo"] --> B["Local OCR"]
+    B --> C["RawDocumentExtraction"]
+    C --> D["NormalizedIncidentModel"]
+    D --> E["Validate + OCR safety gate"]
+    E --> F["Classify + route"]
+    F --> G["Draft outputs — export blocked"]
+    G --> H{"Pending fields?"}
+    H -- "Yes" --> I["Human review — 0/1/N"]
+    I --> F
+    H -- "No" --> J["Approve revision + state hash"]
+    J --> K["CSV + copy-ready message"]
 ```
 
 ## The problem
