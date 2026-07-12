@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.A5.1 — regressão do relaxamento OCR
-  (este commit; 7 passed).
-- **Micro-step corrente:** F2.A5.2 — tornar a condição do quality gate tri-state explícita.
-- **RETOME AQUI:** substituir o booleano intermediário em `ocr_quality.py` por comparação direta
-  com `disposition == "none"`; rodar testes focados/orquestrador e iniciar F2.A6.
+- **Último micro-step concluído:** F2.A5.2 — quality gate tri-state explícito
+  (este commit; bloco quality/orquestrador: 22 passed; Ruff/mypy verdes).
+- **Micro-step corrente:** F2.A6 — impedir que outputs rotulem `unknown` como sem alteração.
+- **RETOME AQUI:** escrever contratos para planilha/mensagem em `unknown`; implementar placeholder
+  não confirmatório e provar que export continua bloqueado. Depois executar o fechamento F2.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -146,6 +146,9 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - **[feito] F2.A5.1 — regressão do quality gate** — o mesmo conteúdo curto `S/A S/A` pode ser
   relaxado quando `none`, mas permanece `OCR_FAILED` quando a disposição é `unknown`.
   SAÍDA REAL: **7 passed**.
+- **[feito] F2.A5.2 — condição explícita** — o relaxamento do mínimo de conteúdo agora compara
+  diretamente `state.normalized.disposition == "none"`; `unknown` não depende mais da semântica
+  de um booleano legado. SAÍDA REAL: bloco quality/orquestrador **22 passed**; Ruff/mypy verdes.
 
 ---
 
@@ -211,7 +214,7 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
 - [x] F2.A4 `validate.py` `validate_table`: 3 vias — unknown → ExtractedField "ocorrencias"
       conf 0.0 must_review com valor explicativo (distingue "tabela não encontrada" vs
       "nenhuma linha legível" via tabela_encontrada) + commits
-- [ ] F2.A5 `ocr_quality.py:65-66`: relaxamento só p/ `disposition=="none"` + commits
+- [x] F2.A5 `ocr_quality.py:65-66`: relaxamento só p/ `disposition=="none"` + commits
 - [ ] F2.A6 `outputs.py:38-39`: unknown → "(ocorrências não confirmadas)"; "Sem alteração" só p/ none + commits
 - [ ] F2.V loop de verificação: `make demo-pipeline` Tesseract real numa fixture sem header →
       cockpit no browser mostra "(ocorrências não confirmadas)" + aprovação bloqueada; cenário
