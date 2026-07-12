@@ -17,7 +17,6 @@ def test_historical_docs_live_only_in_archive() -> None:
     assert all(not (Path("docs") / name).exists() for name in names)
 
 
-@pytest.mark.xfail(strict=True, reason="SSI-1011: collector ainda aponta para docs/")
 def test_evidence_report_defaults_to_archive_and_current_smoke_step() -> None:
     assert Path("docs/archive/SSI-1002_EVIDENCE.md") == evidence_report.DEFAULT_OUT
 

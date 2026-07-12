@@ -3,7 +3,7 @@
 
 This is a **collector**, not an orchestrator: it reads outputs that the verification flow
 already generated (preflight JSON, pytest log, privacy-check log, browser-smoke log,
-the cockpit screenshot) and stitches them into docs/SSI-1002_EVIDENCE.md. It never
+the cockpit screenshot) and stitches them into docs/archive/SSI-1002_EVIDENCE.md. It never
 re-runs the pipeline or the CI.
 
 Anti-self-reference: the committed file references the PARENT commit SHA + tree hash it
@@ -11,7 +11,7 @@ was generated against — never its own HEAD, which a committed self-SHA would i
 The authoritative report (stamped with the final commit SHA) is produced post-commit as a
 CI artifact via ``--authoritative-sha`` and uploaded, not committed.
 
-    uv run python scripts/evidence_report.py [--out PATH] [--preflight preflight.json]
+    uv run --locked python -m scripts.evidence_report [--out PATH] [--preflight preflight.json]
         [--pytest-log pytest.log] [--privacy-log privacy.log] [--smoke-log smoke.log]
         [--authoritative-sha <sha>]
 """
@@ -24,7 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_OUT = Path("docs/SSI-1002_EVIDENCE.md")
+DEFAULT_OUT = Path("docs/archive/SSI-1002_EVIDENCE.md")
 SCREENSHOT = Path("samples/screenshot_review_overlay.png")
 _MISSING = "_not collected — see the command in this section; CI produces the authoritative copy._"
 
@@ -103,7 +103,7 @@ def render_report(
                  "uv run --with playwright python scripts/browser_smoke.py 2>&1 | tee smoke.log",
                  fenced=True),
         _section("Screenshot (real page capture)", screenshot,
-                 "produced by scripts/browser_smoke.py step (5)"),
+                  "produced by scripts/browser_smoke.py step (8)"),
         "## Invariants",
         "",
         "- Real data only in `private/`; public artifacts carry synthetic examples only.",
