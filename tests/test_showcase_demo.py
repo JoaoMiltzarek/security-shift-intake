@@ -163,6 +163,98 @@ def test_invalid_port_fails_before_seeding(monkeypatch: pytest.MonkeyPatch) -> N
     assert demo.main(["--port", "65536", "--no-serve"]) == 2
 
 
+@pytest.mark.parametrize("missing_name", ["DEFAULT_SAMPLE", "DEFAULT_CONFIG"])
+def test_missing_fixture_or_config_fails_before_seeding(
+    missing_name: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demo = _showcase_demo()
+    monkeypatch.setattr(demo, missing_name, tmp_path / "missing")
+    monkeypatch.setattr(
+        demo,
+        "_seed_demo",
+        lambda *args: pytest.fail("arquivo ausente deve falhar antes do pipeline"),
+    )
+    assert demo.main(["--no-serve"]) == 2
+
+
+def test_ocr_failure_never_starts_server_or_browser(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo = _showcase_demo()
+    monkeypatch.delenv("INTAKE_CONFIG", raising=False)
+    monkeypatch.setattr(demo, "make_engine", lambda: object())
+
+    def fail_ocr(*args: object) -> int:
+        raise RuntimeError("tesseract indisponível")
+
+    monkeypatch.setattr(demo, "_seed_demo", fail_ocr)
+    monkeypatch.setattr(
+        demo,
+        "_build_server",
+        lambda *args: pytest.fail("servidor não deve iniciar após falha de OCR"),
+    )
+    monkeypatch.setattr(
+        demo,
+        "_schedule_browser_open",
+        lambda *args: pytest.fail("browser não deve abrir após falha de OCR"),
+    )
+
+    assert demo.main([]) == 1
+    assert "Local OCR failed" in capsys.readouterr().err
+
+
+def test_no_open_still_serves_without_scheduling_browser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    demo = _showcase_demo()
+    monkeypatch.delenv("INTAKE_CONFIG", raising=False)
+    server = SimpleNamespace(started=False, run_calls=0)
+
+    def fake_run() -> None:
+        server.run_calls += 1
+
+    server.run = fake_run
+    monkeypatch.setattr(demo, "make_engine", lambda: object())
+    monkeypatch.setattr(demo, "_seed_demo", lambda *args: 41)
+    monkeypatch.setattr(demo, "_build_server", lambda _port: server)
+    monkeypatch.setattr(
+        demo,
+        "_schedule_browser_open",
+        lambda *args: pytest.fail("--no-open deve impedir a thread do browser"),
+    )
+
+    assert demo.main(["--no-open"]) == 0
+    assert server.run_calls == 1
+
+
+def test_browser_timeout_never_opens_unready_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    demo = _showcase_demo()
+    server = SimpleNamespace(started=False)
+    opened: list[str] = []
+    sleeps: list[float] = []
+
+    assert not demo._open_when_started(
+        server,
+        "http://127.0.0.1:8000/drafts/9/review",
+        opener=lambda url: opened.append(url) or True,
+        sleeper=sleeps.append,
+        attempts=2,
+        delay=0.01,
+    )
+    assert opened == []
+    assert sleeps == [0.01, 0.01]
+    assert "did not become ready" in capsys.readouterr().err
+
+
+def test_cli_does_not_offer_a_host_override() -> None:
+    demo = _showcase_demo()
+    with pytest.raises(SystemExit) as exc_info:
+        demo.main(["--host", "0.0.0.0"])
+    assert exc_info.value.code == 2
+
+
 def test_makefile_exposes_demo_target_with_passthrough_args() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
     recipe = re.search(r"(?ms)^demo:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)
