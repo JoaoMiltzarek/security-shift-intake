@@ -1,0 +1,120 @@
+{
+  "run": {
+    "reader": "paddle_ocr",
+    "model": "PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec; device=cpu; paddleocr=3.5.0; paddlepaddle=3.3.0",
+    "dpi": 150,
+    "prompt_sha256": null,
+    "git_commit": "74f29e54fa619ba72c39ae6d0796e713f05c7a8a",
+    "timestamp": "20260712T234452Z",
+    "dataset": "bench-balanced",
+    "split": "val"
+  },
+  "n_sheets": 45,
+  "n_sheets_ran": 45,
+  "reader_metrics": {
+    "n_ran": 45,
+    "parse_table_success_rate": 0.0,
+    "estimated_chars_to_type_total": 1522,
+    "false_incident_count": 0,
+    "missed_incident_count": 0,
+    "unknown_disposition_count": 45,
+    "structural_failure_count": 23,
+    "unsafe_clean_count": 0,
+    "false_incident_unreviewed_count": 0,
+    "safe_review_recall": 1.0,
+    "descricao_acc": 0.0,
+    "hora_acc": 0.0,
+    "correct_refusal_rate": 1.0,
+    "transcription_cer_vs_surface_mean": 1.6764
+  },
+  "parser_ceiling": {
+    "note": "item/acao/resolvido saem missing POR CONSTRUCAO do extractor line-based; teto estrutural, fora da comparacao de leitores (§12)",
+    "item_present": 40,
+    "acao_present": 40,
+    "resolvido_present": 31
+  },
+  "by_difficulty": {
+    "clean": {
+      "n_ran": 10,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 234,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "unknown_disposition_count": 10,
+      "structural_failure_count": 4,
+      "unsafe_clean_count": 0,
+      "false_incident_unreviewed_count": 0,
+      "safe_review_recall": 1.0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.8437
+    },
+    "photo": {
+      "n_ran": 16,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 480,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "unknown_disposition_count": 16,
+      "structural_failure_count": 7,
+      "unsafe_clean_count": 0,
+      "false_incident_unreviewed_count": 0,
+      "safe_review_recall": 1.0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.9559
+    },
+    "scan": {
+      "n_ran": 19,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 808,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "unknown_disposition_count": 19,
+      "structural_failure_count": 12,
+      "unsafe_clean_count": 0,
+      "false_incident_unreviewed_count": 0,
+      "safe_review_recall": 1.0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.3531
+    }
+  },
+  "by_template": {
+    "controle_A": {
+      "n_ran": 34,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 1015,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "unknown_disposition_count": 34,
+      "structural_failure_count": 15,
+      "unsafe_clean_count": 0,
+      "false_incident_unreviewed_count": 0,
+      "safe_review_recall": 1.0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": null,
+      "transcription_cer_vs_surface_mean": 1.7907
+    },
+    "controle_B": {
+      "n_ran": 11,
+      "parse_table_success_rate": 0.0,
+      "estimated_chars_to_type_total": 507,
+      "false_incident_count": 0,
+      "missed_incident_count": 0,
+      "unknown_disposition_count": 11,
+      "structural_failure_count": 8,
+      "unsafe_clean_count": 0,
+      "false_incident_unreviewed_count": 0,
+      "safe_review_recall": 1.0,
+      "descricao_acc": 0.0,
+      "hora_acc": 0.0,
+      "correct_refusal_rate": 1.0,
+      "transcription_cer_vs_surface_mean": 1.3232
+    }
+  }
+}

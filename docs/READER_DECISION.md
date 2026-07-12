@@ -43,6 +43,11 @@ Um reader novo só substitui o **baseline fallback** se também cumprir:
 2. **`chars_to_type ≤ baseline fallback`** em bench-balanced/val — o candidato deve
    reduzir esforço humano, não aumentá-lo.
 3. Todos os critérios de hardware e de segurança do release definidos acima.
+4. **Piso de cobertura** (adicionado 2026-07-12, após a rodada PaddleOCR expor uma
+   vitória vácua — vale para rodadas FUTURAS): `unknown_disposition_count ≤ baseline`
+   e `parse_table_success_rate ≥ baseline` na MESMA rodada. Sem esse piso, um reader
+   que não produz linha alguma satisfaz (1) e (2) trivialmente: zero linhas ⇒ zero
+   incidentes inventados e `chars_to_type` no piso de "digitar do zero".
 
 O Tesseract atual é o **baseline fallback**, não um candidato que tenha passado a
 barra de promoção. No artefato congelado de val ele tem `false_incident_count=4`;
@@ -72,13 +77,37 @@ candidato admissível superar sua carga de correção.
   para Windows nativo.
 - **Decisão: VETADO por CC < 7.0 + bloqueios Windows. Não instalar.**
 
-### PP-OCRv5 (PaddleOCR clássico — sem VL) — CANDIDATO FUTURO
-- `pip install paddleocr` nativo no Windows; VRAM < 1 GB; opera a nível de linha.
-- Acurácia em handwriting: 80.1% (v5) vs 53% (v4) no conjunto oficial.
-- **Não implementado nesta branch** (não estava no escopo F1; nenhuma pressão de
-  rodada para justificar agora). Registrado aqui para retomada em branch futura.
-- Critério de adoção: cumprir integralmente a seção **candidate promotion**, inclusive
-  `false_incident_count=0` e `chars_to_type ≤ baseline fallback`, em bench-balanced/val.
+### PP-OCRv5 mobile (PaddleOCR 3.5.0, CPU) — MEDIDO, **NÃO PROMOVIDO** (branch SSI-1013, 2026-07-12)
+
+- **Instalação (timebox F10.1):** `paddlepaddle==3.3.0` (índice CPU oficial) +
+  `paddleocr==3.5.0` (PyPI) instalam limpos em venv **próprio** no Windows nativo
+  (126 s, ~805 MB, `uv pip check` OK; GPU inviável: CC 6.1 < 7.5 exigida pelo wheel).
+  **Porém a co-instalação com o app viola o lock:** o resolver rebaixa `numpy`
+  2.4.6→2.3.5 (o pyproject exige `numpy>=2.4.6`), além de PyYAML 6.0.3→6.0.2 e
+  click 8.4.1→8.4.2. O critério de release nº 1 ("pip install limpo") **não é
+  cumprido no ambiente do produto** — só em venv isolado.
+- **Modelos:** `PP-OCRv5_mobile_det` + `latin_PP-OCRv5_mobile_rec`, `device=cpu`
+  (nomes fixados explicitamente; o SDK ignora `lang`/`ocr_version` quando um modelo é
+  fixado e escolheria o reconhecedor server). O cache exige `PADDLE_PDX_CACHE_HOME`.
+- **Rodada val@150 completa** (45/45, commit `74f29e54`, artefato congelado
+  `eval_paddle_bakeoff_val.json`): gates de segurança todos verdes (`unsafe_clean=0`,
+  `safe_review_recall=1.0`, `false_incident_unreviewed=0`); `false_incident_count=0`;
+  `chars_to_type=1522` vs baseline 3264 — **mas `parse_table_success_rate=0.0`,
+  `unknown_disposition_count=45/45`, 0/40 linhas normalizadas, `descricao_acc=0.0`,
+  `hora_acc=0.0`, CER médio vs surface 1.68.**
+- **Leitura honesta:** os "ganhos" nominais são vácuos. O Paddle emite cada REGIÃO
+  detectada como linha própria (células e cabeçalhos fragmentados, fora de ordem); o
+  extrator line-based nunca reconstrói uma linha de tabela → zero ocorrências
+  normalizadas → não há como inventar incidente (`false_incident=0` por silêncio) e
+  `chars_to_type` cai para perto do piso "digitar do zero" (cabeçalhos escalares
+  saíram bem — 123/158 campos corretos — mas nenhuma linha de ocorrência existe).
+  Um reader que não produz nenhuma linha não reduz esforço humano; aumenta.
+- **Decisão: NÃO PROMOVIDO.** Bloqueios: (a) conflito de dependências com o lockfile
+  do app (numpy) — sem caminho de co-instalação limpo hoje; (b) incompatibilidade
+  estrutural com o extrator line-based — adoção exigiria reagrupamento geométrico de
+  células em linhas (`rec_boxes`/`rec_polys`), fora do timebox F10. O adaptador
+  `INTAKE_VISION=paddle_ocr` permanece como leitor EXPERIMENTAL opt-in, funcional
+  apenas em ambiente próprio com o stack Paddle instalado.
 
 ### minicpm-v (via Ollama) — NÃO AVALIADO
 - Tamanho: MiniCPM-V 2.5 (~3B) pode caber; MiniCPM-V 2.6 (8B) não cabe.
