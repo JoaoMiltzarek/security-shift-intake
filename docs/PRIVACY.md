@@ -35,7 +35,9 @@ project is built so that data never leaves the operator's machine and never land
   committing real-data binaries (`.pdf/.jpg/.png/...`, DB files) anywhere, and scans
   non-source text (including `.json`) for org-name sentinels. `.json` is **not**
   extension-blocked (legitimate synthetic/metrics JSON is committed) — it relies on the
-  content scans above.
+  content scans above. Synthetic showcase media is allowed only by exact generated names
+  directly under `samples/`; the sole GIF exception is `samples/cockpit_demo.gif`. Similar
+  names, nested GIFs and files under `assets/` remain blocked.
 - **Retention / cleanup** (scoped, so curadoria isn't destroyed by accident):
   - `make purge-demo-data` — wipes the demo's transient artifacts: the DB (+ `-journal/-wal/-shm`
     sidecars), `audit/`, the OCR page images (`page_images/`) and `debug/`.
