@@ -60,7 +60,7 @@ _ALLOWED_SHOWCASE_GIF = _SAMPLES_DIR / "cockpit_demo.gif"
 # Only these known generated names are allowed — a stray real image/GIF must still be
 # blocked, not silently waved through by a blanket extension or directory rule.
 _ALLOWED_SAMPLE_NAMES = re.compile(
-    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay|cockpit_screenshot)"
+    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay)"
     r"\.(png|jpe?g)$",
     re.IGNORECASE,
 )

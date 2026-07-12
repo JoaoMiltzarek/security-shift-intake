@@ -86,10 +86,6 @@ def test_screenshot_overlay_under_samples_allowed(
     assert check_file(f) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1011: screenshot estático legado ainda consta na allowlist",
-)
 def test_legacy_cockpit_screenshot_name_is_blocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
