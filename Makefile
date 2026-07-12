@@ -66,22 +66,22 @@ help:
 	@echo   make watch           - poll WATCH_DIR for new PDFs; writes drafts, NEVER sends email \(Ctrl-C to stop\)
 
 install:
-	uv sync
+	uv sync --locked
 
 lint:
-	uv run ruff check .
+	uv run --locked ruff check .
 
 format:
-	uv run ruff format .
+	uv run --locked ruff format .
 
 format-check:
-	uv run ruff format --check .
+	uv run --locked ruff format --check .
 
 typecheck:
-	uv run mypy src data scripts evals
+	uv run --locked mypy src data scripts evals
 
 test:
-	uv run pytest
+	uv run --locked pytest
 
 # Convenience aggregate matching the M0 Definition of Done.
 check: lint typecheck test
@@ -89,63 +89,63 @@ check: lint typecheck test
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
 validate-config:
-	uv run python -m scripts.validate_config configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
+	uv run --locked python -m scripts.validate_config configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
 
 gen-data:
-	uv run python -m scripts.gen_data
+	uv run --locked python -m scripts.gen_data
 
 gen-pdfs:
-	uv run python -m scripts.gen_pdfs
+	uv run --locked python -m scripts.gen_pdfs
 
 gen-sheets:
-	uv run python -m scripts.gen_sheets --dataset $(DATASET)
+	uv run --locked python -m scripts.gen_sheets --dataset $(DATASET)
 
 demo-transcribe:
-	uv run python -m scripts.demo_transcribe --file "$(FILE)"
+	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)"
 
 demo-pipeline:
-	uv run python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"
+	uv run --locked python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"
 
 # Portfolio showcase: committed synthetic sheet -> real local Tesseract -> loopback UI.
 demo:
-	uv run python -m scripts.showcase_demo $(DEMO_ARGS)
+	uv run --locked python -m scripts.showcase_demo $(DEMO_ARGS)
 
 demo-pipeline-mock:
-	uv run python -m scripts.demo_pipeline_mock
+	uv run --locked python -m scripts.demo_pipeline_mock
 
 # Launcher oficial da UI de revisão — recusa bind fora de loopback (sem auth + PII).
 serve:
-	uv run python -m scripts.serve $(SERVE_ARGS)
+	uv run --locked python -m scripts.serve $(SERVE_ARGS)
 
 purge-demo-data:
-	uv run python -m scripts.purge_demo_data demo
+	uv run --locked python -m scripts.purge_demo_data demo
 
 purge-real-data:
-	uv run python -m scripts.purge_demo_data real --confirm "$(CONFIRM)"
+	uv run --locked python -m scripts.purge_demo_data real --confirm "$(CONFIRM)"
 
 purge-all-private:
-	uv run python -m scripts.purge_demo_data all --confirm "$(CONFIRM)"
+	uv run --locked python -m scripts.purge_demo_data all --confirm "$(CONFIRM)"
 
 privacy-check:
-	uv run python -m scripts.privacy_check
+	uv run --locked python -m scripts.privacy_check
 
 eval:
-	uv run python -m evals.run_eval
+	uv run --locked python -m evals.run_eval
 
 # Real-handwriting eval (BRESSAY). Kept out of the default `eval`/CI: it needs the
 # third-party dataset and (for the VLM column) a local server. Fails loudly /
 # reports unavailable rather than fabricating a number. See docs/EVAL_BRESSAY.md.
 eval-bressay:
-	uv run python -m evals.eval_htr_bressay --n $(N)
+	uv run --locked python -m evals.eval_htr_bressay --n $(N)
 
 # Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
 # Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
 eval-real:
-	uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
+	uv run --locked python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
 
 # Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
 eval-synthetic:
-	uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
 
 # Structural-safety gate (SSI-1010): proves the core promise on val — nothing wrong
 # EXITS unnoticed. Binary gates: exit 1 on unsafe_clean>0, safe_review_recall<1.0 or
@@ -154,9 +154,9 @@ eval-synthetic:
 # the repo's frozen docs/ artifacts (OUT default lives under gitignored private/).
 OUT ?= private/audit/eval_safety
 eval-safety:
-	uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
 
 # Intake Watch — idempotent PDF watcher. Creates drafts in WATCH_DIR/drafts/.
 # NEVER sends email. Ctrl-C to stop. Override: make watch WATCH_DIR=private/inbox.
 watch:
-	uv run python -m scripts.run_watch --watch-dir $(WATCH_DIR)
+	uv run --locked python -m scripts.run_watch --watch-dir $(WATCH_DIR)
