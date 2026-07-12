@@ -394,6 +394,25 @@ def test_invalid_vision_rejected() -> None:
     assert exc.value.code == 2
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: CLI de eval real ainda não aceita paddle_ocr",
+)
+def test_real_eval_cli_accepts_paddle_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    import evals.eval_extraction_real as mod
+
+    selected: list[str] = []
+
+    def fake_instrumented(args: Any) -> int:
+        selected.append(str(args.vision))
+        return 0
+
+    monkeypatch.setattr(mod, "_instrumented", fake_instrumented)
+
+    assert main(["--vision", "paddle_ocr", "--no-report"]) == 0
+    assert selected == ["paddle_ocr"]
+
+
 # --- comparação pareada + merge do resumo (EVAL_PROTOCOL §2.5/§6) -------------
 
 
