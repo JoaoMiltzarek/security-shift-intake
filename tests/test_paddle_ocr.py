@@ -174,10 +174,6 @@ def test_sdk_engine_is_built_once_on_first_transcription(
     assert builds == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: factory ainda não registra paddle_ocr",
-)
 def test_factory_selects_paddle_without_importing_optional_sdk(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
