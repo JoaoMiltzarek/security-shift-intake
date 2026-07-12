@@ -93,6 +93,31 @@ def test_invalid_edit_stays_flagged(client: TestClient) -> None:
     assert "MUST REVIEW" in r.text  # invalid date still flagged
 
 
+def test_edit_response_refreshes_status_panel_oob(client: TestClient) -> None:
+    """Editar um draft aprovado revoga a aprovação (SSI-1006) — e a UI precisa MOSTRAR
+    isso imediatamente: a resposta HTMX do edit carrega o painel de status atualizado
+    via out-of-band swap (senão o badge 'approved' obsoleto fica na tela).
+
+    Bug real encontrado pelo verification loop F3.V (probe HTTP contra servidor vivo)."""
+    draft_id = _submit(client)
+    form = {
+        "field__guard_name": "A. Souza",
+        "field__shift_date": "2026-01-15",
+        "field__post": "Portaria 1",
+        "field__shift_period": "day",
+        "field__incident_occurred": "nao",
+        "field__incident_description": "",
+    }
+    client.post(f"/ui/drafts/{draft_id}/edit", data=form)  # limpa pendências
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+
+    form["field__guard_name"] = "Outro Nome"
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    assert r.status_code == 200
+    assert 'hx-swap-oob="true"' in r.text  # painel vem junto na resposta do edit
+    assert "badge pending" in r.text  # e reflete a revogação da aprovação
+
+
 def test_edit_keeps_gate_send_still_blocked_until_approved(client: TestClient) -> None:
     draft_id = _submit(client)
     client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
