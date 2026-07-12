@@ -18,11 +18,11 @@
 - **Fase corrente:** F2 — Tri-state estrutural (SSI-1005)
 - **Branch:** `SSI-1005-tri-state-estrutural` (criada de `SSI-1004-base-primeira-impressao@f399b7e9`;
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
-- **Último micro-step concluído:** F2.V.1 — contrato do status visual de `unknown`
-  (este commit; 7 passed, 1 xfailed).
-- **Micro-step corrente:** F2.V.2 — corrigir status e incorporar cenário ao browser smoke.
-- **RETOME AQUI:** tornar `_document_status` tri-state, remover o xfail e adicionar
-  `unknown_blocks_approve` a `scripts/browser_smoke.py`; validar por TestClient e navegador real.
+- **Último micro-step concluído:** F2.V.2a — status visual tri-state
+  (este commit; bloco UI/gate/output: 25 passed; Ruff/mypy verdes).
+- **Micro-step corrente:** F2.V.2b — incorporar `unknown_blocks_approve` ao browser smoke.
+- **RETOME AQUI:** adicionar seed `unknown` defensivo e interação HTMX de aprovação bloqueada em
+  `scripts/browser_smoke.py`; validar sintaxe/typing e executar o fluxo no navegador real.
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -161,6 +161,10 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
   sem a lista derivada apareceu como “Pronto para gerar/aprovar”, embora gate/export bloqueassem.
   Contrato xfail exige status não confirmatório, resposta HTMX `Blocked` mencionando unknown e
   persistência em pending. SAÍDA REAL: **7 passed, 1 xfailed**.
+- **[feito] F2.V.2a — status corrigido** — `_document_status` agora mostra “Em revisão —
+  ocorrências não confirmadas” mesmo se `must_review_fields` estiver ausente; o xfail foi
+  removido e a aprovação HTMX permanece bloqueada/pending. SAÍDA REAL: bloco UI/gate/output
+  **25 passed**; Ruff/mypy verdes.
 
 ---
 

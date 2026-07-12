@@ -161,6 +161,8 @@ def _document_status(state: PipelineState) -> str:
     """Human-facing document status for the review screen."""
     if state.ocr_quality == "failed":
         return "OCR FAILED — transcrição manual necessária"
+    if state.normalized is not None and state.normalized.disposition == "unknown":
+        return "Em revisão — ocorrências não confirmadas"
     if state.must_review_fields:
         return f"Em revisão — {len(state.must_review_fields)} campo(s) pendente(s)"
     return "Pronto para gerar/aprovar"

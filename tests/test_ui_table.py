@@ -102,7 +102,6 @@ def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
     assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
 
 
-@pytest.mark.xfail(strict=True, reason="F2.V: status visual não pode chamar unknown de pronto")
 def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
     client: TestClient,
 ) -> None:
