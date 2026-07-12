@@ -20,11 +20,9 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F3.V — cenário `approve_edit_send_blocked` no browser_smoke.
-- **RETOME AQUI:** ler `scripts/browser_smoke.py` (Codex adicionou cenário unknown no F2 —
-  seguir o mesmo padrão); adicionar cenário: seed draft limpo → Approve (UI) → editar campo
-  (UI) → painel volta a pending/revogado → Send (UI) → Blocked; rodar o smoke local (fallback
-  Edge se Playwright indisponível) e fechar F3.PR (make check + privacy + saídas reais).
+- **Micro-step corrente:** F3.PR — fechamento da fase (make check + privacy + saídas reais).
+- **RETOME AQUI:** rodar `make check` e `make privacy-check`; registrar; commit de fechamento;
+  próxima fase F4 (branch `SSI-1007-cockpit-0-1-n`).
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -283,8 +281,17 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       trabalho + backstop `except DraftAlreadySentError → 409` no update_state. Flip do
       último xfail (`test_edit_sent_draft_is_rejected`). SAÍDA REAL: 6 suítes de API/gate →
       **53 passed, 0 xfail, 4.65s**; mypy OK; ruff OK.
-- [ ] F3.V loop: browser — approve → edit → painel mostra rev N+1 + aprovação revogada; send
-      bloqueado; cenário `approve_edit_send_blocked` no browser_smoke + flip xfail F1.5
+- [x] F3.V feito: cenário (5) approve→edit→send adicionado ao `browser_smoke.py` (após o
+      cenário unknown; Playwright local ausente → exit 2, CI é a autoridade). Verification
+      loop via HTTP REAL (uvicorn 127.0.0.1:8124 + probe httpx `probe_f3v.py` no scratchpad):
+      **BUG REAL ENCONTRADO E CORRIGIDO** — a resposta HTMX do edit (`_review_body`) não
+      atualizava o painel de status, deixando o badge "approved" obsoleto na tela após a
+      revogação (servidor já revogava: DB pending/rev 3/stamp NULL). Fix: painel de status
+      com `hx-swap-oob="true"` incluído na resposta do edit (`_status_panel.html` +
+      `_review_body.html` + `status_oob` no ctx do ui_edit), com teste
+      `test_edit_response_refreshes_status_panel_oob` (vermelho `291ed954` → verde).
+      SAÍDA REAL do probe (2ª rodada, servidor novo): aprovado OK; edição revogou (pending)
+      OK; send bloqueado OK; reaprovado+enviado OK; edit de enviado → 409 OK.
 - [ ] F3.PR fechamento de fase
 
 ### F4 — Cockpit 0/1/N (SSI-1007) — design C1..C3

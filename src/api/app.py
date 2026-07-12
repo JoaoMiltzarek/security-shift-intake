@@ -480,7 +480,12 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         updated = _require_draft(session, draft_id)
-        ctx: dict[str, Any] = {"audit": repository.get_audit(session, draft_id)}
+        # status_oob: a resposta do edit carrega o painel de status atualizado (OOB swap)
+        # — uma edição pode ter revogado a aprovação e o badge precisa refletir na hora.
+        ctx: dict[str, Any] = {
+            "audit": repository.get_audit(session, draft_id),
+            "status_oob": True,
+        }
         ctx.update(_review_context(updated))
         return _render(request, "_review_body.html", ctx)
 

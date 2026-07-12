@@ -1,4 +1,6 @@
-<div id="status-panel">
+{# status_oob: quando o painel pega carona na resposta do edit (out-of-band), para o
+   badge refletir na hora uma aprovação revogada pela edição (SSI-1006). #}
+<div id="status-panel"{% if status_oob %} hx-swap-oob="true"{% endif %}>
   <p>
     Status: <span class="badge {{ draft.status }}">{{ draft.status }}</span>
     {% if draft.sent_at %}<em>(sent {{ draft.sent_at.isoformat() }})</em>{% endif %}

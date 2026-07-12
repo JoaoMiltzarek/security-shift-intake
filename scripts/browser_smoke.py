@@ -8,8 +8,10 @@ Rendering an overlay outside a browser proves nothing, so this drives a real Chr
   2. click the bbox field  -> assert the highlight overlay becomes visible in the DOM;
   3. submit "Salvar revisão" -> assert the edited field is now `human_edit` and lost its bbox;
   4. seed a structurally `unknown` draft and assert placeholder/export/approval stay blocked;
-  5. capture console errors + CSP violations -> fail on any;
-  6. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
+  5. approve -> edit -> send on the first draft: editing revokes the approval (badge back to
+     pending) and the send stays Blocked — approval is bound to the reviewed revision (SSI-1006);
+  6. capture console errors + CSP violations -> fail on any;
+  7. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
 
 Authority: on CI Linux (Chromium installable) this is BLOCKING. Locally, headless is
 flaky, so a missing browser/server exits 2 ("reported", not the authority); a genuine
@@ -200,6 +202,23 @@ def run_smoke(base_url: str) -> dict[str, Any]:
             raise SmokeError("unknown draft approval was not explicitly blocked")
         if page.locator("#status-panel .badge").inner_text().strip() != "pending":
             raise SmokeError("unknown draft left pending state after blocked approval")
+
+        # (5) approve → edit → send: a aprovação é da REVISÃO, não do draft (SSI-1006).
+        page.goto(review_url, wait_until="networkidle")
+        page.get_by_role("button", name="Approve", exact=True).click()
+        page.wait_for_selector("#status-panel .badge.approved", timeout=5000)
+
+        page.locator('input[name^="field__"]').first.fill("editado depois da aprovação")
+        page.click('button[type="submit"]')
+        page.wait_for_selector("#status-panel .badge.pending", timeout=5000)
+
+        page.get_by_role("button", name="Send", exact=True).click()
+        page.wait_for_selector("#status-panel strong", timeout=5000)
+        panel = page.locator("#status-panel").inner_text()
+        if "Blocked:" not in panel:
+            raise SmokeError("send after post-approval edit was not blocked")
+        if page.locator("#status-panel .badge").inner_text().strip() != "pending":
+            raise SmokeError("draft did not stay pending after the blocked send")
         browser.close()
 
     # (4) console errors / CSP violations are fatal.
