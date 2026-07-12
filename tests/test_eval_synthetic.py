@@ -180,6 +180,29 @@ def test_safety_gate_failures_helper() -> None:
     ) == ["safe_review_recall=1.1 (exigido 1.0)"]
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1013: eval-safety ainda não exige execução completa do split",
+)
+def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
+    """Gates de conteúdo verdes não podem mascarar reader indisponível ou parcial."""
+    safe_reader = {
+        "false_incident_unreviewed_count": 0,
+        "unsafe_clean_count": 0,
+        "safe_review_recall": 1.0,
+    }
+
+    assert ev._safety_gate_failures(
+        safe_reader, n_sheets=45, n_sheets_ran=45
+    ) == []
+    assert ev._safety_gate_failures(
+        safe_reader, n_sheets=45, n_sheets_ran=0
+    ) == ["n_sheets_ran=0 (exigido n_sheets=45)"]
+    assert ev._safety_gate_failures(
+        safe_reader, n_sheets=45, n_sheets_ran=44
+    ) == ["n_sheets_ran=44 (exigido n_sheets=45)"]
+
+
 def test_require_safety_gates_green_on_smoke_mock(smoke_dir: Path, tmp_path: Path) -> None:
     """Pós-F2 o colapso unknown→none não existe: no smoke com reader mock os gates
     binários passam (rc 0). Um retrocesso em qualquer gate viraria rc 1 na CI."""
