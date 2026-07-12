@@ -138,9 +138,6 @@ def test_approve_edit_send_is_blocked(
     assert sender.call_count == 0
 
 
-@pytest.mark.xfail(
-    strict=True, reason="F3: draft enviado é imutável — edição deve retornar 409"
-)
 def test_edit_sent_draft_is_rejected(
     client_and_sender: tuple[TestClient, MockSender],
 ) -> None:

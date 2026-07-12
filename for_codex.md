@@ -20,11 +20,11 @@
   F0 completo — 8 commits, baseline 598 passed/1 skipped + privacy-check OK)
 - **Último micro-step concluído:** F2.PR — fase F2 fechada verde (629 passed/2 skipped/
   2 xfailed esperados; privacy OK; OCR real 6 passed).
-- **Micro-step corrente:** F3.ui — ui_edit retorna 409 para draft enviado.
-- **RETOME AQUI:** em `src/api/app.py::ui_edit`, checar `draft.sent_at is not None` → HTTP 409
-  antes de qualquer trabalho (+ backstop `except DraftAlreadySentError` → 409); flip do xfail
-  `test_edit_sent_draft_is_rejected` em test_api.py; depois F3.V (cenário
-  `approve_edit_send_blocked` no browser_smoke) e F3.PR.
+- **Micro-step corrente:** F3.V — cenário `approve_edit_send_blocked` no browser_smoke.
+- **RETOME AQUI:** ler `scripts/browser_smoke.py` (Codex adicionou cenário unknown no F2 —
+  seguir o mesmo padrão); adicionar cenário: seed draft limpo → Approve (UI) → editar campo
+  (UI) → painel volta a pending/revogado → Send (UI) → Blocked; rodar o smoke local (fallback
+  Edge se Playwright indisponível) e fechar F3.PR (make check + privacy + saídas reais).
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -279,7 +279,10 @@ Desvios do plano: nenhum. Nota: ruff auto-organizou imports dos 3 testes (inclu�
       Commits: `fac03f1d` (vermelho: 3 failed/6 passed) → implementação. SAÍDA REAL:
       gate+api+approve_gate+repo+ui+edit_review → **52 passed, 1 xfailed, 5.30s**;
       mypy OK; ruff OK.
-- [ ] F3.ui `app.py ui_edit`: sent → HTTP 409 antes de qualquer trabalho + commit
+- [x] F3.ui feito: `ui_edit` retorna 409 para `sent_at is not None` antes de qualquer
+      trabalho + backstop `except DraftAlreadySentError → 409` no update_state. Flip do
+      último xfail (`test_edit_sent_draft_is_rejected`). SAÍDA REAL: 6 suítes de API/gate →
+      **53 passed, 0 xfail, 4.65s**; mypy OK; ruff OK.
 - [ ] F3.V loop: browser — approve → edit → painel mostra rev N+1 + aprovação revogada; send
       bloqueado; cenário `approve_edit_send_blocked` no browser_smoke + flip xfail F1.5
 - [ ] F3.PR fechamento de fase

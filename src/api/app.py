@@ -441,6 +441,11 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
+        # Draft enviado é imutável (SSI-1006): o registro do que foi enviado não muda.
+        if draft.sent_at is not None:
+            raise HTTPException(
+                status_code=409, detail=f"Draft {draft_id} was already sent — edit blocked."
+            )
         form = await request.form()
         state = PipelineState.model_validate_json(draft.state_json)
 
@@ -466,7 +471,13 @@ def create_app(
             state = state.model_copy(update={"extracted_fields": new_fields})
             state = validate(state, active_config)   # recompute MUST_REVIEW flags
             state = draft_stage(state, active_config)  # re-render the email draft
-        repository.update_state(session, draft_id, state, actor="reviewer", action="edited")
+        try:
+            repository.update_state(
+                session, draft_id, state, actor="reviewer", action="edited"
+            )
+        except repository.DraftAlreadySentError as exc:
+            # Backstop: update_state protege TODOS os callers; aqui vira HTTP 409.
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         updated = _require_draft(session, draft_id)
         ctx: dict[str, Any] = {"audit": repository.get_audit(session, draft_id)}
