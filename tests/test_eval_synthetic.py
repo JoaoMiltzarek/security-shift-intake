@@ -163,27 +163,28 @@ def test_safety_gate_failures_helper() -> None:
         # ruído do reader NÃO bloqueia (sempre chega must_review ao revisor):
         "false_incident_count": 4,
     }
-    assert ev._safety_gate_failures(ok) == []
+    assert ev._safety_gate_failures(ok, n_sheets=45, n_sheets_ran=45) == []
     bad = {
         "false_incident_unreviewed_count": 1,
         "unsafe_clean_count": 2,
         "safe_review_recall": 0.5,
     }
-    assert len(ev._safety_gate_failures(bad)) == 3
-    assert len(ev._safety_gate_failures({})) == 3  # fail closed: métrica ausente nunca é zero
+    assert len(ev._safety_gate_failures(bad, n_sheets=45, n_sheets_ran=45)) == 3
+    assert len(ev._safety_gate_failures({}, n_sheets=45, n_sheets_ran=45)) == 3
     assert ev._safety_gate_failures(
         {
             "false_incident_unreviewed_count": 0,
             "unsafe_clean_count": 0,
             "safe_review_recall": 1.1,
-        }
+        },
+        n_sheets=45,
+        n_sheets_ran=45,
     ) == ["safe_review_recall=1.1 (exigido 1.0)"]
+    assert ev._safety_gate_failures(ok, n_sheets=None, n_sheets_ran=0) == [
+        "n_sheets=None (exigido inteiro > 0)"
+    ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SSI-1013: eval-safety ainda não exige execução completa do split",
-)
 def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
     """Gates de conteúdo verdes não podem mascarar reader indisponível ou parcial."""
     safe_reader = {

@@ -192,10 +192,19 @@ def _rate(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 4) if denominator else None
 
 
-def _safety_gate_failures(reader: dict[str, Any]) -> list[str]:
+def _safety_gate_failures(
+    reader: dict[str, Any],
+    *,
+    n_sheets: object,
+    n_sheets_ran: object,
+) -> list[str]:
     """Gates binários do eval-safety (SSI-1010) — release exige lista vazia.
 
-    O invariante é sobre o que pode SAIR errado sem um humano notar:
+    O invariante exige cobertura completa antes de avaliar o conteúdo. Isso impede
+    um reader indisponível de passar com métricas vazias/vacuamente seguras.
+
+    Sobre as folhas efetivamente executadas, mede o que pode SAIR errado sem um
+    humano notar:
     - unsafe_clean==0: falha estrutural nunca vira "sem alteração" aceito;
     - safe_review_recall==1.0: toda falha estrutural é encaminhada a revisão;
     - false_incident_unreviewed==0: incidente inventado nunca chega sem sinalização.
@@ -203,6 +212,10 @@ def _safety_gate_failures(reader: dict[str, Any]) -> list[str]:
     mas não bloqueia — medição de 2026-07-12 no val@150: 4/45, todos must_review.
     """
     failures: list[str] = []
+    if type(n_sheets) is not int or n_sheets <= 0:
+        failures.append(f"n_sheets={n_sheets} (exigido inteiro > 0)")
+    elif type(n_sheets_ran) is not int or n_sheets_ran != n_sheets:
+        failures.append(f"n_sheets_ran={n_sheets_ran} (exigido n_sheets={n_sheets})")
     for metric in ("false_incident_unreviewed_count", "unsafe_clean_count"):
         value = reader.get(metric)
         if value != 0:  # None/malformado também reprova: gate de release falha fechado.
@@ -318,7 +331,7 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help=(
             "exit 1 se unsafe_clean/false_incident_unreviewed != 0 "
-            "ou safe_review_recall != 1.0"
+            "ou safe_review_recall != 1.0; exige execução completa do split"
         ),
     )
     args = parser.parse_args(argv)
@@ -393,12 +406,17 @@ def main(argv: list[str]) -> int:
     print(f"Público (agregados): {summary_path}")
 
     if args.require_safety_gates:
-        failures = _safety_gate_failures(reader)
+        failures = _safety_gate_failures(
+            reader,
+            n_sheets=summary.get("n_sheets"),
+            n_sheets_ran=summary.get("n_sheets_ran"),
+        )
         if failures:
             print("EVAL-SAFETY GATES FALHARAM:", *failures, sep="\n  ", file=sys.stderr)
             return 1
         print(
-            "eval-safety gates OK: unsafe_clean=0 safe_review_recall=1.0 "
+            f"eval-safety gates OK: ran={summary['n_sheets_ran']}/{summary['n_sheets']} "
+            "unsafe_clean=0 safe_review_recall=1.0 "
             f"false_incident_unreviewed=0 (false_incident reportado: "
             f"{reader.get('false_incident_count')})"
         )
