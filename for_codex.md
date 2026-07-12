@@ -454,9 +454,19 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       Fechamento local: `make check` → Ruff + mypy (85 source files) + **697 passed,
       3 skipped**, 1 warning de depreciação Starlette/httpx; `make privacy-check` → OK;
       `make purge-demo-data` → OK e app.db/page_images ausentes.
-- [ ] F8.2 GIF do cockpit via Playwright na fixture sintética →
-      `samples/cockpit_demo.gif` + allowlist EXATA nos guards + proveniência. Não usar
-      o smoke atual sem correção: ele combina imagem escalar, OCR tabular e bbox injetada.
+- [x] F8.2 GIF do cockpit via Playwright na fixture sintética →
+      `samples/cockpit_demo.gif` (255 KB, 3 frames, 1200×750) + allowlist EXATA nos
+      guards + proveniência. Fechado em microcommits `8828732f..2e419d6d`.
+      O smoke legado NÃO foi usado: captura real de `make demo`/Tesseract sobre
+      `sample_tc-000000.png`, viewport 1440×900. Loop browser real provou: bbox
+      `token_window` alinhada a ≤2 px, linha ativa, nota correta, edição humana troca
+      evidence_method para `human_edit` e zera bbox, console 0 errors/warnings e rede
+      somente 127.0.0.1. O primeiro loop encontrou `/favicon.ico` 404 → corrigido com
+      favicon `data:,` e revalidado. Guard permite apenas o path repo-relative exato;
+      nested/archive/assets continuam bloqueados. Montador Pillow versionado usa paleta
+      comum e metadados fixos; provenance inclui hashes/versões e não promete bytes
+      cross-platform. Fechamento focado: **71 passed**, Ruff/mypy verdes,
+      `make privacy-check` OK; servidor/DB/page_images/temporários purgados.
 - [ ] F8.3 README: topo "In 30 seconds" EN, linha 1 honesta sobre cursiva, GIF, 4 diferenciais
       (browser-smoke CI, eval anti-memorização que publicou gate falho, ~599 testes $0,
       anti-corruption Raw/Normalized), Mermaid; limitações depois do valor + commits
