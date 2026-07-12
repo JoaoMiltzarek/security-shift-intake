@@ -6,6 +6,7 @@ import importlib
 from pathlib import Path
 from types import ModuleType
 
+import pytest
 from PIL import Image, ImageChops, ImageDraw
 
 
@@ -60,3 +61,21 @@ def test_versioned_cockpit_demo_gif_matches_contract() -> None:
     frames = _gif_contract(asset, writer)
     assert asset.stat().st_size < writer.MAX_GIF_BYTES
     assert len(frames) == 3
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SSI-1011: proveniência factual do GIF ainda não foi publicada",
+)
+def test_samples_readme_records_gif_provenance() -> None:
+    readme = Path("samples/README.md").read_text(encoding="utf-8")
+    required = (
+        "b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084",
+        "1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151",
+        "32f7da31",
+        "Tesseract 5.4.0.20240606",
+        "Playwright CLI 0.1.17",
+        "Chrome 150.0.0.0",
+        "scripts.build_showcase_gif",
+    )
+    assert all(value in readme for value in required)
