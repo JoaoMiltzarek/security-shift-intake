@@ -97,3 +97,29 @@ def test_main_all_mode_requires_confirm(
     monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
     assert main(["all"]) == 2
     assert (tmp_path / "curadoria").exists()
+
+
+# --- F6.1 (SSI-1009): o purge demo cobre TODAS as cópias transitórias com PII ---
+
+
+def test_main_demo_mode_removes_page_images_shm_and_debug(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """page_images/ (PNGs das folhas), app.db-shm e debug/ são saída transitória do
+    demo — o purge documentado em PRIVACY.md precisa levá-los junto (finding F-05)."""
+    _seed_private(tmp_path)
+    (tmp_path / "app.db-shm").write_text("shm", encoding="utf-8")
+    (tmp_path / "page_images" / "doc-uuid").mkdir(parents=True)
+    (tmp_path / "page_images" / "doc-uuid" / "page_0.png").write_bytes(b"png")
+    (tmp_path / "debug" / "evidence_matches").mkdir(parents=True)
+    (tmp_path / "debug" / "evidence_matches" / "m.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
+    assert main(["demo"]) == 0
+
+    assert not (tmp_path / "app.db-shm").exists()
+    assert not (tmp_path / "page_images").exists()
+    assert not (tmp_path / "debug").exists()
+    # escopo demo continua preservando curadoria/reais
+    assert (tmp_path / "reais" / "folha.pdf").exists()
+    assert (tmp_path / "curadoria" / "doc.json").exists()
