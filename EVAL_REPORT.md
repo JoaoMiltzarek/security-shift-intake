@@ -1,6 +1,6 @@
 # EVAL_REPORT
 
-Generated: 2026-06-27T21:37:20.866703+00:00  |  seed: 42
+Generated: 2026-07-13T22:22:31.450024+00:00  |  seed: 42
 
 > All numbers below are produced by `make eval` (evals/run_eval.py). Nothing is hand-typed. Model-dependent metrics are marked *pending* until an API key is available (mock-first).
 
@@ -23,7 +23,7 @@ _Caveat: Synthetic templated descriptions make this partly circular; numbers are
 Recipient-selection accuracy vs documented rules: **1.000** over 7 cases (target == 1.00).
 
 ## Transcription — Tesseract baseline
-OCR baseline over 5 Tier B docs: mean CER **2.246**, mean WER **1.931**.
+OCR baseline over 5 Tier B docs: mean CER **2.519**, mean WER **2.665**.
 _Caveat: Directional baseline: OCR sees printed labels too, and font-handwriting is easier than real handwriting (optimistic upper bound, spec §4)._
 
 ## Pending (require a live API — mock-first)
