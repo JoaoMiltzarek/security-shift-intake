@@ -86,3 +86,10 @@ def test_htmx_disables_dynamic_code_and_history_cache() -> None:
     assert '"allowEval":false' in base
     assert '"allowScriptTags":false' in base
     assert '"historyEnabled":false' in base
+
+
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+def test_release_cockpit_does_not_expose_api_documentation(
+    client: TestClient, path: str
+) -> None:
+    assert client.get(path).status_code == 404

@@ -420,6 +420,9 @@ def create_app(
         title="security-shift-intake",
         version=__version__,
         summary="Staged intake pipeline for handwritten security shift reports.",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
     app.add_middleware(
         TrustedHostMiddleware,
