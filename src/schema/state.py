@@ -79,6 +79,11 @@ class Classification(BaseModel):
 class PipelineState(BaseModel):
     """Typed state object passed through every stage of the pipeline."""
 
+    # Identity of the validated report config that produced this state. The cockpit
+    # rejects edits under a different config instead of silently reinterpreting data.
+    report_type: str | None = None
+    config_sha256: str | None = Field(default=None, min_length=64, max_length=64)
+
     # --- Stage 0: ingest ---
     source_pdf: Path
     image_paths: list[Path] = Field(default_factory=list)

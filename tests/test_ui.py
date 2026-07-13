@@ -186,3 +186,31 @@ def test_security_headers_present(client_and_sender: tuple[TestClient, MockSende
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp          # no 'unsafe-inline' for scripts
     assert "frame-ancestors 'none'" in csp
+
+
+def test_edit_rejects_draft_from_a_different_config() -> None:
+    from sqlmodel import Session
+
+    from src.api.repository import create_draft
+    from src.schema.loader import config_fingerprint
+    from src.schema.state import PipelineState
+
+    engine = make_engine("sqlite://")
+    app = create_app(engine=engine)  # release default: controle_ocorrencias
+    foreign = PipelineState(
+        source_pdf=Path("legacy-scalar.pdf"),
+        report_type=_SCALAR_CONFIG.report_type,
+        config_sha256=config_fingerprint(_SCALAR_CONFIG),
+    )
+    with Session(engine) as session:
+        draft = create_draft(session, foreign)
+        assert draft.id is not None
+        draft_id = draft.id
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}
+        )
+
+    assert response.status_code == 409
+    assert "different report configuration" in response.json()["detail"]

@@ -14,7 +14,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 
 
 def _write_yaml(tmp_path: Path, name: str, data: object) -> Path:
@@ -52,6 +52,18 @@ def test_valid_config_loads_successfully(tmp_path: Path) -> None:
     assert cfg.report_type == "test_report"
     assert len(cfg.fields) == 2
     assert cfg.classification.urgency.labels == ["low", "high"]
+
+
+def test_config_fingerprint_is_stable_and_content_addressed(tmp_path: Path) -> None:
+    config = load_config(_write_yaml(tmp_path, "valid.yaml", VALID_CONFIG))
+    same = load_config(_write_yaml(tmp_path, "same.yaml", copy.deepcopy(VALID_CONFIG)))
+    changed_payload = copy.deepcopy(VALID_CONFIG)
+    changed_payload["report_type"] = "other_report"
+    changed = load_config(_write_yaml(tmp_path, "changed.yaml", changed_payload))
+
+    assert config_fingerprint(config) == config_fingerprint(same)
+    assert config_fingerprint(config) != config_fingerprint(changed)
+    assert len(config_fingerprint(config)) == 64
 
 
 def test_valid_config_routing_default_present(tmp_path: Path) -> None:

@@ -23,6 +23,7 @@ from src.pipeline.route import route
 from src.pipeline.transcribe import transcribe
 from src.pipeline.validate import validate, validate_table
 from src.schema.config import ReportConfig
+from src.schema.loader import config_fingerprint
 from src.schema.state import Classification, PipelineState
 
 
@@ -45,7 +46,11 @@ def run_pipeline(
     declared, otherwise the scalar path (extract → validate). Classify/route/draft are
     shared and config-driven.
     """
-    state = PipelineState(source_pdf=source)
+    state = PipelineState(
+        source_pdf=source,
+        report_type=config.report_type,
+        config_sha256=config_fingerprint(config),
+    )
     state = transcribe(state, vision, dpi=dpi)
 
     if _has_table(config):

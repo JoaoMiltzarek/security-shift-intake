@@ -60,7 +60,7 @@ from src.schema.extraction import (
     NormalizedOccurrence,
     NormalizedShift,
 )
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
 
 _GUARD_SPLIT = re.compile(r"[;,]| e ")
@@ -99,6 +99,22 @@ def _same_origin(request: Request, origin: str) -> bool:
         and parsed.hostname.lower() == (request.url.hostname or "").lower()
         and origin_port == request_port
     )
+
+
+def _assert_config_compatible(state: PipelineState, config: ReportConfig) -> None:
+    """Reject drafts produced under another or unknown report configuration."""
+    expected_fingerprint = config_fingerprint(config)
+    if (
+        state.report_type != config.report_type
+        or state.config_sha256 != expected_fingerprint
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Draft belongs to a different report configuration. "
+                "Restart the cockpit with the matching INTAKE_CONFIG or re-ingest it."
+            ),
+        )
 
 
 class DispositionConflictError(ValueError):
@@ -478,6 +494,14 @@ def create_app(
         def submit(
             state: PipelineState, session: Session = Depends(get_session)
         ) -> dict[str, Any]:
+            # Even the opt-in test harness cannot forge the config identity used by
+            # subsequent cockpit operations.
+            state = state.model_copy(
+                update={
+                    "report_type": active_config.report_type,
+                    "config_sha256": config_fingerprint(active_config),
+                }
+            )
             draft = repository.create_draft(session, state)
             return _draft_summary(draft)
 
@@ -669,8 +693,9 @@ def create_app(
             raise HTTPException(
                 status_code=409, detail=f"Draft {draft_id} was already sent — edit blocked."
             )
-        form = await request.form()
         state = PipelineState.model_validate_json(draft.state_json)
+        _assert_config_compatible(state, active_config)
+        form = await request.form()
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
