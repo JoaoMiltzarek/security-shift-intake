@@ -15,17 +15,15 @@
 
 ## ESTADO ATUAL
 
-- **Fases COMPLETAS:** F0 (SSI-1004), F1+F2 (SSI-1005), F3 (SSI-1006), F4 (SSI-1007),
-  F5 (SSI-1008), F6 (SSI-1009), F7 (SSI-1010), F8 (SSI-1011), F9 (SSI-1012),
-  F10 (SSI-1013). Última suíte: **756 passed, 3 skipped** + privacy OK.
-- **Branch corrente:** `SSI-1013-reader-bakeoff` (F10 fechado; rodada Paddle registrada em
-  `4d2ff1bc` — PaddleOCR medido e **NÃO promovido**; Tesseract segue baseline fallback).
-- **Micro-step corrente:** F11.0 — criar branch `SSI-1014-release-v1` desta branch fechada.
-- **RETOME AQUI:** executar F11 em micro-steps: F11.1 gates reais (check/privacy/eval-safety);
-  F11.2 ÚNICA rodada test-split do milestone (test split descongela SÓ aqui); F11.3 roteiro
-  manual no `make demo` (0/1/N, S/A, approve→edit→send bloqueado); F11.4 purge + `git ls-files
-  private` vazio; F11.5 README com números do run + mover for_codex.md → docs/archive/;
-  F11.6 tag v1.0.0 (só após tudo verde).
+- **Fases COMPLETAS: TODAS (F0–F11).** Release **v1.0.0** fechado em 2026-07-13 na branch
+  `SSI-1014-release-v1` (tag anotada `v1.0.0`; push de branches e tag é do usuário).
+- **Última suíte (árvore final):** `make check` → Ruff OK, mypy OK, **756 passed, 3 skipped,
+  89.17s**; `make privacy-check` → OK; checker Markdown → 28 arquivos, 0 links ausentes.
+- **Micro-step corrente:** nenhum — plano concluído. Este diário está ARQUIVADO em
+  `docs/archive/for_codex.md` e não recebe mais atualizações.
+- **RETOME AQUI:** nada a retomar. Trabalho futuro é assunto de plano novo (candidato natural:
+  reagrupamento geométrico de linhas para leitores região-based como o PaddleOCR — ver
+  `docs/READER_DECISION.md`).
 - **Bloqueios abertos:** nenhum.
 
 ---
@@ -612,4 +610,12 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       Bloco G1-S histórico intocado. Testes de docs focados: **12 passed**; Ruff OK.
       Este arquivo foi movido para `docs/archive/for_codex.md` neste mesmo micro-step
       (caminhos citados em backticks permanecem relativos à RAIZ do repo).
-- [ ] F11.6 tag v1.0.0 (só após tudo verde); DoD = checklist §9 da auditoria
+- [x] F11.6 (2026-07-13) gates finais na ÁRVORE FINAL (pós-README/move): `make check` →
+      Ruff OK, mypy OK, **756 passed, 3 skipped, 89.17s**; `make privacy-check` → OK.
+      Tag anotada **`v1.0.0`** criada sobre o commit deste registro. DoD (checklist §9,
+      espelho executável): F11.1 gates ✓, F11.2 test-split publicado ✓, F11.3 roteiro
+      14/14 ✓, F11.4 purge+private vazio ✓, F11.5 README+arquivo ✓. Push: usuário.
+      Corpo de PR sugerido: "F11 (SSI-1014): release v1.0.0 — gates reais (check/privacy/
+      eval-safety) verdes, única re-medição test do milestone publicada com régua tri-state
+      e segurança intacta no split nunca visto, roteiro manual 14/14 no demo real,
+      purge/privacidade confirmados, README com números do run e diário arquivado."
