@@ -11,14 +11,14 @@
   {% endif %}
   {% if message %}<p><strong>{{ message }}</strong></p>{% endif %}
 
-  <div>
+  {% if not draft.sent_at %}<div>
     <button hx-post="/ui/drafts/{{ draft.id }}/approve" hx-target="#status-panel"
             hx-swap="outerHTML">Approve</button>
     <button hx-post="/ui/drafts/{{ draft.id }}/reject" hx-target="#status-panel"
             hx-swap="outerHTML">Reject</button>
     <button hx-post="/ui/drafts/{{ draft.id }}/send" hx-target="#status-panel"
             hx-swap="outerHTML">Send</button>
-  </div>
+  </div>{% endif %}
 
   <h3>Audit log</h3>
   <ul>

@@ -550,6 +550,8 @@ def create_app(
             draft = repository.set_status(session, draft_id, status, actor)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except repository.DraftAlreadySentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _draft_summary(draft)
 
     # ----- HTMX review UI -----
@@ -637,18 +639,24 @@ def create_app(
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
-        draft = repository.set_status(
-            session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR
-        )
+        try:
+            draft = repository.set_status(
+                session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR
+            )
+        except repository.DraftAlreadySentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
     @app.post("/ui/drafts/{draft_id}/reject", response_class=HTMLResponse)
     def ui_reject(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
-        draft = repository.set_status(
-            session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR
-        )
+        try:
+            draft = repository.set_status(
+                session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR
+            )
+        except repository.DraftAlreadySentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
     @app.post("/ui/drafts/{draft_id}/send", response_class=HTMLResponse)

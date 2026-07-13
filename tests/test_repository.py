@@ -11,6 +11,7 @@ from sqlmodel import Session
 from src.api.db import init_db, make_engine
 from src.api.models import Draft
 from src.api.repository import (
+    DraftAlreadySentError,
     add_audit,
     create_draft,
     get_audit,
@@ -215,7 +216,7 @@ def test_edit_approved_draft_revokes_approval(session: Session) -> None:
 
 
 def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
-    from src.api.repository import DraftAlreadySentError, update_state
+    from src.api.repository import update_state
 
     draft = create_draft(session, _state())
     assert draft.id is not None
@@ -229,6 +230,25 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     assert refreshed is not None
     assert PipelineState.model_validate_json(refreshed.state_json).transcription == "hello"
     assert "edit_blocked" in [a.action for a in get_audit(session, draft.id)]
+
+
+@pytest.mark.parametrize("status", [ApprovalStatus.APPROVED, ApprovalStatus.REJECTED])
+def test_sent_draft_rejects_later_status_changes(
+    session: Session, status: ApprovalStatus
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+    mark_sent(session, draft.id, actor="r")
+
+    with pytest.raises(DraftAlreadySentError):
+        set_status(session, draft.id, status, actor="r")
+
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.status == ApprovalStatus.APPROVED
+    assert refreshed.sent_at is not None
+    assert get_audit(session, draft.id)[-1].action == "status_blocked"
 
 
 def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:

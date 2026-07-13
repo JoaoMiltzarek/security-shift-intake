@@ -86,6 +86,17 @@ def set_status(session: Session, draft_id: int, status: ApprovalStatus, actor: s
     que ambos ainda batam); qualquer outro status limpa o stamp.
     """
     draft = _require(session, draft_id)
+    if draft.sent_at is not None:
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="status_blocked",
+            detail="already_sent",
+        )
+        raise DraftAlreadySentError(
+            f"Draft {draft_id} was already sent — status change blocked."
+        )
     draft.status = status
     if status == ApprovalStatus.APPROVED:
         draft.approved_revision = draft.revision

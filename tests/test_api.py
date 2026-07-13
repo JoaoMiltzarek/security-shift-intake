@@ -153,3 +153,18 @@ def test_edit_sent_draft_is_rejected(
 
     r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
     assert r.status_code == 409  # o registro do que foi enviado não pode mudar
+
+
+@pytest.mark.parametrize("action", ["approve", "reject"])
+def test_sent_draft_is_terminal_at_http_boundary(
+    client_and_sender: tuple[TestClient, MockSender], action: str
+) -> None:
+    client, _ = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+    assert client.post(f"/drafts/{draft_id}/send").status_code == 200
+
+    response = client.post(f"/drafts/{draft_id}/{action}")
+
+    assert response.status_code == 409
+    assert client.get(f"/drafts/{draft_id}").json()["status"] == "approved"

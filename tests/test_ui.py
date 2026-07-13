@@ -97,6 +97,21 @@ def test_ui_approve_then_send(client_and_sender: tuple[TestClient, MockSender]) 
     assert sender.call_count == 1
 
 
+def test_sent_status_panel_has_no_mutation_controls(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    client.post(f"/drafts/{draft_id}/approve")
+    client.post(f"/drafts/{draft_id}/send")
+
+    panel = client.get(f"/drafts/{draft_id}/review").text
+
+    assert f'/ui/drafts/{draft_id}/approve' not in panel
+    assert f'/ui/drafts/{draft_id}/reject' not in panel
+    assert f'/ui/drafts/{draft_id}/send' not in panel
+
+
 def test_review_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client, _ = client_and_sender
     assert client.get("/drafts/999/review").status_code == 404
