@@ -1,0 +1,42 @@
+"""Application-level security boundary for the unauthenticated local cockpit."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.api.app import create_app
+from src.api.db import make_engine
+
+
+@pytest.fixture
+def client() -> Iterator[TestClient]:
+    with TestClient(create_app(engine=make_engine("sqlite://"))) as test_client:
+        yield test_client
+
+
+def test_sensitive_responses_are_not_cacheable(client: TestClient) -> None:
+    created = client.post("/drafts", json={"source_pdf": "synthetic.pdf"})
+    draft_id = created.json()["id"]
+
+    for path in (f"/drafts/{draft_id}", f"/drafts/{draft_id}/review"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store, max-age=0"
+
+
+def test_security_headers_cover_the_cockpit(client: TestClient) -> None:
+    response = client.get("/health")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["permissions-policy"] == (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    )
+    csp = response.headers["content-security-policy"]
+    assert "base-uri 'none'" in csp
+    assert "object-src 'none'" in csp
+    assert "form-action 'self'" in csp

@@ -395,7 +395,7 @@ def create_app(
     async def _security_headers(
         request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        """Lock the local cockpit down: same-origin scripts/styles, no framing.
+        """Lock the local cockpit down and keep document data out of browser caches.
 
         The overlay JS is vendored under /static (script-src 'self'); templates carry
         inline styles only (style-src 'unsafe-inline'); the page image is same-origin
@@ -404,8 +404,17 @@ def create_app(
         response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data:; script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
+            "style-src 'self' 'unsafe-inline'; base-uri 'none'; object-src 'none'; "
+            "form-action 'self'; frame-ancestors 'none'"
         )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        )
+        if not request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
         return response
 
     def get_session() -> Iterator[Session]:
