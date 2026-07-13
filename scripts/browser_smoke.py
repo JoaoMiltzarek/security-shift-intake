@@ -41,13 +41,14 @@ from src.api.repository import create_draft  # noqa: E402
 from src.clients.local_rules import RuleBasedLLMClient  # noqa: E402
 from src.clients.mock import MockVisionClient  # noqa: E402
 from src.orchestrator import run_pipeline  # noqa: E402
+from src.paths import PRIVATE_ROOT  # noqa: E402
 from src.pipeline.ingest import OCR_DPI, load_source_images  # noqa: E402
 from src.schema.loader import load_config  # noqa: E402
 from src.schema.state import PipelineState  # noqa: E402
 
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 SAMPLE = Path("samples/sample_doc-00000.png")
-SCREENSHOT = Path("private/audit/browser_smoke.png")
+SCREENSHOT = PRIVATE_ROOT / "audit" / "browser_smoke.png"
 DEFAULT_URL = "http://127.0.0.1:8000"
 
 # Synthetic, fully legible "OCR" of a controle_ocorrencias sheet with one incident.

@@ -16,9 +16,10 @@ from pathlib import Path
 from PIL import Image
 
 from src.clients.local_ocr import downscale_for_ocr
+from src.paths import PRIVATE_ROOT
 
 # Default root for persisted page images — inside the gitignored private/ tree.
-PAGE_IMAGES_ROOT = Path("private/page_images")
+PAGE_IMAGES_ROOT = PRIVATE_ROOT / "page_images"
 
 
 def save_page_images(images: list[Image.Image], root: Path = PAGE_IMAGES_ROOT) -> list[str]:

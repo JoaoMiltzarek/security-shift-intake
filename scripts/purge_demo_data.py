@@ -20,7 +20,9 @@ import shutil
 import sys
 from pathlib import Path
 
-PRIVATE_DIR = Path("private")
+from src.paths import PRIVATE_ROOT
+
+PRIVATE_DIR = PRIVATE_ROOT
 
 # Artefatos temporários do demo (seguros de apagar; não incluem curadoria/folhas).
 _DEMO_TARGETS = (

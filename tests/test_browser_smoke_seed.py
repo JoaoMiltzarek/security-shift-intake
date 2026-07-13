@@ -10,11 +10,12 @@ from sqlmodel import Session
 from scripts import browser_smoke
 from src.api.db import make_engine
 from src.api.repository import get_draft
+from src.paths import PRIVATE_ROOT
 from src.schema.state import PipelineState
 
 
 def test_smoke_screenshot_defaults_to_private_audit_storage() -> None:
-    assert Path("private/audit/browser_smoke.png") == browser_smoke.SCREENSHOT
+    assert PRIVATE_ROOT / "audit" / "browser_smoke.png" == browser_smoke.SCREENSHOT
 
 
 def test_ci_redirects_smoke_screenshot_outside_the_checkout() -> None:

@@ -25,7 +25,8 @@ import sys
 from pathlib import Path
 
 DEFAULT_OUT = Path("docs/archive/SSI-1002_EVIDENCE.md")
-SCREENSHOT = Path("private/audit/browser_smoke.png")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCREENSHOT = REPO_ROOT / "private" / "audit" / "browser_smoke.png"
 _MISSING = "_not collected — see the command in this section; CI produces the authoritative copy._"
 
 

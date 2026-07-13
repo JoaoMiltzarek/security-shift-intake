@@ -15,10 +15,11 @@ from sqlmodel import SQLModel, create_engine
 
 # Importing models registers the tables on SQLModel.metadata before create_all.
 from src.api import models  # noqa: F401  (side-effect import)
+from src.paths import PRIVATE_ROOT
 
 # Drafts contain PII (transcription/fields), so the DB lives in the gitignored
 # `private/` folder by default. Override with INTAKE_DB_URL.
-DEFAULT_DB_URL = os.environ.get("INTAKE_DB_URL", "sqlite:///private/app.db")
+DEFAULT_DB_URL = f"sqlite:///{(PRIVATE_ROOT / 'app.db').as_posix()}"
 _IN_MEMORY_URLS = {"sqlite://", "sqlite:///:memory:"}
 
 
@@ -31,12 +32,13 @@ def _ensure_parent_dir(url: str) -> None:
         )
 
 
-def make_engine(url: str = DEFAULT_DB_URL) -> Engine:
+def make_engine(url: str | None = None) -> Engine:
     """Create an engine. check_same_thread=False lets FastAPI use it across threads.
 
     For in-memory SQLite, use a StaticPool so every session shares the one
     connection (otherwise each session gets a fresh, empty database).
     """
+    url = url or os.environ.get("INTAKE_DB_URL", DEFAULT_DB_URL)
     connect_args = {"check_same_thread": False}
     if url in _IN_MEMORY_URLS:
         return create_engine(

@@ -21,6 +21,7 @@ from evals.eval_transcription import tesseract_available
 from src.api.db import make_engine
 from src.api.repository import get_draft
 from src.clients.local_ocr import LocalOCRVisionClient
+from src.paths import REPO_ROOT
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -58,7 +59,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
     monkeypatch.setattr(demo, "build_and_store", fake_build_and_store)
 
     assert demo._seed_demo(demo.DEFAULT_SAMPLE, demo.DEFAULT_CONFIG, sentinel_engine) == 17
-    assert Path("samples/sample_tc-000000.png") == demo.DEFAULT_SAMPLE
+    assert REPO_ROOT / "samples" / "sample_tc-000000.png" == demo.DEFAULT_SAMPLE
     assert demo.DEFAULT_SAMPLE.is_file()
     assert captured["file"] == demo.DEFAULT_SAMPLE
     assert captured["config_path"] == demo.DEFAULT_CONFIG
