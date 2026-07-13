@@ -59,14 +59,8 @@ def get_max_tokens() -> int:
 _LOOPBACK_VLM_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
-def get_vlm_base_url() -> str:
-    """Base URL of the local OpenAI-compatible server (env override > default).
-
-    Guard SSI-1009/F-11: a promessa "nothing leaves the machine" não pode estar a
-    uma env var de distância — um host fora de loopback só é aceito com o opt-in
-    explícito INTAKE_VLM_ALLOW_REMOTE=1 (as imagens das folhas contêm PII).
-    """
-    url = os.environ.get("INTAKE_VLM_BASE_URL", DEFAULT_VLM_BASE_URL)
+def validate_vlm_base_url(url: str) -> str:
+    """Enforce the local-only guard for env- and constructor-supplied URLs."""
     host = urlparse(url).hostname or ""
     if host not in _LOOPBACK_VLM_HOSTS and os.environ.get("INTAKE_VLM_ALLOW_REMOTE") != "1":
         raise RuntimeError(
@@ -75,6 +69,18 @@ def get_vlm_base_url() -> str:
             "defina INTAKE_VLM_ALLOW_REMOTE=1."
         )
     return url
+
+
+def get_vlm_base_url() -> str:
+    """Base URL of the local OpenAI-compatible server (env override > default).
+
+    Guard SSI-1009/F-11: a promessa "nothing leaves the machine" não pode estar a
+    uma env var de distância — um host fora de loopback só é aceito com o opt-in
+    explícito INTAKE_VLM_ALLOW_REMOTE=1 (as imagens das folhas contêm PII).
+    """
+    return validate_vlm_base_url(
+        os.environ.get("INTAKE_VLM_BASE_URL", DEFAULT_VLM_BASE_URL)
+    )
 
 
 def get_vlm_model() -> str:

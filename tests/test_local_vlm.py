@@ -161,6 +161,25 @@ def test_factory_unknown_name_raises() -> None:
         get_vision_client("does-not-exist")
 
 
+def test_default_transport_never_inherits_proxy_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        captured.update(url=url, **kwargs)
+        request = httpx.Request("POST", url)
+        return httpx.Response(200, request=request, json=_response("texto local"))
+
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9999")
+    monkeypatch.setenv("NO_PROXY", "")
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    client = LocalVLMVisionClient(base_url="http://127.0.0.1:11434/v1")
+    assert client.transcribe("ZmFrZQ==").text == "texto local"
+    assert captured["trust_env"] is False
+
+
 # --- retry sem logprobs (medido: Ollama 0.31.1 -> 500 com logprobs+visão) ------
 
 

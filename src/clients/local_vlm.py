@@ -36,6 +36,7 @@ from src.clients.settings import (
     get_vlm_confidence,
     get_vlm_model,
     get_vlm_timeout,
+    validate_vlm_base_url,
 )
 
 _TRANSCRIPTION_PROMPT = (
@@ -149,7 +150,7 @@ class LocalVLMVisionClient:
         default_confidence: float | None = None,
         transport: Transport | None = None,
     ) -> None:
-        self._base_url = (base_url or get_vlm_base_url()).rstrip("/")
+        self._base_url = validate_vlm_base_url(base_url or get_vlm_base_url()).rstrip("/")
         self._model = model or get_vlm_model()
         self._api_key = api_key or get_vlm_api_key()
         self._timeout = timeout if timeout is not None else get_vlm_timeout()
@@ -163,7 +164,13 @@ class LocalVLMVisionClient:
         url = f"{self._base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {self._api_key}"}
         try:
-            response = httpx.post(url, json=payload, headers=headers, timeout=self._timeout)
+            response = httpx.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self._timeout,
+                trust_env=False,
+            )
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise RuntimeError(

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from scripts.demo_transcribe import main as transcribe_main
+from src.clients.local_vlm import LocalVLMVisionClient
 from src.clients.settings import get_vlm_base_url
 
 
@@ -32,6 +33,14 @@ def test_vlm_remote_base_url_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("INTAKE_VLM_ALLOW_REMOTE", raising=False)
     with pytest.raises(RuntimeError, match="loopback"):
         get_vlm_base_url()
+
+
+def test_vlm_constructor_cannot_bypass_remote_url_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("INTAKE_VLM_ALLOW_REMOTE", raising=False)
+    with pytest.raises(RuntimeError, match="loopback"):
+        LocalVLMVisionClient(base_url="http://192.0.2.10:8000/v1")
 
 
 def test_vlm_remote_base_url_allowed_with_optin(monkeypatch: pytest.MonkeyPatch) -> None:
