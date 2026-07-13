@@ -69,6 +69,7 @@ _GUARD_SPLIT = re.compile(r"[;,]| e ")
 # (full-replace a cada save; nunca patch por índice na lista antiga).
 _OCC_KEY = re.compile(r"^occ__(\d+)__(item|hora|descricao|acao|resolvido)$")
 _UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_LOCAL_ACTOR = "local_operator"
 
 
 def _is_loopback_client(host: str) -> bool:
@@ -504,7 +505,7 @@ def create_app(
 
     @app.post("/drafts/{draft_id}/approve")
     def approve(
-        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+        draft_id: int, session: Session = Depends(get_session)
     ) -> dict[str, Any]:
         draft = repository.get_draft(session, draft_id)
         if draft is None:
@@ -514,20 +515,20 @@ def create_app(
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _set_status(session, draft_id, ApprovalStatus.APPROVED, actor)
+        return _set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/reject")
     def reject(
-        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+        draft_id: int, session: Session = Depends(get_session)
     ) -> dict[str, Any]:
-        return _set_status(session, draft_id, ApprovalStatus.REJECTED, actor)
+        return _set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/send")
     def send(
-        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+        draft_id: int, session: Session = Depends(get_session)
     ) -> dict[str, Any]:
         try:
-            draft = send_draft(session, draft_id, active_sender, actor=actor)
+            draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DraftNotApprovedError as exc:
@@ -629,14 +630,18 @@ def create_app(
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
-        draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, "reviewer")
+        draft = repository.set_status(
+            session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR
+        )
         return _status_panel(request, draft, session)
 
     @app.post("/ui/drafts/{draft_id}/reject", response_class=HTMLResponse)
     def ui_reject(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
-        draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, "reviewer")
+        draft = repository.set_status(
+            session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR
+        )
         return _status_panel(request, draft, session)
 
     @app.post("/ui/drafts/{draft_id}/send", response_class=HTMLResponse)
@@ -644,7 +649,7 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         try:
-            draft = send_draft(session, draft_id, active_sender, actor="reviewer")
+            draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
             return _status_panel(request, draft, session, message="Sent.")
         except DraftNotApprovedError as exc:
             draft = _require_draft(session, draft_id)
@@ -697,7 +702,7 @@ def create_app(
             state = draft_stage(state, active_config)  # re-render the email draft
         try:
             repository.update_state(
-                session, draft_id, state, actor="reviewer", action="edited"
+                session, draft_id, state, actor=_LOCAL_ACTOR, action="edited"
             )
         except repository.DraftAlreadySentError as exc:
             # Backstop: update_state protege TODOS os callers; aqui vira HTTP 409.
