@@ -17,6 +17,7 @@ Standalone: `python scripts/privacy_check.py` → exit 0 (clean) or 1 (violation
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -137,13 +138,17 @@ def check_no_sensitive_tracked() -> list[str]:
 
 
 def _iter_tree(root: Path) -> list[Path]:
+    """Enumerate public files while pruning ignored trees before descending.
+
+    Checking path components only after ``Path.rglob`` has already entered ``.venv``
+    makes the privacy gate scan tens of thousands of dependency files.  ``os.walk`` in
+    top-down mode lets us remove those directories from traversal altogether.
+    """
     files: list[Path] = []
-    for p in root.rglob("*"):
-        if p.is_dir():
-            continue
-        if any(part in _SKIP_DIRS for part in p.parts):
-            continue
-        files.append(p)
+    for directory, dirnames, filenames in os.walk(root, topdown=True):
+        dirnames[:] = [name for name in dirnames if name not in _SKIP_DIRS]
+        current = Path(directory)
+        files.extend(current / name for name in filenames)
     return files
 
 
