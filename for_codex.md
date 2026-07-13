@@ -590,7 +590,16 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       sai sem humano notar) segura no split nunca visto. O bloco G1-S histórico do README
       permanece imutável (g1s_verdict.py recusa reescrita); o README ganhará o bloco do
       milestone no F11.5.
-- [ ] F11.3 make demo: roteiro manual 0/1/N, S/A, approve→edit→send bloqueado
+- [x] F11.3 roteiro manual provado contra `make demo` REAL (2026-07-13; Tesseract 5.4 +
+      uvicorn 127.0.0.1:8126 + probe httpx `probe_f11.py` no scratchpad, **14/14 PASS,
+      TODOS VERDES**): health/seed/review OK; export inicial 409 com 5 pendências; caso 1
+      (1 linha completa → CSV 1 linha); caso N (2 linhas → CSV 2); contradição radio-S/A+linha
+      → erro visível e NADA persistido; caso 0 (S/A explícito → CSV "Sem alteração", sem
+      placeholder não-confirmatório); approve → edit revoga (pending) → send BLOQUEADO
+      (sent_at=None) → reaprovado → enviado (sent_at estampado) → edit pós-envio **409**.
+      1ª rodada abortou por UnicodeEncodeError do PRÓPRIO PROBE (console cp1252 × "→");
+      como o send final já tinha executado, o rerun foi feito do zero com purge + re-seed +
+      PYTHONIOENCODING=utf-8 — nenhuma falha era do produto.
 - [ ] F11.4 make purge-demo-data + `git ls-files private` vazio
 - [ ] F11.5 README com números do run; mover for_codex.md → docs/archive/
 - [ ] F11.6 tag v1.0.0 (só após tudo verde); DoD = checklist §9 da auditoria
