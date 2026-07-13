@@ -578,7 +578,18 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       reportado: 4)**; ruído do reader honesto: parse 0.0667, chars_to_type=3264,
       descricao_acc=0.0, hora_acc=0.0714. O false_incident 5→4 vs F7 é o POR local instalado
       (mesma contagem da CI).
-- [ ] F11.2 única rodada test-split do milestone (publica o que der, incl. bucket unknown)
+- [x] F11.2 ÚNICA rodada test-split do milestone (2026-07-13, Tesseract, test@150,
+      bench-balanced, 45/45, git_commit `3dabd588`; sobrescreve o artefato público
+      `docs/eval_synthetic_summary.json` congelado desde `41be9d49`/2026-07-08 — a re-medição
+      era reservada a este milestone). PUBLICADO O QUE DEU: parse_table_success_rate **0.0222**
+      (vs 0.1111 histórico — a régua tri-state é mais dura: o que antes contava como parse
+      hoje vira unknown), chars_to_type **2769**, false_incident **1**, missed_incident **0**,
+      **unknown_disposition_count 43/45**, structural_failure 22, correct_refusal_rate 1.0,
+      CER vs surface 1.2231. SEGURANÇA NO TEST SPLIT: **unsafe_clean=0,
+      false_incident_unreviewed=0, safe_review_recall=1.0** — a promessa central (nada errado
+      sai sem humano notar) segura no split nunca visto. O bloco G1-S histórico do README
+      permanece imutável (g1s_verdict.py recusa reescrita); o README ganhará o bloco do
+      milestone no F11.5.
 - [ ] F11.3 make demo: roteiro manual 0/1/N, S/A, approve→edit→send bloqueado
 - [ ] F11.4 make purge-demo-data + `git ls-files private` vazio
 - [ ] F11.5 README com números do run; mover for_codex.md → docs/archive/
