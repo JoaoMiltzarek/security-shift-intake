@@ -16,10 +16,17 @@ from pathlib import Path
 from PIL import Image
 
 from src.clients.local_ocr import downscale_for_ocr
-from src.paths import PRIVATE_ROOT
+from src.paths import PRIVATE_ROOT, resolve_private_path
 
 # Default root for persisted page images — inside the gitignored private/ tree.
 PAGE_IMAGES_ROOT = PRIVATE_ROOT / "page_images"
+
+
+def _page_root(root: Path) -> Path:
+    """Validate the release default; explicit alternate roots are test injection."""
+    if root == PAGE_IMAGES_ROOT:
+        return resolve_private_path(root, create_root=True)
+    return root.resolve(strict=False)
 
 
 def save_page_images(images: list[Image.Image], root: Path = PAGE_IMAGES_ROOT) -> list[str]:
@@ -28,6 +35,7 @@ def save_page_images(images: list[Image.Image], root: Path = PAGE_IMAGES_ROOT) -
     Paths are relative to *root* (e.g. ``"<uuid>/page_0.png"``) so the stored state is
     portable and the serving endpoint controls the absolute location.
     """
+    root = _page_root(root)
     key = uuid.uuid4().hex
     page_dir = root / key
     page_dir.mkdir(parents=True, exist_ok=True)
@@ -48,6 +56,7 @@ def resolve_page_image(
     PermissionError if the stored path resolves outside *root* (defense in depth
     against a tampered state_json). Both map to a 404 at the endpoint.
     """
+    root = _page_root(root)
     if n < 0 or n >= len(rel_paths):
         raise FileNotFoundError(f"page index {n} out of range")
     candidate = (root / rel_paths[n]).resolve()
