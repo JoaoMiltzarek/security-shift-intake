@@ -29,8 +29,12 @@ _CLEAN_FORM = {
     "field__data_turno": "25/06/2026",
     "field__vigilantes": "Ana Silva, Bruno Costa",
     "field__unidade": "1",
-    "field__ocorrencia_1_objeto": "Alarme",
-    "field__ocorrencia_1": "14:32 - Alarme disparou 4 vezes",
+    "disposicao": "com_ocorrencias",
+    "occ__1__item": "Alarme",
+    "occ__1__hora": "14:32",
+    "occ__1__descricao": "Alarme disparou 4 vezes",
+    "occ__1__acao": "Verificado",
+    "occ__1__resolvido": "sim",
 }
 
 
@@ -84,7 +88,7 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
     # exported as text, not executed by Excel/LibreOffice on open.
     draft_id = _submit_table_draft(client)
     form = dict(_CLEAN_FORM)
-    form["field__ocorrencia_1_objeto"] = "=cmd()"
+    form["occ__1__item"] = "=cmd()"
     client.post(f"/ui/drafts/{draft_id}/edit", data=form)
 
     resp = client.get(f"/drafts/{draft_id}/export.csv")

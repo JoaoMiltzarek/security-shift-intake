@@ -39,7 +39,7 @@ Monitoramento de cameras x
 # Synthetic, fully legible "OCR" of a no-incident sheet (S/A).
 OCR_NO_CHANGE = """Controle de ocorrencias
 Data e Turno 25/06/2026 noturno
-Vigilantes Pedro Lima, Carla Dias
+Vigilantes Otavio Lemos, Carla Dias
 Unidade 2
 Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
 S/A

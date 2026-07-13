@@ -4,7 +4,9 @@ A única fronteira entre o layout da folha e o domínio. Regras:
 - `S/A`/linha riscada ou linha vazia → NÃO vira ocorrência (mata FALSE_INCIDENT).
 - hora com dois horários → entrada/saída; com um → só entrada.
 - qualquer célula da linha com status != accepted → a ocorrência fica `needs_review`.
-- sem nenhuma ocorrência real → `no_occurrence = True`.
+- ocorrências reais → `disposition="present"`;
+- sem ocorrências + linha S/A explícita → `disposition="none"`;
+- vazio sem evidência positiva de S/A → `disposition="unknown"`.
 
 Puro e determinístico (sem modelo, sem rede).
 """
@@ -15,6 +17,7 @@ import re
 
 from src.schema.extraction import (
     AuditedField,
+    Disposition,
     NormalizedIncidentModel,
     NormalizedOccurrence,
     NormalizedShift,
@@ -47,7 +50,7 @@ def _split_guards(field: AuditedField) -> list[str]:
     return [g.strip() for g in _GUARD_SEP.split(text) if g.strip()]
 
 
-def _parse_times(field: AuditedField) -> tuple[str | None, str | None]:
+def parse_times(field: AuditedField) -> tuple[str | None, str | None]:
     text = _as_text(field)
     if not text:
         return None, None
@@ -59,7 +62,7 @@ def _parse_times(field: AuditedField) -> tuple[str | None, str | None]:
     return times[0], times[1]
 
 
-def _parse_resolved(field: AuditedField) -> bool | None:
+def parse_resolved(field: AuditedField) -> bool | None:
     text = _as_text(field)
     if not text:
         return None
@@ -94,7 +97,7 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
     for row in raw.rows:
         if row.sem_alteracao or not _row_has_content(row):
             continue  # S/A, riscada ou vazia → não é ocorrência
-        entry, exit_ = _parse_times(row.hora)
+        entry, exit_ = parse_times(row.hora)
         occurrences.append(
             NormalizedOccurrence(
                 category=_as_text(row.item),
@@ -102,13 +105,21 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
                 exit_time=exit_,
                 description=_as_text(row.descricao),
                 action=_as_text(row.acao),
-                resolved=_parse_resolved(row.resolvido),
+                resolved=parse_resolved(row.resolvido),
                 needs_review=_row_needs_review(row),
             )
         )
 
+    disposition: Disposition
+    if occurrences:
+        disposition = "present"
+    elif any(row.sem_alteracao for row in raw.rows):
+        disposition = "none"
+    else:
+        disposition = "unknown"
+
     return NormalizedIncidentModel(
         shift=shift,
-        no_occurrence=len(occurrences) == 0,
+        disposition=disposition,
         occurrences=occurrences,
     )

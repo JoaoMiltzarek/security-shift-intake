@@ -26,6 +26,15 @@ def test_transcription_result_confidence_bounds() -> None:
         TranscriptionResult(text="x", confidence=-0.01)
 
 
+def test_transcription_result_accepts_paddleocr_confidence_source() -> None:
+    result = TranscriptionResult(
+        text="linha reconhecida",
+        confidence=0.83,
+        confidence_source="paddleocr",
+    )
+    assert result.confidence_source == "paddleocr"
+
+
 # ---------------------------------------------------------------------------
 # MockVisionClient
 # ---------------------------------------------------------------------------

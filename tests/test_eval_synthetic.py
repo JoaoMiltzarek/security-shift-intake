@@ -53,6 +53,10 @@ def test_smoke_50_mock_no_false_incident(smoke_dir: Path) -> None:
     results = [ev.evaluate_sheet(cur, config, vision, dpi=150) for cur in gts]
     assert all(r["available"] and r["ran"] for r in results)  # sem crash, 50/50
     assert sum(1 for r in results if r.get("false_incident")) == 0
+    unknown = [r for r in results if r.get("unknown_disposition")]
+    assert unknown  # o mock não contém S/A explícito em todas as folhas sem ocorrência
+    assert all(not r["false_incident"] and not r["missed_incident"] for r in unknown)
+    assert ev.aggregate(results)["reader_metrics"]["unknown_disposition_count"] == len(unknown)
 
 
 # --- anti-tuning: default val; test é explícito; público só-agregados -------
@@ -96,6 +100,11 @@ def test_invalid_split_rejected() -> None:
         ev.main(["--split", "train"])
 
 
+def test_synthetic_eval_cli_accepts_paddle_reader(tmp_path: Path) -> None:
+    # Dataset ausente deve produzir o rc normal 1, não erro de parsing (SystemExit 2).
+    assert ev.main(["--vision", "paddle_ocr", "--dir", str(tmp_path)]) == 1
+
+
 def test_missing_dataset_exits_1(tmp_path: Path) -> None:
     assert ev.main(["--dir", str(tmp_path)]) == 1
 
@@ -114,3 +123,142 @@ def test_refusal_metric_rewards_refusal_not_recovery() -> None:
     refused = NormalizedIncidentModel(occurrences=[NormalizedOccurrence(description="———")])
     assert ev.refusal_metrics(cur, recovered) == {"illegible_fields": 1, "correct_refusals": 0}
     assert ev.refusal_metrics(cur, refused) == {"illegible_fields": 1, "correct_refusals": 1}
+
+
+# --- Contratos F7 (SSI-1010): eval-safety — output externo + gates binários ---
+
+
+def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> None:
+    """--output-dir escreve resumo público + detalhado FORA do repo e NUNCA toca os
+    artefatos congelados em docs/ nem o eval/ do dataset (anti-tuning §5)."""
+    out = tmp_path / "safety_out"
+    frozen = Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8")
+    # smoke_dir é compartilhado entre testes: compara o eval/ do dataset antes/depois.
+    eval_dir = smoke_dir / "eval"
+    eval_before = set(eval_dir.glob("*")) if eval_dir.exists() else set()
+
+    assert ev.main(["--dir", str(smoke_dir), "--output-dir", str(out)]) == 0
+
+    assert (out / "eval_synthetic_summary.json").exists()
+    assert list(out.glob("detailed_*.json"))
+    assert Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8") == frozen
+    eval_after = set(eval_dir.glob("*")) if eval_dir.exists() else set()
+    assert eval_after == eval_before  # dataset intocado por esta rodada
+
+
+def test_safety_formulas_from_per_sheet_flags() -> None:
+    """unsafe_clean = estrutura errada apresentada como aceita (none contradizendo a
+    verdade); recall = fração das falhas estruturais que foi para revisão (unknown)."""
+    fake = [
+        {"ran": True, "structural_failure": True, "unsafe_clean": True},
+        {"ran": True, "structural_failure": True, "unsafe_clean": False},
+        {"ran": True},
+    ]
+    reader = ev.aggregate(fake)["reader_metrics"]
+    assert reader["unsafe_clean_count"] == 1
+    assert reader["structural_failure_count"] == 2
+    assert reader["safe_review_recall"] == 0.5
+
+
+def test_safety_gate_failures_helper() -> None:
+    ok = {
+        "false_incident_unreviewed_count": 0,
+        "unsafe_clean_count": 0,
+        "safe_review_recall": 1.0,
+        # ruído do reader NÃO bloqueia (sempre chega must_review ao revisor):
+        "false_incident_count": 4,
+    }
+    assert ev._safety_gate_failures(ok, n_sheets=45, n_sheets_ran=45) == []
+    bad = {
+        "false_incident_unreviewed_count": 1,
+        "unsafe_clean_count": 2,
+        "safe_review_recall": 0.5,
+    }
+    assert len(ev._safety_gate_failures(bad, n_sheets=45, n_sheets_ran=45)) == 3
+    assert len(ev._safety_gate_failures({}, n_sheets=45, n_sheets_ran=45)) == 3
+    assert ev._safety_gate_failures(
+        {
+            "false_incident_unreviewed_count": 0,
+            "unsafe_clean_count": 0,
+            "safe_review_recall": 1.1,
+        },
+        n_sheets=45,
+        n_sheets_ran=45,
+    ) == ["safe_review_recall=1.1 (exigido 1.0)"]
+    assert ev._safety_gate_failures(ok, n_sheets=None, n_sheets_ran=0) == [
+        "n_sheets=None (exigido inteiro > 0)"
+    ]
+
+
+def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
+    """Gates de conteúdo verdes não podem mascarar reader indisponível ou parcial."""
+    safe_reader = {
+        "false_incident_unreviewed_count": 0,
+        "unsafe_clean_count": 0,
+        "safe_review_recall": 1.0,
+    }
+
+    assert ev._safety_gate_failures(
+        safe_reader, n_sheets=45, n_sheets_ran=45
+    ) == []
+    assert ev._safety_gate_failures(
+        safe_reader, n_sheets=45, n_sheets_ran=0
+    ) == ["n_sheets_ran=0 (exigido n_sheets=45)"]
+    assert ev._safety_gate_failures(
+        safe_reader, n_sheets=45, n_sheets_ran=44
+    ) == ["n_sheets_ran=44 (exigido n_sheets=45)"]
+
+
+def test_require_safety_gates_green_on_smoke_mock(smoke_dir: Path, tmp_path: Path) -> None:
+    """Pós-F2 o colapso unknown→none não existe: no smoke com reader mock os gates
+    binários passam (rc 0). Um retrocesso em qualquer gate viraria rc 1 na CI."""
+    rc = ev.main(
+        [
+            "--dir", str(smoke_dir),
+            "--output-dir", str(tmp_path / "o"),
+            "--require-safety-gates",
+        ]
+    )
+    assert rc == 0
+
+
+def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
+    smoke_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Prova a ligação main → gate; helper correto mas desconectado não basta."""
+
+    def unavailable_reader(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {"ran": False, "available": False, "reason": "reader unavailable"}
+
+    monkeypatch.setattr(ev, "evaluate_sheet", unavailable_reader)
+    out = tmp_path / "unavailable"
+    rc = ev.main(
+        [
+            "--dir", str(smoke_dir),
+            "--output-dir", str(out),
+            "--require-safety-gates",
+        ]
+    )
+
+    assert rc == 1
+    assert "n_sheets_ran=0" in capsys.readouterr().err
+    summary = json.loads((out / "eval_synthetic_summary.json").read_text(encoding="utf-8"))
+    assert summary["n_sheets"] > 0
+    assert summary["n_sheets_ran"] == 0
+
+
+def test_require_safety_gates_rejects_sheet_cap(smoke_dir: Path, tmp_path: Path) -> None:
+    """O gate de release deve medir o split inteiro, não uma amostra escolhida."""
+    with pytest.raises(SystemExit) as exc_info:
+        ev.main(
+            [
+                "--dir", str(smoke_dir),
+                "--output-dir", str(tmp_path / "capped"),
+                "--n", "1",
+                "--require-safety-gates",
+            ]
+        )
+    assert exc_info.value.code == 2

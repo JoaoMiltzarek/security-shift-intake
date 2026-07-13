@@ -25,10 +25,11 @@ def test_sem_alteracao_rows_make_no_occurrence() -> None:
     assert m.occurrences == []
 
 
-def test_empty_rows_make_no_occurrence() -> None:
+def test_empty_rows_without_sa_are_unknown() -> None:
     raw = _raw([RawRow(), RawRow()])
     m = normalize(raw)
-    assert m.no_occurrence is True
+    assert m.disposition == "unknown"
+    assert m.no_occurrence is False
 
 
 def test_single_occurrence_built() -> None:
@@ -97,3 +98,55 @@ def test_mixed_rows_only_real_occurrence_kept() -> None:
     m = normalize(raw)
     assert len(m.occurrences) == 1
     assert m.no_occurrence is False
+
+
+# --- Contratos F1 (SSI-1005): disposição tri-state (unknown | none | present) ---
+# Regra: "none" exige evidência POSITIVA (linha S/A parseada); zero linhas sem S/A é
+# "unknown" (o parser pode ter perdido a tabela) e NUNCA vira "sem alteração" válido.
+
+
+def test_zero_rows_without_sa_is_unknown() -> None:
+    m = normalize(_raw([]))
+    assert m.disposition == "unknown"
+    assert m.no_occurrence is False  # unknown não é uma afirmação de ausência
+
+
+def test_blank_rows_without_sa_is_unknown() -> None:
+    m = normalize(_raw([RawRow(), RawRow()]))
+    assert m.disposition == "unknown"
+
+
+def test_sa_row_is_explicit_none() -> None:
+    m = normalize(_raw([RawRow(sem_alteracao=True)]))
+    assert m.disposition == "none"
+    assert m.no_occurrence is True
+
+
+def test_content_row_is_present() -> None:
+    m = normalize(_raw([RawRow(item=_af("Alarme"), descricao=_af("Disparo no setor B."))]))
+    assert m.disposition == "present"
+    assert m.no_occurrence is False
+
+
+def test_mixed_sa_and_content_is_present() -> None:
+    m = normalize(
+        _raw(
+            [
+                RawRow(sem_alteracao=True),
+                RawRow(item=_af("Acesso"), descricao=_af("Entrada de prestador.")),
+            ]
+        )
+    )
+    assert m.disposition == "present"
+
+
+def test_parse_times_is_public() -> None:
+    from src.pipeline.normalize import parse_times
+
+    assert parse_times(_af("17:19 saída 17:52")) == ("17:19", "17:52")
+
+
+def test_parse_resolved_is_public() -> None:
+    from src.pipeline.normalize import parse_resolved
+
+    assert parse_resolved(_af("não")) is False

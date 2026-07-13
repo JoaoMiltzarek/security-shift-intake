@@ -7,6 +7,8 @@ for imbalanced classes. All functions are pure and deterministic.
 
 from __future__ import annotations
 
+from typing import cast
+
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -59,7 +61,7 @@ def macro_f1(y_true: list[str], y_pred: list[str], labels: list[str]) -> float:
 
 def confusion(y_true: list[str], y_pred: list[str], labels: list[str]) -> list[list[int]]:
     """Confusion matrix rows=true, cols=pred, ordered by *labels*."""
-    return confusion_matrix(y_true, y_pred, labels=labels).tolist()
+    return cast(list[list[int]], confusion_matrix(y_true, y_pred, labels=labels).tolist())
 
 
 def per_class_prf(

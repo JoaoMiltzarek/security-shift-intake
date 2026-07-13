@@ -5,7 +5,7 @@ Dois modelos, deliberadamente separados (anti-corruption layer):
 - `RawDocumentExtraction` — o que foi LIDO da folha (acoplado ao layout): cabeçalho + linhas,
   cada célula um `AuditedField` com value/confidence/source/status/evidence (R2). Layout pode mudar.
 - `NormalizedIncidentModel` — o que o DOMÍNIO entende (estável): turno + ocorrências normalizadas.
-  Folha `S/A`/riscada vira `no_occurrence=True` com lista vazia.
+  Folha `S/A` explícita vira `disposition="none"`; falha estrutural permanece `"unknown"`.
 
 A fronteira entre os dois é o estágio `normalize` (src/pipeline/normalize.py). O domínio NUNCA
 importa os modelos `Raw` — só o normalize conhece os dois.
@@ -13,13 +13,14 @@ importa os modelos `Raw` — só o normalize conhece os dois.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 # De onde veio o valor de um campo e em que estado de confiança ele está (plano R2).
 FieldSource = Literal["ocr", "rule", "human"]
 FieldStatus = Literal["accepted", "must_review", "missing", "ambiguous"]
+Disposition = Literal["unknown", "none", "present"]
 
 
 class AuditedField(BaseModel):
@@ -66,6 +67,8 @@ class RawDocumentExtraction(BaseModel):
     schema_version: str = "1.0"
     report_type: str
     header: RawHeader = Field(default_factory=RawHeader)
+    # False distingue falha estrutural (header de colunas ausente) de tabela encontrada e vazia.
+    tabela_encontrada: bool = True
     rows: list[RawRow] = Field(default_factory=list)
 
 
@@ -94,10 +97,41 @@ class NormalizedOccurrence(BaseModel):
 class NormalizedIncidentModel(BaseModel):
     """O que o domínio entende da folha (estável a mudanças de layout)."""
 
-    schema_version: str = "1.0"
+    schema_version: Literal["1.1"] = "1.1"
     shift: NormalizedShift = Field(default_factory=NormalizedShift)
-    no_occurrence: bool = False
+    disposition: Disposition = "unknown"
     occurrences: list[NormalizedOccurrence] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_payload(cls, data: Any) -> Any:
+        """Converte payload 1.0 sem confiar na antiga flag booleana ambígua."""
+        if not isinstance(data, dict):
+            return data
+        migrated = dict(data)
+        version = migrated.get("schema_version")
+        if version not in {None, "1.0", "1.1"}:
+            return migrated  # o Literal rejeita versões futuras/desconhecidas
+        if "disposition" not in migrated:
+            migrated["disposition"] = "present" if migrated.get("occurrences") else "unknown"
+        migrated.pop("no_occurrence", None)
+        migrated["schema_version"] = "1.1"
+        return migrated
+
+    @model_validator(mode="after")
+    def _validate_disposition(self) -> Self:
+        has_occurrences = bool(self.occurrences)
+        if self.disposition == "present" and not has_occurrences:
+            raise ValueError("disposition 'present' exige ao menos uma ocorrência")
+        if self.disposition != "present" and has_occurrences:
+            raise ValueError(f"disposition '{self.disposition}' não aceita ocorrências")
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def no_occurrence(self) -> bool:
+        """Compatibilidade read-only; `disposition` é a única fonte de verdade."""
+        return self.disposition == "none"
 
 
 class SpreadsheetRow(BaseModel):

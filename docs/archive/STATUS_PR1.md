@@ -3,8 +3,8 @@
 > **Propósito deste arquivo:** registro de retomada entre sessões. Diz em que ponto o
 > plano da PR-1 está, o que foi feito (com commit) e o que falta. Atualize-o ao final
 > de cada sessão de trabalho nesta PR. O contrato normativo das métricas é
-> [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md); a escada de PRs e os gates estão em
-> [`ROADMAP.md`](ROADMAP.md).
+> [`EVAL_PROTOCOL.md`](../EVAL_PROTOCOL.md); a escada de PRs e os gates estão em
+> [`ROADMAP.md`](../ROADMAP.md).
 
 ## A pergunta que a PR-1 responde
 
@@ -17,7 +17,7 @@ PRs seguintes (PR-2 escalonamento / PR-2b reparo / PR-3 calibração) pelos gate
 > G1–G3 sobre folha real viraram avaliação local opcional. As rodadas medidas abaixo
 > **permanecem como evidência histórica** — números medidos não se reescrevem — mas as
 > ações humanas pendentes (curadoria verificada, fotos, SLO real) deixaram de bloquear
-> o roadmap. Progresso da fábrica sintética: `docs/STATUS_TIER_C.md`.
+> o roadmap. Progresso da fábrica sintética: `docs/archive/STATUS_TIER_C.md`.
 
 ## Feito (com commit)
 

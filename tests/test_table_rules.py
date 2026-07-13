@@ -7,8 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.clients import table_rules
 from src.clients.table_rules import RuleBasedTableExtractor
+from src.pipeline import validate as validate_module
 from src.pipeline.normalize import normalize
+from src.pipeline.validate import DEFAULT_CONFIDENCE_THRESHOLD
 from src.schema.loader import load_config
 
 CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
@@ -50,6 +53,23 @@ def test_header_values_are_must_review() -> None:
     assert raw.header.unidade.source == "rule"
 
 
+def test_rule_confidences_are_conservative_review_placeholders() -> None:
+    header_confidence = table_rules.HEADER_REVIEW_PLACEHOLDER_CONFIDENCE
+    row_confidence = table_rules.ROW_REVIEW_PLACEHOLDER_CONFIDENCE
+    normalized_confidence = validate_module.NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE
+
+    assert 0.0 < row_confidence < header_confidence < DEFAULT_CONFIDENCE_THRESHOLD
+    assert row_confidence == normalized_confidence
+
+    raw = RuleBasedTableExtractor(CONFIG).extract(_OCC_SHEET)
+    content = next(row for row in raw.rows if not row.sem_alteracao)
+    assert raw.header.unidade.confidence == header_confidence
+    assert content.hora.confidence == row_confidence
+    assert content.descricao.confidence == row_confidence
+    assert raw.header.unidade.status == "must_review"
+    assert content.descricao.status == "must_review"
+
+
 def test_sa_sheet_yields_no_occurrence() -> None:
     raw = RuleBasedTableExtractor(CONFIG).extract(_SA_SHEET)
     assert all(r.sem_alteracao for r in raw.rows)
@@ -87,3 +107,56 @@ def test_occurrence_sheet_is_not_no_occurrence() -> None:
 def test_config_without_table_yields_no_rows() -> None:
     raw = RuleBasedTableExtractor(HTMICRON).extract(_OCC_SHEET)
     assert raw.rows == []
+
+
+# --- Contratos F1 (SSI-1005): falha estrutural NUNCA vira "sem ocorrência" ---
+
+# Folha com cabeçalho legível mas SEM a linha de header de coluna ("Item ... Descricao ...")
+# — o caso real em que o OCR perde a estrutura da tabela e some com as ocorrências.
+_HEADERLESS_SHEET = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+14:20 Alarme disparou no setor B vigilante acionado
+Ronda x
+"""
+
+
+def test_missing_column_header_sets_tabela_nao_encontrada() -> None:
+    raw = RuleBasedTableExtractor(CONFIG).extract(_HEADERLESS_SHEET)
+    assert raw.tabela_encontrada is False
+    assert raw.rows == []
+
+
+def test_found_but_empty_region_sets_tabela_encontrada() -> None:
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
+Ronda x
+"""
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    assert raw.tabela_encontrada is True
+    assert raw.rows == []
+
+
+def test_consecutive_content_rows_without_separator_merge() -> None:
+    """Contrato documental (limitação conhecida do v1): sem linha em branco ou S/A entre
+    duas ocorrências, o parser as funde em UMA RawRow. A fusão é segura porque toda linha de
+    conteúdo nasce must_review (revisor separa no cockpit F4); o caso perigoso — zero linhas —
+    é coberto pelos contratos de disposição acima e em test_normalize."""
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
+14:20 Alarme disparou no setor B
+15:10 Portao lateral aberto sem autorizacao
+Ronda x
+"""
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    content = [r for r in raw.rows if not r.sem_alteracao]
+    assert len(content) == 1  # fundidas — ver docstring
+    assert "Alarme" in str(content[0].descricao.value)
+    assert "Portao" in str(content[0].descricao.value)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.pipeline.outputs import build_copy_message, build_spreadsheet, export_blockers
 from src.schema.extraction import (
+    Disposition,
     NormalizedIncidentModel,
     NormalizedOccurrence,
     NormalizedShift,
@@ -15,7 +16,8 @@ from src.schema.state import PipelineState
 
 def _norm(occ: list[NormalizedOccurrence], no_occurrence: bool = False) -> NormalizedIncidentModel:
     shift = NormalizedShift(date="25/06/2026", unit="1", guards=["Ana", "Bruno"])
-    return NormalizedIncidentModel(shift=shift, no_occurrence=no_occurrence, occurrences=occ)
+    disposition: Disposition = "none" if no_occurrence else ("present" if occ else "unknown")
+    return NormalizedIncidentModel(shift=shift, disposition=disposition, occurrences=occ)
 
 
 def test_spreadsheet_incident_row() -> None:
@@ -37,6 +39,17 @@ def test_spreadsheet_no_occurrence_row() -> None:
     assert rows[0].descricao == ""
 
 
+def test_unknown_disposition_uses_placeholder_and_blocks_clean_output() -> None:
+    normalized = _norm([])
+    state = PipelineState(source_pdf=Path("x.pdf"), normalized=normalized)
+
+    rows = build_spreadsheet(normalized)
+
+    assert rows[0].objeto == "(ocorrências não confirmadas)"
+    assert export_blockers(state) == ["ocorrencias"]
+    assert "RASCUNHO INCOMPLETO" in build_copy_message(state, normalized)
+
+
 def test_spreadsheet_double_time() -> None:
     occ = NormalizedOccurrence(
         category="Acesso", entry_time="17:19", exit_time="17:52", description="Viva"
@@ -47,7 +60,7 @@ def test_spreadsheet_double_time() -> None:
 
 def test_missing_unit_becomes_revisar() -> None:
     shift = NormalizedShift(date="25/06/2026", unit=None, guards=["Ana"])
-    m = NormalizedIncidentModel(shift=shift, no_occurrence=True)
+    m = NormalizedIncidentModel(shift=shift, disposition="none")
     assert build_spreadsheet(m)[0].unidade == "(revisar)"
 
 

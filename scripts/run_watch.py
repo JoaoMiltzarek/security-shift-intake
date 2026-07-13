@@ -1,4 +1,4 @@
-"""Entry point for Intake Watch — `make watch WATCH_DIR=<dir>`.
+"""Experimental entry point for Intake Watch — `make watch WATCH_DIR=<dir>`.
 
 Usage:
     python scripts/run_watch.py --watch-dir private/inbox [--interval 10] [--stability 5]
@@ -6,6 +6,8 @@ Usage:
 Design: injects a thin pipeline_fn wrapper around run_pipeline so the watcher
 itself stays stdlib-only. The wrapper loads config once and calls run_pipeline.
 Email is NEVER sent — only pending drafts are written to <watch_dir>/drafts/.
+This experimental path does not feed the review database, cockpit, or approval gate; it writes
+detached ``.txt`` files only.
 """
 
 from __future__ import annotations

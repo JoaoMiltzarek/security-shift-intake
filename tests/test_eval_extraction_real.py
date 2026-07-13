@@ -192,15 +192,22 @@ def test_aggregate_counts() -> None:
 def _norm_sa() -> NormalizedIncidentModel:
     return NormalizedIncidentModel(
         shift=NormalizedShift(date="01/01", guards=["A", "B"], unit="Posto"),
-        no_occurrence=True,
+        disposition="none",
     )
 
 
 def _norm_occ(desc: str = "Prestador acessa para manutenção.") -> NormalizedIncidentModel:
     return NormalizedIncidentModel(
         shift=NormalizedShift(date="01/01", guards=["A"], unit="Posto"),
-        no_occurrence=False,
+        disposition="present",
         occurrences=[NormalizedOccurrence(description=desc)],
+    )
+
+
+def _norm_unknown() -> NormalizedIncidentModel:
+    return NormalizedIncidentModel(
+        shift=NormalizedShift(date="01/01", guards=["A", "B"], unit="Posto"),
+        disposition="unknown",
     )
 
 
@@ -212,9 +219,17 @@ def test_parse_table_success_occ_sheet_ok() -> None:
     assert parse_table_success(_occ_sheet(), _norm_occ(), TABLE_CONFIG) is True
 
 
+def test_parse_table_success_rejects_unknown_disposition() -> None:
+    assert parse_table_success(_sa_sheet(), _norm_unknown(), TABLE_CONFIG) is False
+
+
 def test_parse_table_success_fails_on_sa_mismatch() -> None:
-    # S/A curada mas o sistema diz que houve ocorrência (no_occurrence=False).
-    wrong = _norm_sa().model_copy(update={"no_occurrence": False})
+    # S/A curada mas o sistema produziu uma ocorrência espúria estruturalmente válida.
+    wrong = NormalizedIncidentModel(
+        shift=_norm_sa().shift,
+        disposition="present",
+        occurrences=[NormalizedOccurrence(description="ocorrência espúria")],
+    )
     assert parse_table_success(_sa_sheet(), wrong, TABLE_CONFIG) is False
 
 
@@ -379,6 +394,21 @@ def test_invalid_vision_rejected() -> None:
     assert exc.value.code == 2
 
 
+def test_real_eval_cli_accepts_paddle_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    import evals.eval_extraction_real as mod
+
+    selected: list[str] = []
+
+    def fake_instrumented(args: Any) -> int:
+        selected.append(str(args.vision))
+        return 0
+
+    monkeypatch.setattr(mod, "_instrumented", fake_instrumented)
+
+    assert main(["--vision", "paddle_ocr", "--no-report"]) == 0
+    assert selected == ["paddle_ocr"]
+
+
 # --- comparação pareada + merge do resumo (EVAL_PROTOCOL §2.5/§6) -------------
 
 
@@ -466,3 +496,24 @@ def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(
     assert meta["dpi"] == 250
     assert isinstance(meta["prompt_sha256"], str) and len(meta["prompt_sha256"]) == 64
     assert meta["model"].endswith("unknown")  # best-effort honesto, nunca inventa digest
+
+
+def test_run_metadata_paddle_is_local_versioned_and_never_calls_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import evals.eval_extraction_real as mod
+
+    def _no_http(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("PaddleOCR metadata must not query Ollama")
+
+    versions = {"paddleocr": "3.5.0", "paddlepaddle": "3.3.0"}
+    monkeypatch.setattr(mod.httpx, "get", _no_http)
+    monkeypatch.setattr(mod.importlib_metadata, "version", versions.__getitem__)
+
+    meta = run_metadata("paddle_ocr", 150)
+
+    assert meta["model"] == (
+        "PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec; "
+        "device=cpu; paddleocr=3.5.0; paddlepaddle=3.3.0"
+    )
+    assert meta["prompt_sha256"] is None

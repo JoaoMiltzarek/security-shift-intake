@@ -9,6 +9,9 @@
 # override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
 CONFIG ?= configs/controle_ocorrencias.yaml
 
+# Optional arguments for the one-command synthetic showcase (e.g. --no-open).
+DEMO_ARGS ?=
+
 # Sample cap for the BRESSAY real-handwriting eval (override: `make eval-bressay N=20`).
 N ?= 50
 
@@ -30,7 +33,7 @@ WATCH_DIR ?= private/inbox
 
 .PHONY: help install lint format format-check typecheck test check \
         validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
-        demo-pipeline-mock eval eval-bressay eval-real eval-synthetic watch \
+        demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -39,7 +42,7 @@ help:
 	@echo   make lint            - ruff lint
 	@echo   make format          - ruff format (write)
 	@echo   make format-check    - ruff format (check only)
-	@echo   make typecheck       - mypy on src
+	@echo   make typecheck       - mypy on src/data/scripts/evals
 	@echo   make test            - pytest
 	@echo   make check           - lint + typecheck + test (the M0 DoD)
 	@echo   make validate-config - [M1] validate configs against the schema
@@ -48,8 +51,9 @@ help:
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
+	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
-	@echo   make purge-demo-data - wipe only temp demo artifacts (DB + audit/) in private/
+	@echo   make purge-demo-data - wipe temp demo artifacts (DB+sidecars, audit/, page_images/, debug/)
 	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
 	@echo   make purge-all-private - wipe ALL of private/ (incl. curadoria), needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
@@ -57,26 +61,27 @@ help:
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
 	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
 	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
+	@echo   make eval-safety     - [SSI-1010] structural-safety gates on val (exit 1 if unsafe); OUT=... redirects artifacts
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
-	@echo   make watch           - poll WATCH_DIR for new PDFs; writes drafts, NEVER sends email \(Ctrl-C to stop\)
+	@echo   make watch           - experimental standalone watcher; process-local duplicate suppression
 
 install:
-	uv sync
+	uv sync --locked
 
 lint:
-	uv run ruff check .
+	uv run --locked ruff check .
 
 format:
-	uv run ruff format .
+	uv run --locked ruff format .
 
 format-check:
-	uv run ruff format --check .
+	uv run --locked ruff format --check .
 
 typecheck:
-	uv run mypy src data scripts
+	uv run --locked mypy src data scripts evals
 
 test:
-	uv run pytest
+	uv run --locked pytest
 
 # Convenience aggregate matching the M0 Definition of Done.
 check: lint typecheck test
@@ -84,57 +89,74 @@ check: lint typecheck test
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
 validate-config:
-	PYTHONPATH=. uv run python scripts/validate_config.py configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
+	uv run --locked python -m scripts.validate_config configs/htmicron_security.yaml configs/controle_ocorrencias.yaml
 
 gen-data:
-	PYTHONPATH=. uv run python scripts/gen_data.py
+	uv run --locked python -m scripts.gen_data
 
 gen-pdfs:
-	PYTHONPATH=. uv run python scripts/gen_pdfs.py
+	uv run --locked python -m scripts.gen_pdfs
 
 gen-sheets:
-	PYTHONPATH=. uv run python scripts/gen_sheets.py --dataset $(DATASET)
+	uv run --locked python -m scripts.gen_sheets --dataset $(DATASET)
 
 demo-transcribe:
-	PYTHONPATH=. uv run python scripts/demo_transcribe.py --file "$(FILE)"
+	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)"
 
 demo-pipeline:
-	PYTHONPATH=. uv run python scripts/demo_pipeline.py --file "$(FILE)" --config "$(CONFIG)"
+	uv run --locked python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"
+
+# Portfolio showcase: committed synthetic sheet -> real local Tesseract -> loopback UI.
+demo:
+	uv run --locked python -m scripts.showcase_demo $(DEMO_ARGS)
 
 demo-pipeline-mock:
-	PYTHONPATH=. uv run python scripts/demo_pipeline_mock.py
+	uv run --locked python -m scripts.demo_pipeline_mock
+
+# Launcher oficial da UI de revisão — recusa bind fora de loopback (sem auth + PII).
+serve:
+	uv run --locked python -m scripts.serve $(SERVE_ARGS)
 
 purge-demo-data:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py demo
+	uv run --locked python -m scripts.purge_demo_data demo
 
 purge-real-data:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py real --confirm "$(CONFIRM)"
+	uv run --locked python -m scripts.purge_demo_data real --confirm "$(CONFIRM)"
 
 purge-all-private:
-	PYTHONPATH=. uv run python scripts/purge_demo_data.py all --confirm "$(CONFIRM)"
+	uv run --locked python -m scripts.purge_demo_data all --confirm "$(CONFIRM)"
 
 privacy-check:
-	PYTHONPATH=. uv run python scripts/privacy_check.py
+	uv run --locked python -m scripts.privacy_check
 
 eval:
-	PYTHONPATH=. uv run python -m evals.run_eval
+	uv run --locked python -m evals.run_eval
 
 # Real-handwriting eval (BRESSAY). Kept out of the default `eval`/CI: it needs the
 # third-party dataset and (for the VLM column) a local server. Fails loudly /
 # reports unavailable rather than fabricating a number. See docs/EVAL_BRESSAY.md.
 eval-bressay:
-	PYTHONPATH=. uv run python -m evals.eval_htr_bressay --n $(N)
+	uv run --locked python -m evals.eval_htr_bressay --n $(N)
 
 # Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
 # Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
 eval-real:
-	PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
+	uv run --locked python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
 
 # Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
 eval-synthetic:
-	PYTHONPATH=. uv run python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
 
-# Intake Watch — idempotent PDF watcher. Creates drafts in WATCH_DIR/drafts/.
-# NEVER sends email. Ctrl-C to stop. Override: make watch WATCH_DIR=private/inbox.
+# Structural-safety gate (SSI-1010): proves the core promise on val — nothing wrong
+# EXITS unnoticed. Binary gates: exit 1 on unsafe_clean>0, safe_review_recall<1.0 or
+# false_incident_unreviewed>0 (false_incident is REPORTED reader noise, always
+# must_review, never blocking). Output goes OUTSIDE
+# the repo's frozen docs/ artifacts (OUT default lives under gitignored private/).
+OUT ?= private/audit/eval_safety
+eval-safety:
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
+
+# Intake Watch — experimental standalone watcher; process-local duplicate suppression.
+# Writes detached text drafts, NEVER sends email. Override: make watch WATCH_DIR=private/inbox.
 watch:
-	PYTHONPATH=. uv run python scripts/run_watch.py --watch-dir $(WATCH_DIR)
+	uv run --locked python -m scripts.run_watch --watch-dir $(WATCH_DIR)

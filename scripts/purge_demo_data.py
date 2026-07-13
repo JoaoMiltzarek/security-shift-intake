@@ -23,7 +23,15 @@ from pathlib import Path
 PRIVATE_DIR = Path("private")
 
 # Artefatos temporários do demo (seguros de apagar; não incluem curadoria/folhas).
-_DEMO_TARGETS = ("app.db", "app.db-journal", "app.db-wal", "audit")
+_DEMO_TARGETS = (
+    "app.db",
+    "app.db-journal",
+    "app.db-wal",
+    "app.db-shm",
+    "audit",
+    "page_images",
+    "debug",
+)
 # Folhas reais de entrada.
 _REAL_TARGETS = ("reais",)
 
@@ -77,7 +85,7 @@ def main(argv: list[str]) -> int:
 
     if args.mode == "demo":
         removed = purge_selected(PRIVATE_DIR, _DEMO_TARGETS)
-        scope = "artefatos temporários do demo (DB + audit/)"
+        scope = "artefatos temporários do demo (DB + sidecars + audit/ + page_images/ + debug/)"
     elif args.mode == "real":
         removed = purge_selected(PRIVATE_DIR, _REAL_TARGETS)
         scope = "folhas reais (reais/)"

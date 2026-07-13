@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,10 @@ from fastapi.testclient import TestClient
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
+from src.schema.loader import load_config
+
+# Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
+_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
 
 # Submitted draft where one field is blank + low confidence (needs review).
 _BODY = {
@@ -33,7 +38,7 @@ _BODY = {
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    app = create_app(engine=make_engine("sqlite://"), sender=MockSender())
+    app = create_app(engine=make_engine("sqlite://"), sender=MockSender(), config=_SCALAR_CONFIG)
     with TestClient(app) as c:
         yield c
 
@@ -86,6 +91,31 @@ def test_invalid_edit_stays_flagged(client: TestClient) -> None:
     }
     r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
     assert "MUST REVIEW" in r.text  # invalid date still flagged
+
+
+def test_edit_response_refreshes_status_panel_oob(client: TestClient) -> None:
+    """Editar um draft aprovado revoga a aprovação (SSI-1006) — e a UI precisa MOSTRAR
+    isso imediatamente: a resposta HTMX do edit carrega o painel de status atualizado
+    via out-of-band swap (senão o badge 'approved' obsoleto fica na tela).
+
+    Bug real encontrado pelo verification loop F3.V (probe HTTP contra servidor vivo)."""
+    draft_id = _submit(client)
+    form = {
+        "field__guard_name": "A. Souza",
+        "field__shift_date": "2026-01-15",
+        "field__post": "Portaria 1",
+        "field__shift_period": "day",
+        "field__incident_occurred": "nao",
+        "field__incident_description": "",
+    }
+    client.post(f"/ui/drafts/{draft_id}/edit", data=form)  # limpa pendências
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+
+    form["field__guard_name"] = "Outro Nome"
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    assert r.status_code == 200
+    assert 'hx-swap-oob="true"' in r.text  # painel vem junto na resposta do edit
+    assert "badge pending" in r.text  # e reflete a revogação da aprovação
 
 
 def test_edit_keeps_gate_send_still_blocked_until_approved(client: TestClient) -> None:

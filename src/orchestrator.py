@@ -1,8 +1,8 @@
 """Pipeline orchestrator — runs the staged pipeline end to end.
 
-A typed function pipeline + explicit orchestrator (spec §2): no agents, no hidden
-control flow. Provider-agnostic — pass any `VisionClient` + `LLMClient` (mock,
-local/Tesseract+rules, or Anthropic), the stages are identical.
+A typed function pipeline + explicit orchestrator (spec §2): no agents, no hidden control flow.
+The interfaces are provider-agnostic, but supported v1 entrypoints pass local Tesseract +
+deterministic rules; experimental external adapters require manual injection.
 
     ingest+transcribe → extract → validate (critic) → classify → route → draft
 """
@@ -50,8 +50,8 @@ def run_pipeline(
 
     if _has_table(config):
         state = extract_table(state, config)
-        # Stage 2b (two-reader mode): call reconcile_sheet() here and store results in
-        # state.reconcile_results before validate_table. Single-reader runs skip this.
+        # Reserved experimental extension point: v1 is single-reader and does not invoke
+        # dual-reader arbitration. ``state.reconcile_results`` therefore stays empty.
         state = validate_table(state, config)
         status, reason = assess_ocr_quality(state, config)
         state = state.model_copy(

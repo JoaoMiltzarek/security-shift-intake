@@ -17,7 +17,22 @@ from dotenv import load_dotenv
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Transcribe one PDF with the real VLM.")
     parser.add_argument("--file", type=Path, required=True, help="path to a PDF")
+    parser.add_argument(
+        "--allow-external",
+        action="store_true",
+        help="Confirma o envio do ARQUIVO à API da Anthropic (externo, pago).",
+    )
     args = parser.parse_args(argv)
+
+    # Consentimento explícito (SSI-1009/F-11): este é o ÚNICO caminho do produto que
+    # envia um documento para fora da máquina — nunca por acidente de make target.
+    if not args.allow_external:
+        print(
+            "ERRO: este comando envia o arquivo à API da Anthropic (fora da máquina, "
+            "pago).\nSe o documento pode sair da máquina, repita com --allow-external.",
+            file=sys.stderr,
+        )
+        return 2
 
     if not args.file.exists():
         print(f"File not found: {args.file}", file=sys.stderr)

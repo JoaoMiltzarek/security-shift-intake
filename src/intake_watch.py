@@ -1,9 +1,10 @@
-"""Intake Watch — idempotent polling watcher for new PDF drops.
+"""Intake Watch — EXPERIMENTAL standalone watcher, outside the supported v1 path.
 
-Design invariants (CLAUDE.md + plan F4):
+This prototype is executable, but it writes detached text snapshots instead of persisted
+review drafts. Design invariants and current limits:
 - NEVER calls send/approve; only creates pending drafts.
-- Idempotency: sha256 of file content is the identity key; same file processed
-  twice yields one draft and one log entry.
+- Duplicate suppression is process-local: sha256 is the in-memory identity key, but
+  ``processed.jsonl`` is not restored after restart.
 - Stability check: file must hash identically after `stability_secs` to rule out
   partial writes.
 - Quarantine on any pipeline error: file moved to quarantine/, never lost silently.

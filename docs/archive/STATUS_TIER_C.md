@@ -7,8 +7,8 @@
 > **Propósito deste arquivo:** registro de retomada entre sessões (context file).
 > Diz em que ponto o plano da fábrica está, o que foi feito (com commit) e o que falta.
 > **Atualize-o ao final de cada micro-passo/sessão.** O contrato normativo é
-> [`DATASET_CONTRACT.md`](DATASET_CONTRACT.md); o plano aprovado (PRs D0–D6) está
-> resumido nele e no [`ROADMAP.md`](ROADMAP.md). Legado da régua real:
+> [`DATASET_CONTRACT.md`](../DATASET_CONTRACT.md); o plano aprovado (PRs D0–D6) está
+> resumido nele e no [`ROADMAP.md`](../ROADMAP.md). Legado da régua real:
 > [`STATUS_PR1.md`](STATUS_PR1.md).
 
 ## O que a fábrica entrega

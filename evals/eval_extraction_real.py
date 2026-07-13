@@ -3,7 +3,7 @@
 Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates):
 
 1. **Instrumentado (default)** — roda o pipeline (config de TABELA) com o leitor
-   escolhido (`--vision local_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
+   escolhido (`--vision local_ocr|paddle_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
    com curadoria em `private/curadoria/`, e registra por folha as métricas do
    protocolo: `parse_table_success`, esforço humano (`estimated_chars_to_type`,
    `prefilled_but_wrong_count`, `blank_field_count`, `illegible_token_count`),
@@ -37,6 +37,7 @@ import sys
 import time
 import unicodedata
 from datetime import UTC, datetime
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,7 @@ from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
 from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
+from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MODEL
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import OCR_DPI
@@ -175,7 +177,8 @@ def parse_table_success(
 ) -> bool:
     """Fórmula §2.1: S/A×ocorrência correto + header mínimo + contagem de linhas."""
     occ = has_occurrence(cur)
-    if normalized.no_occurrence == occ:  # deve ser o oposto exato
+    expected_disposition = "present" if occ else "none"
+    if normalized.disposition != expected_disposition:
         return False
     for name in _required_scalars(config):
         if not _normalized_header_value(normalized, name):
@@ -328,9 +331,9 @@ def classify_errors_normalized(
             add("OCR_MISS", ckey)
 
     occ = has_occurrence(cur)
-    if not occ and not normalized.no_occurrence and normalized.occurrences:
+    if not occ and normalized.disposition == "present":
         add("FALSE_INCIDENT", "ocorrencias")
-    if occ and normalized.no_occurrence:
+    if occ and normalized.disposition == "none":
         add("MISSED_INCIDENT", "ocorrencias")
     if occ and len(cur.get("ocorrencias", [])) > len(normalized.occurrences):
         add("TABLE_ROW_SPLIT_ERROR", "ocorrencias")
@@ -392,6 +395,17 @@ def _model_tag(reader: str) -> str:
         return "tesseract"
     if reader == "mock":
         return "mock"
+    if reader == "paddle_ocr":
+        versions: dict[str, str] = {}
+        for package in ("paddleocr", "paddlepaddle"):
+            try:
+                versions[package] = importlib_metadata.version(package)
+            except importlib_metadata.PackageNotFoundError:
+                versions[package] = "not-installed"
+        return (
+            f"{PADDLE_DETECTION_MODEL} + {PADDLE_RECOGNITION_MODEL}; device=cpu; "
+            f"paddleocr={versions['paddleocr']}; paddlepaddle={versions['paddlepaddle']}"
+        )
     model = get_vlm_model()
     root = get_vlm_base_url().split("/v1")[0]
     try:
@@ -507,7 +521,7 @@ def run_sheet(
         base["errors"] = classify_errors_normalized(cur, state.normalized, extracted)
         base["parse_table_success"] = parse_table_success(cur, state.normalized, config)
         base.update(effort_metrics(comparable_fields(cur, state.normalized, config)))
-        if has_occurrence(cur) and not state.normalized.no_occurrence:
+        if has_occurrence(cur) and state.normalized.disposition == "present":
             base["n_occurrences_represented"] = 1
             first = cur["ocorrencias"][0].get("descricao", "") or ""
             for o in state.normalized.occurrences:
@@ -892,7 +906,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--vision",
-        choices=["local_ocr", "local_vlm", "mock"],
+        choices=["local_ocr", "paddle_ocr", "local_vlm", "mock"],
         default="local_ocr",
         help="leitor da rodada instrumentada (resolvido via factory)",
     )

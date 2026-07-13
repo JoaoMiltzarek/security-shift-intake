@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,10 @@ from fastapi.testclient import TestClient
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
+from src.schema.loader import load_config
+
+# Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
+_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
 
 _BODY = {
     "source_pdf": "report.pdf",
@@ -30,7 +35,7 @@ _BODY = {
 @pytest.fixture
 def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     sender = MockSender()
-    app = create_app(engine=make_engine("sqlite://"), sender=sender)
+    app = create_app(engine=make_engine("sqlite://"), sender=sender, config=_SCALAR_CONFIG)
     with TestClient(app) as client:
         yield client, sender
 
@@ -105,6 +110,49 @@ def test_htmx_is_vendored_locally_not_cdn(
     asset = client.get("/static/htmx.min.js")
     assert asset.status_code == 200
     assert "htmx" in asset.text
+
+
+def test_review_declares_no_request_favicon(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    page = client.get(f"/drafts/{draft_id}/review").text
+    assert '<link rel="icon" href="data:,">' in page
+
+
+def test_status_panel_shows_revision_and_approved_revision(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    """O painel expõe a revisão corrente e qual revisão foi aprovada (SSI-1007)."""
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    assert "Revisão 1" in client.get(f"/drafts/{draft_id}/review").text
+
+    client.post(f"/drafts/{draft_id}/approve")
+    assert "aprovada: rev 1" in client.get(f"/drafts/{draft_id}/review").text
+
+
+def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
+    """Aprovação anterior ao vínculo por revisão (stamp NULL, ex.: DB migrado) é
+    destacada — o envio está bloqueado até reaprovar e a UI explica por quê."""
+    from sqlmodel import Session
+
+    from src.api.models import Draft
+    from src.schema.state import ApprovalStatus
+
+    engine = make_engine("sqlite://")
+    app = create_app(engine=engine, sender=MockSender(), config=_SCALAR_CONFIG)
+    with TestClient(app) as client:
+        draft_id = _submit(client)
+        with Session(engine) as s:
+            draft = s.get(Draft, draft_id)
+            assert draft is not None
+            draft.status = ApprovalStatus.APPROVED  # aprovação legada: sem stamp
+            s.add(draft)
+            s.commit()
+        html = client.get(f"/drafts/{draft_id}/review").text
+        assert "reaprove" in html
 
 
 def test_security_headers_present(client_and_sender: tuple[TestClient, MockSender]) -> None:

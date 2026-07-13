@@ -50,6 +50,11 @@ The domain is deliberately decoupled from the sheet layout (the layout can chang
 The `normalize` stage is the only boundary between them. Models live in
 [src/schema/extraction.py](../src/schema/extraction.py).
 
+Confidence values are source-specific routing signals, not calibrated probabilities:
+rule-based values use conservative fixed placeholders, Tesseract supplies mean word confidence,
+and VLM fallback values are labeled placeholders. The critic's `must_review` decision, not the
+numeric signal alone, drives the human gate.
+
 ## Safety properties
 
 - **OCR is honest.** Free OCR can't read cursive; the OCR Quality Gate
@@ -65,6 +70,6 @@ The `normalize` stage is the only boundary between them. Models live in
 ## Stack
 Python 3.11 · Pydantic v2 (typed contracts) · PyMuPDF + Pillow (ingest) · Tesseract/pytesseract
 (local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) · SQLModel + SQLite (drafts,
-audit) · pytest + ruff + mypy(strict) + GitHub Actions. The Anthropic vision/LLM clients exist
-behind the same interface as an **optional, non-default** path (proves swappability) — they are
-not used in the local zero-cost flow.
+audit) · pytest + ruff + mypy(strict) + GitHub Actions. Anthropic Vision is factory-selectable
+only through explicit external opt-in. The Anthropic LLM adapter is not wired into the v1
+executable path; offline fake-SDK tests cover request/response shape, not live integration.

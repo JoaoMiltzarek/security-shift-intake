@@ -29,6 +29,11 @@ from src.schema.state import ExtractedField, PipelineState
 # real errors are flagged even at the cost of some extra human checks).
 DEFAULT_CONFIDENCE_THRESHOLD = 0.70
 
+# Normalization intentionally reduces per-cell audit metadata to ``needs_review``. This fixed
+# source-specific placeholder reconstructs a conservative routing signal at the domain boundary;
+# it is not a propagated score or calibrated probability and does not replace ``must_review``.
+NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE = 0.40
+
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y")
 _BOOL_TOKENS = {"sim", "nao", "não", "true", "false", "yes", "no", "s", "n", "1", "0"}
 
@@ -132,6 +137,7 @@ def validate_table(
     A header cell is flagged when required-but-blank, or its `status` != accepted, or
     confidence < threshold. Each occurrence becomes one field flagged by `needs_review`.
     `S/A` sheets yield a single, non-flagged "(sem alteração)" field — never an incident.
+    Structural uncertainty yields one explicit pending field and blocks approval/export.
     """
     raw = state.raw_extraction
     normalized = state.normalized
@@ -169,7 +175,24 @@ def validate_table(
         if flagged:
             must_review.append(field.name)
 
-    if normalized.no_occurrence:
+    if normalized.disposition == "unknown":
+        reason = (
+            "(tabela não encontrada no OCR)"
+            if not raw.tabela_encontrada
+            else "(nenhuma linha legível)"
+        )
+        fields.append(
+            ExtractedField(
+                name="ocorrencias",
+                value=reason,
+                confidence=0.0,
+                must_review=True,
+                source="rule",
+                status="must_review",
+            )
+        )
+        must_review.append("ocorrencias")
+    elif normalized.disposition == "none":
         fields.append(
             ExtractedField(
                 name="ocorrencias", value="(sem alteração)", confidence=1.0, must_review=False,
@@ -186,7 +209,11 @@ def validate_table(
                 ExtractedField(
                     name=obj_name,
                     value=occ.category or "(revisar)",
-                    confidence=0.0 if obj_blank else (0.4 if obj_flag else 1.0),
+                    confidence=(
+                        0.0
+                        if obj_blank
+                        else (NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE if obj_flag else 1.0)
+                    ),
                     must_review=obj_flag,
                     source="rule",
                     status=(
@@ -203,7 +230,7 @@ def validate_table(
                 ExtractedField(
                     name=desc_name,
                     value=occ.description or "(sem descrição)",
-                    confidence=0.4 if desc_flag else 1.0,
+                    confidence=(NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE if desc_flag else 1.0),
                     must_review=desc_flag,
                     source="rule",
                     status="must_review" if desc_flag else "accepted",

@@ -1,13 +1,13 @@
-"""AnthropicLLMClient — the real structured-extraction client.
+"""AnthropicLLMClient — experimental structured-extraction adapter.
 
 Implements LLMClient against the Anthropic Messages API with structured output
 (`ExtractionResponse` validated by Pydantic, per the vlm-document-extraction
 skill). Extracts the requested fields from a transcription, each with a value and
 a confidence.
 
-Status: built against the verified Anthropic API shape (model id from config), but
-**not yet validated against a live API in this environment** (mock-first). Tests
-use MockLLMClient ($0).
+Status: EXPERIMENTAL paid external adapter, outside v1. No official entrypoint constructs it.
+Tests use a fake SDK and do not prove live integration, HTTP failure handling, or suitability
+for real PII.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ def _build_classify_prompt(
 
 
 class AnthropicLLMClient:
-    """Real LLMClient backed by the Anthropic Messages API (structured output)."""
+    """Unwired external LLMClient adapter for explicit experiments only."""
 
     def __init__(
         self,

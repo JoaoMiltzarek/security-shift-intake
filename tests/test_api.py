@@ -7,6 +7,7 @@ Also asserts the invariant at the HTTP layer: an unapproved draft cannot be sent
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +15,10 @@ from fastapi.testclient import TestClient
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
+from src.schema.loader import load_config
+
+# Estes corpos usam o formulário ESCALAR legado — config explícita, não o default tabular.
+_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
 
 _SUBMIT_BODY = {
     "source_pdf": "report.pdf",
@@ -35,7 +40,7 @@ _SUBMIT_BODY = {
 @pytest.fixture
 def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     sender = MockSender()
-    app = create_app(engine=make_engine("sqlite://"), sender=sender)
+    app = create_app(engine=make_engine("sqlite://"), sender=sender, config=_SCALAR_CONFIG)
     with TestClient(app) as client:
         yield client, sender
 
@@ -112,3 +117,34 @@ def test_list_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
     r = client.get("/drafts")
     assert r.status_code == 200
     assert len(r.json()) == 2
+
+
+# --- Contratos F1 (SSI-1005/F3): aprovação vinculada à revisão do conteúdo ---
+
+
+def test_approve_edit_send_is_blocked(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, sender = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+
+    # Edita DEPOIS de aprovado: o conteúdo enviado não seria o conteúdo aprovado.
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "Outro Nome"})
+    assert r.status_code == 200
+
+    r = client.post(f"/drafts/{draft_id}/send")
+    assert r.status_code == 409  # aprovação antiga não vale para conteúdo novo
+    assert sender.call_count == 0
+
+
+def test_edit_sent_draft_is_rejected(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+    client.post(f"/drafts/{draft_id}/approve")
+    assert client.post(f"/drafts/{draft_id}/send").status_code == 200
+
+    r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
+    assert r.status_code == 409  # o registro do que foi enviado não pode mudar

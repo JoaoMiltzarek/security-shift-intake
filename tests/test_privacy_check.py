@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.privacy_check import (
     check_no_sensitive_outside_private,
     check_public_no_pii,
@@ -67,6 +69,30 @@ def test_sample_image_allowed(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
+def test_exact_cockpit_demo_gif_allowed(tmp_path: Path) -> None:
+    _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "samples/leak.gif",
+        "samples/cockpit_demo-copy.gif",
+        "samples/nested/cockpit_demo.gif",
+        "assets/cockpit_demo.gif",
+    ],
+)
+def test_other_gifs_outside_private_remain_flagged(tmp_path: Path, relpath: str) -> None:
+    _write(tmp_path / relpath, "gif")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
+def test_archive_samples_does_not_inherit_media_allowlist(tmp_path: Path) -> None:
+    _write(tmp_path / "archive" / "samples" / "cockpit_demo.gif", "gif")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
 def test_db_outside_private_flagged(tmp_path: Path) -> None:
     _write(tmp_path / "data" / "app.db", "sqlite")
     assert check_no_sensitive_outside_private(tmp_path)
@@ -96,6 +122,22 @@ def test_tracked_source_files_ok(monkeypatch) -> None:  # type: ignore[no-untype
 
     monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("src/api/app.py"), Path("README.md")])
     assert pc.check_no_sensitive_tracked() == []
+
+
+def test_tracked_showcase_gif_is_allowed_only_at_repo_root(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(
+        pc,
+        "_tracked_files",
+        lambda: [
+            Path("samples/cockpit_demo.gif"),
+            Path("archive/samples/cockpit_demo.gif"),
+        ],
+    )
+    violations = pc.check_no_sensitive_tracked()
+    assert len(violations) == 1
+    assert str(Path("archive/samples/cockpit_demo.gif")) in violations[0]
 
 
 # --- check_public_no_pii ----------------------------------------------------
@@ -135,3 +177,67 @@ def test_bressay_ground_truth_text_exempt_from_pii_scan(tmp_path: Path) -> None:
     # BRESSAY .txt ground truth legitimately contains names/times of essay authors.
     _write(tmp_path / "datasets" / "bressay" / "gt.txt", "encontro às 14:30 com colega")
     assert check_public_no_pii(tmp_path) == []
+
+
+# --- F6.2 (SSI-1009): formatos de código/dados públicos também são varridos ---
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "evals/out.json",
+        "evals/rows.csv",
+        "ui/x.html",
+        "templates/mail.j2",
+        "scripts/tool.py",
+        "notes.jsonl",
+        "config/extra.toml",
+        "ui/static/x.js",
+    ],
+)
+def test_public_code_formats_scanned_for_private_terms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relpath: str
+) -> None:
+    """Um termo real (pii_terms) escondido em QUALQUER formato de texto commitável
+    precisa reprovar o privacy-check — não só em .md/.yaml (finding F-06)."""
+    import re
+
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(
+        pc, "_load_extra_terms", lambda: [re.compile("NOMEREALTESTE", re.IGNORECASE)]
+    )
+    _write(tmp_path / relpath, "valor com NOMEREALTESTE dentro")
+    assert pc.check_public_no_pii(tmp_path)
+
+
+def test_code_formats_ignore_clock_times(tmp_path: Path) -> None:
+    """Fixtures sintéticas contêm horários legítimos — HH:MM não é sinal de PII em
+    código/dados (limitação documentada; o heurístico de hora vale só para prosa)."""
+    _write(tmp_path / "tests" / "test_x.py", "hora = '14:32'")
+    assert check_public_no_pii(tmp_path) == []
+
+
+def test_synthetic_trees_exempt_from_private_terms_in_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """data/ e tests/ são sintéticos por contrato: o vocabulário do domínio colide com
+    termos privados por design (ex.: nome de unidade impresso na folha) — pii_terms não
+    se aplica a código/dados dessas árvores."""
+    import re
+
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(
+        pc, "_load_extra_terms", lambda: [re.compile("NOMEREALTESTE", re.IGNORECASE)]
+    )
+    _write(tmp_path / "data" / "generators" / "vocab.py", "x = 'NOMEREALTESTE'")
+    _write(tmp_path / "tests" / "test_y.py", "y = 'NOMEREALTESTE'")
+    assert pc.check_public_no_pii(tmp_path) == []
+
+
+def test_org_sentinel_still_applies_to_data_artifacts(tmp_path: Path) -> None:
+    """A exempção sintética vale só para pii_terms — a sentinela org continua pegando
+    .jsonl/.json/.csv em qualquer lugar (como no pre-commit guard)."""
+    _write(tmp_path / "data" / "out.jsonl", '{"cliente": "HT Micron"}')
+    assert check_public_no_pii(tmp_path)

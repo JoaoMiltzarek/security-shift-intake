@@ -47,7 +47,18 @@ _BRESSAY_SUBPATH = ("datasets", "bressay")
 _SAMPLES_DIR = "samples"
 
 # Public text files scanned for PII. Extensions whose content is human-facing/committed.
+# Prosa: varredura completa, incluindo o heurístico de horário HH:MM.
 _PUBLIC_TEXT_EXT = {".md", ".yaml", ".yml", ".txt", ".rst"}
+# Código/dados commitáveis (SSI-1009/F-06): varridos por sentinela de org e termos reais
+# (pii_terms), mas SEM o heurístico HH:MM — fixtures sintéticas contêm horários legítimos
+# (limitação documentada em docs/PRIVACY.md).
+_PUBLIC_CODE_EXT = {".py", ".js", ".html", ".j2", ".json", ".jsonl", ".csv", ".toml"}
+
+# Árvores sintéticas POR CONTRATO (geradores + splits congelados + fixtures de teste):
+# o vocabulário de domínio colide com termos privados por design (ex.: o nome de uma
+# unidade impresso na própria folha), então pii_terms não se aplica a código/dados aqui.
+# A sentinela org continua valendo (em .json/.jsonl/.csv, como no pre-commit guard).
+_SYNTHETIC_TREES = ("data", "tests")
 
 # Optional, gitignored file with real terms (names, units) to scan public outputs for.
 _PII_TERMS_FILE = Path(_PRIVATE_DIR) / "pii_terms.txt"
@@ -80,11 +91,13 @@ def scan_text_for_pii(
     text: str,
     extra_terms: list[re.Pattern[str]] | None = None,
     include_org: bool = True,
+    include_times: bool = True,
 ) -> list[str]:
     """Return PII snippets in *text* (HH:MM times, private terms, and org if include_org)."""
     org = list(_ORG_PATTERNS) if include_org else []
+    times = [_TIME_PATTERN] if include_times else []
     patterns = (
-        org + [_TIME_PATTERN] + (extra_terms if extra_terms is not None else _load_extra_terms())
+        org + times + (extra_terms if extra_terms is not None else _load_extra_terms())
     )
     hits: list[str] = []
     for lineno, line in enumerate(text.splitlines(), 1):
@@ -159,7 +172,15 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
             continue
         if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue
-        if p.suffix.lower() not in _PUBLIC_TEXT_EXT:
+        suffix = p.suffix.lower()
+        terms = extra
+        if suffix in _PUBLIC_TEXT_EXT:
+            include_times = True
+        elif suffix in _PUBLIC_CODE_EXT:
+            include_times = False  # horários são legítimos em fixtures sintéticas
+            if rel.parts and rel.parts[0] in _SYNTHETIC_TREES:
+                terms = []  # vocabulário sintético colide com termos privados por design
+        else:
             continue
         try:
             text = p.read_text(encoding="utf-8", errors="replace")
@@ -168,7 +189,9 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
         # Source/docs/config legitimately name the org (it is the project's subject);
         # exempt them from the org sentinel exactly like the pre-commit guard does.
         include_org = not _is_text_scan_exempt(rel)
-        hits = scan_text_for_pii(text, extra_terms=extra, include_org=include_org)
+        hits = scan_text_for_pii(
+            text, extra_terms=terms, include_org=include_org, include_times=include_times
+        )
         violations.extend(f"  {rel}:{h.strip()}" for h in hits)
     return violations
 

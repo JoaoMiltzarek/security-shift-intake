@@ -2,7 +2,7 @@
 
 Usage:
     from src.schema.loader import load_config
-    cfg = load_config(Path("configs/htmicron_security.yaml"))
+    cfg = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 Raises:
     FileNotFoundError  — if the path does not exist.

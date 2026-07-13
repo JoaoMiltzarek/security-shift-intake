@@ -1,9 +1,12 @@
 """PR-D3: template controle_ocorrencias — contrato render↔parser (pré-G-S0).
 
 O teste central é `test_ideal_transcription_parses_all_variants`: a leitura IDEAL da
-folha (ideal_lines) atravessa o extractor real + normalize e reproduz a estrutura da
-verdade (S/A × N linhas × cabeçalho) nas 3 variantes de layout — sem OCR, $0
+folha (ideal_lines) atravessa o extractor real + normalize e reproduz a estrutura observável
+(S/A textual × N linhas × cabeçalho) nas 3 variantes de layout — sem OCR, $0
 (docs/DATASET_CONTRACT.md §10, gate G-S0).
+
+Um risco puramente visual não aparece em `ideal_lines`; sem evidência geométrica, o contrato
+seguro é `unknown`, nunca uma ausência confirmada.
 """
 
 from __future__ import annotations
@@ -58,7 +61,11 @@ def test_ideal_transcription_parses_all_variants(variant: Variant, scenario: str
     normalized = normalize(raw)
 
     # Estrutura (os componentes de parse_table_success do protocolo §2.1):
-    assert normalized.no_occurrence == record.sem_alteracao
+    expected_disposition = (
+        "unknown" if record.riscado else ("none" if record.sem_alteracao else "present")
+    )
+    assert normalized.disposition == expected_disposition
+    assert normalized.no_occurrence is (expected_disposition == "none")
     assert len(normalized.occurrences) == len(record.ocorrencias)
     # Cabeçalho: valores exatamente como desenhados (contrato §2.2 / §11.1-2).
     assert normalized.shift.date == record.data
@@ -112,3 +119,5 @@ def test_riscado_has_no_table_text() -> None:
     colhdr = next(i for i, line in enumerate(result.ideal_lines) if "Item" in line)
     footer = next(i for i, line in enumerate(result.ideal_lines) if line == "Ronda")
     assert result.ideal_lines[colhdr + 1 : footer] == []  # região sem texto algum
+    raw = RuleBasedTableExtractor(_CONFIG).extract("\n".join(result.ideal_lines))
+    assert normalize(raw).disposition == "unknown"

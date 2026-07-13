@@ -62,8 +62,10 @@ def assess_ocr_quality(state: PipelineState, config: ReportConfig) -> tuple[str,
     content = [w for w in _WORD.findall(text.lower()) if w not in labels]
     n = len(content)
 
-    no_occurrence = bool(state.normalized and state.normalized.no_occurrence)
-    if not no_occurrence and n < _MIN_CONTENT_WORDS:
+    confirmed_no_occurrence = bool(
+        state.normalized and state.normalized.disposition == "none"
+    )
+    if not confirmed_no_occurrence and n < _MIN_CONTENT_WORDS:
         return (
             OCR_FAILED,
             "Conteúdo manuscrito ilegível para o OCR — requer transcrição manual.",

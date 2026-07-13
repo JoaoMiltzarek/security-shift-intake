@@ -13,7 +13,7 @@ from typing import Protocol, runtime_checkable
 from sqlmodel import Session
 
 from src.api.models import Draft
-from src.api.repository import add_audit, get_draft, mark_sent
+from src.api.repository import add_audit, get_draft, mark_sent, state_sha256
 from src.pipeline.ocr_quality import OCR_FAILED
 from src.schema.state import ApprovalStatus, PipelineState
 
@@ -46,6 +46,10 @@ def assert_reviewable(state: PipelineState) -> None:
         raise DraftNotReviewableError(
             f"{len(state.must_review_fields)} field(s) need review before approval: "
             f"{', '.join(state.must_review_fields)}."
+        )
+    if state.normalized is not None and state.normalized.disposition == "unknown":
+        raise DraftNotReviewableError(
+            "Occurrence disposition is unknown — explicit human confirmation required."
         )
 
 
@@ -96,6 +100,36 @@ def send_draft(
         )
         raise DraftNotApprovedError(f"Draft {draft_id} was already sent — send blocked.")
 
+    # A aprovação vale para UMA revisão/conteúdo (SSI-1006): revisão e hash estampados
+    # no approve precisam bater com o estado corrente. Cobre aprovação legada
+    # (approved_revision NULL) e escrita direta em state_json fora de update_state.
+    if (
+        draft.approved_revision != draft.revision
+        or draft.approved_state_sha256 != state_sha256(draft.state_json)
+    ):
+        add_audit(
+            session, draft_id, actor=actor, action="send_blocked",
+            detail=(
+                f"stale_approval rev={draft.revision} "
+                f"approved_rev={draft.approved_revision}"
+            ),
+        )
+        raise DraftNotApprovedError(
+            f"Draft {draft_id} content is not the approved revision — send blocked; "
+            "re-approve the current content."
+        )
+
     state = PipelineState.model_validate_json(draft.state_json)
+
+    # Última linha de defesa: o estado corrente precisa continuar aprovável
+    # (sem pendências, sem OCR falho, sem disposição unknown) no momento do envio.
+    try:
+        assert_reviewable(state)
+    except DraftNotReviewableError as exc:
+        add_audit(
+            session, draft_id, actor=actor, action="send_blocked", detail="not_reviewable"
+        )
+        raise DraftNotApprovedError(str(exc)) from exc
+
     sender.send(state.recipients, state.email_draft or "")
     return mark_sent(session, draft_id, actor=actor)

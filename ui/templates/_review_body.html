@@ -1,3 +1,4 @@
+{% if status_oob %}{% include "_status_panel.html" %}{% endif %}
 <div id="review-body">
   <div class="cockpit{{ ' has-page' if has_image else '' }}">
     {% if has_image %}
@@ -53,8 +54,11 @@
               data-method='{{ f.evidence_method | tojson }}'
               data-evidence='{{ f.evidence_text | tojson }}'>
             <td><label for="field__{{ f.name }}">{{ f.name }}</label></td>
-            <td><input id="field__{{ f.name }}" name="field__{{ f.name }}"
-                       value="{{ f.value if f.value is not none else '' }}" style="width: 100%"></td>
+            <td>{% if table_mode and f.name.startswith('ocorrencia') %}
+                {# Ocorrências são editadas no grid 0/1/N abaixo — aqui é só evidência. #}
+                {{ f.value if f.value is not none else '' }}
+              {% else %}<input id="field__{{ f.name }}" name="field__{{ f.name }}"
+                       value="{{ f.value if f.value is not none else '' }}" style="width: 100%">{% endif %}</td>
             <td>{{ source }}</td>
             <td>{{ status }}{{ "  MUST REVIEW" if f.must_review else "" }}</td>
             <td class="evidence-cell">
@@ -65,6 +69,52 @@
           </tr>
           {% endfor %}
         </table>
+        {% if table_mode %}
+        <h3>Ocorrências (0/1/N)</h3>
+        {% if edit_error %}<p id="edit-error"><strong>⚠ {{ edit_error }}</strong></p>{% endif %}
+        <p>
+          Disposição:
+          <label><input type="radio" name="disposicao" value="sem_alteracao"
+                 {{ 'checked' if disposicao == 'none' else '' }}> sem alteração (S/A)</label>
+          <label><input type="radio" name="disposicao" value="com_ocorrencias"
+                 {{ 'checked' if disposicao == 'present' else '' }}> com ocorrências</label>
+          {% if disposicao == 'unknown' %}
+          <strong>Estado indefinido — confirme S/A ou preencha as ocorrências.</strong>
+          {% endif %}
+        </p>
+        <table>
+          <tr><th>Item</th><th>Hora</th><th>Descrição</th><th>Ação</th><th>Resolvido</th><th></th></tr>
+          {% for row in occurrence_rows %}
+          {% set i = loop.index %}
+          <tr class="occ-row">
+            <td><input name="occ__{{ i }}__item" value="{{ row.item }}"></td>
+            <td><input name="occ__{{ i }}__hora" value="{{ row.hora }}"></td>
+            <td><input name="occ__{{ i }}__descricao" value="{{ row.descricao }}" style="width: 100%"></td>
+            <td><input name="occ__{{ i }}__acao" value="{{ row.acao }}"></td>
+            <td><select name="occ__{{ i }}__resolvido">
+                <option value="" {{ 'selected' if row.resolvido == '' else '' }}>—</option>
+                <option value="sim" {{ 'selected' if row.resolvido == 'sim' else '' }}>sim</option>
+                <option value="nao" {{ 'selected' if row.resolvido == 'nao' else '' }}>não</option>
+            </select></td>
+            <td><button type="button" data-clear-row>Limpar linha</button></td>
+          </tr>
+          {% endfor %}
+          {# Linha sobressalente: preencher = adicionar; em branco = descartada no servidor. #}
+          {% set spare = occurrence_rows | length + 1 %}
+          <tr class="occ-row occ-spare">
+            <td><input name="occ__{{ spare }}__item" placeholder="nova linha"></td>
+            <td><input name="occ__{{ spare }}__hora"></td>
+            <td><input name="occ__{{ spare }}__descricao" style="width: 100%"></td>
+            <td><input name="occ__{{ spare }}__acao"></td>
+            <td><select name="occ__{{ spare }}__resolvido">
+                <option value="" selected>—</option>
+                <option value="sim">sim</option>
+                <option value="nao">não</option>
+            </select></td>
+            <td></td>
+          </tr>
+        </table>
+        {% endif %}
         <p>
           <button type="submit">Salvar revisão</button>
           <small>Salvar revisão não aprova o documento.</small>

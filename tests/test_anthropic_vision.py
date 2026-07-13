@@ -103,7 +103,7 @@ def test_demo_reports_clear_error_when_client_fails(
 
     monkeypatch.setattr(av, "AnthropicVisionClient", _boom)
 
-    rc = main(["--file", str(pdf)])
+    rc = main(["--file", str(pdf), "--allow-external"])
     captured = capsys.readouterr()
     assert rc == 1
     assert "ANTHROPIC_API_KEY" in captured.err
@@ -112,6 +112,6 @@ def test_demo_reports_clear_error_when_client_fails(
 def test_demo_missing_file_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
     from scripts.demo_transcribe import main
 
-    rc = main(["--file", "does_not_exist.pdf"])
+    rc = main(["--file", "does_not_exist.pdf", "--allow-external"])
     assert rc == 2
     assert "not found" in capsys.readouterr().err

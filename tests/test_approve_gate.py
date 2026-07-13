@@ -14,7 +14,12 @@ from fastapi.testclient import TestClient
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import DraftNotReviewableError, MockSender, assert_reviewable
+from src.schema.extraction import NormalizedIncidentModel
+from src.schema.loader import load_config
 from src.schema.state import PipelineState
+
+# Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
+_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
 
 # Body whose critic output still has a pending field (must_review_fields non-empty).
 _PENDING_BODY = {
@@ -51,7 +56,7 @@ _OCR_FAILED_BODY = {
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    app = create_app(engine=make_engine("sqlite://"), sender=MockSender())
+    app = create_app(engine=make_engine("sqlite://"), sender=MockSender(), config=_SCALAR_CONFIG)
     with TestClient(app) as c:
         yield c
 
@@ -72,6 +77,17 @@ def test_assert_reviewable_blocks_failed_ocr_even_without_pending_fields() -> No
     state = PipelineState(
         source_pdf=Path("x.pdf"), ocr_quality="failed", must_review_fields=[]
     )
+    with pytest.raises(DraftNotReviewableError):
+        assert_reviewable(state)
+
+
+def test_assert_reviewable_blocks_unknown_without_pending_fields() -> None:
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(disposition="unknown"),
+        must_review_fields=[],
+    )
+
     with pytest.raises(DraftNotReviewableError):
         assert_reviewable(state)
 
