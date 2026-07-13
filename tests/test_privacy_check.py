@@ -193,6 +193,11 @@ def test_nested_samples_text_is_still_scanned(tmp_path: Path) -> None:
     assert check_public_no_pii(tmp_path)
 
 
+def test_root_samples_text_is_still_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "samples" / "leak.txt", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path)
+
+
 def test_public_md_clean_passes(tmp_path: Path) -> None:
     _write(tmp_path / "docs" / "AUDITORIA.md", "Field-capture rate 0.42; N=4 sheets.")
     assert check_public_no_pii(tmp_path) == []

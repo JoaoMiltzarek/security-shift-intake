@@ -44,9 +44,6 @@ _PRIVATE_DIR = "private"
 # datasets/, so a stray real sheet anywhere else still trips the scan.
 _BRESSAY_SUBPATH = ("datasets", "bressay")
 
-# Synthetic sample images committed for eyeballing are allowed (generated, not real).
-_SAMPLES_DIR = "samples"
-
 # Public text files scanned for PII. Extensions whose content is human-facing/committed.
 # Prosa: varredura completa, incluindo o heurístico de horário HH:MM.
 _PUBLIC_TEXT_EXT = {".md", ".yaml", ".yml", ".txt", ".rst"}
@@ -181,7 +178,7 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _is_root_directory(rel, _PRIVATE_DIR) or _is_root_directory(rel, _SAMPLES_DIR):
+        if _is_root_directory(rel, _PRIVATE_DIR):
             continue
         if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue
