@@ -33,13 +33,17 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx  # noqa: E402
+from sqlmodel import Session  # noqa: E402
 
+from src.api.db import init_db, make_engine  # noqa: E402
 from src.api.page_images import save_page_images  # noqa: E402
+from src.api.repository import create_draft  # noqa: E402
 from src.clients.local_rules import RuleBasedLLMClient  # noqa: E402
 from src.clients.mock import MockVisionClient  # noqa: E402
 from src.orchestrator import run_pipeline  # noqa: E402
 from src.pipeline.ingest import OCR_DPI, load_source_images  # noqa: E402
 from src.schema.loader import load_config  # noqa: E402
+from src.schema.state import PipelineState  # noqa: E402
 
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 SAMPLE = Path("samples/sample_doc-00000.png")
@@ -80,8 +84,18 @@ class EnvUnavailable(RuntimeError):
     """The browser or server is not available here — exit 2 (reported, not authority)."""
 
 
-def _seed_draft(base_url: str) -> int:
-    """Build a synthetic table draft with one bbox field and POST it; return the id."""
+def _persist_draft(state: PipelineState) -> int:
+    """Seed the local SQLite store without exposing a client-derived-state HTTP API."""
+    engine = make_engine()
+    init_db(engine)
+    with Session(engine) as session:
+        draft = create_draft(session, state, actor="browser_smoke")
+        assert draft.id is not None
+        return draft.id
+
+
+def _seed_draft() -> int:
+    """Build a synthetic table draft with one bbox field and persist it; return the id."""
     if not SAMPLE.exists():
         raise EnvUnavailable(f"synthetic sample missing: {SAMPLE} (run `make gen-pdfs`)")
     config = load_config(CONFIG)
@@ -106,13 +120,11 @@ def _seed_draft(base_url: str) -> int:
     if not patched:
         raise SmokeError(f"seed produced no {_BBOX_FIELD!r} field to attach a bbox to")
 
-    resp = httpx.post(f"{base_url}/drafts", json=payload, timeout=30)
-    resp.raise_for_status()
-    return int(resp.json()["id"])
+    return _persist_draft(PipelineState.model_validate(payload))
 
 
-def _seed_unknown_draft(base_url: str) -> int:
-    """POST an unknown table draft with the derived pending list intentionally absent."""
+def _seed_unknown_draft() -> int:
+    """Persist an unknown draft with the derived pending list intentionally absent."""
     config = load_config(CONFIG)
     state = run_pipeline(
         SAMPLE,
@@ -125,10 +137,7 @@ def _seed_unknown_draft(base_url: str) -> int:
         raise SmokeError("unknown seed did not preserve structural uncertainty")
     # Defense-in-depth scenario: even a legacy/tampered state missing this derived list must
     # remain visibly pending and impossible to approve/export.
-    payload = state.model_copy(update={"must_review_fields": []}).model_dump(mode="json")
-    resp = httpx.post(f"{base_url}/drafts", json=payload, timeout=30)
-    resp.raise_for_status()
-    return int(resp.json()["id"])
+    return _persist_draft(state.model_copy(update={"must_review_fields": []}))
 
 
 def _wait_for_server(base_url: str) -> None:
@@ -146,7 +155,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         raise EnvUnavailable("playwright not installed (pip install playwright)") from exc
 
     _wait_for_server(base_url)
-    draft_id = _seed_draft(base_url)
+    draft_id = _seed_draft()
     review_url = f"{base_url}/drafts/{draft_id}/review"
     screenshot = Path(os.environ.get("BROWSER_SMOKE_SCREENSHOT", str(SCREENSHOT)))
 
@@ -187,7 +196,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         page.screenshot(path=str(screenshot), full_page=True)
 
         # (4) structural unknown: never "Sem alteração", never exportable/approvable.
-        unknown_draft_id = _seed_unknown_draft(base_url)
+        unknown_draft_id = _seed_unknown_draft()
         page.goto(f"{base_url}/drafts/{unknown_draft_id}/review", wait_until="networkidle")
         body = page.locator("#review-body").inner_text()
         if "(ocorrências não confirmadas)" not in body:
