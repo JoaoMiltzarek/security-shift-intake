@@ -42,17 +42,18 @@ jobs:
         run: make validate-config
 
       - name: Privacy check (no real data / PII)
+        id: privacy
         run: set -o pipefail; make privacy-check 2>&1 | tee privacy.log
 
       - name: Evidence report (authoritative collector — uploaded, not committed)
-        if: always()
+        if: ${{ success() && steps.privacy.outcome == 'success' }}
         run: >
           uv run python scripts/evidence_report.py
           --preflight preflight.json --pytest-log pytest.log --privacy-log privacy.log
           --authoritative-sha ${{ github.sha }} --out SSI-1002_EVIDENCE.md
 
       - name: Upload evidence report
-        if: always()
+        if: ${{ success() && steps.privacy.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: ssi-1002-evidence

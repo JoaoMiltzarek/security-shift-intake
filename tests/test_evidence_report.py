@@ -6,6 +6,8 @@ tree (never re-runs anything), tolerates missing artifacts, and embeds a screens
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from scripts.evidence_report import render_report
@@ -58,3 +60,11 @@ def test_render_refuses_failed_privacy_evidence() -> None:
             privacy_log="PRIVACY-CHECK FAILED — NOMEREAL-SUPER-SECRETO",
             smoke_log=None, screenshot_sha=None,
         )
+
+
+def test_ci_does_not_collect_or_upload_evidence_after_privacy_failure() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    condition = "if: ${{ success() && steps.privacy.outcome == 'success' }}"
+
+    assert "id: privacy" in workflow
+    assert workflow.count(condition) == 2
