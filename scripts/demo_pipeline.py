@@ -39,8 +39,12 @@ def _private_real_file(path: Path, root: Path = PRIVATE_REAL_ROOT) -> Path:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
         raise FileNotFoundError(path)
+    root_absolute = root.absolute()
+    root_resolved = root.resolve(strict=True)
+    if root_resolved != root_absolute:
+        raise ValueError("private/reais root is redirected outside the repository.")
     try:
-        resolved.relative_to(root.resolve(strict=True))
+        resolved.relative_to(root_resolved)
     except ValueError as exc:
         raise ValueError("Input must be located under private/reais/.") from exc
     return resolved

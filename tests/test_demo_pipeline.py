@@ -24,6 +24,22 @@ def test_real_input_must_resolve_under_private_reais(tmp_path: Path) -> None:
         demo_pipeline._private_real_file(outside, private_root)
 
 
+def test_private_reais_root_cannot_redirect_to_another_location(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    source = outside / "sheet.png"
+    source.write_bytes(b"synthetic")
+    private_root = tmp_path / "private" / "reais"
+    private_root.parent.mkdir()
+    try:
+        private_root.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="redirected"):
+        demo_pipeline._private_real_file(source, private_root)
+
+
 def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
