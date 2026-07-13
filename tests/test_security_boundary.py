@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -78,3 +79,10 @@ def test_same_origin_state_change_is_allowed(client: TestClient) -> None:
         headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"},
     )
     assert response.status_code == 201
+
+
+def test_htmx_disables_dynamic_code_and_history_cache() -> None:
+    base = Path("ui/templates/base.html").read_text(encoding="utf-8")
+    assert '"allowEval":false' in base
+    assert '"allowScriptTags":false' in base
+    assert '"historyEnabled":false' in base
