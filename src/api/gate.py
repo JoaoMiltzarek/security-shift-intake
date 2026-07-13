@@ -8,6 +8,7 @@ effect did or did not happen.
 
 from __future__ import annotations
 
+import threading
 from typing import Protocol, runtime_checkable
 
 from sqlmodel import Session
@@ -16,6 +17,15 @@ from src.api.models import Draft
 from src.api.repository import add_audit, get_draft, mark_sent, state_sha256
 from src.pipeline.ocr_quality import OCR_FAILED
 from src.schema.state import ApprovalStatus, PipelineState
+
+_SEND_LOCKS_GUARD = threading.Lock()
+_SEND_LOCKS: dict[int, threading.Lock] = {}
+
+
+def _draft_send_lock(draft_id: int) -> threading.Lock:
+    """Return the process-local lock for a draft (supported v1 is one Uvicorn process)."""
+    with _SEND_LOCKS_GUARD:
+        return _SEND_LOCKS.setdefault(draft_id, threading.Lock())
 
 
 class DraftNotApprovedError(RuntimeError):
@@ -75,6 +85,16 @@ class MockSender:
 
 
 def send_draft(
+    session: Session, draft_id: int, sender: Sender, actor: str = "reviewer"
+) -> Draft:
+    """Serialize the irreversible side effect per draft in the supported local process."""
+    with _draft_send_lock(draft_id):
+        # A concurrent session may have committed sent_at while this caller waited.
+        session.expire_all()
+        return _send_draft_once(session, draft_id, sender, actor)
+
+
+def _send_draft_once(
     session: Session, draft_id: int, sender: Sender, actor: str = "reviewer"
 ) -> Draft:
     """Send a draft iff it is approved. Otherwise block, audit, and raise.

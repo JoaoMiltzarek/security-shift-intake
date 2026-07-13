@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -144,3 +147,45 @@ def test_send_reruns_assert_reviewable_on_current_state(session: Session) -> Non
     with pytest.raises(DraftNotApprovedError):
         send_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 0
+
+
+def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> None:
+    engine = make_engine(f"sqlite:///{(tmp_path / 'send-race.db').as_posix()}")
+    init_db(engine)
+    with Session(engine) as setup:
+        draft = create_draft(setup, _state())
+        assert draft.id is not None
+        draft_id = draft.id
+        set_status(setup, draft_id, ApprovalStatus.APPROVED, actor="r")
+
+    class SlowSender:
+        def __init__(self) -> None:
+            self.call_count = 0
+            self._guard = threading.Lock()
+
+        def send(self, recipients: list[str], body: str) -> None:
+            with self._guard:
+                self.call_count += 1
+            time.sleep(0.1)  # deixa a segunda sessão explorar a janela pré-sent_at
+
+    sender = SlowSender()
+    start = threading.Barrier(3)
+
+    def attempt() -> str:
+        with Session(engine) as concurrent_session:
+            start.wait(timeout=5)
+            try:
+                send_draft(concurrent_session, draft_id, sender, actor="r")
+                return "sent"
+            except DraftNotApprovedError:
+                return "blocked"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(attempt) for _ in range(2)]
+        start.wait(timeout=5)
+        outcomes = [future.result(timeout=10) for future in futures]
+
+    assert sender.call_count == 1
+    assert sorted(outcomes) == ["blocked", "sent"]
+    with Session(engine) as verify:
+        assert [entry.action for entry in get_audit(verify, draft_id)].count("sent") == 1
