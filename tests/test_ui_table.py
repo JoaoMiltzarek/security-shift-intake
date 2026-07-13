@@ -105,8 +105,9 @@ def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
     unidade = next(f for f in state["extracted_fields"] if f["name"] == "unidade")
     assert unidade["source"] == "human"
     assert unidade["status"] == "accepted"
-    # The raw audit trail also records the human override.
-    assert state["raw_extraction"]["header"]["unidade"]["source"] == "human"
+    # RawDocumentExtraction is the immutable OCR snapshot; the override lives only
+    # in the reviewed/normalized layer and its per-revision ExtractedField metadata.
+    assert state["raw_extraction"]["header"]["unidade"]["source"] == "rule"
 
 
 def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
@@ -279,6 +280,32 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
     assert state["classification"]["incident_type"] == "theft"
     assert "tech_security" in state["recipients"]
     assert "revisão humana" in (state["classification"]["reason"] or "")
+
+
+def test_human_edit_preserves_raw_ocr_snapshot(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    before_raw = _state_of(client, draft_id)["raw_extraction"]
+    form = {
+        **_headers_form(),
+        "field__unidade": "9",
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__hora": "14:32",
+        "occ__1__descricao": "Descrição confirmada pelo operador",
+        "occ__1__acao": "Verificado",
+        "occ__1__resolvido": "sim",
+    }
+
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    state = _state_of(client, draft_id)
+
+    assert state["raw_extraction"] == before_raw
+    assert state["normalized"]["shift"]["unit"] == "9"
+    unit = next(field for field in state["extracted_fields"] if field["name"] == "unidade")
+    assert unit["source"] == "human"
+    assert unit["evidence_method"] == "human_edit"
+    assert unit["bbox"] is None
+    assert unit["evidence_text"] is None
 
 
 # --- PR4: cockpit overlay rendering + XSS safety ---------------------------------
