@@ -61,6 +61,15 @@ def _section(title: str, body: str | None, hint: str, *, fenced: bool = False) -
     return f"## {title}\n\n{rendered}\n"
 
 
+def _privacy_summary(log: str | None) -> str | None:
+    """Reduce privacy evidence to a fixed pass token; never copy scanner output."""
+    if log is None:
+        return None
+    if "privacy-check OK" not in log or "FAILED" in log or "BLOCKED" in log:
+        raise ValueError("privacy evidence is not a successful privacy-check result")
+    return "privacy-check OK — successful gate (raw detector output intentionally omitted)"
+
+
 def render_report(
     *,
     branch: str | None,
@@ -75,6 +84,7 @@ def render_report(
 ) -> str:
     """Render the evidence markdown from already-collected pieces (pure/testable)."""
     auth = authoritative_sha or "pending — see the post-commit CI artifact"
+    safe_privacy_log = _privacy_summary(privacy_log)
     screenshot = (
         f"`{SCREENSHOT}` — sha256 `{screenshot_sha}` (synthetic sample; real page capture)"
         if screenshot_sha
@@ -97,7 +107,7 @@ def render_report(
         _section("Preflight", preflight, "python3 scripts/preflight.py --json > preflight.json",
                  fenced=True),
         _section("Tests (make check)", pytest_log, "make check 2>&1 | tee pytest.log", fenced=True),
-        _section("Privacy check", privacy_log, "make privacy-check 2>&1 | tee privacy.log",
+        _section("Privacy check", safe_privacy_log, "make privacy-check 2>&1 | tee privacy.log",
                  fenced=True),
         _section("Browser-smoke (cockpit UI gate — CI authoritative)", smoke_log,
                  "uv run --with playwright python scripts/browser_smoke.py 2>&1 | tee smoke.log",

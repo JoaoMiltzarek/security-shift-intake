@@ -6,6 +6,8 @@ tree (never re-runs anything), tolerates missing artifacts, and embeds a screens
 
 from __future__ import annotations
 
+import pytest
+
 from scripts.evidence_report import render_report
 
 
@@ -32,3 +34,27 @@ def test_render_embeds_collected_artifacts() -> None:
     assert "a" * 64 in md
     assert "450 passed, 1 skipped" in md
     assert "browser-smoke OK" in md
+
+
+def test_render_never_embeds_privacy_log_verbatim() -> None:
+    secret = "NOMEREAL-SUPER-SECRETO"
+    md = render_report(
+        branch="b", parent_sha="p", tree_hash="t", authoritative_sha="sha",
+        preflight=None, pytest_log=None,
+        privacy_log=f"uv run privacy-check\nprivacy-check OK — clean\n{secret}",
+        smoke_log=None, screenshot_sha=None,
+    )
+
+    assert "privacy-check OK" in md
+    assert secret not in md
+    assert "uv run privacy-check" not in md
+
+
+def test_render_refuses_failed_privacy_evidence() -> None:
+    with pytest.raises(ValueError, match="privacy evidence"):
+        render_report(
+            branch="b", parent_sha="p", tree_hash="t", authoritative_sha="sha",
+            preflight=None, pytest_log=None,
+            privacy_log="PRIVACY-CHECK FAILED — NOMEREAL-SUPER-SECRETO",
+            smoke_log=None, screenshot_sha=None,
+        )
