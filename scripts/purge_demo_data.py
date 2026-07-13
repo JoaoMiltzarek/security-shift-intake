@@ -33,15 +33,32 @@ _DEMO_TARGETS = (
     "audit",
     "page_images",
     "debug",
+    "tmp",
 )
 # Folhas reais de entrada.
 _REAL_TARGETS = ("reais",)
 
 
-def _remove(entry: Path) -> bool:
+def _validated_directory(directory: Path) -> Path:
+    """Refuse a purge root redirected through a symlink or junction."""
+    absolute = directory.absolute()
+    if not absolute.exists():
+        return absolute
+    resolved = absolute.resolve(strict=True)
+    if resolved != absolute:
+        raise ValueError("Purge root is redirected; refusing to delete anything.")
+    return resolved
+
+
+def _remove(entry: Path, *, root: Path) -> bool:
     """Remove um arquivo ou diretório se existir; True se removeu."""
+    if entry.is_symlink():
+        entry.unlink()
+        return True
     if not entry.exists():
         return False
+    if not entry.resolve(strict=True).is_relative_to(root):
+        raise ValueError("Purge target escapes the selected private directory.")
     if entry.is_dir():
         shutil.rmtree(entry)
     else:
@@ -51,29 +68,32 @@ def _remove(entry: Path) -> bool:
 
 def purge(directory: Path = PRIVATE_DIR) -> list[str]:
     """Apaga TODO o conteúdo de *directory* (não o diretório). Retorna os nomes."""
+    directory = _validated_directory(directory)
     removed: list[str] = []
     if not directory.exists():
         return removed
     for entry in directory.iterdir():
-        _remove(entry)
+        _remove(entry, root=directory)
         removed.append(entry.name)
     return removed
 
 
 def purge_selected(directory: Path, targets: tuple[str, ...]) -> list[str]:
     """Apaga apenas os *targets* nomeados dentro de *directory*. Retorna o que removeu."""
+    directory = _validated_directory(directory)
     removed: list[str] = []
     for name in targets:
-        if _remove(directory / name):
+        if _remove(directory / name, root=directory):
             removed.append(name)
     return removed
 
 
-def main(argv: list[str]) -> int:
+def main(argv: list[str], *, private_dir: Path | None = None) -> int:
     parser = argparse.ArgumentParser(description="Limpeza escopada de private/.")
     parser.add_argument("mode", nargs="?", default="demo", choices=["demo", "real", "all"])
     parser.add_argument("--confirm", default="", help="'YES' p/ modos destrutivos (real/all).")
     args = parser.parse_args(argv)
+    directory = PRIVATE_DIR if private_dir is None else private_dir
 
     if args.mode in {"real", "all"} and args.confirm != "YES":
         target = "as folhas reais (private/reais/)" if args.mode == "real" else "TUDO em private/"
@@ -86,13 +106,16 @@ def main(argv: list[str]) -> int:
         return 2
 
     if args.mode == "demo":
-        removed = purge_selected(PRIVATE_DIR, _DEMO_TARGETS)
-        scope = "artefatos temporários do demo (DB + sidecars + audit/ + page_images/ + debug/)"
+        removed = purge_selected(directory, _DEMO_TARGETS)
+        scope = (
+            "artefatos temporários do demo "
+            "(DB + sidecars + audit/ + page_images/ + debug/ + tmp/)"
+        )
     elif args.mode == "real":
-        removed = purge_selected(PRIVATE_DIR, _REAL_TARGETS)
+        removed = purge_selected(directory, _REAL_TARGETS)
         scope = "folhas reais (reais/)"
     else:  # all
-        removed = purge(PRIVATE_DIR)
+        removed = purge(directory)
         scope = "todo o conteúdo de private/"
 
     if removed:

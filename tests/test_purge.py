@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from scripts import purge_demo_data
 from scripts.purge_demo_data import main, purge, purge_selected
 
 
@@ -61,41 +60,37 @@ def test_purge_selected_demo_keeps_curadoria_and_reais(tmp_path: Path) -> None:
 
 
 def test_main_demo_mode_preserves_real_and_curadoria(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     _seed_private(tmp_path)
-    monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
-    assert main(["demo"]) == 0
+    assert main(["demo"], private_dir=tmp_path) == 0
     assert not (tmp_path / "app.db").exists()
     assert (tmp_path / "reais" / "folha.pdf").exists()
     assert (tmp_path / "curadoria" / "doc.json").exists()
 
 
 def test_main_real_mode_requires_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     _seed_private(tmp_path)
-    monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
-    assert main(["real"]) == 2  # refused without confirm
+    assert main(["real"], private_dir=tmp_path) == 2  # refused without confirm
     assert (tmp_path / "reais" / "folha.pdf").exists()
 
 
 def test_main_real_mode_with_confirm_removes_reais(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     _seed_private(tmp_path)
-    monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
-    assert main(["real", "--confirm", "YES"]) == 0
+    assert main(["real", "--confirm", "YES"], private_dir=tmp_path) == 0
     assert not (tmp_path / "reais").exists()
     assert (tmp_path / "curadoria").exists()  # curadoria preserved
 
 
 def test_main_all_mode_requires_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     _seed_private(tmp_path)
-    monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
-    assert main(["all"]) == 2
+    assert main(["all"], private_dir=tmp_path) == 2
     assert (tmp_path / "curadoria").exists()
 
 
@@ -103,7 +98,7 @@ def test_main_all_mode_requires_confirm(
 
 
 def test_main_demo_mode_removes_page_images_shm_and_debug(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """page_images/ (PNGs das folhas), app.db-shm e debug/ são saída transitória do
     demo — o purge documentado em PRIVACY.md precisa levá-los junto (finding F-05)."""
@@ -113,13 +108,30 @@ def test_main_demo_mode_removes_page_images_shm_and_debug(
     (tmp_path / "page_images" / "doc-uuid" / "page_0.png").write_bytes(b"png")
     (tmp_path / "debug" / "evidence_matches").mkdir(parents=True)
     (tmp_path / "debug" / "evidence_matches" / "m.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "tmp" / "tesseract").mkdir(parents=True)
+    (tmp_path / "tmp" / "tesseract" / "residue.png").write_bytes(b"png")
 
-    monkeypatch.setattr(purge_demo_data, "PRIVATE_DIR", tmp_path)
-    assert main(["demo"]) == 0
+    assert main(["demo"], private_dir=tmp_path) == 0
 
     assert not (tmp_path / "app.db-shm").exists()
     assert not (tmp_path / "page_images").exists()
     assert not (tmp_path / "debug").exists()
+    assert not (tmp_path / "tmp").exists()
     # escopo demo continua preservando curadoria/reais
     assert (tmp_path / "reais" / "folha.pdf").exists()
     assert (tmp_path / "curadoria" / "doc.json").exists()
+
+
+def test_purge_refuses_a_redirected_root(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("keep", encoding="utf-8")
+    redirected = tmp_path / "private"
+    try:
+        redirected.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="redirected"):
+        purge(redirected)
+    assert (outside / "keep.txt").is_file()
