@@ -1,7 +1,7 @@
 """F6.4 (SSI-1009): o launcher oficial serve a UI apenas em loopback.
 
 A API não tem auth e o estado carrega PII — o entry point suportado recusa bind
-não-loopback sem uma flag explícita e assustadora.
+não-loopback sem bypass no perfil v1.
 """
 
 from __future__ import annotations
@@ -36,10 +36,8 @@ def test_loopback_default_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls and calls[0]["host"] == "127.0.0.1"
 
 
-def test_explicit_unsafe_flag_allows_non_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[str] = []
-    monkeypatch.setattr(
-        serve.uvicorn, "run", lambda app, **kw: calls.append(str(kw["host"]))
-    )
-    assert serve.main(["--host", "0.0.0.0", "--i-know-this-exposes-pii"]) == 0
-    assert calls == ["0.0.0.0"]
+def test_legacy_unsafe_flag_cannot_bypass_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(serve.uvicorn, "run", _no_run)
+    with pytest.raises(SystemExit) as exc:
+        serve.main(["--host", "0.0.0.0", "--i-know-this-exposes-pii"])
+    assert exc.value.code == 2
