@@ -40,7 +40,12 @@ _SUBMIT_BODY = {
 @pytest.fixture
 def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     sender = MockSender()
-    app = create_app(engine=make_engine("sqlite://"), sender=sender, config=_SCALAR_CONFIG)
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        sender=sender,
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as client:
         yield client, sender
 

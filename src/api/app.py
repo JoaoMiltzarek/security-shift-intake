@@ -408,6 +408,8 @@ def create_app(
     config: ReportConfig | None = None,
     page_images_root: Path | None = None,
     llm: LLMClient | None = None,
+    *,
+    enable_test_state_submission: bool = False,
 ) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
@@ -478,12 +480,17 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/drafts", status_code=201)
-    def submit(
-        state: PipelineState, session: Session = Depends(get_session)
-    ) -> dict[str, Any]:
-        draft = repository.create_draft(session, state)
-        return _draft_summary(draft)
+    # Test harness only. Production pipeline entrypoints persist server-produced state
+    # through repository.create_draft; the release app must never trust derived safety
+    # fields, recipients or output text supplied over HTTP.
+    if enable_test_state_submission:
+
+        @app.post("/drafts", status_code=201)
+        def submit(
+            state: PipelineState, session: Session = Depends(get_session)
+        ) -> dict[str, Any]:
+            draft = repository.create_draft(session, state)
+            return _draft_summary(draft)
 
     @app.get("/drafts")
     def list_drafts(session: Session = Depends(get_session)) -> list[dict[str, Any]]:

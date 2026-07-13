@@ -14,7 +14,9 @@ from src.api.db import make_engine
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app(engine=make_engine("sqlite://"))) as test_client:
+    with TestClient(
+        create_app(engine=make_engine("sqlite://"), enable_test_state_submission=True)
+    ) as test_client:
         yield test_client
 
 
@@ -104,3 +106,19 @@ def test_query_parameter_cannot_spoof_audit_actor(client: TestClient) -> None:
 
     assert audit[-1]["actor"] == "local_operator"
     assert all(entry["actor"] != "forged-admin" for entry in audit)
+
+
+def test_release_cockpit_has_no_client_derived_state_submission_route() -> None:
+    release_app = create_app(engine=make_engine("sqlite://"))
+    with TestClient(release_app) as release_client:
+        response = release_client.post(
+            "/drafts",
+            json={
+                "source_pdf": "fabricated.pdf",
+                "must_review_fields": [],
+                "recipients": ["attacker-controlled"],
+                "email_draft": "fabricated operational output",
+            },
+        )
+    assert response.status_code == 405
+    assert response.headers["allow"] == "GET"

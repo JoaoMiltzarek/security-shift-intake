@@ -38,7 +38,12 @@ _BODY = {
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    app = create_app(engine=make_engine("sqlite://"), sender=MockSender(), config=_SCALAR_CONFIG)
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        sender=MockSender(),
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as c:
         yield c
 

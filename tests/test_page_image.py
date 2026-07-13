@@ -37,7 +37,10 @@ def test_resolve_blocks_path_traversal(tmp_path: Path) -> None:
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[str]]]:
     rel = save_page_images([Image.new("RGB", (12, 10), "white")], root=tmp_path)
     app = create_app(
-        engine=make_engine("sqlite://"), sender=MockSender(), page_images_root=tmp_path
+        engine=make_engine("sqlite://"),
+        sender=MockSender(),
+        page_images_root=tmp_path,
+        enable_test_state_submission=True,
     )
     with TestClient(app) as client:
         yield client, rel
