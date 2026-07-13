@@ -118,6 +118,9 @@ jobs:
       - name: Sync dependencies (from uv.lock)
         run: uv sync --locked
 
+      - name: Generate frozen synthetic safety dataset
+        run: make gen-sheets DATASET=bench-balanced
+
       - name: Run committed showcase fixture through real Tesseract
         env:
           SSI_REQUIRE_TESSERACT: "1"

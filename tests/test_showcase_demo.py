@@ -362,3 +362,17 @@ def test_ci_job_with_tesseract_runs_showcase_fixture_contract() -> None:
         "tests/test_showcase_demo.py::"
         "test_committed_showcase_fixture_persists_real_ocr_geometry"
     ) in workflow
+
+
+def test_ci_eval_safety_generates_frozen_dataset_before_gate() -> None:
+    """A clean checkout has only ``data/synthetic/.gitkeep``.
+
+    The blocking eval must therefore build the declared bench-balanced fixture before
+    invoking the gate; local ignored datasets must never be an implicit CI dependency.
+    """
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    generate = "make gen-sheets DATASET=bench-balanced"
+    gate = "make eval-safety VISION=local_ocr DPI=150 OUT=/tmp/eval_safety"
+
+    assert generate in workflow
+    assert workflow.index(generate) < workflow.index(gate)
