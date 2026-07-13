@@ -567,8 +567,17 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       candidato NÃO promovido (vitória vácua documentada); READER_DECISION ganha piso de
       cobertura contra promoções vácuas futuras."
 
-### F11 — Release v1.0.0 (SSI-1014)
-- [ ] F11.1 make check → privacy-check → eval-safety (saídas reais aqui)
+### F11 — Release v1.0.0 (SSI-1014, branch `SSI-1014-release-v1`)
+- [x] F11.1 SAÍDAS REAIS (2026-07-13, Tesseract exportado no PATH): `tesseract v5.4.0.20240606`
+      + leptonica-1.84.1, tessdata local agora com **eng+osd+por** (a limitação ENG-only do F7
+      foi sanada — paridade de idioma com a CI). `make check` → Ruff OK, mypy OK, **pytest
+      758 passed, 1 skipped, 98.12s** (com OCR real ativo; sem Tesseract a mesma árvore dá
+      756 passed, 3 skipped — medido no F10.PR). `pytest tests/test_local_ocr.py` → **6 passed**.
+      `make privacy-check` → OK. `make eval-safety` (val@150, bench-balanced, 45/45) → **exit 0:
+      unsafe_clean=0 safe_review_recall=1.0 false_incident_unreviewed=0 (false_incident
+      reportado: 4)**; ruído do reader honesto: parse 0.0667, chars_to_type=3264,
+      descricao_acc=0.0, hora_acc=0.0714. O false_incident 5→4 vs F7 é o POR local instalado
+      (mesma contagem da CI).
 - [ ] F11.2 única rodada test-split do milestone (publica o que der, incl. bucket unknown)
 - [ ] F11.3 make demo: roteiro manual 0/1/N, S/A, approve→edit→send bloqueado
 - [ ] F11.4 make purge-demo-data + `git ls-files private` vazio
