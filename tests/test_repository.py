@@ -251,6 +251,92 @@ def test_sent_draft_rejects_later_status_changes(
     assert get_audit(session, draft.id)[-1].action == "status_blocked"
 
 
+# --- SSI-1015: mutation + snapshot + audit are one transaction -----------------
+
+
+def _fail_audit_action(
+    monkeypatch: pytest.MonkeyPatch, action_to_fail: str
+) -> None:
+    import src.api.repository as repository
+
+    original = repository._stage_audit
+
+    def fail_selected(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        action = kwargs.get("action") if "action" in kwargs else args[3]
+        if action == action_to_fail:
+            raise RuntimeError("injected audit staging failure")
+        return original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(repository, "_stage_audit", fail_selected)
+
+
+def test_create_rolls_back_when_submission_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fail_audit_action(monkeypatch, "submitted")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        create_draft(session, _state())
+
+    session.expire_all()
+    assert list_drafts(session) == []
+
+
+def test_status_rolls_back_when_status_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    _fail_audit_action(monkeypatch, "status:approved")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+
+    session.expire_all()
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.status == ApprovalStatus.PENDING
+    assert "status:approved" not in [entry.action for entry in get_audit(session, draft.id)]
+
+
+def test_mark_sent_rolls_back_when_sent_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+    _fail_audit_action(monkeypatch, "sent")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        mark_sent(session, draft.id, actor="r")
+
+    session.expire_all()
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.sent_at is None
+    assert "sent" not in [entry.action for entry in get_audit(session, draft.id)]
+
+
+def test_update_rolls_back_when_edit_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from src.api.repository import update_state
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    _fail_audit_action(monkeypatch, "edited")
+    edited = PipelineState(source_pdf=Path("report.pdf"), transcription="changed")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        update_state(session, draft.id, edited, actor="r")
+
+    session.expire_all()
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.revision == 1
+    assert PipelineState.model_validate_json(refreshed.state_json).transcription == "hello"
+
+
 def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
     """Um DB criado ANTES do vínculo aprovação↔revisão ganha as colunas novas sem
     perder linhas; o draft aprovado legado fica com approved_revision NULL (send

@@ -53,12 +53,6 @@ def _stage_audit(
     return entry
 
 
-def _record_revision(session: Session, draft: Draft) -> None:
-    """Grava o snapshot da revisão corrente (nunca sobrescrito — SSI-1008)."""
-    _stage_revision(session, draft)
-    session.commit()
-
-
 def _stage_revision(session: Session, draft: Draft) -> DraftRevision:
     """Attach the current immutable snapshot without committing it separately."""
     assert draft.id is not None
@@ -75,12 +69,17 @@ def _stage_revision(session: Session, draft: Draft) -> DraftRevision:
 def create_draft(session: Session, state: PipelineState, actor: str = "system") -> Draft:
     """Persist a new pending draft from a PipelineState and audit the submission."""
     draft = Draft(status=ApprovalStatus.PENDING, state_json=state.model_dump_json())
-    session.add(draft)
-    session.commit()
+    try:
+        session.add(draft)
+        session.flush()  # assigns the PK without ending the transaction
+        assert draft.id is not None
+        _stage_revision(session, draft)
+        _stage_audit(session, draft.id, actor=actor, action="submitted")
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     session.refresh(draft)
-    assert draft.id is not None
-    _record_revision(session, draft)
-    add_audit(session, draft.id, actor=actor, action="submitted")
     return draft
 
 
@@ -110,31 +109,47 @@ def set_status(session: Session, draft_id: int, status: ApprovalStatus, actor: s
         raise DraftAlreadySentError(
             f"Draft {draft_id} was already sent — status change blocked."
         )
-    draft.status = status
-    if status == ApprovalStatus.APPROVED:
-        draft.approved_revision = draft.revision
-        draft.approved_state_sha256 = state_sha256(draft.state_json)
-        detail = f"rev={draft.revision} sha256={draft.approved_state_sha256[:12]}"
-    else:
-        draft.approved_revision = None
-        draft.approved_state_sha256 = None
-        detail = None
-    draft.updated_at = utcnow()
-    session.add(draft)
-    session.commit()
+    try:
+        draft.status = status
+        if status == ApprovalStatus.APPROVED:
+            draft.approved_revision = draft.revision
+            draft.approved_state_sha256 = state_sha256(draft.state_json)
+            detail = f"rev={draft.revision} sha256={draft.approved_state_sha256[:12]}"
+        else:
+            draft.approved_revision = None
+            draft.approved_state_sha256 = None
+            detail = None
+        draft.updated_at = utcnow()
+        session.add(draft)
+        _stage_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action=f"status:{status}",
+            detail=detail,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     session.refresh(draft)
-    add_audit(session, draft_id, actor=actor, action=f"status:{status}", detail=detail)
     return draft
 
 
 def mark_sent(session: Session, draft_id: int, actor: str) -> Draft:
     """Record that a draft was sent (sets sent_at + audit). The gate enforces policy."""
     draft = _require(session, draft_id)
-    draft.sent_at = utcnow()
-    session.add(draft)
-    session.commit()
+    try:
+        now = utcnow()
+        draft.sent_at = now
+        draft.updated_at = now
+        session.add(draft)
+        _stage_audit(session, draft_id, actor=actor, action="sent")
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     session.refresh(draft)
-    add_audit(session, draft_id, actor=actor, action="sent")
     return draft
 
 
@@ -154,25 +169,37 @@ def update_state(
         add_audit(session, draft_id, actor=actor, action="edit_blocked", detail="already_sent")
         raise DraftAlreadySentError(f"Draft {draft_id} was already sent — edit blocked.")
 
-    draft.state_json = state.model_dump_json()
-    draft.revision += 1
-    if draft.status == ApprovalStatus.APPROVED:
-        draft.status = ApprovalStatus.PENDING
-        draft.approved_revision = None
-        draft.approved_state_sha256 = None
-        add_audit(
-            session, draft_id, actor=actor, action="approval_revoked",
-            detail=f"rev={draft.revision}",
+    try:
+        draft.state_json = state.model_dump_json()
+        draft.revision += 1
+        if draft.status == ApprovalStatus.APPROVED:
+            draft.status = ApprovalStatus.PENDING
+            draft.approved_revision = None
+            draft.approved_state_sha256 = None
+            _stage_audit(
+                session,
+                draft_id,
+                actor=actor,
+                action="approval_revoked",
+                detail=f"rev={draft.revision}",
+            )
+        draft.updated_at = utcnow()
+        session.add(draft)
+        _stage_revision(session, draft)
+        _stage_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action=action,
+            detail=(
+                f"rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}"
+            ),
         )
-    draft.updated_at = utcnow()
-    session.add(draft)
-    session.commit()
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     session.refresh(draft)
-    _record_revision(session, draft)
-    add_audit(
-        session, draft_id, actor=actor, action=action,
-        detail=f"rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}",
-    )
     return draft
 
 
