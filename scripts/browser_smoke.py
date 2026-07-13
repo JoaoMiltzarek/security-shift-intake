@@ -13,7 +13,7 @@ Rendering an overlay outside a browser proves nothing, so this drives a real Chr
   6. row editor 0/1/N (SSI-1007): a contradictory disposition shows #edit-error without
      persisting; filling the spare row adds an occurrence; "Limpar linha" + save removes it;
   7. capture console errors + CSP violations -> fail on any;
-  8. screenshot the REAL page -> samples/screenshot_review_overlay.png (+ sha256).
+  8. screenshot the REAL page -> private/audit/browser_smoke.png (+ sha256).
 
 Authority: on CI Linux (Chromium installable) this is BLOCKING. Locally, headless is
 flaky, so a missing browser/server exits 2 ("reported", not the authority); a genuine
@@ -47,7 +47,7 @@ from src.schema.state import PipelineState  # noqa: E402
 
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 SAMPLE = Path("samples/sample_doc-00000.png")
-SCREENSHOT = Path("samples/screenshot_review_overlay.png")
+SCREENSHOT = Path("private/audit/browser_smoke.png")
 DEFAULT_URL = "http://127.0.0.1:8000"
 
 # Synthetic, fully legible "OCR" of a controle_ocorrencias sheet with one incident.

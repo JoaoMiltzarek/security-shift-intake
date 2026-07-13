@@ -13,6 +13,16 @@ from src.api.repository import get_draft
 from src.schema.state import PipelineState
 
 
+def test_smoke_screenshot_defaults_to_private_audit_storage() -> None:
+    assert Path("private/audit/browser_smoke.png") == browser_smoke.SCREENSHOT
+
+
+def test_ci_redirects_smoke_screenshot_outside_the_checkout() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "BROWSER_SMOKE_SCREENSHOT: /tmp/browser_smoke.png" in workflow
+    assert "path: /tmp/browser_smoke.png" in workflow
+
+
 def test_smoke_seed_uses_repository_instead_of_http_submission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

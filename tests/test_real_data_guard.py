@@ -78,12 +78,12 @@ def test_unknown_image_under_samples_blocked(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
-def test_screenshot_overlay_under_samples_allowed(
+def test_screenshot_overlay_under_samples_blocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     f = _write(Path("samples/screenshot_review_overlay.png"), "png")
-    assert check_file(f) == []
+    assert check_file(f)
 
 
 def test_legacy_cockpit_screenshot_name_is_blocked(
