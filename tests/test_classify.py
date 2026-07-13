@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from src.clients.base import ClassificationResult
 from src.clients.mock import MockLLMClient
 from src.pipeline.classify import classify
@@ -53,6 +55,30 @@ def test_classify_does_not_mutate_input() -> None:
     state = PipelineState(source_pdf=Path("x.pdf"), transcription="...")
     classify(state, MockLLMClient(), CONFIG)
     assert state.classification is None
+
+
+@pytest.mark.parametrize(
+    "classification",
+    [
+        ClassificationResult(
+            incident_type="invented", urgency="high", sector="tech_security", confidence=0.9
+        ),
+        ClassificationResult(
+            incident_type="theft", urgency="invented", sector="tech_security", confidence=0.9
+        ),
+        ClassificationResult(
+            incident_type="theft", urgency="high", sector="invented", confidence=0.9
+        ),
+    ],
+)
+def test_classify_rejects_labels_outside_config_taxonomy(
+    classification: ClassificationResult,
+) -> None:
+    client = MockLLMClient(classification=classification)
+    state = PipelineState(source_pdf=Path("x.pdf"), transcription="...")
+
+    with pytest.raises(ValueError, match="outside configured taxonomy"):
+        classify(state, client, CONFIG)
 
 
 # --- Real client classify, offline (fake SDK) ---
