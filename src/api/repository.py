@@ -38,25 +38,38 @@ def _require(session: Session, draft_id: int) -> Draft:
 def add_audit(
     session: Session, draft_id: int, actor: str, action: str, detail: str | None = None
 ) -> AuditEntry:
-    entry = AuditEntry(draft_id=draft_id, actor=actor, action=action, detail=detail)
-    session.add(entry)
+    entry = _stage_audit(session, draft_id, actor, action, detail)
     session.commit()
     session.refresh(entry)
     return entry
 
 
+def _stage_audit(
+    session: Session, draft_id: int, actor: str, action: str, detail: str | None = None
+) -> AuditEntry:
+    """Attach an audit entry without committing, for atomic repository operations."""
+    entry = AuditEntry(draft_id=draft_id, actor=actor, action=action, detail=detail)
+    session.add(entry)
+    return entry
+
+
 def _record_revision(session: Session, draft: Draft) -> None:
     """Grava o snapshot da revisão corrente (nunca sobrescrito — SSI-1008)."""
-    assert draft.id is not None
-    session.add(
-        DraftRevision(
-            draft_id=draft.id,
-            revision=draft.revision,
-            state_sha256=state_sha256(draft.state_json),
-            state_json=draft.state_json,
-        )
-    )
+    _stage_revision(session, draft)
     session.commit()
+
+
+def _stage_revision(session: Session, draft: Draft) -> DraftRevision:
+    """Attach the current immutable snapshot without committing it separately."""
+    assert draft.id is not None
+    revision = DraftRevision(
+        draft_id=draft.id,
+        revision=draft.revision,
+        state_sha256=state_sha256(draft.state_json),
+        state_json=draft.state_json,
+    )
+    session.add(revision)
+    return revision
 
 
 def create_draft(session: Session, state: PipelineState, actor: str = "system") -> Draft:
