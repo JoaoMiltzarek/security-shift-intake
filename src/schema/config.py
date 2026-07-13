@@ -158,10 +158,35 @@ class ReportConfig(BaseModel):
 
     @model_validator(mode="after")
     def routing_has_default(self) -> ReportConfig:
-        """At least one routing rule must be the catch-all (when=None)."""
-        has_default = any(r.when is None for r in self.routing)
-        if not has_default:
-            raise ValueError(
-                "routing must include at least one default rule (when: null / omitted)."
-            )
+        """Close the executable config contract before any document is processed."""
+        field_names = [field.name for field in self.fields]
+        if len(field_names) != len(set(field_names)):
+            raise ValueError("field names must be unique")
+
+        table_fields = [field for field in self.fields if field.type == "table"]
+        if len(table_fields) > 1:
+            raise ValueError("v1 supports at most one table field per report config")
+        for table in table_fields:
+            column_names = [column.name for column in table.columns or []]
+            if len(column_names) != len(set(column_names)):
+                raise ValueError(f"table '{table.name}' column names must be unique")
+
+        default_indexes = [index for index, rule in enumerate(self.routing) if rule.when is None]
+        if default_indexes != [len(self.routing) - 1]:
+            raise ValueError("routing must contain exactly one default rule and it must be last")
+
+        taxonomy = {
+            "type": set(self.classification.type.labels),
+            "urgency": set(self.classification.urgency.labels),
+            "sector": set(self.classification.sector.labels),
+        }
+        for index, rule in enumerate(self.routing):
+            if rule.when is None:
+                continue
+            for dimension, allowed in taxonomy.items():
+                value = getattr(rule.when, dimension)
+                if value is not None and value not in allowed:
+                    raise ValueError(
+                        f"routing[{index}].when.{dimension}={value!r} is not-in-taxonomy"
+                    )
         return self

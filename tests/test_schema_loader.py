@@ -7,6 +7,7 @@ The htmicron_security.yaml integration is exercised in test_schema_config_integr
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
@@ -81,6 +82,47 @@ def test_routing_without_default_raises(tmp_path: Path) -> None:
     bad["routing"] = [{"when": {"urgency": "high"}, "recipients": ["tech_security"]}]
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError, match="default"):
+        load_config(path)
+
+
+def test_routing_default_must_be_unique_and_last(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"] = [
+        {"recipients": ["general_support"]},
+        {"when": {"urgency": "high"}, "recipients": ["tech_security"]},
+        {"recipients": ["other"]},
+    ]
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="exactly one default.*last"):
+        load_config(path)
+
+
+def test_routing_conditions_must_reference_taxonomy(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"][0]["when"] = {"urgency": "not-in-taxonomy"}
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="not-in-taxonomy"):
+        load_config(path)
+
+
+def test_field_names_must_be_unique(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["fields"].append({"name": "guard_name", "type": "string"})
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="field names must be unique"):
+        load_config(path)
+
+
+def test_only_one_repeating_table_is_supported(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    table = {
+        "name": "rows_a",
+        "type": "table",
+        "columns": [{"name": "description", "type": "text"}],
+    }
+    bad["fields"] = [table, {**table, "name": "rows_b"}]
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="at most one table"):
         load_config(path)
 
 
