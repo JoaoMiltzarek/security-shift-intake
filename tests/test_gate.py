@@ -150,7 +150,9 @@ def test_send_reruns_assert_reviewable_on_current_state(session: Session) -> Non
 
 
 def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> None:
-    engine = make_engine(f"sqlite:///{(tmp_path / 'send-race.db').as_posix()}")
+    engine = make_engine(
+        f"sqlite:///{(tmp_path / 'send-race.db').as_posix()}", allow_test_path=True
+    )
     init_db(engine)
     with Session(engine) as setup:
         draft = create_draft(setup, _state())

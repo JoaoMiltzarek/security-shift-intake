@@ -319,7 +319,9 @@ def test_committed_showcase_fixture_persists_real_ocr_geometry(
     tmp_path: Path,
 ) -> None:
     demo = _showcase_demo()
-    engine = make_engine(f"sqlite:///{tmp_path / 'showcase.db'}")
+    engine = make_engine(
+        f"sqlite:///{tmp_path / 'showcase.db'}", allow_test_path=True
+    )
     page_images_root = tmp_path / "page_images"
 
     draft_id = demo._seed_demo(

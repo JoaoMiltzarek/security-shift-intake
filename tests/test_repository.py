@@ -358,7 +358,7 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
     con.commit()
     con.close()
 
-    engine = make_engine(f"sqlite:///{db.as_posix()}")
+    engine = make_engine(f"sqlite:///{db.as_posix()}", allow_test_path=True)
     init_db(engine)  # deve migrar in-place, idempotente
     init_db(engine)  # segunda chamada não pode falhar nem duplicar colunas
 
