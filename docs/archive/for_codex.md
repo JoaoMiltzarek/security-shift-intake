@@ -600,6 +600,16 @@ resumo público como ruído do reader. Racional gravado também na docstring de
       1ª rodada abortou por UnicodeEncodeError do PRÓPRIO PROBE (console cp1252 × "→");
       como o send final já tinha executado, o rerun foi feito do zero com purge + re-seed +
       PYTHONIOENCODING=utf-8 — nenhuma falha era do produto.
-- [ ] F11.4 make purge-demo-data + `git ls-files private` vazio
-- [ ] F11.5 README com números do run; mover for_codex.md → docs/archive/
+- [x] F11.4 (2026-07-13) `make purge-demo-data` → "Removido: app.db, page_images" (a rodada
+      anterior já tinha levado audit/eval_safety); `git ls-files private` → **vazio** (nada
+      tracked); private/ contém só material local gitignored por design (curadoria, reais,
+      pii_terms, plans, quarantine, HANDOFF).
+- [x] F11.5 (2026-07-13) contrato primeiro (`bfb6fd5c`, vermelho real provado: exige
+      "756 passed, 3 skipped" + bucket `unknown_disposition_count` no README) → README
+      atualizado (`7cf02cb5`): baseline do release (756/3 offline; 758/1 com Tesseract; mypy
+      87 files) + bloco "v1.0.0 milestone re-measurement" com a tabela histórica×v1.0.0 e a
+      leitura honesta (régua tri-state mais dura; gates de segurança seguram no test split).
+      Bloco G1-S histórico intocado. Testes de docs focados: **12 passed**; Ruff OK.
+      Este arquivo foi movido para `docs/archive/for_codex.md` neste mesmo micro-step
+      (caminhos citados em backticks permanecem relativos à RAIZ do repo).
 - [ ] F11.6 tag v1.0.0 (só após tudo verde); DoD = checklist §9 da auditoria
