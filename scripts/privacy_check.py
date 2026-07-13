@@ -99,18 +99,21 @@ def scan_text_for_pii(
     include_org: bool = True,
     include_times: bool = True,
 ) -> list[str]:
-    """Return PII snippets in *text* (HH:MM times, private terms, and org if include_org)."""
-    org = list(_ORG_PATTERNS) if include_org else []
-    times = [_TIME_PATTERN] if include_times else []
-    patterns = (
-        org + times + (extra_terms if extra_terms is not None else _load_extra_terms())
+    """Return sanitized PII findings without echoing the match or private pattern."""
+    patterns: list[tuple[str, re.Pattern[str]]] = []
+    if include_org:
+        patterns.extend(("organization-sentinel", pattern) for pattern in _ORG_PATTERNS)
+    if include_times:
+        patterns.append(("clock-time", _TIME_PATTERN))
+    patterns.extend(
+        ("private-term", pattern)
+        for pattern in (extra_terms if extra_terms is not None else _load_extra_terms())
     )
     hits: list[str] = []
     for lineno, line in enumerate(text.splitlines(), 1):
-        for pat in patterns:
-            m = pat.search(line)
-            if m:
-                hits.append(f"  line {lineno}: {pat.pattern!r} -> {m.group(0)!r}")
+        for category, pattern in patterns:
+            if pattern.search(line):
+                hits.append(f"  line {lineno}: {category}")
     return hits
 
 

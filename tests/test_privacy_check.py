@@ -52,6 +52,24 @@ def test_scan_detects_extra_term() -> None:
     assert scan_text_for_pii("vigilante fulano da silva", extra_terms=terms)
 
 
+def test_scan_findings_never_repeat_the_sensitive_value_or_pattern() -> None:
+    import re
+
+    secret = "NOMEREAL-SUPER-SECRETO"
+    hits = scan_text_for_pii(
+        f"vigilante {secret} da silva",
+        extra_terms=[re.compile(re.escape(secret), re.IGNORECASE)],
+        include_org=False,
+        include_times=False,
+    )
+
+    rendered = "\n".join(hits)
+    assert hits
+    assert secret not in rendered
+    assert re.escape(secret) not in rendered
+    assert "private-term" in rendered
+
+
 def test_scan_clean_text_passes() -> None:
     text = "Aggregate field-capture rate: 0.42 over N=4 sheets."
     assert scan_text_for_pii(text, extra_terms=[]) == []

@@ -162,9 +162,11 @@ def test_synthetic_jsonl_with_slug_passes(tmp_path: Path) -> None:
 
 
 def test_txt_with_org_name_blocked(tmp_path: Path) -> None:
-    f = _write(tmp_path / "report.txt", "Property of HT Micron Security.\n")
+    sensitive_line = "Property of HT Micron Security."
+    f = _write(tmp_path / "report.txt", sensitive_line + "\n")
     violations = check_file(f)
     assert len(violations) >= 1
+    assert sensitive_line not in "\n".join(violations)
 
 
 def test_csv_under_data_raw_with_org_name_blocked(tmp_path: Path) -> None:

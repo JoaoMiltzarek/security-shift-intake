@@ -124,8 +124,7 @@ def check_file(path: Path) -> list[str]:
         for lineno, line in enumerate(text.splitlines(), 1):
             if pat.search(line):
                 violations.append(
-                    f"  {path}:{lineno}: matched real-data sentinel {pat.pattern!r} "
-                    f"-> {line.strip()!r}"
+                    f"  {path}:{lineno}: matched real-data sentinel"
                 )
 
     return violations
