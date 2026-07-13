@@ -75,6 +75,11 @@ _ORG_PATTERNS: list[re.Pattern[str]] = [
 _TIME_PATTERN = re.compile(r"(?<![\d:+-])\d{1,2}:\d{2}(?!:?\d)")
 
 
+def _is_root_directory(path: Path, name: str) -> bool:
+    """True only when *name* is the first repository-relative path component."""
+    return bool(path.parts) and path.parts[0] == name
+
+
 def _load_extra_terms() -> list[re.Pattern[str]]:
     """Compile case-insensitive patterns from the optional private PII-terms file."""
     if not _PII_TERMS_FILE.exists():
@@ -151,7 +156,7 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _PRIVATE_DIR in rel.parts or _has_subpath(rel, _SYNTHETIC_SUBPATH):
+        if _is_root_directory(rel, _PRIVATE_DIR) or _has_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
         if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue
@@ -168,7 +173,7 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _PRIVATE_DIR in rel.parts or _SAMPLES_DIR in rel.parts:
+        if _is_root_directory(rel, _PRIVATE_DIR) or _is_root_directory(rel, _SAMPLES_DIR):
             continue
         if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue

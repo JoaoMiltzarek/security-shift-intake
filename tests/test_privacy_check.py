@@ -23,6 +23,12 @@ def _write(path: Path, content: str) -> Path:
     return path
 
 
+def test_private_gitignore_rule_is_anchored_to_repository_root() -> None:
+    rules = Path(".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "/private/" in rules
+    assert "private/" not in rules
+
+
 # --- scan_text_for_pii ------------------------------------------------------
 
 
@@ -62,6 +68,12 @@ def test_pdf_outside_private_flagged(tmp_path: Path) -> None:
 def test_pdf_inside_private_ok(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "reais" / "folha.pdf", "%PDF")
     assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+@pytest.mark.parametrize("prefix", ["docs", "archive", "foo"])
+def test_nested_private_directory_is_not_exempt(tmp_path: Path, prefix: str) -> None:
+    _write(tmp_path / prefix / "private" / "folha.pdf", "%PDF")
+    assert check_no_sensitive_outside_private(tmp_path)
 
 
 def test_sample_image_allowed(tmp_path: Path) -> None:
@@ -151,6 +163,16 @@ def test_public_md_with_time_flagged(tmp_path: Path) -> None:
 def test_private_md_with_time_ignored(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "audit" / "detail.md", "Ocorrência às 13:00.")
     assert check_public_no_pii(tmp_path) == []
+
+
+def test_nested_private_text_is_still_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "docs" / "private" / "detail.md", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path)
+
+
+def test_nested_samples_text_is_still_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "archive" / "samples" / "detail.md", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path)
 
 
 def test_public_md_clean_passes(tmp_path: Path) -> None:

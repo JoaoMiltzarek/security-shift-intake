@@ -12,8 +12,9 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 
-# Private folder: real input sheets + the local DB with PII. NEVER commit.
-private/
+# Private folder at the repository root: real inputs + local DB with PII. NEVER commit.
+# Root anchoring is security-significant: docs/private/ must remain visible to the guard.
+/private/
 
 # Claude Code per-user local settings (machine-specific; not portable).
 .claude/settings.local.json
