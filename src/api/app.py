@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import io
+import ipaddress
 import json
 import os
 import re
@@ -19,6 +20,7 @@ import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -27,6 +29,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from src import __version__
 from src.api import repository
@@ -65,6 +68,36 @@ _GUARD_SPLIT = re.compile(r"[;,]| e ")
 # Linhas do editor 0/1/N: occ__<índice>__<coluna> — índices são POSICIONAIS
 # (full-replace a cada save; nunca patch por índice na lista antiga).
 _OCC_KEY = re.compile(r"^occ__(\d+)__(item|hora|descricao|acao|resolvido)$")
+_UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _is_loopback_client(host: str) -> bool:
+    """Accept OS loopback addresses; ``testclient`` is Starlette's in-memory peer."""
+    if host == "testclient":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _same_origin(request: Request, origin: str) -> bool:
+    """Compare scheme/host/effective port, rejecting opaque or malformed origins."""
+    if origin == "null":
+        return False
+    try:
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+            return False
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return False
+    request_port = request.url.port or (443 if request.url.scheme == "https" else 80)
+    return (
+        parsed.scheme == request.url.scheme
+        and parsed.hostname.lower() == (request.url.hostname or "").lower()
+        and origin_port == request_port
+    )
 
 
 class DispositionConflictError(ValueError):
@@ -388,6 +421,11 @@ def create_app(
         version=__version__,
         summary="Staged intake pipeline for handwritten security shift reports.",
     )
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"],
+        www_redirect=False,
+    )
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
     app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
@@ -401,7 +439,17 @@ def create_app(
         inline styles only (style-src 'unsafe-inline'); the page image is same-origin
         or a data: URI. There is no inline <script>, so 'self' does not break the UI.
         """
-        response = await call_next(request)
+        client_host = request.client.host if request.client is not None else ""
+        fetch_site = request.headers.get("sec-fetch-site", "").lower()
+        origin = request.headers.get("origin")
+        if not _is_loopback_client(client_host):
+            response = Response("Local cockpit only.", status_code=403)
+        elif request.method in _UNSAFE_HTTP_METHODS and (
+            fetch_site == "cross-site" or (origin is not None and not _same_origin(request, origin))
+        ):
+            response = Response("Cross-site state change blocked.", status_code=403)
+        else:
+            response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data:; script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; base-uri 'none'; object-src 'none'; "
@@ -413,6 +461,7 @@ def create_app(
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
         )
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         if not request.url.path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-store, max-age=0"
         return response

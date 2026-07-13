@@ -40,3 +40,41 @@ def test_security_headers_cover_the_cockpit(client: TestClient) -> None:
     assert "base-uri 'none'" in csp
     assert "object-src 'none'" in csp
     assert "form-action 'self'" in csp
+
+
+def test_untrusted_host_is_rejected(client: TestClient) -> None:
+    response = client.get("/health", headers={"Host": "attacker.example"})
+    assert response.status_code == 400
+
+
+def test_non_loopback_client_is_rejected() -> None:
+    app = create_app(engine=make_engine("sqlite://"))
+    with TestClient(app, client=("203.0.113.10", 50000)) as remote:
+        response = remote.get("/health", headers={"Host": "127.0.0.1"})
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Origin": "https://attacker.example"},
+        {"Sec-Fetch-Site": "cross-site"},
+        {"Origin": "null"},
+    ],
+)
+def test_cross_site_state_change_is_rejected(
+    client: TestClient, headers: dict[str, str]
+) -> None:
+    response = client.post(
+        "/drafts", json={"source_pdf": "synthetic.pdf"}, headers=headers
+    )
+    assert response.status_code == 403
+
+
+def test_same_origin_state_change_is_allowed(client: TestClient) -> None:
+    response = client.post(
+        "/drafts",
+        json={"source_pdf": "synthetic.pdf"},
+        headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"},
+    )
+    assert response.status_code == 201
