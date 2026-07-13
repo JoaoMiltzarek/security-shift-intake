@@ -241,8 +241,10 @@ targets clean up without destroying validated curadoria. See
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-The latest local Windows baseline (`d57755b8`, 2026-07-12) ran `make check`: Ruff passed, strict
-mypy passed across 86 source files, and pytest reported **735 passed, 3 skipped** offline at $0.
+The latest local Windows baseline (`3dabd588`, 2026-07-13, release v1.0.0) ran `make check`:
+Ruff passed, strict mypy passed across 87 source files, and pytest reported
+**756 passed, 3 skipped** offline at $0 (with local Tesseract on `PATH` the OCR-dependent
+tests activate: 758 passed, 1 skipped).
 Model/network boundaries are mock-first, while CI also exercises the committed fixture through
 real Tesseract and drives the cockpit in real Chromium. Coverage includes: OCR quality gate, the two-model
 schema, normalization, the table extractor, the critic, the human-approval gate (pending fields
@@ -294,6 +296,27 @@ perfect refusal. The current structural gate instead requires `unsafe_clean=0`,
 `false_incident_unreviewed=0`, and safe-review recall of 1.0. Verdict block written by
 [scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses to overwrite the recorded
 verdict; project governance, not the evaluator CLI, enforces the one-test-run rule.
+
+**v1.0.0 milestone re-measurement — `bench-balanced` test (45 sheets, 2026-07-13, one
+sanctioned re-run under the tri-state ruler):**
+
+| Metric (test) | Historical (2026-07-08) | v1.0.0 |
+|---|---|---|
+| parse_table_success_rate | 0.1111 | 0.0222 |
+| false_incident_count | 1 | 1 |
+| estimated_chars_to_type | 2827 | 2769 |
+| unknown_disposition_count | not measured | **43 / 45** |
+| unsafe_clean_count / false_incident_unreviewed_count | not measured | **0 / 0** |
+| safe_review_recall | not measured | **1.0** |
+
+The release plan reserved exactly one test re-measurement for this milestone. The tri-state
+ruler is stricter by design: a sheet whose table region cannot be confirmed is published as
+`unknown` (43/45) and **blocks approval/export/send** instead of silently counting as a parse
+— so the headline parse rate drops while nothing gets easier to ship. Reading remains honestly
+weak on the held-out split; the structural safety gates hold on it: zero incidents exit
+clean, zero invented incidents escape review, and every planted incident reaches a reviewer
+(`safe_review_recall=1.0`). Numbers read from
+[eval_synthetic_summary.json](docs/eval_synthetic_summary.json), produced by committed code.
 
 **BRESSAY (real Brazilian-Portuguese handwriting, 20 word crops, frozen manifest):**
 
