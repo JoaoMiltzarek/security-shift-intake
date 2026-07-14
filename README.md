@@ -273,7 +273,7 @@ in a commit, then run `test` exactly **once** — no target moves after seeing t
 | estimated_chars_to_type | 3264 | 4902 |
 | false_incident_count | **4** | 9 |
 | hora_acc | 0.0714 | 0.3929 |
-| correct_refusal_rate (planted illegible fields) | 1.0 | 1.0 |
+| safe_illegible_refusal_rate | not measured in this historical run | not measured |
 
 Current default: **Tesseract (local_ocr)** — fewer false incidents and fewer characters left
 for a human to type than the measured local VLM. The four val false incidents are still reader

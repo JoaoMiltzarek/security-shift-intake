@@ -95,7 +95,8 @@ Com ocorrências: mesmo shape, `sem_alteracao: false`, 1..3 entradas
   `synthetic.messiness` lista as ops aplicadas (`"crossout:ocorrencias[0].descricao"`,
   `"blank:ocorrencias[0].acao"`, …) e `synthetic.legibility` marca campos por legibilidade.
 - **Regra de avaliação da messiness:** campo `legibility: "illegible"` ⇒ correto =
-  **recusa** (must_review / `[ilegível]`); campo em branco no papel ⇒ correto =
+  **recusa segura** (não recuperado + sinal de revisão + aprovação operacional bloqueada),
+  publicada como `safe_illegible_refusal_rate`; campo em branco no papel ⇒ correto =
   `missing`. Nunca premiar recuperação do irrecuperável — seria premiar alucinação.
   Extração compara contra a verdade limpa; transcrição (CER/WER) contra `surface`.
 
@@ -255,7 +256,8 @@ ciclo val → congela → test.
 > `hora_acc` 0.0 ≥ 0.0. BRESSAY (critério 4) completo: Tesseract mean_cer 1.0 (sem
 > regressão, mesmo manifest); qwen2.5vl:3b mean_cer 4.30 (inserções alucinadas em crops
 > de palavra). Observações não-limiarizadas: `missed_incident` 22 (val: 0);
-> `correct_refusal_rate` 1.0 (folha S/A nunca vira ocorrência — invariante intacto).
+> A rodada histórica não mediu `safe_illegible_refusal_rate`; seu valor de recusa legado
+> não é evidência do gate operacional atual e não foi renomeado retroativamente.
 > **Consequência**: nenhum leitor custo-zero é adotado como transcritor automático; o
 > pipeline permanece ferramenta de triagem com gate humano obrigatório. Adotar um leitor
 > novo exige novo ciclo val → congela → test (proibido reusar este test para tuning).

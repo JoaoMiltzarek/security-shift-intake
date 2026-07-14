@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -63,10 +61,6 @@ def test_generator_documents_the_write_once_freeze_boundary() -> None:
     assert "automaticamente" not in generator
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="os docs ativos ainda publicam a métrica de recusa insegura obsoleta",
-)
 def test_active_eval_docs_define_safe_illegible_refusal() -> None:
     paths = ("README.md", "docs/EVAL_PROTOCOL.md", "docs/DATASET_CONTRACT.md")
     documents = [_read(path) for path in paths]
@@ -76,10 +70,6 @@ def test_active_eval_docs_define_safe_illegible_refusal() -> None:
     assert all("correct_refusal_rate" not in document for document in documents)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o protocolo ainda omite parte da atestação e chama esforço parcial de total",
-)
 def test_eval_protocol_documents_runtime_allowlist_and_partial_effort() -> None:
     protocol = _read("docs/EVAL_PROTOCOL.md")
 
