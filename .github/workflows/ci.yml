@@ -140,6 +140,13 @@ jobs:
       - name: Install tesseract (+ Portuguese pack)
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-por
 
+      - name: Verify Tesseract runtime
+        run: |
+          set -euo pipefail
+          tesseract --version
+          tesseract --list-langs | tee /tmp/tesseract-langs.txt
+          grep -qx por /tmp/tesseract-langs.txt
+
       - name: Install uv
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
@@ -169,7 +176,7 @@ jobs:
           tests/test_showcase_demo.py::test_committed_showcase_fixture_persists_real_ocr_geometry
 
       - name: Run structural-safety gates (val split, Tesseract)
-        run: make eval-safety VISION=local_ocr DPI=150 OUT=/tmp/eval_safety
+        run: make eval-safety DPI=150 OUT=/tmp/eval_safety
 
       - name: Upload safety-eval artifacts
         if: always()

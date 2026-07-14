@@ -6,8 +6,6 @@ import re
 import tomllib
 from pathlib import Path
 
-import pytest
-
 
 def _workflow() -> str:
     return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -87,10 +85,6 @@ def test_ci_fails_when_a_declared_release_artifact_is_missing() -> None:
     assert workflow.count("if-no-files-found: error") == uploads
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CI ainda substitui o reader congelado e não prova o idioma instalado",
-)
 def test_ci_logs_and_verifies_the_frozen_ocr_runtime() -> None:
     workflow = _workflow()
 

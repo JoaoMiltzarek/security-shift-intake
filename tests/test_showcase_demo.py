@@ -383,7 +383,7 @@ def test_ci_eval_safety_generates_canonical_dataset_before_gate() -> None:
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     freeze = "test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl"
     generate = "make gen-safety-sheets"
-    gate = "make eval-safety VISION=local_ocr DPI=150 OUT=/tmp/eval_safety"
+    gate = "make eval-safety DPI=150 OUT=/tmp/eval_safety"
 
     assert freeze in workflow
     assert generate in workflow
