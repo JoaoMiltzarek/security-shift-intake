@@ -82,6 +82,7 @@ def test_submit_review_approve_send_flow(
     r = client.post(f"/drafts/{draft_id}/send")
     assert r.status_code == 200
     assert r.json()["sent_at"] is not None
+    assert r.json()["delivery_mode"] == "simulated"
     assert sender.call_count == 1
     assert sender.sent[0][0] == ["tech_security", "general_support"]
 
@@ -90,7 +91,7 @@ def test_submit_review_approve_send_flow(
     assert "submitted" in audit
     assert "status:approved" in audit
     assert "send_blocked" in audit  # the rejected pre-approval attempt
-    assert "sent" in audit
+    assert "send_simulated" in audit
 
 
 def test_rejected_draft_send_is_blocked(

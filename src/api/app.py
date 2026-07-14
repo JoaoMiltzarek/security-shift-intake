@@ -503,6 +503,7 @@ def _draft_summary(draft: Draft) -> dict[str, Any]:
         "status": draft.status,
         "created_at": draft.created_at.isoformat(),
         "updated_at": draft.updated_at.isoformat(),
+        "delivery_mode": draft.delivery_mode,
         "sent_at": draft.sent_at.isoformat() if draft.sent_at else None,
     }
 
@@ -779,7 +780,16 @@ def create_app(
     ) -> HTMLResponse:
         try:
             draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
-            return _status_panel(request, draft, session, message="Sent.")
+            return _status_panel(
+                request,
+                draft,
+                session,
+                message=(
+                    "Simulation completed — nothing was delivered externally."
+                    if draft.delivery_mode == "simulated"
+                    else "External dispatch adapter completed; receipt is not confirmed."
+                ),
+            )
         except DraftNotApprovedError as exc:
             draft = _require_draft(session, draft_id)
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")

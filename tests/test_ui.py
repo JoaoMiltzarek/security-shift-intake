@@ -93,7 +93,9 @@ def test_ui_approve_then_send(client_and_sender: tuple[TestClient, MockSender]) 
 
     r = client.post(f"/ui/drafts/{draft_id}/send")
     assert r.status_code == 200
-    assert "Sent." in r.text
+    assert "Simulation completed" in r.text
+    assert "nothing was delivered externally" in r.text
+    assert "Sent." not in r.text
     assert sender.call_count == 1
 
 
