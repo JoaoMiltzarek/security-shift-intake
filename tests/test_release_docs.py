@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -59,3 +61,35 @@ def test_generator_documents_the_write_once_freeze_boundary() -> None:
     assert "never creates or updates the committed release freeze" in generator
     assert "scripts.freeze_tier_c_manifest" in generator
     assert "automaticamente" not in generator
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="os docs ativos ainda publicam a métrica de recusa insegura obsoleta",
+)
+def test_active_eval_docs_define_safe_illegible_refusal() -> None:
+    paths = ("README.md", "docs/EVAL_PROTOCOL.md", "docs/DATASET_CONTRACT.md")
+    documents = [_read(path) for path in paths]
+
+    assert all("safe_illegible_refusal_rate" in document for document in documents)
+    assert "not recovered AND review signaled AND operational_approvable=false" in documents[1]
+    assert all("correct_refusal_rate" not in document for document in documents)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o protocolo ainda omite parte da atestação e chama esforço parcial de total",
+)
+def test_eval_protocol_documents_runtime_allowlist_and_partial_effort() -> None:
+    protocol = _read("docs/EVAL_PROTOCOL.md")
+
+    required = (
+        "python_version",
+        "python_version_expected",
+        "uv_lock_sha256",
+        "tesseract_version",
+        "tesseract_language",
+        "runtime_attested",
+        "partial human-effort proxy",
+    )
+    assert all(value in protocol for value in required)
