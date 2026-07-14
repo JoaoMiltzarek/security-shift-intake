@@ -15,11 +15,13 @@ review trigger rather than an error).
 
 from __future__ import annotations
 
+import hashlib
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src.paths import PRIVATE_ROOT, resolve_private_path
 from src.pipeline.locate import attach_evidence
 from src.schema.config import FieldSchema, ReportConfig
 from src.schema.extraction import AuditedField, RawRow
@@ -45,10 +47,12 @@ def _raw_row_has_content(row: RawRow) -> bool:
 
 
 def _debug_path(state: PipelineState) -> Path | None:
-    """Where the locator dumps per-field match details, only when debugging is on."""
+    """Return a private, CWD-independent and PII-free locator debug filename."""
     if os.environ.get("INTAKE_LOCATOR_DEBUG") != "1":
         return None
-    return Path("private/debug/evidence_matches") / f"{state.source_pdf.stem}.json"
+    source_key = hashlib.sha256(str(state.source_pdf).encode("utf-8")).hexdigest()
+    path = PRIVATE_ROOT / "debug" / "evidence_matches" / f"{source_key}.json"
+    return resolve_private_path(path, create_root=True)
 
 
 def _type_error(field: FieldSchema, value: str) -> str | None:
