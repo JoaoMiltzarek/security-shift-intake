@@ -45,8 +45,18 @@ def test_write_artifacts(tmp_path: Path) -> None:
 
 
 def test_main_writes_to_out_dir(tmp_path: Path) -> None:
-    rc = main(["--seed", "1", "--out", str(tmp_path), "--classification-n", "600",
-               "--transcription-n", "1"])
+    rc = main(
+        [
+            "--seed",
+            "1",
+            "--out",
+            str(tmp_path),
+            "--classification-n",
+            "600",
+            "--transcription-n",
+            "1",
+        ]
+    )
     assert rc == 0
     assert (tmp_path / "metrics.json").exists()
     assert (tmp_path / "EVAL_REPORT.md").exists()

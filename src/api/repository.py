@@ -106,9 +106,7 @@ def set_status(session: Session, draft_id: int, status: ApprovalStatus, actor: s
             action="status_blocked",
             detail="already_sent",
         )
-        raise DraftAlreadySentError(
-            f"Draft {draft_id} was already sent — status change blocked."
-        )
+        raise DraftAlreadySentError(f"Draft {draft_id} was already sent — status change blocked.")
     try:
         draft.status = status
         if status == ApprovalStatus.APPROVED:
@@ -150,11 +148,7 @@ def mark_sent(
         draft.delivery_mode = delivery_mode
         draft.updated_at = now
         session.add(draft)
-        action = (
-            "send_simulated"
-            if delivery_mode == "simulated"
-            else "external_dispatch_completed"
-        )
+        action = "send_simulated" if delivery_mode == "simulated" else "external_dispatch_completed"
         _stage_audit(
             session,
             draft_id,
@@ -211,9 +205,7 @@ def update_state(
             draft_id,
             actor=actor,
             action=action,
-            detail=(
-                f"rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}"
-            ),
+            detail=(f"rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}"),
         )
         session.commit()
     except Exception:

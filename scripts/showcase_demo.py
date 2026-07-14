@@ -146,10 +146,7 @@ def main(argv: list[str]) -> int:
         return 2
 
     inherited_db_url = os.environ.get("INTAKE_DB_URL")
-    if (
-        inherited_db_url not in (None, SHOWCASE_DB_URL)
-        or DEFAULT_DB_URL != SHOWCASE_DB_URL
-    ):
+    if inherited_db_url not in (None, SHOWCASE_DB_URL) or DEFAULT_DB_URL != SHOWCASE_DB_URL:
         print(
             "Refusing INTAKE_DB_URL override: the synthetic showcase always uses "
             "private/app.db so its artifacts can be purged safely.",

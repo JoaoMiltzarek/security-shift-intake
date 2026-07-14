@@ -99,9 +99,7 @@ def test_ci_blocks_known_dependency_vulnerabilities() -> None:
     workflow = _workflow()
 
     assert "make audit-deps" in workflow
-    assert workflow.index("uv sync --locked --python 3.11.15") < workflow.index(
-        "make audit-deps"
-    )
+    assert workflow.index("uv sync --locked --python 3.11.15") < workflow.index("make audit-deps")
 
 
 def test_ci_allows_preflight_warnings_but_blocks_severity_two() -> None:

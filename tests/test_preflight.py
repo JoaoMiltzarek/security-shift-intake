@@ -117,9 +117,7 @@ def test_invalid_venv_blocks() -> None:
 
 
 def test_missing_portuguese_tesseract_language_warns() -> None:
-    severity, actions = evaluate(
-        _clean_report(tesseract={"present": True, "langs": ["eng"]})
-    )
+    severity, actions = evaluate(_clean_report(tesseract={"present": True, "langs": ["eng"]}))
 
     assert severity == 1
     assert any("por" in action for action in actions)

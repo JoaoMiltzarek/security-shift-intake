@@ -61,8 +61,13 @@ def test_reconstruct_preserves_lines_and_confidence() -> None:
 
 
 def test_reconstruct_empty_is_zero_confidence() -> None:
-    data = {"text": ["", " "], "conf": [-1, -1], "block_num": [1, 1],
-            "par_num": [1, 1], "line_num": [1, 2]}
+    data = {
+        "text": ["", " "],
+        "conf": [-1, -1],
+        "block_num": [1, 1],
+        "par_num": [1, 1],
+        "line_num": [1, 2],
+    }
     text, confidence = _reconstruct(data)
     assert text == ""
     assert confidence == 0.0
@@ -221,11 +226,16 @@ def test_collect_words_debug_never_prints_ocr_text(
     data = {
         "text": ["SEGREDO"],
         "conf": [95],
-        "left": [9999], "top": [0], "width": [50], "height": [10],
-        "block_num": [1], "par_num": [1], "line_num": [1],
+        "left": [9999],
+        "top": [0],
+        "width": [50],
+        "height": [10],
+        "block_num": [1],
+        "par_num": [1],
+        "line_num": [1],
     }
     words = _collect_words(data, width=200, height=60)
     out = capsys.readouterr().out
-    assert words == []                     # absurd box discarded
-    assert "dropped a word box" in out     # debug fired
-    assert "SEGREDO" not in out            # OCR text never reaches stdout
+    assert words == []  # absurd box discarded
+    assert "dropped a word box" in out  # debug fired
+    assert "SEGREDO" not in out  # OCR text never reaches stdout

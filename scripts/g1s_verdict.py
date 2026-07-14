@@ -67,8 +67,7 @@ def compute_verdict(
             "frozen_threshold": frozen["estimated_chars_to_type_max"],
             "value": metrics["estimated_chars_to_type_total"],
             "pass": (
-                metrics["estimated_chars_to_type_total"]
-                <= frozen["estimated_chars_to_type_max"]
+                metrics["estimated_chars_to_type_total"] <= frozen["estimated_chars_to_type_max"]
             ),
         },
         {

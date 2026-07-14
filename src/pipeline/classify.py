@@ -43,8 +43,7 @@ def classify(
     ]
     if invalid_dimensions:
         raise ValueError(
-            "classification output outside configured taxonomy: "
-            + ", ".join(invalid_dimensions)
+            "classification output outside configured taxonomy: " + ", ".join(invalid_dimensions)
         )
     classification = Classification(
         incident_type=result.incident_type,

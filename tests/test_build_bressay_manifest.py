@@ -59,8 +59,10 @@ def _word_layout(tmp_path: Path) -> Path:
     """words/ layout: data/words/{id}/{id}-*.png + {id}-*.txt."""
     (tmp_path / "sets").mkdir()
     (tmp_path / "sets" / "test.txt").write_text("w01\nw02\nw99\n", encoding="utf-8")
-    for page_id, words in [("w01", [("palavra um", "01"), ("palavra dois", "02")]),
-                            ("w02", [("terceira", "01")])]:
+    for page_id, words in [
+        ("w01", [("palavra um", "01"), ("palavra dois", "02")]),
+        ("w02", [("terceira", "01")]),
+    ]:
         page_dir = tmp_path / "data" / "words" / page_id
         page_dir.mkdir(parents=True)
         for text, suffix in words:

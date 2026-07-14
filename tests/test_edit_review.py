@@ -23,8 +23,10 @@ _BODY = {
     "recipients": ["general_support"],
     "email_draft": "Subject: x\n\nbody",
     "classification": {
-        "incident_type": "routine", "urgency": "low",
-        "sector": "general_support", "confidence": 0.6,
+        "incident_type": "routine",
+        "urgency": "low",
+        "sector": "general_support",
+        "confidence": 0.6,
     },
     "extracted_fields": [
         {"name": "guard_name", "value": "A. Souza", "confidence": 0.65, "must_review": True},

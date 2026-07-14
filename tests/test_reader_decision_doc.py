@@ -22,9 +22,7 @@ def test_reader_decision_separates_candidate_quality_from_release_safety() -> No
 
 def test_reader_decision_records_paddle_bakeoff_round() -> None:
     decision = Path("docs/READER_DECISION.md").read_text(encoding="utf-8")
-    bakeoff = json.loads(
-        Path("docs/eval_paddle_bakeoff_val.json").read_text(encoding="utf-8")
-    )
+    bakeoff = json.loads(Path("docs/eval_paddle_bakeoff_val.json").read_text(encoding="utf-8"))
 
     metrics = bakeoff["reader_metrics"]
     assert bakeoff["run"]["reader"] == "paddle_ocr"
@@ -49,9 +47,7 @@ def test_reader_decision_records_paddle_bakeoff_round() -> None:
 
 def test_reader_decision_matches_frozen_calibration() -> None:
     decision = Path("docs/READER_DECISION.md").read_text(encoding="utf-8")
-    calibration = json.loads(
-        Path("docs/eval_g1s_calibration.json").read_text(encoding="utf-8")
-    )
+    calibration = json.loads(Path("docs/eval_g1s_calibration.json").read_text(encoding="utf-8"))
 
     assert calibration["readers"]["local_ocr"]["false_incident_count"] == 4
     assert calibration["readers"]["local_vlm"]["false_incident_count"] == 9

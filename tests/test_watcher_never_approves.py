@@ -197,6 +197,7 @@ def test_stability_check_skips_changed_file(tmp_path: Path, monkeypatch) -> None
         return "sha_v1" if call_count["n"] == 1 else "sha_v2"
 
     import src.intake_watch as _mod
+
     monkeypatch.setattr(_mod, "_sha256", unstable_sha)
     monkeypatch.setattr(_mod.time, "sleep", lambda s: None)
 

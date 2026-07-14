@@ -35,9 +35,7 @@ def run() -> dict[str, Any]:
     mismatches: list[dict[str, Any]] = []
 
     for (itype, urgency, sector), expected in _EXPECTATIONS:
-        cls = Classification(
-            incident_type=itype, urgency=urgency, sector=sector, confidence=1.0
-        )
+        cls = Classification(incident_type=itype, urgency=urgency, sector=sector, confidence=1.0)
         actual = select_recipients(cls, config)
         if actual == expected:
             matches += 1

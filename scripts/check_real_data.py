@@ -42,11 +42,24 @@ _TEXT_SENTINELS: list[re.Pattern[str]] = [
 # Extensions exempt from the TEXT scan (they may mention the org name legitimately).
 # The binary-extension block above still applies to everything.
 _SOURCE_DOC_EXT = {
-    ".py", ".md", ".rst",
-    ".yaml", ".yml", ".toml", ".cfg", ".ini",
-    ".j2", ".jinja", ".jinja2",
-    ".html", ".htm", ".css", ".js", ".ts",
-    ".gitignore", ".gitkeep",
+    ".py",
+    ".md",
+    ".rst",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".cfg",
+    ".ini",
+    ".j2",
+    ".jinja",
+    ".jinja2",
+    ".html",
+    ".htm",
+    ".css",
+    ".js",
+    ".ts",
+    ".gitignore",
+    ".gitkeep",
 }
 
 # Path components under which content is synthetic by construction (text-scan exempt).
@@ -96,9 +109,7 @@ def _file_sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
-def _is_allowed_sample_binary(
-    path: Path, *, repository_relative_path: Path | None = None
-) -> bool:
+def _is_allowed_sample_binary(path: Path, *, repository_relative_path: Path | None = None) -> bool:
     """Match a reviewed sample by exact repository path and SHA-256.
 
     ``repository_relative_path`` lets a caller scanning an injected repository root
@@ -157,9 +168,7 @@ def check_file(path: Path) -> list[str]:
     for pat in _TEXT_SENTINELS:
         for lineno, line in enumerate(text.splitlines(), 1):
             if pat.search(line):
-                violations.append(
-                    f"  {path}:{lineno}: matched real-data sentinel"
-                )
+                violations.append(f"  {path}:{lineno}: matched real-data sentinel")
 
     return violations
 

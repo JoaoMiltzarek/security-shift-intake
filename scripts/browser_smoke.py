@@ -104,17 +104,20 @@ def _seed_draft() -> int:
     llm = RuleBasedLLMClient(config)
     state = run_pipeline(SAMPLE, vision, llm, config, dpi=OCR_DPI)
     page_paths = save_page_images(load_source_images(SAMPLE, dpi=OCR_DPI))
-    payload: dict[str, Any] = state.model_copy(
-        update={"page_image_paths": page_paths}
-    ).model_dump(mode="json")
+    payload: dict[str, Any] = state.model_copy(update={"page_image_paths": page_paths}).model_dump(
+        mode="json"
+    )
 
     # Inject a probable-region bbox on one field so the overlay has something to draw.
     patched = False
     for field in payload["extracted_fields"]:
         if field["name"] == _BBOX_FIELD:
             field.update(
-                page=0, bbox=_BBOX, evidence_method="token_window",
-                evidence_text=field.get("value") or "Unidade 1", must_review=True,
+                page=0,
+                bbox=_BBOX,
+                evidence_method="token_window",
+                evidence_text=field.get("value") or "Unidade 1",
+                must_review=True,
             )
             patched = True
             break
@@ -253,9 +256,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         page.locator("tr.occ-row").first.get_by_role("button", name="Limpar linha").click()
         page.click('button[type="submit"]')
         # a linha 3 (spare antiga) some do DOM quando volta a haver 1 linha + spare 2
-        page.wait_for_selector(
-            'input[name="occ__3__descricao"]', state="detached", timeout=5000
-        )
+        page.wait_for_selector('input[name="occ__3__descricao"]', state="detached", timeout=5000)
         remaining = page.locator('input[name="occ__1__descricao"]').input_value()
         if "Portao" not in remaining:
             raise SmokeError("full-replace row removal did not keep the surviving row")
@@ -267,9 +268,11 @@ def run_smoke(base_url: str) -> dict[str, Any]:
 
     digest = hashlib.sha256(screenshot.read_bytes()).hexdigest()
     return {
-        "draft_id": draft_id, "unknown_draft_id": unknown_draft_id,
+        "draft_id": draft_id,
+        "unknown_draft_id": unknown_draft_id,
         "screenshot": str(screenshot),
-        "sha256": digest, "console_errors": console_errors,
+        "sha256": digest,
+        "console_errors": console_errors,
     }
 
 
@@ -278,8 +281,9 @@ def main(argv: list[str]) -> int:
     try:
         result = run_smoke(base_url)
     except EnvUnavailable as exc:
-        print(f"browser-smoke REPORTED (env unavailable; CI is authoritative): {exc}",
-              file=sys.stderr)
+        print(
+            f"browser-smoke REPORTED (env unavailable; CI is authoritative): {exc}", file=sys.stderr
+        )
         return 2
     except SmokeError as exc:
         print(f"browser-smoke FAILED: {exc}", file=sys.stderr)

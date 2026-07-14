@@ -317,16 +317,10 @@ def test_release_runtime_attestation_fails_closed() -> None:
     assert ev._runtime_attestation_failures(attested) == []
 
     assert ev._runtime_attestation_failures({**attested, "reader": "mock"})
-    assert ev._runtime_attestation_failures(
-        {**attested, "python_version": "3.11.14"}
-    )
+    assert ev._runtime_attestation_failures({**attested, "python_version": "3.11.14"})
     assert ev._runtime_attestation_failures({**attested, "uv_lock_sha256": "invalid"})
-    assert ev._runtime_attestation_failures(
-        {**attested, "tesseract_version": "unavailable"}
-    )
-    assert ev._runtime_attestation_failures(
-        {**attested, "tesseract_language": "eng"}
-    )
+    assert ev._runtime_attestation_failures({**attested, "tesseract_version": "unavailable"})
+    assert ev._runtime_attestation_failures({**attested, "tesseract_language": "eng"})
     assert ev._runtime_attestation_failures({**attested, "runtime_attested": False})
 
 

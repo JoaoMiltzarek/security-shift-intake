@@ -42,9 +42,7 @@ def build_showcase_gif(frame_paths: list[Path], output: Path) -> None:
 
     frames = [_load_frame(path) for path in frame_paths]
     palette = _shared_palette(frames)
-    paletted = [
-        frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in frames
-    ]
+    paletted = [frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in frames]
 
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.tmp")
@@ -61,9 +59,7 @@ def build_showcase_gif(frame_paths: list[Path], output: Path) -> None:
             comment=GIF_COMMENT,
         )
         if temporary.stat().st_size >= MAX_GIF_BYTES:
-            raise ValueError(
-                f"GIF is {temporary.stat().st_size} bytes; limit is {MAX_GIF_BYTES}"
-            )
+            raise ValueError(f"GIF is {temporary.stat().st_size} bytes; limit is {MAX_GIF_BYTES}")
         temporary.replace(output)
     finally:
         temporary.unlink(missing_ok=True)

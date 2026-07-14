@@ -41,7 +41,13 @@ _BINARY_RE = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", r
 
 # Directories that never hold committable source; skipped by the tree walk.
 _SKIP_DIRS = {
-    ".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "node_modules",
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    "node_modules",
 }
 
 # Optional guard: only enforce "wrong branch" when the operator opts in, so preflight
@@ -54,9 +60,7 @@ def _run_git(root: Path, *args: str) -> str | None:
     if not shutil.which("git"):
         return None
     try:
-        out = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=True, timeout=30
-        )
+        out = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError):
         return None
     if out.returncode != 0:

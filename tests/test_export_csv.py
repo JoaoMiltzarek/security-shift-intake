@@ -79,8 +79,7 @@ def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> No
 
     state = client.get(f"/drafts/{draft_id}").json()["state"]
     expected = [
-        [r["dia"], r["unidade"], r["objeto"], r["descricao"]]
-        for r in state["spreadsheet_rows"]
+        [r["dia"], r["unidade"], r["objeto"], r["descricao"]] for r in state["spreadsheet_rows"]
     ]
     assert rows[1:] == expected
     # Post-review value present (human entered "1"), raw "(revisar)" placeholder gone.
@@ -108,13 +107,19 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        "=cmd()", "+1", "-1", "@x",
-        "\t=cmd()", "\r=cmd()", "\n=cmd()",  # ASCII control / newline
-        "\x00", "\x1f",                        # C0 controls
-        "\x85=cmd()",                          # NEL (Cc)
-        "﻿=cmd()",                        # BOM (Cf)
-        "​=cmd()",                        # zero-width space (Cf)
-        " =cmd()",                             # leading whitespace
+        "=cmd()",
+        "+1",
+        "-1",
+        "@x",
+        "\t=cmd()",
+        "\r=cmd()",
+        "\n=cmd()",  # ASCII control / newline
+        "\x00",
+        "\x1f",  # C0 controls
+        "\x85=cmd()",  # NEL (Cc)
+        "﻿=cmd()",  # BOM (Cf)
+        "​=cmd()",  # zero-width space (Cf)
+        " =cmd()",  # leading whitespace
     ],
 )
 def test_csv_safe_neutralizes(payload: str) -> None:

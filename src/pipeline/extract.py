@@ -18,7 +18,5 @@ def extract(state: PipelineState, client: LLMClient, config: ReportConfig) -> Pi
     field_names = [f.name for f in config.fields]
     raw = client.extract_fields(state.transcription or "", field_names)
 
-    extracted = [
-        ExtractedField(name=r.name, value=r.value, confidence=r.confidence) for r in raw
-    ]
+    extracted = [ExtractedField(name=r.name, value=r.value, confidence=r.confidence) for r in raw]
     return state.model_copy(update={"extracted_fields": extracted})

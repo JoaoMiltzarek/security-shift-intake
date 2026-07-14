@@ -59,9 +59,7 @@ def run_pipeline(
         # dual-reader arbitration. ``state.reconcile_results`` therefore stays empty.
         state = validate_table(state, config)
         status, reason = assess_ocr_quality(state, config)
-        state = state.model_copy(
-            update={"ocr_quality": status, "ocr_quality_reason": reason}
-        )
+        state = state.model_copy(update={"ocr_quality": status, "ocr_quality_reason": reason})
         if status == OCR_FAILED:
             # Modo seguro: sem classificação automática nem rascunho operacional.
             state = state.model_copy(

@@ -112,7 +112,8 @@ def test_every_revision_snapshot_is_preserved(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     update_state(
-        session, draft.id,
+        session,
+        draft.id,
         PipelineState(source_pdf=Path("report.pdf"), transcription="v2"),
         actor="reviewer",
     )
@@ -143,9 +144,7 @@ def test_approved_hash_matches_a_preserved_revision(session: Session) -> None:
 
     hashes = {
         r.state_sha256
-        for r in session.exec(
-            select(DraftRevision).where(DraftRevision.draft_id == draft.id)
-        )
+        for r in session.exec(select(DraftRevision).where(DraftRevision.draft_id == draft.id))
     }
     assert approved.approved_state_sha256 in hashes  # aprovação sempre prova o conteúdo
 
@@ -237,9 +236,7 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
 
 
 @pytest.mark.parametrize("status", [ApprovalStatus.APPROVED, ApprovalStatus.REJECTED])
-def test_sent_draft_rejects_later_status_changes(
-    session: Session, status: ApprovalStatus
-) -> None:
+def test_sent_draft_rejects_later_status_changes(session: Session, status: ApprovalStatus) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
@@ -258,9 +255,7 @@ def test_sent_draft_rejects_later_status_changes(
 # --- SSI-1015: mutation + snapshot + audit are one transaction -----------------
 
 
-def _fail_audit_action(
-    monkeypatch: pytest.MonkeyPatch, action_to_fail: str
-) -> None:
+def _fail_audit_action(monkeypatch: pytest.MonkeyPatch, action_to_fail: str) -> None:
     import src.api.repository as repository
 
     original = repository._stage_audit

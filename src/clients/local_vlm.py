@@ -195,10 +195,7 @@ class LocalVLMVisionClient:
             # confidence_source registra "placeholder" honestamente. Erros de
             # conexão/timeout propagam direto (retry não ajudaria e dobraria a espera).
             cause = exc.__cause__
-            if (
-                not isinstance(cause, httpx.HTTPStatusError)
-                or cause.response.status_code != 500
-            ):
+            if not isinstance(cause, httpx.HTTPStatusError) or cause.response.status_code != 500:
                 raise
             raw = self._transport({k: v for k, v in payload.items() if k != "logprobs"})
         try:

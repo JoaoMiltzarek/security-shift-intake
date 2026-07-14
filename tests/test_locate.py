@@ -15,9 +15,7 @@ from src.schema.state import ExtractedField
 
 
 def _wb(text: str, *, x0: float, line_key: str = "0:0:0", page: int = 0) -> WordBox:
-    return WordBox(
-        text=text, bbox=(x0, 0.0, x0 + 0.1, 0.1), conf=0.9, line_key=line_key, page=page
-    )
+    return WordBox(text=text, bbox=(x0, 0.0, x0 + 0.1, 0.1), conf=0.9, line_key=line_key, page=page)
 
 
 def test_exact_contiguous_run() -> None:

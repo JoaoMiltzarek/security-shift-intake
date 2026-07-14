@@ -47,9 +47,7 @@ def save_page_images(images: list[Image.Image], root: Path = PAGE_IMAGES_ROOT) -
     return rel_paths
 
 
-def resolve_page_image(
-    rel_paths: list[str], n: int, root: Path = PAGE_IMAGES_ROOT
-) -> Path:
+def resolve_page_image(rel_paths: list[str], n: int, root: Path = PAGE_IMAGES_ROOT) -> Path:
     """Resolve page *n* to an absolute file path, rejecting bad indexes and traversal.
 
     Raises FileNotFoundError for an out-of-range index or a missing file, and

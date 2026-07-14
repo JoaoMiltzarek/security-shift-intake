@@ -291,15 +291,11 @@ def _runtime_attestation_failures(meta: dict[str, Any]) -> list[str]:
     """Validate the exact, local runtime authorized to produce release evidence."""
     failures: list[str] = []
     if meta.get("reader") != RELEASE_SAFETY_READER:
-        failures.append(
-            f"reader={meta.get('reader')!r} (exigido {RELEASE_SAFETY_READER!r})"
-        )
+        failures.append(f"reader={meta.get('reader')!r} (exigido {RELEASE_SAFETY_READER!r})")
     actual_python = meta.get("python_version")
     expected_python = meta.get("python_version_expected")
     if not actual_python or actual_python != expected_python:
-        failures.append(
-            f"python_version={actual_python!r} (esperado {expected_python!r})"
-        )
+        failures.append(f"python_version={actual_python!r} (esperado {expected_python!r})")
     lock_sha256 = str(meta.get("uv_lock_sha256") or "")
     if re.fullmatch(r"[0-9a-f]{64}", lock_sha256) is None:
         failures.append("uv_lock_sha256 inválido ou ausente")
@@ -307,9 +303,7 @@ def _runtime_attestation_failures(meta: dict[str, Any]) -> list[str]:
     if tesseract_version.lower() in {"", "unknown", "unavailable"}:
         failures.append("tesseract_version inválido ou ausente")
     if meta.get("tesseract_language") != "por":
-        failures.append(
-            f"tesseract_language={meta.get('tesseract_language')!r} (exigido 'por')"
-        )
+        failures.append(f"tesseract_language={meta.get('tesseract_language')!r} (exigido 'por')")
     if meta.get("runtime_attested") is not True:
         failures.append("runtime_attested não é true")
     return failures

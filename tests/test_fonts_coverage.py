@@ -44,9 +44,7 @@ def test_bundle_is_present() -> None:
 def test_font_covers_pt_br_accents(path: Path) -> None:
     font = ImageFont.truetype(str(path), size=_SIZE)
     notdef = _mask(font, _NOTDEF_PROBE)
-    missing = [
-        ch for ch in _PT_CHARS if _mask(font, ch) == notdef or not any(_mask(font, ch))
-    ]
+    missing = [ch for ch in _PT_CHARS if _mask(font, ch) == notdef or not any(_mask(font, ch))]
     assert not missing, f"{path.name} sem glifo para: {' '.join(missing)}"
 
 

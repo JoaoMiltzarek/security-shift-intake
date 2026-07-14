@@ -116,8 +116,7 @@ def validate(
             must_review.append(field.name)
 
         status = (
-            "missing" if _is_blank(extracted.value)
-            else ("must_review" if flagged else "accepted")
+            "missing" if _is_blank(extracted.value) else ("must_review" if flagged else "accepted")
         )
         updated.append(extracted.model_copy(update={"must_review": flagged, "status": status}))
 
@@ -201,8 +200,12 @@ def validate_table(
     elif normalized.disposition == "none":
         fields.append(
             ExtractedField(
-                name="ocorrencias", value="(sem alteração)", confidence=1.0, must_review=False,
-                source="rule", status="accepted",
+                name="ocorrencias",
+                value="(sem alteração)",
+                confidence=1.0,
+                must_review=False,
+                source="rule",
+                status="accepted",
             )
         )
     else:
@@ -250,9 +253,7 @@ def validate_table(
                         confidence=cell.confidence,
                         must_review=flagged,
                         source=cell.source,
-                        status=(
-                            "missing" if blank else ("must_review" if flagged else "accepted")
-                        ),
+                        status=("missing" if blank else ("must_review" if flagged else "accepted")),
                         bbox=cell.bbox,
                         page=cell.page,
                         evidence_text=cell.evidence,

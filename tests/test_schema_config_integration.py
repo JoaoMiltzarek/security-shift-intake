@@ -50,8 +50,6 @@ def test_htmicron_config_routing_has_default() -> None:
 
 def test_htmicron_config_critical_urgency_routes_to_oncall() -> None:
     cfg = load_config(CONFIG_PATH)
-    critical_rule = next(
-        (r for r in cfg.routing if r.when and r.when.urgency == "critical"), None
-    )
+    critical_rule = next((r for r in cfg.routing if r.when and r.when.urgency == "critical"), None)
     assert critical_rule is not None
     assert "tech_security_oncall" in critical_rule.recipients

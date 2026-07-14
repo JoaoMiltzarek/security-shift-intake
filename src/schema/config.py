@@ -79,9 +79,7 @@ class FieldSchema(BaseModel):
                 f"Field '{self.name}': type='table' requires a non-empty 'columns' list."
             )
         if self.type != "table" and self.columns:
-            raise ValueError(
-                f"Field '{self.name}': 'columns' is only valid for type='table'."
-            )
+            raise ValueError(f"Field '{self.name}': 'columns' is only valid for type='table'.")
         return self
 
 

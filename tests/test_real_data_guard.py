@@ -109,9 +109,7 @@ def test_other_gif_paths_remain_blocked(tmp_path: Path, relpath: str) -> None:
     "name",
     ["cockpit_demo.gif", "sample_tc-000000.png"],
 )
-def test_allowlisted_name_under_archive_samples_is_blocked(
-    tmp_path: Path, name: str
-) -> None:
+def test_allowlisted_name_under_archive_samples_is_blocked(tmp_path: Path, name: str) -> None:
     f = _write(tmp_path / "archive" / "samples" / name, "media")
     assert check_file(f)
 
@@ -210,11 +208,20 @@ def test_alt_sqlite_extensions_blocked(tmp_path: Path) -> None:
     # The whole SQLite family: every base extension AND its -wal/-shm/-journal sidecar
     # (SQLite names a sidecar <dbfile>-wal, so a .sqlite3 DB yields app.sqlite3-wal).
     names = (
-        "app.db", "app.db3", "app.s3db",
-        "app.sqlite", "app.sqlite2", "app.sqlite3",
-        "app.db-wal", "app.db-shm", "app.db-journal",
-        "app.sqlite3-wal", "app.sqlite3-shm", "app.sqlite3-journal",
-        "app.s3db-wal", "app.s3db-shm",
+        "app.db",
+        "app.db3",
+        "app.s3db",
+        "app.sqlite",
+        "app.sqlite2",
+        "app.sqlite3",
+        "app.db-wal",
+        "app.db-shm",
+        "app.db-journal",
+        "app.sqlite3-wal",
+        "app.sqlite3-shm",
+        "app.sqlite3-journal",
+        "app.s3db-wal",
+        "app.s3db-shm",
     )
     for name in names:
         f = _write(tmp_path / name, "SQLite format 3\x00")

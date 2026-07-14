@@ -49,9 +49,7 @@ def transcribe(
         update={
             "transcription": text,
             "transcription_confidence": confidence,
-            "transcription_confidence_source": (
-                results[0].confidence_source if results else None
-            ),
+            "transcription_confidence_source": (results[0].confidence_source if results else None),
             "words": words,
         }
     )

@@ -620,13 +620,9 @@ def run_sheet(
     base["ocr_confidence"] = round(state.transcription_confidence or 0.0, 3)
     base["ocr_quality"] = state.ocr_quality
     base["confidence_source"] = state.transcription_confidence_source
-    base["field_statuses"] = {
-        ef.name: field_status(ef.value, ef.must_review) for ef in extracted
-    }
+    base["field_statuses"] = {ef.name: field_status(ef.value, ef.must_review) for ef in extracted}
     base["must_review_count"] = len(state.must_review_fields)
-    base["missing_count"] = sum(
-        1 for st in base["field_statuses"].values() if st == "missing"
-    )
+    base["missing_count"] = sum(1 for st in base["field_statuses"].values() if st == "missing")
     base["illegible_token_count"] = (state.transcription or "").count("[ilegível]")
     base["repairable_ratio"] = repairable_ratio(extracted)
     if state.normalized is not None:
@@ -714,26 +710,18 @@ def build_public_run(meta: dict[str, Any], per_sheet: list[dict[str, Any]]) -> d
         # DIRECIONAL enquanto n_verified < 10 (EVAL_PROTOCOL §4) — impresso, não escondido.
         "directional": n_verified < MIN_VERIFIED_SHEETS,
         "aggregate": {
-            "parse_table_success_rate": (
-                round(success / len(with_pts), 3) if with_pts else None
-            ),
+            "parse_table_success_rate": (round(success / len(with_pts), 3) if with_pts else None),
             "parse_table_success_count": success,
             "estimated_chars_to_type_total": sum(
                 s.get("estimated_chars_to_type") or 0 for s in ran
             ),
-            "prefilled_but_wrong_total": sum(
-                s.get("prefilled_but_wrong_count") or 0 for s in ran
-            ),
+            "prefilled_but_wrong_total": sum(s.get("prefilled_but_wrong_count") or 0 for s in ran),
             "blank_field_total": sum(s.get("blank_field_count") or 0 for s in ran),
             "must_review_total": sum(s.get("must_review_count") or 0 for s in ran),
             "missing_total": sum(s.get("missing_count") or 0 for s in ran),
             "illegible_total": sum(s.get("illegible_token_count") or 0 for s in ran),
-            "mean_elapsed_sec": (
-                round(sum(elapsed) / len(elapsed), 2) if elapsed else None
-            ),
-            "repairable_ratio_overall": (
-                round(rep_num / rep_den, 3) if rep_den else None
-            ),
+            "mean_elapsed_sec": (round(sum(elapsed) / len(elapsed), 2) if elapsed else None),
+            "repairable_ratio_overall": (round(rep_num / rep_den, 3) if rep_den else None),
         },
         "per_sheet": pub_sheets,
     }
@@ -961,9 +949,7 @@ def _legacy_compare(args: argparse.Namespace) -> int:
     return 0
 
 
-def _write_summary(
-    run: dict[str, Any] | None = None, paired: dict[str, Any] | None = None
-) -> int:
+def _write_summary(run: dict[str, Any] | None = None, paired: dict[str, Any] | None = None) -> int:
     text, pii = render_summary(SUMMARY_PATH, run=run, paired=paired)
     if pii:
         print("ABORTADO: PII detectada no resumo público:", file=sys.stderr)

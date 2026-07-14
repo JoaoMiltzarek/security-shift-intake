@@ -236,9 +236,7 @@ def test_transcribe_does_not_retry_unrelated_http_status() -> None:
 
 def test_malformed_vlm_response_never_echoes_response_content() -> None:
     sensitive_marker = "SYNTHETIC-SENSITIVE-MARKER"
-    malformed = {
-        "choices": [{"message": {"content": {"value": sensitive_marker}}}]
-    }
+    malformed = {"choices": [{"message": {"content": {"value": sensitive_marker}}}]}
     client = LocalVLMVisionClient(transport=FakeTransport(malformed))
 
     with pytest.raises(RuntimeError, match="invalid response shape") as exc_info:

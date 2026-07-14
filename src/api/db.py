@@ -54,9 +54,7 @@ def make_engine(url: str | None = None, *, allow_test_path: bool = False) -> Eng
     url = _prepare_sqlite_url(url, allow_test_path=allow_test_path)
     connect_args = {"check_same_thread": False}
     if url in _IN_MEMORY_URLS:
-        return create_engine(
-            url, echo=False, connect_args=connect_args, poolclass=StaticPool
-        )
+        return create_engine(url, echo=False, connect_args=connect_args, poolclass=StaticPool)
     return create_engine(url, echo=False, connect_args=connect_args)
 
 

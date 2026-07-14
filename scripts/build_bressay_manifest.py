@@ -82,8 +82,12 @@ def main(argv: list[str]) -> int:
         default=Path(os.environ.get("BRESSAY_DIR", "data/bressay")),
         help="pasta da release (contém sets/ e data/); default: $BRESSAY_DIR ou data/bressay",
     )
-    parser.add_argument("--level", choices=sorted(_LEVEL_DIRS), default="line",
-                        help="line (default), page, or word (subdirectory layout)")
+    parser.add_argument(
+        "--level",
+        choices=sorted(_LEVEL_DIRS),
+        default="line",
+        help="line (default), page, or word (subdirectory layout)",
+    )
     parser.add_argument("--n", type=int, default=0, help="máx. de amostras (0 = todas)")
     parser.add_argument(
         "--out", type=Path, default=None, help="default: <bressay-dir>/manifest.jsonl"

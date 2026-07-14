@@ -57,8 +57,7 @@ def test_unknown_disposition_does_not_relax_low_content_gate() -> None:
 
 def test_rich_content_is_good() -> None:
     text = (
-        _LABELS
-        + "\nAlarme disparou quatro vezes no setor verificado sem intrusao registrado livro"
+        _LABELS + "\nAlarme disparou quatro vezes no setor verificado sem intrusao registrado livro"
     )
     status, _ = assess_ocr_quality(_state(text, no_occurrence=False, occ=True), CFG)
     assert status == OCR_GOOD

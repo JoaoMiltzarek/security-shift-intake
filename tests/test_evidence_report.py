@@ -15,9 +15,15 @@ from scripts.evidence_report import render_report
 
 def test_render_tolerates_missing_inputs() -> None:
     md = render_report(
-        branch="SSI-1002-hardening", parent_sha="abc123", tree_hash="def456",
-        authoritative_sha=None, preflight=None, pytest_log=None,
-        privacy_log=None, smoke_log=None, screenshot_sha=None,
+        branch="SSI-1002-hardening",
+        parent_sha="abc123",
+        tree_hash="def456",
+        authoritative_sha=None,
+        preflight=None,
+        pytest_log=None,
+        privacy_log=None,
+        smoke_log=None,
+        screenshot_sha=None,
     )
     assert "Parent commit: `abc123`" in md
     assert "Tree hash: `def456`" in md
@@ -27,9 +33,14 @@ def test_render_tolerates_missing_inputs() -> None:
 
 def test_render_embeds_collected_artifacts() -> None:
     md = render_report(
-        branch="b", parent_sha="p", tree_hash="t", authoritative_sha="FINALSHA",
-        preflight='{"severity": 1}', pytest_log="450 passed, 1 skipped",
-        privacy_log="privacy-check OK", smoke_log="browser-smoke OK",
+        branch="b",
+        parent_sha="p",
+        tree_hash="t",
+        authoritative_sha="FINALSHA",
+        preflight='{"severity": 1}',
+        pytest_log="450 passed, 1 skipped",
+        privacy_log="privacy-check OK",
+        smoke_log="browser-smoke OK",
         screenshot_sha="a" * 64,
     )
     assert "FINALSHA" in md
@@ -41,10 +52,15 @@ def test_render_embeds_collected_artifacts() -> None:
 def test_render_never_embeds_privacy_log_verbatim() -> None:
     secret = "NOMEREAL-SUPER-SECRETO"
     md = render_report(
-        branch="b", parent_sha="p", tree_hash="t", authoritative_sha="sha",
-        preflight=None, pytest_log=None,
+        branch="b",
+        parent_sha="p",
+        tree_hash="t",
+        authoritative_sha="sha",
+        preflight=None,
+        pytest_log=None,
         privacy_log=f"uv run privacy-check\nprivacy-check OK — clean\n{secret}",
-        smoke_log=None, screenshot_sha=None,
+        smoke_log=None,
+        screenshot_sha=None,
     )
 
     assert "privacy-check OK" in md
@@ -55,10 +71,15 @@ def test_render_never_embeds_privacy_log_verbatim() -> None:
 def test_render_refuses_failed_privacy_evidence() -> None:
     with pytest.raises(ValueError, match="privacy evidence"):
         render_report(
-            branch="b", parent_sha="p", tree_hash="t", authoritative_sha="sha",
-            preflight=None, pytest_log=None,
+            branch="b",
+            parent_sha="p",
+            tree_hash="t",
+            authoritative_sha="sha",
+            preflight=None,
+            pytest_log=None,
             privacy_log="PRIVACY-CHECK FAILED — NOMEREAL-SUPER-SECRETO",
-            smoke_log=None, screenshot_sha=None,
+            smoke_log=None,
+            screenshot_sha=None,
         )
 
 

@@ -198,9 +198,6 @@ def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> Non
         persisted = verify.get(Draft, draft_id)
         assert persisted is not None
         assert persisted.delivery_mode == "external"
-        assert (
-            [entry.action for entry in get_audit(verify, draft_id)].count(
-                "external_dispatch_completed"
-            )
-            == 1
-        )
+        assert [entry.action for entry in get_audit(verify, draft_id)].count(
+            "external_dispatch_completed"
+        ) == 1

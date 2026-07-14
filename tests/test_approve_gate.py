@@ -28,8 +28,10 @@ _PENDING_BODY = {
     "recipients": ["general_support"],
     "email_draft": "Subject: x\n\nbody",
     "classification": {
-        "incident_type": "routine", "urgency": "low",
-        "sector": "general_support", "confidence": 0.6,
+        "incident_type": "routine",
+        "urgency": "low",
+        "sector": "general_support",
+        "confidence": 0.6,
     },
     "extracted_fields": [
         {"name": "guard_name", "value": None, "confidence": 0.0, "must_review": True}
@@ -79,9 +81,7 @@ def test_assert_reviewable_passes_when_clean() -> None:
 
 def test_assert_reviewable_blocks_failed_ocr_even_without_pending_fields() -> None:
     # OCR failed but no field flagged: the explicit OCR block must still fire.
-    state = PipelineState(
-        source_pdf=Path("x.pdf"), ocr_quality="failed", must_review_fields=[]
-    )
+    state = PipelineState(source_pdf=Path("x.pdf"), ocr_quality="failed", must_review_fields=[])
     with pytest.raises(DraftNotReviewableError):
         assert_reviewable(state)
 
