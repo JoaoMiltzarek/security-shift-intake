@@ -163,14 +163,38 @@ def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> d
     transcription = (result.get("_detail") or {}).get("transcription") or ""
     # Replay determinístico do estágio extract (mesmo código do pipeline, $0).
     normalized = normalize(RuleBasedTableExtractor(config).extract(transcription))
-    result["false_incident"] = (not has_occurrence(cur)) and normalized.disposition == "present"
-    result["missed_incident"] = has_occurrence(cur) and normalized.disposition == "none"
-    result["unknown_disposition"] = normalized.disposition == "unknown"
+    # Safety uses the disposition and gate results preserved from the PipelineState
+    # actually executed by run_sheet. The replay remains only for row-quality metrics.
+    disposition = result.get("normalized_disposition")
+    result["false_incident"] = (not has_occurrence(cur)) and disposition == "present"
+    result["missed_incident"] = has_occurrence(cur) and disposition == "none"
+    result["unknown_disposition"] = disposition == "unknown"
     # Segurança estrutural (SSI-1010): a folha TEM ocorrência mas a extração não chegou
     # a "present" — o único desfecho aceitável é unknown (vai para revisão). "none" seria
     # a folha errada apresentada como LIMPA/aceita: o colapso F-01 (unsafe_clean).
-    result["structural_failure"] = has_occurrence(cur) and normalized.disposition != "present"
+    result["structural_failure"] = has_occurrence(cur) and disposition != "present"
     result["unsafe_clean"] = result["missed_incident"]
+    # Full contract mismatch: disposition, required header, row count, and first-row
+    # representation are all covered by parse_table_success.  Operational safety
+    # must block every such mismatch, not just the historical unknown/none case.
+    result["operational_mismatch"] = result.get("parse_table_success") is not True
+    result["operational_signal_complete"] = (
+        disposition in {"unknown", "none", "present"}
+        and type(result.get("parse_table_success")) is bool
+        and type(result.get("operational_approvable")) is bool
+        and type(result.get("operational_exportable")) is bool
+    )
+    result["unsafe_approvable"] = (
+        result["operational_mismatch"] and result.get("operational_approvable") is True
+    )
+    result["unsafe_exportable"] = (
+        result["operational_mismatch"] and result.get("operational_exportable") is True
+    )
+    result["operationally_blocked_mismatch"] = (
+        result["operational_mismatch"]
+        and result.get("operational_approvable") is False
+        and result.get("operational_exportable") is False
+    )
     # Incidente inventado que NÃO chegaria sinalizado ao revisor (linhas sem
     # needs_review). No caminho OCR+regras toda linha nasce must_review, então isto
     # só dispararia com um reader/config que emitisse linhas "aceitas" — exatamente
@@ -206,7 +230,9 @@ def _safety_gate_failures(
     Sobre as folhas efetivamente executadas, mede o que pode SAIR errado sem um
     humano notar:
     - unsafe_clean==0: falha estrutural nunca vira "sem alteração" aceito;
-    - safe_review_recall==1.0: toda falha estrutural é encaminhada a revisão;
+    - safe_review_recall==1.0: toda saída que diverge do contrato completo é
+      simultaneamente bloqueada para aprovação e exportação;
+    - unsafe_approvable/exportable==0: nenhum mismatch completo passa por um gate;
     - false_incident_unreviewed==0: incidente inventado nunca chega sem sinalização.
     false_incident_count (ruído do reader, sempre sinalizado ao revisor) é REPORTADO
     mas não bloqueia — medição de 2026-07-12 no val@150: 4/45, todos must_review.
@@ -216,7 +242,18 @@ def _safety_gate_failures(
         failures.append(f"n_sheets={n_sheets} (exigido inteiro > 0)")
     elif type(n_sheets_ran) is not int or n_sheets_ran != n_sheets:
         failures.append(f"n_sheets_ran={n_sheets_ran} (exigido n_sheets={n_sheets})")
-    for metric in ("false_incident_unreviewed_count", "unsafe_clean_count"):
+    complete = reader.get("operational_signal_complete_count")
+    if type(n_sheets_ran) is not int or complete != n_sheets_ran:
+        failures.append(
+            f"operational_signal_complete_count={complete} "
+            f"(exigido n_sheets_ran={n_sheets_ran})"
+        )
+    for metric in (
+        "false_incident_unreviewed_count",
+        "unsafe_clean_count",
+        "unsafe_approvable_count",
+        "unsafe_exportable_count",
+    ):
         value = reader.get(metric)
         if value != 0:  # None/malformado também reprova: gate de release falha fechado.
             failures.append(f"{metric}={value} (exigido 0)")
@@ -251,9 +288,31 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             "structural_failure_count": _sum("structural_failure", sheets),
             "unsafe_clean_count": _sum("unsafe_clean", sheets),
             "false_incident_unreviewed_count": _sum("false_incident_unreviewed", sheets),
-            # Das falhas estruturais, a fração encaminhada a revisão (unknown). 1.0 =
-            # nenhuma falha virou "sem alteração" aceito; sem falhas => vacuamente 1.0.
+            "operational_signal_complete_count": _sum(
+                "operational_signal_complete", sheets
+            ),
+            "operational_approvable_count": _sum("operational_approvable", sheets),
+            "operational_exportable_count": _sum("operational_exportable", sheets),
+            "operational_mismatch_count": _sum("operational_mismatch", sheets),
+            "operationally_blocked_mismatch_count": _sum(
+                "operationally_blocked_mismatch", sheets
+            ),
+            "unsafe_approvable_count": _sum("unsafe_approvable", sheets),
+            "unsafe_exportable_count": _sum("unsafe_exportable", sheets),
+            # Dos mismatches do contrato completo, a fração bloqueada tanto para
+            # aprovação quanto para exportação; sem mismatch => vacuamente 1.0.
             "safe_review_recall": (
+                round(
+                    _sum("operationally_blocked_mismatch", sheets)
+                    / _sum("operational_mismatch", sheets),
+                    4,
+                )
+                if _sum("operational_mismatch", sheets)
+                else 1.0
+            ),
+            # Diagnóstico histórico F-01: disposition unknown em vez de none quando
+            # uma ocorrência plantada não foi representada. Não é gate operacional.
+            "structural_disposition_recall": (
                 round(
                     (_sum("structural_failure", sheets) - _sum("unsafe_clean", sheets))
                     / _sum("structural_failure", sheets),
@@ -334,8 +393,9 @@ def main(argv: list[str]) -> int:
         "--require-safety-gates",
         action="store_true",
         help=(
-            "exit 1 se unsafe_clean/false_incident_unreviewed != 0 "
-            "ou safe_review_recall != 1.0; exige execução completa do split"
+            "exit 1 se unsafe_clean/unsafe_approvable/unsafe_exportable/"
+            "false_incident_unreviewed != 0 ou safe_review_recall != 1.0; "
+            "exige sinais operacionais e execução completa do split"
         ),
     )
     args = parser.parse_args(argv)
@@ -422,7 +482,8 @@ def main(argv: list[str]) -> int:
             return 1
         print(
             f"eval-safety gates OK: ran={summary['n_sheets_ran']}/{summary['n_sheets']} "
-            "unsafe_clean=0 safe_review_recall=1.0 "
+            "unsafe_clean=0 unsafe_approvable=0 unsafe_exportable=0 "
+            "safe_review_recall=1.0 "
             f"false_incident_unreviewed=0 (false_incident reportado: "
             f"{reader.get('false_incident_count')})"
         )

@@ -45,6 +45,7 @@ import httpx
 
 from evals.metrics import cer, levenshtein
 from scripts.privacy_check import scan_text_for_pii
+from src.api.gate import DraftNotReviewableError, assert_reviewable
 from src.clients.base import VisionClient
 from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
@@ -54,6 +55,7 @@ from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MO
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import OCR_DPI
+from src.pipeline.outputs import export_blockers
 from src.schema.config import ReportConfig
 from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
@@ -499,6 +501,27 @@ def run_sheet(
         base["reason"] = str(exc)[:_REASON_MAX_CHARS]
         return base
     elapsed = time.monotonic() - started
+
+    # Preserve the operational outcomes of the PipelineState that was actually
+    # executed. Safety evals must not infer these gates from disposition or replay
+    # a second pipeline, because either shortcut can hide a disconnected validator.
+    try:
+        assert_reviewable(state)
+    except DraftNotReviewableError:
+        operational_approvable = False
+    else:
+        operational_approvable = True
+    operational_export_blockers = export_blockers(state)
+    base.update(
+        {
+            "operational_approvable": operational_approvable,
+            "operational_exportable": not operational_export_blockers,
+            "operational_export_blocker_count": len(operational_export_blockers),
+            "normalized_disposition": (
+                state.normalized.disposition if state.normalized is not None else None
+            ),
+        }
+    )
 
     extracted = state.extracted_fields
     base["ran"] = True

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from data.generators.tier_c import build_tier_c
+from evals import eval_extraction_real as real_ev
 from evals import eval_extraction_synthetic as ev
 from evals.eval_extraction_real import TABLE_CONFIG_PATH, load_curadoria
 from scripts.privacy_check import scan_text_for_pii
@@ -147,23 +148,78 @@ def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> 
 
 
 def test_safety_formulas_from_per_sheet_flags() -> None:
-    """unsafe_clean = estrutura errada apresentada como aceita (none contradizendo a
-    verdade); recall = fração das falhas estruturais que foi para revisão (unknown)."""
+    """Preserva diagnósticos F-01 e mede recall pelos gates operacionais reais."""
     fake = [
-        {"ran": True, "structural_failure": True, "unsafe_clean": True},
-        {"ran": True, "structural_failure": True, "unsafe_clean": False},
-        {"ran": True},
+        {
+            "ran": True,
+            "structural_failure": True,
+            "unsafe_clean": True,
+            "operational_mismatch": True,
+            "operationally_blocked_mismatch": False,
+            "unsafe_approvable": True,
+            "unsafe_exportable": True,
+            "operational_signal_complete": True,
+        },
+        {
+            "ran": True,
+            "structural_failure": True,
+            "unsafe_clean": False,
+            "operational_mismatch": True,
+            "operationally_blocked_mismatch": True,
+            "operational_signal_complete": True,
+        },
+        {"ran": True, "operational_signal_complete": True},
     ]
     reader = ev.aggregate(fake)["reader_metrics"]
     assert reader["unsafe_clean_count"] == 1
     assert reader["structural_failure_count"] == 2
     assert reader["safe_review_recall"] == 0.5
+    assert reader["structural_disposition_recall"] == 0.5
+    assert reader["unsafe_approvable_count"] == 1
+    assert reader["unsafe_exportable_count"] == 1
+    assert reader["operational_signal_complete_count"] == 3
+
+
+def test_safety_rejects_disconnected_operational_gates_even_when_old_proxy_is_safe(
+    smoke_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disposition `unknown` made the historical F-01 proxy green. If the real
+    approval/export guards are disconnected, the release gate must still fail."""
+    cur = next(
+        sheet
+        for sheet in load_curadoria(
+            smoke_dir / "gt", valid_status={"synthetic_ground_truth"}
+        )
+        if sheet.get("ocorrencias")
+    )
+    config = load_config(TABLE_CONFIG_PATH)
+    monkeypatch.setattr(real_ev, "assert_reviewable", lambda _state: None)
+    monkeypatch.setattr(real_ev, "export_blockers", lambda _state: [])
+
+    result = ev.evaluate_sheet(cur, config, get_vision_client("mock"), dpi=150)
+    reader = ev.aggregate([result])["reader_metrics"]
+
+    assert result["parse_table_success"] is False
+    assert result["unknown_disposition"] is True
+    assert result["unsafe_clean"] is False
+    assert reader["structural_disposition_recall"] == 1.0  # proxy antigo verde
+    assert reader["safe_review_recall"] == 0.0
+    assert reader["unsafe_approvable_count"] == 1
+    assert reader["unsafe_exportable_count"] == 1
+    failures = ev._safety_gate_failures(reader, n_sheets=1, n_sheets_ran=1)
+    assert "unsafe_approvable_count=1 (exigido 0)" in failures
+    assert "unsafe_exportable_count=1 (exigido 0)" in failures
+    assert "safe_review_recall=0.0 (exigido 1.0)" in failures
 
 
 def test_safety_gate_failures_helper() -> None:
     ok = {
         "false_incident_unreviewed_count": 0,
         "unsafe_clean_count": 0,
+        "unsafe_approvable_count": 0,
+        "unsafe_exportable_count": 0,
+        "operational_signal_complete_count": 45,
         "safe_review_recall": 1.0,
         # ruído do reader NÃO bloqueia (sempre chega must_review ao revisor):
         "false_incident_count": 4,
@@ -172,20 +228,27 @@ def test_safety_gate_failures_helper() -> None:
     bad = {
         "false_incident_unreviewed_count": 1,
         "unsafe_clean_count": 2,
+        "unsafe_approvable_count": 1,
+        "unsafe_exportable_count": 1,
+        "operational_signal_complete_count": 44,
         "safe_review_recall": 0.5,
     }
-    assert len(ev._safety_gate_failures(bad, n_sheets=45, n_sheets_ran=45)) == 3
-    assert len(ev._safety_gate_failures({}, n_sheets=45, n_sheets_ran=45)) == 3
+    assert len(ev._safety_gate_failures(bad, n_sheets=45, n_sheets_ran=45)) == 6
+    assert len(ev._safety_gate_failures({}, n_sheets=45, n_sheets_ran=45)) == 6
     assert ev._safety_gate_failures(
         {
             "false_incident_unreviewed_count": 0,
             "unsafe_clean_count": 0,
+            "unsafe_approvable_count": 0,
+            "unsafe_exportable_count": 0,
+            "operational_signal_complete_count": 45,
             "safe_review_recall": 1.1,
         },
         n_sheets=45,
         n_sheets_ran=45,
     ) == ["safe_review_recall=1.1 (exigido 1.0)"]
-    assert ev._safety_gate_failures(ok, n_sheets=None, n_sheets_ran=0) == [
+    no_run = {**ok, "operational_signal_complete_count": 0}
+    assert ev._safety_gate_failures(no_run, n_sheets=None, n_sheets_ran=0) == [
         "n_sheets=None (exigido inteiro > 0)"
     ]
 
@@ -195,6 +258,9 @@ def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
     safe_reader = {
         "false_incident_unreviewed_count": 0,
         "unsafe_clean_count": 0,
+        "unsafe_approvable_count": 0,
+        "unsafe_exportable_count": 0,
+        "operational_signal_complete_count": 45,
         "safe_review_recall": 1.0,
     }
 
@@ -202,10 +268,14 @@ def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
         safe_reader, n_sheets=45, n_sheets_ran=45
     ) == []
     assert ev._safety_gate_failures(
-        safe_reader, n_sheets=45, n_sheets_ran=0
+        {**safe_reader, "operational_signal_complete_count": 0},
+        n_sheets=45,
+        n_sheets_ran=0,
     ) == ["n_sheets_ran=0 (exigido n_sheets=45)"]
     assert ev._safety_gate_failures(
-        safe_reader, n_sheets=45, n_sheets_ran=44
+        {**safe_reader, "operational_signal_complete_count": 44},
+        n_sheets=45,
+        n_sheets_ran=44,
     ) == ["n_sheets_ran=44 (exigido n_sheets=45)"]
 
 
