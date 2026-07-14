@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -51,3 +53,15 @@ def test_reader_decision_lists_every_executable_release_gate() -> None:
         "reader=local_ocr",
     )
     assert all(value in decision for value in required)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o gerador ainda afirma criar o freeze autoritativo automaticamente",
+)
+def test_generator_documents_the_write_once_freeze_boundary() -> None:
+    generator = _read("scripts/gen_sheets.py")
+
+    assert "never creates or updates the committed release freeze" in generator
+    assert "scripts.freeze_tier_c_manifest" in generator
+    assert "automaticamente" not in generator
