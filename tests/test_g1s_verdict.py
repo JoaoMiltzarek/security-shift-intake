@@ -81,10 +81,6 @@ def test_existing_verdict_never_overwritten() -> None:
         compute_verdict(_summary(), calibration, _bressay())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BRESSAY ausente ainda altera o veredito sintético",
-)
 def test_missing_bressay_is_a_nonblocking_observation() -> None:
     result = compute_verdict(_summary(parse_rate=0.5), _calibration(), _bressay(False))
     assert result["verdict"] == "APROVADO"
@@ -94,10 +90,6 @@ def test_missing_bressay_is_a_nonblocking_observation() -> None:
     assert observation["affects_verdict"] is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BRESSAY ainda é rotulado como critério sem limiar congelado",
-)
 def test_bressay_cer_never_changes_or_enters_the_thresholded_verdict() -> None:
     bressay = _bressay()
     bressay["vlm"]["mean_cer"] = 999.0
@@ -111,10 +103,6 @@ def test_bressay_cer_never_changes_or_enters_the_thresholded_verdict() -> None:
     assert result["observations_not_thresholded"]["bressay"]["thresholded"] is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o artefato histórico ainda afirma um critério BRESSAY inexistente",
-)
 def test_historical_artifact_labels_bressay_as_nonthresholded() -> None:
     artifact = json.loads(Path("docs/eval_g1s_calibration.json").read_text(encoding="utf-8"))
 

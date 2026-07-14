@@ -41,10 +41,11 @@
     "hora_acc_min": 0.0,
     "note": "test split must be run ONCE; any threshold change requires a new val→freeze→test cycle"
   },
-  "bressay_status": {
+  "bressay_status_at_calibration": {
     "available": false,
     "reason": "VLM column unavailable (Ollama not running at BRESSAY eval time; see docs/eval_bressay_baseline.json)",
-    "g1s_verdict": "INCOMPLETO — BRESSAY VLM column required per §10 before G1-S can be APPROVED"
+    "thresholded": false,
+    "affects_verdict": false
   },
   "test_result": {
     "protocol": "test split run ONCE (DATASET_CONTRACT §10); thresholds frozen via commit",
@@ -93,14 +94,17 @@
     ],
     "observations_not_thresholded": {
       "missed_incident_count": 22,
-      "correct_refusal_rate": 1.0,
-      "transcription_cer_vs_surface_mean": 1.2588
-    },
-    "bressay_criterion_4": {
-      "available": true,
-      "baseline_tesseract_mean_cer": 1.0,
-      "vlm_mean_cer": 4.304781746031746,
-      "note": "tolerance 0 (none was frozen at calibration); reader CER must not exceed the calibration value on the same frozen manifest"
+      "legacy_correct_refusal_rate": 1.0,
+      "legacy_refusal_metric_note": "Historical metric; not equivalent to safe_illegible_refusal_rate and not used as release evidence.",
+      "transcription_cer_vs_surface_mean": 1.2588,
+      "bressay": {
+        "available": true,
+        "baseline_tesseract_mean_cer": 1.0,
+        "vlm_mean_cer": 4.304781746031746,
+        "thresholded": false,
+        "affects_verdict": false,
+        "note": "Directional only; the historical run did not authenticate a BRESSAY manifest, runtime, language pack or predeclared CER tolerance."
+      }
     },
     "verdict": "REPROVADO"
   }
