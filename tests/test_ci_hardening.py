@@ -6,8 +6,6 @@ import re
 import tomllib
 from pathlib import Path
 
-import pytest
-
 
 def _workflow() -> str:
     return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -97,10 +95,6 @@ def test_ci_logs_and_verifies_the_frozen_ocr_runtime() -> None:
     assert "make eval-safety VISION=" not in workflow
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CI ainda não executa a auditoria bloqueante do ambiente travado",
-)
 def test_ci_blocks_known_dependency_vulnerabilities() -> None:
     workflow = _workflow()
 
