@@ -50,6 +50,7 @@ def _tesseract_private_temp(root: Path) -> Iterator[None]:
     """Route pytesseract and its subprocess temp files to a private, purgable root."""
     if root == TESSERACT_TEMP_ROOT:
         root = resolve_private_path(root, create_root=True)
+        root.mkdir(parents=True, exist_ok=True)
     else:
         root = root.expanduser().resolve(strict=False)
         root.mkdir(parents=True, exist_ok=True)

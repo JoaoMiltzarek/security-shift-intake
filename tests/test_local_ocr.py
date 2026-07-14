@@ -125,6 +125,29 @@ def test_tesseract_timeout_is_finite_and_sanitized(
     assert "process timeout" not in str(exc_info.value)
 
 
+def test_default_tesseract_temp_creates_validated_nested_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import src.clients.local_ocr as local_ocr
+
+    isolated = tmp_path / "private" / "tmp" / "tesseract"
+    monkeypatch.setattr(
+        local_ocr,
+        "resolve_private_path",
+        lambda path, create_root=False: isolated,
+    )
+    monkeypatch.setattr(pytesseract, "get_languages", lambda config="": ["por"])
+    monkeypatch.setattr(
+        pytesseract,
+        "image_to_data",
+        lambda image, **kwargs: _empty_tesseract_data(),
+    )
+
+    LocalOCRVisionClient().transcribe(_png_b64())
+
+    assert isolated.is_dir()
+
+
 # --- Contrato F1 (SSI-1005): integração REAL — Tesseract sobre folha sintética ---
 # Propriedade de segurança leitor-independente: uma folha renderizada COM ocorrências,
 # lida pelo Tesseract REAL e passada pelo caminho de produção (extract → normalize),
