@@ -3,21 +3,38 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+  TZ: UTC
 
 jobs:
   quality:
     name: lint - typecheck - test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
       - name: Set up Python 3.11
         run: uv python install 3.11
@@ -54,25 +71,29 @@ jobs:
 
       - name: Upload evidence report
         if: ${{ success() && steps.privacy.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ssi-1002-evidence
           path: SSI-1002_EVIDENCE.md
 
   smoke-eval:
     name: smoke-eval (metrics + report)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install tesseract (OCR baseline)
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
       - name: Set up Python 3.11
         run: uv python install 3.11
@@ -87,7 +108,7 @@ jobs:
         run: cat EVAL_REPORT.md
 
       - name: Upload eval artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: eval-artifacts
           path: |
@@ -100,18 +121,22 @@ jobs:
   # BLOQUEANTE (false_incident_count é reportado como ruído do reader, não gate).
   eval-safety:
     name: eval-safety (structural gates — BLOCKING)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install tesseract (+ Portuguese pack)
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-por
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
       - name: Set up Python 3.11
         run: uv python install 3.11
@@ -134,22 +159,26 @@ jobs:
 
       - name: Upload safety-eval artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: eval-safety-artifacts
           path: /tmp/eval_safety/
 
   browser-smoke:
     name: browser-smoke (cockpit UI gate — BLOCKING)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
       - name: Set up Python 3.11
         run: uv python install 3.11
@@ -174,7 +203,7 @@ jobs:
 
       - name: Upload cockpit screenshot (real page capture)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cockpit-screenshot
           path: /tmp/browser_smoke.png
