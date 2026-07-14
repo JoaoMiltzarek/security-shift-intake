@@ -23,6 +23,12 @@ def _write(path: Path, content: str) -> Path:
     return path
 
 
+def test_private_gitignore_rule_is_anchored_to_repository_root() -> None:
+    rules = Path(".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "/private/" in rules
+    assert "private/" not in rules
+
+
 # --- scan_text_for_pii ------------------------------------------------------
 
 
@@ -46,6 +52,24 @@ def test_scan_detects_extra_term() -> None:
     assert scan_text_for_pii("vigilante fulano da silva", extra_terms=terms)
 
 
+def test_scan_findings_never_repeat_the_sensitive_value_or_pattern() -> None:
+    import re
+
+    secret = "NOMEREAL-SUPER-SECRETO"
+    hits = scan_text_for_pii(
+        f"vigilante {secret} da silva",
+        extra_terms=[re.compile(re.escape(secret), re.IGNORECASE)],
+        include_org=False,
+        include_times=False,
+    )
+
+    rendered = "\n".join(hits)
+    assert hits
+    assert secret not in rendered
+    assert re.escape(secret) not in rendered
+    assert "private-term" in rendered
+
+
 def test_scan_clean_text_passes() -> None:
     text = "Aggregate field-capture rate: 0.42 over N=4 sheets."
     assert scan_text_for_pii(text, extra_terms=[]) == []
@@ -62,6 +86,12 @@ def test_pdf_outside_private_flagged(tmp_path: Path) -> None:
 def test_pdf_inside_private_ok(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "reais" / "folha.pdf", "%PDF")
     assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+@pytest.mark.parametrize("prefix", ["docs", "archive", "foo"])
+def test_nested_private_directory_is_not_exempt(tmp_path: Path, prefix: str) -> None:
+    _write(tmp_path / prefix / "private" / "folha.pdf", "%PDF")
+    assert check_no_sensitive_outside_private(tmp_path)
 
 
 def test_sample_image_allowed(tmp_path: Path) -> None:
@@ -151,6 +181,21 @@ def test_public_md_with_time_flagged(tmp_path: Path) -> None:
 def test_private_md_with_time_ignored(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "audit" / "detail.md", "Ocorrência às 13:00.")
     assert check_public_no_pii(tmp_path) == []
+
+
+def test_nested_private_text_is_still_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "docs" / "private" / "detail.md", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path)
+
+
+def test_nested_samples_text_is_still_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "archive" / "samples" / "detail.md", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path)
+
+
+def test_root_samples_text_is_still_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "samples" / "leak.txt", "Ocorrência às 13:00.")
+    assert check_public_no_pii(tmp_path)
 
 
 def test_public_md_clean_passes(tmp_path: Path) -> None:

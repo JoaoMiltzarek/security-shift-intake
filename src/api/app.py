@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import io
+import ipaddress
 import json
 import os
 import re
@@ -19,6 +20,7 @@ import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -27,6 +29,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src import __version__
 from src.api import repository
@@ -57,7 +61,7 @@ from src.schema.extraction import (
     NormalizedOccurrence,
     NormalizedShift,
 )
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
 
 _GUARD_SPLIT = re.compile(r"[;,]| e ")
@@ -65,6 +69,131 @@ _GUARD_SPLIT = re.compile(r"[;,]| e ")
 # Linhas do editor 0/1/N: occ__<índice>__<coluna> — índices são POSICIONAIS
 # (full-replace a cada save; nunca patch por índice na lista antiga).
 _OCC_KEY = re.compile(r"^occ__(\d+)__(item|hora|descricao|acao|resolvido)$")
+_UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_LOCAL_ACTOR = "local_operator"
+MAX_REQUEST_BODY_BYTES = 256 * 1024
+MAX_FORM_FIELDS = 600
+MAX_FORM_VALUE_CHARS = 4_000
+
+
+class RequestBodyLimitMiddleware:
+    """Bound unsafe request bodies even when Content-Length is absent or false."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("method") not in _UNSAFE_HTTP_METHODS:
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        raw_length = headers.get(b"content-length")
+        if raw_length is not None:
+            try:
+                declared_length = int(raw_length)
+            except ValueError:
+                response = Response("Invalid Content-Length.", status_code=400)
+                await response(scope, receive, send)
+                return
+            if declared_length > self.max_bytes:
+                response = Response("Request body too large.", status_code=413)
+                await response(scope, receive, send)
+                return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                response = Response("Request interrupted.", status_code=400)
+                await response(scope, receive, send)
+                return
+            if message["type"] != "http.request":
+                continue
+            body.extend(message.get("body", b""))
+            if len(body) > self.max_bytes:
+                response = Response("Request body too large.", status_code=413)
+                await response(scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
+
+        replayed = False
+
+        async def replay_receive() -> Message:
+            nonlocal replayed
+            if replayed:
+                return {"type": "http.disconnect"}
+            replayed = True
+            return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+        await self.app(scope, replay_receive, send)
+
+
+async def _bounded_review_form(request: Request) -> Any:
+    """Parse the edit form with finite field, upload and per-value budgets."""
+    form = await request.form(
+        max_files=0,
+        max_fields=MAX_FORM_FIELDS,
+        max_part_size=MAX_REQUEST_BODY_BYTES,
+    )
+    items = list(form.multi_items())
+    if len(items) > MAX_FORM_FIELDS:
+        raise HTTPException(status_code=422, detail="Review form has too many fields.")
+    for key, value in items:
+        if (
+            not isinstance(value, str)
+            or len(str(key)) > 128
+            or len(value) > MAX_FORM_VALUE_CHARS
+        ):
+            raise HTTPException(status_code=422, detail="Review form field is too large.")
+    return form
+
+
+def _is_loopback_client(host: str) -> bool:
+    """Accept OS loopback addresses; ``testclient`` is Starlette's in-memory peer."""
+    if host == "testclient":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _same_origin(request: Request, origin: str) -> bool:
+    """Compare scheme/host/effective port, rejecting opaque or malformed origins."""
+    if origin == "null":
+        return False
+    try:
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+            return False
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return False
+    request_port = request.url.port or (443 if request.url.scheme == "https" else 80)
+    return (
+        parsed.scheme == request.url.scheme
+        and parsed.hostname.lower() == (request.url.hostname or "").lower()
+        and origin_port == request_port
+    )
+
+
+def _assert_config_compatible(state: PipelineState, config: ReportConfig) -> None:
+    """Reject drafts produced under another or unknown report configuration."""
+    expected_fingerprint = config_fingerprint(config)
+    if (
+        state.report_type != config.report_type
+        or state.config_sha256 != expected_fingerprint
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Draft belongs to a different report configuration. "
+                "Restart the cockpit with the matching INTAKE_CONFIG or re-ingest it."
+            ),
+        )
 
 
 class DispositionConflictError(ValueError):
@@ -180,9 +309,6 @@ def _edit_table(
         occurrences=occurrences,
     )
 
-    # Annotate the raw audit trail: edited header cells become human-sourced/accepted.
-    raw = state.raw_extraction.model_copy(deep=True) if state.raw_extraction is not None else None
-
     fields: list[ExtractedField] = []
     must_review: list[str] = []
     for name, value in [
@@ -202,12 +328,6 @@ def _edit_table(
         )
         if flagged:
             must_review.append(name)
-        elif raw is not None:
-            cell = getattr(raw.header, name, None)
-            if cell is not None:
-                cell.source = "human"
-                cell.status = "accepted"
-                cell.value = norm.shift.guards if name == "vigilantes" else value
     if norm.disposition == "none":
         # "(sem alteração)" humano SÓ nasce da confirmação explícita via radio — nunca
         # da mera ausência de linhas (fecha a lavagem de falha de parse, SSI-1007).
@@ -227,35 +347,54 @@ def _edit_table(
                                      status="must_review"))
         must_review.append("ocorrencias")
     else:
+        def add_reviewed_cell(
+            index: int,
+            suffix: str,
+            value: str | None,
+            *,
+            required: bool = False,
+            missing_value: str | None = None,
+        ) -> None:
+            name = f"ocorrencia_{index}_{suffix}"
+            missing_required = required and not value
+            fields.append(
+                ExtractedField(
+                    name=name,
+                    value=missing_value if missing_required else value,
+                    confidence=0.0 if missing_required else 1.0,
+                    must_review=missing_required,
+                    source=None if missing_required else "human",
+                    status="missing" if missing_required else "accepted",
+                    evidence_method=None if missing_required else "human_edit",
+                )
+            )
+            if missing_required:
+                must_review.append(name)
+
         for i, occ in enumerate(norm.occurrences, start=1):
-            obj_blank = occ.category is None
-            fields.append(
-                ExtractedField(name=f"ocorrencia_{i}_objeto",
-                               value=occ.category or "(revisar)",
-                               confidence=0.0 if obj_blank else 1.0, must_review=obj_blank,
-                               source=None if obj_blank else "human",
-                               status="missing" if obj_blank else "accepted",
-                               evidence_method=None if obj_blank else "human_edit")
+            time_value = " ".join(
+                value for value in (occ.entry_time, occ.exit_time) if value
+            ) or None
+            resolved_value = (
+                None if occ.resolved is None else ("sim" if occ.resolved else "nao")
             )
-            if obj_blank:
-                must_review.append(f"ocorrencia_{i}_objeto")
-            desc_blank = occ.description is None
-            fields.append(
-                ExtractedField(name=f"ocorrencia_{i}",
-                               value=occ.description or "(sem descrição)",
-                               confidence=0.0 if desc_blank else 1.0, must_review=desc_blank,
-                               source=None if desc_blank else "human",
-                               status="missing" if desc_blank else "accepted",
-                               evidence_method=None if desc_blank else "human_edit")
+            add_reviewed_cell(
+                i, "objeto", occ.category, required=True, missing_value="(revisar)"
             )
-            if desc_blank:
-                must_review.append(f"ocorrencia_{i}")
+            add_reviewed_cell(i, "hora", time_value)
+            add_reviewed_cell(
+                i,
+                "descricao",
+                occ.description,
+                required=True,
+                missing_value="(sem descrição)",
+            )
+            add_reviewed_cell(i, "acao", occ.action)
+            add_reviewed_cell(i, "resolvido", resolved_value)
 
     updates: dict[str, Any] = {
         "normalized": norm, "extracted_fields": fields, "must_review_fields": must_review,
     }
-    if raw is not None:
-        updates["raw_extraction"] = raw
     # Human transcription clears the OCR-failed block (the data is now confirmed).
     if state.ocr_quality == "failed":
         updates["ocr_quality"] = "low"
@@ -364,6 +503,7 @@ def _draft_summary(draft: Draft) -> dict[str, Any]:
         "status": draft.status,
         "created_at": draft.created_at.isoformat(),
         "updated_at": draft.updated_at.isoformat(),
+        "delivery_mode": draft.delivery_mode,
         "sent_at": draft.sent_at.isoformat() if draft.sent_at else None,
     }
 
@@ -374,6 +514,8 @@ def create_app(
     config: ReportConfig | None = None,
     page_images_root: Path | None = None,
     llm: LLMClient | None = None,
+    *,
+    enable_test_state_submission: bool = False,
 ) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
@@ -387,7 +529,16 @@ def create_app(
         title="security-shift-intake",
         version=__version__,
         summary="Staged intake pipeline for handwritten security shift reports.",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"],
+        www_redirect=False,
+    )
+    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
     app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
@@ -395,17 +546,37 @@ def create_app(
     async def _security_headers(
         request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        """Lock the local cockpit down: same-origin scripts/styles, no framing.
+        """Lock the local cockpit down and keep document data out of browser caches.
 
         The overlay JS is vendored under /static (script-src 'self'); templates carry
         inline styles only (style-src 'unsafe-inline'); the page image is same-origin
         or a data: URI. There is no inline <script>, so 'self' does not break the UI.
         """
-        response = await call_next(request)
+        client_host = request.client.host if request.client is not None else ""
+        fetch_site = request.headers.get("sec-fetch-site", "").lower()
+        origin = request.headers.get("origin")
+        if not _is_loopback_client(client_host):
+            response = Response("Local cockpit only.", status_code=403)
+        elif request.method in _UNSAFE_HTTP_METHODS and (
+            fetch_site == "cross-site" or (origin is not None and not _same_origin(request, origin))
+        ):
+            response = Response("Cross-site state change blocked.", status_code=403)
+        else:
+            response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data:; script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
+            "style-src 'self' 'unsafe-inline'; base-uri 'none'; object-src 'none'; "
+            "form-action 'self'; frame-ancestors 'none'"
         )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        )
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        if not request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
         return response
 
     def get_session() -> Iterator[Session]:
@@ -416,12 +587,25 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/drafts", status_code=201)
-    def submit(
-        state: PipelineState, session: Session = Depends(get_session)
-    ) -> dict[str, Any]:
-        draft = repository.create_draft(session, state)
-        return _draft_summary(draft)
+    # Test harness only. Production pipeline entrypoints persist server-produced state
+    # through repository.create_draft; the release app must never trust derived safety
+    # fields, recipients or output text supplied over HTTP.
+    if enable_test_state_submission:
+
+        @app.post("/drafts", status_code=201)
+        def submit(
+            state: PipelineState, session: Session = Depends(get_session)
+        ) -> dict[str, Any]:
+            # Even the opt-in test harness cannot forge the config identity used by
+            # subsequent cockpit operations.
+            state = state.model_copy(
+                update={
+                    "report_type": active_config.report_type,
+                    "config_sha256": config_fingerprint(active_config),
+                }
+            )
+            draft = repository.create_draft(session, state)
+            return _draft_summary(draft)
 
     @app.get("/drafts")
     def list_drafts(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
@@ -443,7 +627,7 @@ def create_app(
 
     @app.post("/drafts/{draft_id}/approve")
     def approve(
-        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+        draft_id: int, session: Session = Depends(get_session)
     ) -> dict[str, Any]:
         draft = repository.get_draft(session, draft_id)
         if draft is None:
@@ -453,20 +637,20 @@ def create_app(
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _set_status(session, draft_id, ApprovalStatus.APPROVED, actor)
+        return _set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/reject")
     def reject(
-        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+        draft_id: int, session: Session = Depends(get_session)
     ) -> dict[str, Any]:
-        return _set_status(session, draft_id, ApprovalStatus.REJECTED, actor)
+        return _set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/send")
     def send(
-        draft_id: int, actor: str = "reviewer", session: Session = Depends(get_session)
+        draft_id: int, session: Session = Depends(get_session)
     ) -> dict[str, Any]:
         try:
-            draft = send_draft(session, draft_id, active_sender, actor=actor)
+            draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DraftNotApprovedError as exc:
@@ -481,6 +665,8 @@ def create_app(
             draft = repository.set_status(session, draft_id, status, actor)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except repository.DraftAlreadySentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _draft_summary(draft)
 
     # ----- HTMX review UI -----
@@ -497,8 +683,12 @@ def create_app(
         return _render(
             request,
             "_status_panel.html",
-            {"draft": draft, "audit": repository.get_audit(session, draft.id or 0),
-             "message": message},
+            {
+                "draft": draft,
+                "audit": repository.get_audit(session, draft.id or 0),
+                "message": message,
+                "active_delivery_mode": active_sender.delivery_mode,
+            },
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -510,7 +700,11 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
-        ctx: dict[str, Any] = {"draft": draft, "audit": repository.get_audit(session, draft_id)}
+        ctx: dict[str, Any] = {
+            "draft": draft,
+            "audit": repository.get_audit(session, draft_id),
+            "active_delivery_mode": active_sender.delivery_mode,
+        }
         ctx.update(_review_context(draft))
         return _render(request, "review.html", ctx)
 
@@ -568,14 +762,24 @@ def create_app(
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
-        draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, "reviewer")
+        try:
+            draft = repository.set_status(
+                session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR
+            )
+        except repository.DraftAlreadySentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
     @app.post("/ui/drafts/{draft_id}/reject", response_class=HTMLResponse)
     def ui_reject(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
-        draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, "reviewer")
+        try:
+            draft = repository.set_status(
+                session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR
+            )
+        except repository.DraftAlreadySentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
     @app.post("/ui/drafts/{draft_id}/send", response_class=HTMLResponse)
@@ -583,8 +787,17 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         try:
-            draft = send_draft(session, draft_id, active_sender, actor="reviewer")
-            return _status_panel(request, draft, session, message="Sent.")
+            draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
+            return _status_panel(
+                request,
+                draft,
+                session,
+                message=(
+                    "Simulation completed — nothing was delivered externally."
+                    if draft.delivery_mode == "simulated"
+                    else "External dispatch adapter completed; receipt is not confirmed."
+                ),
+            )
         except DraftNotApprovedError as exc:
             draft = _require_draft(session, draft_id)
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
@@ -599,8 +812,9 @@ def create_app(
             raise HTTPException(
                 status_code=409, detail=f"Draft {draft_id} was already sent — edit blocked."
             )
-        form = await request.form()
         state = PipelineState.model_validate_json(draft.state_json)
+        _assert_config_compatible(state, active_config)
+        form = await _bounded_review_form(request)
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
@@ -636,7 +850,7 @@ def create_app(
             state = draft_stage(state, active_config)  # re-render the email draft
         try:
             repository.update_state(
-                session, draft_id, state, actor="reviewer", action="edited"
+                session, draft_id, state, actor=_LOCAL_ACTOR, action="edited"
             )
         except repository.DraftAlreadySentError as exc:
             # Backstop: update_state protege TODOS os callers; aqui vira HTTP 409.

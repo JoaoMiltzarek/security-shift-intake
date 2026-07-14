@@ -9,7 +9,7 @@ ocorrências"). The default path turns a photo or scan into a reviewable draft, 
 spreadsheet and a copy-ready message without sending the document to a cloud service.
 
 > **Tesseract is not reliable on cursive handwriting. Human review is mandatory for clean output;
-> approval is mandatory for send.**
+> approval is mandatory before the built-in delivery simulation.**
 
 ## In 30 seconds
 
@@ -47,7 +47,7 @@ flowchart LR
     I --> F
     H -- "No" --> K["CSV + clean copy-ready message"]
     K --> J["Approve revision + state hash"]
-    J --> L["Send gate — mock by default"]
+    J --> L["Delivery gate — simulation only in v1"]
 ```
 
 ## The problem
@@ -202,8 +202,8 @@ hook, with a severity (0 clean / 1 warn / 2 blocker) — it only detects, never 
 ## Architecture
 The Mermaid flow above shows the executable default path. Draft outputs are built before review
 so the operator can inspect them. **CSV export requires no pending fields** and uses the reviewed
-state; the copy-ready preview is visibly incomplete while fields are pending. Only send requires
-the approved revision and matching stored-state hash.
+state; the copy-ready preview is visibly incomplete while fields are pending. Only the delivery
+simulation requires the approved revision and matching stored-state hash.
 
 Two decoupled models keep the domain stable as the sheet layout changes:
 - **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
@@ -241,12 +241,15 @@ targets clean up without destroying validated curadoria. See
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-The latest local Windows baseline (`d57755b8`, 2026-07-12) ran `make check`: Ruff passed, strict
-mypy passed across 86 source files, and pytest reported **735 passed, 3 skipped** offline at $0.
+The latest local Windows baseline (`3dabd588`, 2026-07-13, release v1.0.0) ran `make check`:
+Ruff passed, strict mypy passed across 87 source files, and pytest reported
+**756 passed, 3 skipped** offline at $0 (with local Tesseract on `PATH` the OCR-dependent
+tests activate: 758 passed, 1 skipped).
 Model/network boundaries are mock-first, while CI also exercises the committed fixture through
 real Tesseract and drives the cockpit in real Chromium. Coverage includes: OCR quality gate, the two-model
 schema, normalization, the table extractor, the critic, the human-approval gate (pending fields
-block approval/export/send; an edit revokes approval; a sent draft is immutable), the outputs,
+block approval/export/simulation; an edit revokes approval; a terminally simulated draft is
+immutable), the outputs,
 the review UI, and the evidence cockpit — the 3-level locator (`exact` /
 `token_window` / `none`), `human_edit` dropping the OCR box, path-traversal-safe page-image
 serving, XSS-safe overlay rendering, and CSV export blocked until review is complete. The
@@ -295,6 +298,27 @@ perfect refusal. The current structural gate instead requires `unsafe_clean=0`,
 [scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses to overwrite the recorded
 verdict; project governance, not the evaluator CLI, enforces the one-test-run rule.
 
+**v1.0.0 milestone re-measurement — `bench-balanced` test (45 sheets, 2026-07-13, one
+sanctioned re-run under the tri-state ruler):**
+
+| Metric (test) | Historical (2026-07-08) | v1.0.0 |
+|---|---|---|
+| parse_table_success_rate | 0.1111 | 0.0222 |
+| false_incident_count | 1 | 1 |
+| estimated_chars_to_type | 2827 | 2769 |
+| unknown_disposition_count | not measured | **43 / 45** |
+| unsafe_clean_count / false_incident_unreviewed_count | not measured | **0 / 0** |
+| safe_review_recall | not measured | **1.0** |
+
+The release plan reserved exactly one test re-measurement for this milestone. The tri-state
+ruler is stricter by design: a sheet whose table region cannot be confirmed is published as
+`unknown` (43/45) and **blocks approval/export/delivery simulation** instead of silently counting
+as a parse — so the headline parse rate drops while nothing gets easier to ship. Reading remains honestly
+weak on the held-out split; the structural safety gates hold on it: zero incidents exit
+clean, zero invented incidents escape review, and every planted incident reaches a reviewer
+(`safe_review_recall=1.0`). Numbers read from
+[eval_synthetic_summary.json](docs/eval_synthetic_summary.json), produced by committed code.
+
 **BRESSAY (real Brazilian-Portuguese handwriting, 20 word crops, frozen manifest):**
 
 | Reader | mean CER |
@@ -314,8 +338,8 @@ handwriting in the measured datasets;
 the local VLM fabricates content (CER > 1 on isolated real handwriting, phantom incidents on
 synthetic sheets) even though it wins on the real curated sheets. No zero-cost reader is
 adopted as an automatic transcriber. This system is a **triage assistant with a mandatory
-human-review gate**; send additionally requires approval of the current revision and stored-state
-hash. Pending outputs remain visibly incomplete and CSV-blocked. It is not an autonomous
+human-review gate**; the built-in delivery simulation additionally requires approval of the
+current revision and stored-state hash. Pending outputs remain visibly incomplete and CSV-blocked. It is not an autonomous
 decision-maker. Adopting a better reader (Roadmap) requires beating this same frozen gate in a
 new val → freeze → test cycle.
 

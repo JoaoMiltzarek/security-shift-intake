@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import create_app
+from src.api.app import MAX_FORM_VALUE_CHARS, MAX_REQUEST_BODY_BYTES, create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
 from src.schema.loader import load_config
@@ -35,7 +35,12 @@ _BODY = {
 @pytest.fixture
 def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     sender = MockSender()
-    app = create_app(engine=make_engine("sqlite://"), sender=sender, config=_SCALAR_CONFIG)
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        sender=sender,
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as client:
         yield client, sender
 
@@ -64,7 +69,7 @@ def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockS
     assert "tech_security, general_support" in text  # recipients
     assert "body text" in text                  # email draft
     assert "MUST REVIEW" in text                # flagged field
-    assert "Approve" in text and "Reject" in text and "Send" in text
+    assert "Approve" in text and "Reject" in text and "Simulate delivery" in text
 
 
 def test_ui_send_blocked_before_approval(
@@ -88,8 +93,28 @@ def test_ui_approve_then_send(client_and_sender: tuple[TestClient, MockSender]) 
 
     r = client.post(f"/ui/drafts/{draft_id}/send")
     assert r.status_code == 200
-    assert "Sent." in r.text
+    assert "Simulation completed" in r.text
+    assert "nothing was delivered externally" in r.text
+    assert "Sent." not in r.text
     assert sender.call_count == 1
+
+
+def test_sent_status_panel_has_no_mutation_controls(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    client.post(f"/drafts/{draft_id}/approve")
+    client.post(f"/drafts/{draft_id}/send")
+
+    panel = client.get(f"/drafts/{draft_id}/review").text
+
+    assert "simulation completed" in panel
+    assert "no external delivery" in panel
+    assert "(sent " not in panel
+    assert f'/ui/drafts/{draft_id}/approve' not in panel
+    assert f'/ui/drafts/{draft_id}/reject' not in panel
+    assert f'/ui/drafts/{draft_id}/send' not in panel
 
 
 def test_review_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
@@ -142,7 +167,12 @@ def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
     from src.schema.state import ApprovalStatus
 
     engine = make_engine("sqlite://")
-    app = create_app(engine=engine, sender=MockSender(), config=_SCALAR_CONFIG)
+    app = create_app(
+        engine=engine,
+        sender=MockSender(),
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as client:
         draft_id = _submit(client)
         with Session(engine) as s:
@@ -155,9 +185,103 @@ def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
         assert "reaprove" in html
 
 
+def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
+    from sqlmodel import Session
+
+    from src.api.models import Draft, utcnow
+
+    engine = make_engine("sqlite://")
+    app = create_app(
+        engine=engine,
+        sender=MockSender(),
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
+    with TestClient(app) as client:
+        draft_id = _submit(client)
+        with Session(engine) as session:
+            draft = session.get(Draft, draft_id)
+            assert draft is not None
+            draft.sent_at = utcnow()
+            draft.delivery_mode = None
+            session.add(draft)
+            session.commit()
+
+        html = client.get(f"/drafts/{draft_id}/review").text
+
+    assert "legacy terminal state" in html
+    assert "delivery mode not recorded" in html
+    assert "(sent " not in html
+
+
 def test_security_headers_present(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client, _ = client_and_sender
     csp = client.get("/health").headers.get("content-security-policy", "")
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp          # no 'unsafe-inline' for scripts
     assert "frame-ancestors 'none'" in csp
+
+
+def test_edit_rejects_oversized_request_without_mutating_draft(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    before = client.get(f"/drafts/{draft_id}").json()
+
+    response = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        content=b"x" * (MAX_REQUEST_BODY_BYTES + 1),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 413
+    after = client.get(f"/drafts/{draft_id}").json()
+    assert after["state"] == before["state"]
+    assert after["audit"] == before["audit"]
+
+
+def test_edit_rejects_oversized_field_without_mutating_draft(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    before = client.get(f"/drafts/{draft_id}").json()
+
+    response = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={"field__guard_name": "x" * (MAX_FORM_VALUE_CHARS + 1)},
+    )
+
+    assert response.status_code == 422
+    after = client.get(f"/drafts/{draft_id}").json()
+    assert after["state"] == before["state"]
+    assert after["audit"] == before["audit"]
+
+
+def test_edit_rejects_draft_from_a_different_config() -> None:
+    from sqlmodel import Session
+
+    from src.api.repository import create_draft
+    from src.schema.loader import config_fingerprint
+    from src.schema.state import PipelineState
+
+    engine = make_engine("sqlite://")
+    app = create_app(engine=engine)  # release default: controle_ocorrencias
+    foreign = PipelineState(
+        source_pdf=Path("legacy-scalar.pdf"),
+        report_type=_SCALAR_CONFIG.report_type,
+        config_sha256=config_fingerprint(_SCALAR_CONFIG),
+    )
+    with Session(engine) as session:
+        draft = create_draft(session, foreign)
+        assert draft.id is not None
+        draft_id = draft.id
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}
+        )
+
+    assert response.status_code == 409
+    assert "different report configuration" in response.json()["detail"]

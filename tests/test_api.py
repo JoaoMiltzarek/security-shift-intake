@@ -40,7 +40,12 @@ _SUBMIT_BODY = {
 @pytest.fixture
 def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     sender = MockSender()
-    app = create_app(engine=make_engine("sqlite://"), sender=sender, config=_SCALAR_CONFIG)
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        sender=sender,
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as client:
         yield client, sender
 
@@ -77,6 +82,7 @@ def test_submit_review_approve_send_flow(
     r = client.post(f"/drafts/{draft_id}/send")
     assert r.status_code == 200
     assert r.json()["sent_at"] is not None
+    assert r.json()["delivery_mode"] == "simulated"
     assert sender.call_count == 1
     assert sender.sent[0][0] == ["tech_security", "general_support"]
 
@@ -85,7 +91,7 @@ def test_submit_review_approve_send_flow(
     assert "submitted" in audit
     assert "status:approved" in audit
     assert "send_blocked" in audit  # the rejected pre-approval attempt
-    assert "sent" in audit
+    assert "send_simulated" in audit
 
 
 def test_rejected_draft_send_is_blocked(
@@ -148,3 +154,18 @@ def test_edit_sent_draft_is_rejected(
 
     r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
     assert r.status_code == 409  # o registro do que foi enviado não pode mudar
+
+
+@pytest.mark.parametrize("action", ["approve", "reject"])
+def test_sent_draft_is_terminal_at_http_boundary(
+    client_and_sender: tuple[TestClient, MockSender], action: str
+) -> None:
+    client, _ = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+    assert client.post(f"/drafts/{draft_id}/send").status_code == 200
+
+    response = client.post(f"/drafts/{draft_id}/{action}")
+
+    assert response.status_code == 409
+    assert client.get(f"/drafts/{draft_id}").json()["status"] == "approved"

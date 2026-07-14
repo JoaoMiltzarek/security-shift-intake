@@ -32,6 +32,20 @@ def classify(
         urgencies=taxonomy.urgency.labels,
         sectors=taxonomy.sector.labels,
     )
+    invalid_dimensions = [
+        dimension
+        for dimension, value, allowed in (
+            ("type", result.incident_type, taxonomy.type.labels),
+            ("urgency", result.urgency, taxonomy.urgency.labels),
+            ("sector", result.sector, taxonomy.sector.labels),
+        )
+        if value not in allowed
+    ]
+    if invalid_dimensions:
+        raise ValueError(
+            "classification output outside configured taxonomy: "
+            + ", ".join(invalid_dimensions)
+        )
     classification = Classification(
         incident_type=result.incident_type,
         urgency=result.urgency,

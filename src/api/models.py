@@ -9,10 +9,13 @@ snapshot — required by the human-approval-gate invariant.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from sqlmodel import Field, SQLModel
 
 from src.schema.state import ApprovalStatus
+
+DeliveryMode = Literal["simulated", "external"]
 
 
 def utcnow() -> datetime:
@@ -36,6 +39,9 @@ class Draft(SQLModel, table=True):
     approved_state_sha256: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+    # Persisted because the active adapter can change after a restart.  ``sent_at``
+    # records a terminal adapter attempt; this mode says whether it left the process.
+    delivery_mode: str | None = Field(default=None)
     sent_at: datetime | None = Field(default=None)
 
 

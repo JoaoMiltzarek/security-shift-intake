@@ -117,7 +117,7 @@ def test_vlm_contract_occurrence_represented() -> None:
 def test_vlm_contract_occurrence_routed_to_human() -> None:
     # Valor lido entra com confiança < limiar → must_review (nunca dado como certo).
     state = _run(_VLM_OCC)
-    assert "ocorrencia_1" in state.must_review_fields
+    assert "ocorrencia_1_descricao" in state.must_review_fields
 
 
 def test_vlm_contract_header_captured_but_must_review() -> None:

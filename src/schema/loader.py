@@ -12,6 +12,8 @@ Raises:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 import yaml
@@ -19,7 +21,18 @@ from pydantic import ValidationError  # re-exported so callers have one import
 
 from src.schema.config import ReportConfig
 
-__all__ = ["load_config", "ValidationError"]
+__all__ = ["config_fingerprint", "load_config", "ValidationError"]
+
+
+def config_fingerprint(config: ReportConfig) -> str:
+    """Return a stable SHA-256 identity for the validated config content."""
+    canonical = json.dumps(
+        config.model_dump(mode="json"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def load_config(path: Path) -> ReportConfig:

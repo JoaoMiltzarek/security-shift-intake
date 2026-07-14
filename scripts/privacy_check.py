@@ -17,6 +17,7 @@ Standalone: `python scripts/privacy_check.py` → exit 0 (clean) or 1 (violation
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -42,9 +43,6 @@ _PRIVATE_DIR = "private"
 # working-tree scans, and narrow on purpose: only this known subtree, not all of
 # datasets/, so a stray real sheet anywhere else still trips the scan.
 _BRESSAY_SUBPATH = ("datasets", "bressay")
-
-# Synthetic sample images committed for eyeballing are allowed (generated, not real).
-_SAMPLES_DIR = "samples"
 
 # Public text files scanned for PII. Extensions whose content is human-facing/committed.
 # Prosa: varredura completa, incluindo o heurístico de horário HH:MM.
@@ -75,6 +73,11 @@ _ORG_PATTERNS: list[re.Pattern[str]] = [
 _TIME_PATTERN = re.compile(r"(?<![\d:+-])\d{1,2}:\d{2}(?!:?\d)")
 
 
+def _is_root_directory(path: Path, name: str) -> bool:
+    """True only when *name* is the first repository-relative path component."""
+    return bool(path.parts) and path.parts[0] == name
+
+
 def _load_extra_terms() -> list[re.Pattern[str]]:
     """Compile case-insensitive patterns from the optional private PII-terms file."""
     if not _PII_TERMS_FILE.exists():
@@ -93,18 +96,21 @@ def scan_text_for_pii(
     include_org: bool = True,
     include_times: bool = True,
 ) -> list[str]:
-    """Return PII snippets in *text* (HH:MM times, private terms, and org if include_org)."""
-    org = list(_ORG_PATTERNS) if include_org else []
-    times = [_TIME_PATTERN] if include_times else []
-    patterns = (
-        org + times + (extra_terms if extra_terms is not None else _load_extra_terms())
+    """Return sanitized PII findings without echoing the match or private pattern."""
+    patterns: list[tuple[str, re.Pattern[str]]] = []
+    if include_org:
+        patterns.extend(("organization-sentinel", pattern) for pattern in _ORG_PATTERNS)
+    if include_times:
+        patterns.append(("clock-time", _TIME_PATTERN))
+    patterns.extend(
+        ("private-term", pattern)
+        for pattern in (extra_terms if extra_terms is not None else _load_extra_terms())
     )
     hits: list[str] = []
     for lineno, line in enumerate(text.splitlines(), 1):
-        for pat in patterns:
-            m = pat.search(line)
-            if m:
-                hits.append(f"  line {lineno}: {pat.pattern!r} -> {m.group(0)!r}")
+        for category, pattern in patterns:
+            if pattern.search(line):
+                hits.append(f"  line {lineno}: {category}")
     return hits
 
 
@@ -132,13 +138,17 @@ def check_no_sensitive_tracked() -> list[str]:
 
 
 def _iter_tree(root: Path) -> list[Path]:
+    """Enumerate public files while pruning ignored trees before descending.
+
+    Checking path components only after ``Path.rglob`` has already entered ``.venv``
+    makes the privacy gate scan tens of thousands of dependency files.  ``os.walk`` in
+    top-down mode lets us remove those directories from traversal altogether.
+    """
     files: list[Path] = []
-    for p in root.rglob("*"):
-        if p.is_dir():
-            continue
-        if any(part in _SKIP_DIRS for part in p.parts):
-            continue
-        files.append(p)
+    for directory, dirnames, filenames in os.walk(root, topdown=True):
+        dirnames[:] = [name for name in dirnames if name not in _SKIP_DIRS]
+        current = Path(directory)
+        files.extend(current / name for name in filenames)
     return files
 
 
@@ -151,7 +161,7 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _PRIVATE_DIR in rel.parts or _has_subpath(rel, _SYNTHETIC_SUBPATH):
+        if _is_root_directory(rel, _PRIVATE_DIR) or _has_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
         if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue
@@ -168,7 +178,7 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _PRIVATE_DIR in rel.parts or _SAMPLES_DIR in rel.parts:
+        if _is_root_directory(rel, _PRIVATE_DIR):
             continue
         if _has_subpath(rel, _BRESSAY_SUBPATH):
             continue

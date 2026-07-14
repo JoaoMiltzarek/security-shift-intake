@@ -7,13 +7,14 @@ The htmicron_security.yaml integration is exercised in test_schema_config_integr
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 
 
 def _write_yaml(tmp_path: Path, name: str, data: object) -> Path:
@@ -53,6 +54,18 @@ def test_valid_config_loads_successfully(tmp_path: Path) -> None:
     assert cfg.classification.urgency.labels == ["low", "high"]
 
 
+def test_config_fingerprint_is_stable_and_content_addressed(tmp_path: Path) -> None:
+    config = load_config(_write_yaml(tmp_path, "valid.yaml", VALID_CONFIG))
+    same = load_config(_write_yaml(tmp_path, "same.yaml", copy.deepcopy(VALID_CONFIG)))
+    changed_payload = copy.deepcopy(VALID_CONFIG)
+    changed_payload["report_type"] = "other_report"
+    changed = load_config(_write_yaml(tmp_path, "changed.yaml", changed_payload))
+
+    assert config_fingerprint(config) == config_fingerprint(same)
+    assert config_fingerprint(config) != config_fingerprint(changed)
+    assert len(config_fingerprint(config)) == 64
+
+
 def test_valid_config_routing_default_present(tmp_path: Path) -> None:
     path = _write_yaml(tmp_path, "valid.yaml", VALID_CONFIG)
     cfg = load_config(path)
@@ -81,6 +94,47 @@ def test_routing_without_default_raises(tmp_path: Path) -> None:
     bad["routing"] = [{"when": {"urgency": "high"}, "recipients": ["tech_security"]}]
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError, match="default"):
+        load_config(path)
+
+
+def test_routing_default_must_be_unique_and_last(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"] = [
+        {"recipients": ["general_support"]},
+        {"when": {"urgency": "high"}, "recipients": ["tech_security"]},
+        {"recipients": ["other"]},
+    ]
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="exactly one default.*last"):
+        load_config(path)
+
+
+def test_routing_conditions_must_reference_taxonomy(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"][0]["when"] = {"urgency": "not-in-taxonomy"}
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="not-in-taxonomy"):
+        load_config(path)
+
+
+def test_field_names_must_be_unique(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["fields"].append({"name": "guard_name", "type": "string"})
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="field names must be unique"):
+        load_config(path)
+
+
+def test_only_one_repeating_table_is_supported(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    table = {
+        "name": "rows_a",
+        "type": "table",
+        "columns": [{"name": "description", "type": "text"}],
+    }
+    bad["fields"] = [table, {**table, "name": "rows_b"}]
+    path = _write_yaml(tmp_path, "bad.yaml", bad)
+    with pytest.raises(ValidationError, match="at most one table"):
         load_config(path)
 
 

@@ -50,6 +50,8 @@ def _llm() -> MockLLMClient:
 
 def test_table_path_populates_normalized(sample_pdf: Path) -> None:
     state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120)
+    assert state.report_type == CONFIG.report_type
+    assert state.config_sha256 is not None and len(state.config_sha256) == 64
     assert state.raw_extraction is not None
     assert state.normalized is not None
     assert state.normalized.no_occurrence is False

@@ -30,7 +30,12 @@ Ronda x
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    app = create_app(engine=make_engine("sqlite://"), sender=MockSender(), config=CFG)
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        sender=MockSender(),
+        config=CFG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as c:
         yield c
 
@@ -100,8 +105,9 @@ def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
     unidade = next(f for f in state["extracted_fields"] if f["name"] == "unidade")
     assert unidade["source"] == "human"
     assert unidade["status"] == "accepted"
-    # The raw audit trail also records the human override.
-    assert state["raw_extraction"]["header"]["unidade"]["source"] == "human"
+    # RawDocumentExtraction is the immutable OCR snapshot; the override lives only
+    # in the reviewed/normalized layer and its per-revision ExtractedField metadata.
+    assert state["raw_extraction"]["header"]["unidade"]["source"] == "rule"
 
 
 def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
@@ -207,6 +213,43 @@ def test_add_row_with_all_five_columns(client: TestClient) -> None:
     assert added["resolved"] is False
 
 
+def test_human_edit_audits_all_five_occurrence_cells(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Portao",
+        "occ__1__hora": "15:10 16:00",
+        "occ__1__descricao": "Portao lateral aberto sem autorizacao",
+        "occ__1__acao": "Fechado e registrado",
+        "occ__1__resolvido": "nao",
+    }
+
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    state = _state_of(client, draft_id)
+    cells = {
+        field["name"]: field
+        for field in state["extracted_fields"]
+        if field["name"].startswith("ocorrencia_1_")
+    }
+
+    assert set(cells) == {
+        "ocorrencia_1_objeto",
+        "ocorrencia_1_hora",
+        "ocorrencia_1_descricao",
+        "ocorrencia_1_acao",
+        "ocorrencia_1_resolvido",
+    }
+    assert cells["ocorrencia_1_hora"]["value"] == "15:10 16:00"
+    assert cells["ocorrencia_1_resolvido"]["value"] == "nao"
+    for cell in cells.values():
+        assert cell["source"] == "human"
+        assert cell["status"] == "accepted"
+        assert cell["evidence_method"] == "human_edit"
+        assert cell["bbox"] is None
+        assert cell["evidence_text"] is None
+
+
 def test_clearing_rows_with_sa_confirmation_removes_them(client: TestClient) -> None:
     """Limpar todas as linhas + confirmar S/A remove as ocorrências (cardinalidade 0)."""
     draft_id = _submit_table_draft(client)  # nasce com 1 ocorrência
@@ -274,6 +317,32 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
     assert state["classification"]["incident_type"] == "theft"
     assert "tech_security" in state["recipients"]
     assert "revisão humana" in (state["classification"]["reason"] or "")
+
+
+def test_human_edit_preserves_raw_ocr_snapshot(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    before_raw = _state_of(client, draft_id)["raw_extraction"]
+    form = {
+        **_headers_form(),
+        "field__unidade": "9",
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__hora": "14:32",
+        "occ__1__descricao": "Descrição confirmada pelo operador",
+        "occ__1__acao": "Verificado",
+        "occ__1__resolvido": "sim",
+    }
+
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    state = _state_of(client, draft_id)
+
+    assert state["raw_extraction"] == before_raw
+    assert state["normalized"]["shift"]["unit"] == "9"
+    unit = next(field for field in state["extracted_fields"] if field["name"] == "unidade")
+    assert unit["source"] == "human"
+    assert unit["evidence_method"] == "human_edit"
+    assert unit["bbox"] is None
+    assert unit["evidence_text"] is None
 
 
 # --- PR4: cockpit overlay rendering + XSS safety ---------------------------------

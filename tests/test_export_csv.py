@@ -40,7 +40,12 @@ _CLEAN_FORM = {
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    app = create_app(engine=make_engine("sqlite://"), sender=MockSender(), config=CFG)
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        sender=MockSender(),
+        config=CFG,
+        enable_test_state_submission=True,
+    )
     with TestClient(app) as c:
         yield c
 

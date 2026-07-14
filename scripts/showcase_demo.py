@@ -27,13 +27,14 @@ from src.api.db import DEFAULT_DB_URL, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
+from src.paths import REPO_ROOT
 from src.schema.loader import load_config
 
-DEFAULT_SAMPLE = Path("samples/sample_tc-000000.png")
-DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
+DEFAULT_SAMPLE = REPO_ROOT / "samples" / "sample_tc-000000.png"
+DEFAULT_CONFIG = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
 LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
-SHOWCASE_DB_URL = "sqlite:///private/app.db"
+SHOWCASE_DB_URL = DEFAULT_DB_URL
 
 
 class _StartedServer(Protocol):

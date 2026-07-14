@@ -15,24 +15,21 @@ review trigger rather than an error).
 
 from __future__ import annotations
 
+import hashlib
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src.paths import PRIVATE_ROOT, resolve_private_path
 from src.pipeline.locate import attach_evidence
 from src.schema.config import FieldSchema, ReportConfig
-from src.schema.extraction import AuditedField
+from src.schema.extraction import AuditedField, RawRow
 from src.schema.state import ExtractedField, PipelineState
 
 # Confidence at/above which a field is trusted without review (spec §6: tune so
 # real errors are flagged even at the cost of some extra human checks).
 DEFAULT_CONFIDENCE_THRESHOLD = 0.70
-
-# Normalization intentionally reduces per-cell audit metadata to ``needs_review``. This fixed
-# source-specific placeholder reconstructs a conservative routing signal at the domain boundary;
-# it is not a propagated score or calibrated probability and does not replace ``must_review``.
-NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE = 0.40
 
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y")
 _BOOL_TOKENS = {"sim", "nao", "não", "true", "false", "yes", "no", "s", "n", "1", "0"}
@@ -42,11 +39,20 @@ def _is_blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and value.strip() == "")
 
 
+def _raw_row_has_content(row: RawRow) -> bool:
+    return any(
+        not _is_blank(cell.value)
+        for cell in (row.item, row.hora, row.descricao, row.acao, row.resolvido)
+    )
+
+
 def _debug_path(state: PipelineState) -> Path | None:
-    """Where the locator dumps per-field match details, only when debugging is on."""
+    """Return a private, CWD-independent and PII-free locator debug filename."""
     if os.environ.get("INTAKE_LOCATOR_DEBUG") != "1":
         return None
-    return Path("private/debug/evidence_matches") / f"{state.source_pdf.stem}.json"
+    source_key = hashlib.sha256(str(state.source_pdf).encode("utf-8")).hexdigest()
+    path = PRIVATE_ROOT / "debug" / "evidence_matches" / f"{source_key}.json"
+    return resolve_private_path(path, create_root=True)
 
 
 def _type_error(field: FieldSchema, value: str) -> str | None:
@@ -200,44 +206,62 @@ def validate_table(
             )
         )
     else:
-        for i, occ in enumerate(normalized.occurrences, start=1):
-            # OBJETO (item) — ambiguous/blank must block export (R: "nunca adivinhar").
-            obj_name = f"ocorrencia_{i}_objeto"
-            obj_blank = occ.category is None or not str(occ.category).strip()
-            obj_flag = obj_blank or occ.needs_review
-            fields.append(
-                ExtractedField(
-                    name=obj_name,
-                    value=occ.category or "(revisar)",
-                    confidence=(
-                        0.0
-                        if obj_blank
-                        else (NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE if obj_flag else 1.0)
-                    ),
-                    must_review=obj_flag,
-                    source="rule",
-                    status=(
-                        "missing" if obj_blank else ("must_review" if obj_flag else "accepted")
-                    ),
-                )
+        raw_occurrence_rows = [
+            row for row in raw.rows if not row.sem_alteracao and _raw_row_has_content(row)
+        ]
+        if len(raw_occurrence_rows) != len(normalized.occurrences):
+            raise RuntimeError("Raw/normalized occurrence count invariant failed.")
+
+        for i, (occ, raw_row) in enumerate(
+            zip(normalized.occurrences, raw_occurrence_rows, strict=True), start=1
+        ):
+            cell_specs = (
+                ("objeto", occ.category or "(revisar)", raw_row.item, True, False),
+                ("hora", raw_row.hora.value, raw_row.hora, False, False),
+                (
+                    "descricao",
+                    occ.description or "(sem descrição)",
+                    raw_row.descricao,
+                    True,
+                    False,
+                ),
+                ("acao", raw_row.acao.value, raw_row.acao, False, False),
+                (
+                    "resolvido",
+                    raw_row.resolvido.value,
+                    raw_row.resolvido,
+                    False,
+                    occ.resolved is None and not _is_blank(raw_row.resolvido.value),
+                ),
             )
-            if obj_flag:
-                must_review.append(obj_name)
-            # DESCRIÇÃO.
-            desc_name = f"ocorrencia_{i}"
-            desc_flag = occ.needs_review
-            fields.append(
-                ExtractedField(
-                    name=desc_name,
-                    value=occ.description or "(sem descrição)",
-                    confidence=(NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE if desc_flag else 1.0),
-                    must_review=desc_flag,
-                    source="rule",
-                    status="must_review" if desc_flag else "accepted",
+            for suffix, value, cell, required, semantic_invalid in cell_specs:
+                name = f"ocorrencia_{i}_{suffix}"
+                blank = _is_blank(cell.value)
+                flagged = (
+                    (required and blank)
+                    or cell.status != "accepted"
+                    or cell.confidence < threshold
+                    or semantic_invalid
                 )
-            )
-            if desc_flag:
-                must_review.append(desc_name)
+                fields.append(
+                    ExtractedField(
+                        name=name,
+                        value=value,
+                        confidence=cell.confidence,
+                        must_review=flagged,
+                        source=cell.source,
+                        status=(
+                            "missing" if blank else ("must_review" if flagged else "accepted")
+                        ),
+                        bbox=cell.bbox,
+                        page=cell.page,
+                        evidence_text=cell.evidence,
+                        evidence_method=cell.evidence_method,
+                        evidence_score=cell.evidence_score,
+                    )
+                )
+                if flagged:
+                    must_review.append(name)
 
     fields = attach_evidence(fields, state.words, debug_path=_debug_path(state))
 

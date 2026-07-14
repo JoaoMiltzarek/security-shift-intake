@@ -60,7 +60,7 @@ _ALLOWED_SHOWCASE_GIF = _SAMPLES_DIR / "cockpit_demo.gif"
 # Only these known generated names are allowed — a stray real image/GIF must still be
 # blocked, not silently waved through by a blanket extension or directory rule.
 _ALLOWED_SAMPLE_NAMES = re.compile(
-    r"^(sample_doc-\d+|sample_tc-\d+|screenshot_review_overlay)"
+    r"^(sample_doc-\d+|sample_tc-\d+)"
     r"\.(png|jpe?g)$",
     re.IGNORECASE,
 )
@@ -124,8 +124,7 @@ def check_file(path: Path) -> list[str]:
         for lineno, line in enumerate(text.splitlines(), 1):
             if pat.search(line):
                 violations.append(
-                    f"  {path}:{lineno}: matched real-data sentinel {pat.pattern!r} "
-                    f"-> {line.strip()!r}"
+                    f"  {path}:{lineno}: matched real-data sentinel"
                 )
 
     return violations

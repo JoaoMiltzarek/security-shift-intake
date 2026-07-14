@@ -23,7 +23,8 @@ def test_readme_showcase_is_current_and_evidence_backed() -> None:
         "RawDocumentExtraction",
         "NormalizedIncidentModel",
         "Tesseract is not reliable on cursive handwriting",
-        "735 passed, 3 skipped",
+        "756 passed, 3 skipped",
+        "unknown_disposition_count",
     )
     assert all(value in readme for value in required)
 
@@ -43,7 +44,7 @@ def test_readme_distinguishes_observed_state_from_stronger_guarantees() -> None:
     required = (
         "stored state at approval time",
         "CSV export requires no pending fields",
-        "send requires the approved revision",
+        "delivery simulation requires the approved revision",
         "false_incident_unreviewed",
         "refuses to overwrite the recorded verdict",
         "Tesseract executable is required",
@@ -69,11 +70,11 @@ def test_readme_flow_matches_export_and_send_gates() -> None:
         'G["Draft outputs — incomplete preview; CSV blocked"]',
         'H -- "No" --> K["CSV + clean copy-ready message"]',
         'K --> J["Approve revision + state hash"]',
-        'J --> L["Send gate — mock by default"]',
+        'J --> L["Delivery gate — simulation only in v1"]',
     )
     required_prose = (
         "Human review is mandatory for clean output",
-        "approval is mandatory for send",
+        "approval is mandatory before the built-in delivery simulation",
         "mandatory human-review gate",
     )
     forbidden = (

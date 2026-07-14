@@ -11,6 +11,7 @@ from sqlmodel import Session
 from src.api.db import init_db, make_engine
 from src.api.models import Draft
 from src.api.repository import (
+    DraftAlreadySentError,
     add_audit,
     create_draft,
     get_audit,
@@ -60,15 +61,19 @@ def test_set_status_updates_and_audits(session: Session) -> None:
     assert "status:approved" in actions
 
 
-def test_mark_sent_sets_timestamp_and_audit(session: Session) -> None:
+def test_mark_sent_persists_simulation_mode_and_audit(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r")
+    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
 
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None and refreshed.sent_at is not None
-    assert "sent" in [a.action for a in get_audit(session, draft.id)]
+    assert refreshed.delivery_mode == "simulated"
+    audit = get_audit(session, draft.id)
+    assert "send_simulated" in [a.action for a in audit]
+    assert audit[-1].detail is not None
+    assert "mode=simulated rev=1 sha256=" in audit[-1].detail
 
 
 def test_list_drafts_returns_all(session: Session) -> None:
@@ -215,12 +220,12 @@ def test_edit_approved_draft_revokes_approval(session: Session) -> None:
 
 
 def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
-    from src.api.repository import DraftAlreadySentError, update_state
+    from src.api.repository import update_state
 
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r")
+    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
 
     with pytest.raises(DraftAlreadySentError):
         update_state(session, draft.id, _state(), actor="reviewer")
@@ -229,6 +234,112 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     assert refreshed is not None
     assert PipelineState.model_validate_json(refreshed.state_json).transcription == "hello"
     assert "edit_blocked" in [a.action for a in get_audit(session, draft.id)]
+
+
+@pytest.mark.parametrize("status", [ApprovalStatus.APPROVED, ApprovalStatus.REJECTED])
+def test_sent_draft_rejects_later_status_changes(
+    session: Session, status: ApprovalStatus
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
+
+    with pytest.raises(DraftAlreadySentError):
+        set_status(session, draft.id, status, actor="r")
+
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.status == ApprovalStatus.APPROVED
+    assert refreshed.sent_at is not None
+    assert get_audit(session, draft.id)[-1].action == "status_blocked"
+
+
+# --- SSI-1015: mutation + snapshot + audit are one transaction -----------------
+
+
+def _fail_audit_action(
+    monkeypatch: pytest.MonkeyPatch, action_to_fail: str
+) -> None:
+    import src.api.repository as repository
+
+    original = repository._stage_audit
+
+    def fail_selected(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        action = kwargs.get("action") if "action" in kwargs else args[3]
+        if action == action_to_fail:
+            raise RuntimeError("injected audit staging failure")
+        return original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(repository, "_stage_audit", fail_selected)
+
+
+def test_create_rolls_back_when_submission_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fail_audit_action(monkeypatch, "submitted")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        create_draft(session, _state())
+
+    session.expire_all()
+    assert list_drafts(session) == []
+
+
+def test_status_rolls_back_when_status_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    _fail_audit_action(monkeypatch, "status:approved")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+
+    session.expire_all()
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.status == ApprovalStatus.PENDING
+    assert "status:approved" not in [entry.action for entry in get_audit(session, draft.id)]
+
+
+def test_mark_sent_rolls_back_when_simulation_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
+    _fail_audit_action(monkeypatch, "send_simulated")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
+
+    session.expire_all()
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.sent_at is None
+    assert refreshed.delivery_mode is None
+    assert "send_simulated" not in [entry.action for entry in get_audit(session, draft.id)]
+
+
+def test_update_rolls_back_when_edit_audit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from src.api.repository import update_state
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    _fail_audit_action(monkeypatch, "edited")
+    edited = PipelineState(source_pdf=Path("report.pdf"), transcription="changed")
+
+    with pytest.raises(RuntimeError, match="injected audit"):
+        update_state(session, draft.id, edited, actor="r")
+
+    session.expire_all()
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.revision == 1
+    assert PipelineState.model_validate_json(refreshed.state_json).transcription == "hello"
 
 
 def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
@@ -252,7 +363,7 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
     con.commit()
     con.close()
 
-    engine = make_engine(f"sqlite:///{db.as_posix()}")
+    engine = make_engine(f"sqlite:///{db.as_posix()}", allow_test_path=True)
     init_db(engine)  # deve migrar in-place, idempotente
     init_db(engine)  # segunda chamada não pode falhar nem duplicar colunas
 
@@ -263,3 +374,4 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
         assert draft.revision == 1
         assert draft.approved_revision is None
         assert draft.approved_state_sha256 is None
+        assert draft.delivery_mode is None

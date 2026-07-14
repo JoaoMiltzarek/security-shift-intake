@@ -7,8 +7,11 @@ schema-invalid field — plus required-missing and optional-blank.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from src.clients.base import WordBox
+from src.paths import PRIVATE_ROOT
+from src.pipeline import validate as validate_module
 from src.pipeline.validate import validate
 from src.schema.loader import load_config
 from src.schema.state import ExtractedField, PipelineState
@@ -167,3 +170,38 @@ def test_validate_leaves_fields_without_bbox_when_no_words() -> None:
     guard = next(f for f in result.extracted_fields if f.name == "guard_name")
     assert guard.bbox is None
     assert guard.evidence_method is None  # locator did not run
+
+
+def test_locator_debug_path_is_private_cwd_independent_and_sanitized(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    captured: list[Path | None] = []
+
+    def capture_debug_path(
+        fields: list[ExtractedField],
+        words: list[WordBox],
+        *,
+        debug_path: Path | None = None,
+    ) -> list[ExtractedField]:
+        del words
+        captured.append(debug_path)
+        return fields
+
+    monkeypatch.setenv("INTAKE_LOCATOR_DEBUG", "1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(validate_module, "attach_evidence", capture_debug_path)
+    state = PipelineState(
+        source_pdf=Path("../../person-name:shift.pdf"),
+        extracted_fields=_clean_fields(),
+    )
+
+    validate(state, CONFIG)
+
+    assert len(captured) == 1
+    debug_path = captured[0]
+    assert debug_path is not None
+    assert debug_path.parent == (PRIVATE_ROOT / "debug" / "evidence_matches").resolve()
+    assert debug_path.suffix == ".json"
+    assert len(debug_path.stem) == 64
+    assert "person-name" not in debug_path.name
+    assert not (tmp_path / "private").exists()

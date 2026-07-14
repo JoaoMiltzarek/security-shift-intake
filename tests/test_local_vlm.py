@@ -161,6 +161,25 @@ def test_factory_unknown_name_raises() -> None:
         get_vision_client("does-not-exist")
 
 
+def test_default_transport_never_inherits_proxy_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        captured.update(url=url, **kwargs)
+        request = httpx.Request("POST", url)
+        return httpx.Response(200, request=request, json=_response("texto local"))
+
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9999")
+    monkeypatch.setenv("NO_PROXY", "")
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    client = LocalVLMVisionClient(base_url="http://127.0.0.1:11434/v1")
+    assert client.transcribe("ZmFrZQ==").text == "texto local"
+    assert captured["trust_env"] is False
+
+
 # --- retry sem logprobs (medido: Ollama 0.31.1 -> 500 com logprobs+visão) ------
 
 
@@ -198,3 +217,50 @@ def test_transcribe_does_not_retry_on_connection_error() -> None:
     client = LocalVLMVisionClient(transport=_refuses)
     with pytest.raises(RuntimeError, match="no server"):
         client.transcribe("ZmFrZQ==")
+
+
+def test_transcribe_does_not_retry_unrelated_http_status() -> None:
+    calls = 0
+
+    def unauthorized(payload: dict[str, Any]) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        response = httpx.Response(401, request=httpx.Request("POST", "http://localhost"))
+        error = httpx.HTTPStatusError("unauthorized", request=response.request, response=response)
+        raise RuntimeError("local VLM request failed") from error
+
+    with pytest.raises(RuntimeError, match="request failed"):
+        LocalVLMVisionClient(transport=unauthorized).transcribe("ZmFrZQ==")
+    assert calls == 1
+
+
+def test_malformed_vlm_response_never_echoes_response_content() -> None:
+    sensitive_marker = "SYNTHETIC-SENSITIVE-MARKER"
+    malformed = {
+        "choices": [{"message": {"content": {"value": sensitive_marker}}}]
+    }
+    client = LocalVLMVisionClient(transport=FakeTransport(malformed))
+
+    with pytest.raises(RuntimeError, match="invalid response shape") as exc_info:
+        client.transcribe("ZmFrZQ==")
+    assert sensitive_marker not in str(exc_info.value)
+
+
+def test_invalid_vlm_json_never_echoes_response_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sensitive_marker = "SYNTHETIC-SENSITIVE-MARKER"
+
+    def invalid_json(url: str, **kwargs: Any) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", url),
+            content=("{" + sensitive_marker).encode(),
+        )
+
+    monkeypatch.setattr(httpx, "post", invalid_json)
+    client = LocalVLMVisionClient(base_url="http://127.0.0.1:11434/v1")
+
+    with pytest.raises(RuntimeError, match="invalid JSON") as exc_info:
+        client.transcribe("ZmFrZQ==")
+    assert sensitive_marker not in str(exc_info.value)

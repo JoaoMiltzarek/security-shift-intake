@@ -52,5 +52,7 @@ the repository.
 ## Handling a real sheet (the safe procedure)
 1. Put the sheet in `private/reais/` (gitignored).
 2. `make demo-pipeline FILE=private/reais/<file>` — runs locally, stores a pending draft.
-3. Review/correct in the UI; approve only when no field is pending. Email is never auto-sent.
+3. Review/correct in the UI; approve only when no field is pending. The v1 has no email/WhatsApp
+   adapter: the final button runs an in-memory simulation, persists `delivery_mode=simulated`, and
+   explicitly states that nothing was delivered externally.
 4. `make purge-demo-data` (and `make privacy-check`) when done.

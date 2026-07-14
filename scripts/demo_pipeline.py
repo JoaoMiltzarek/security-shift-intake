@@ -26,10 +26,28 @@ from src.clients.base import LLMClient, VisionClient
 from src.clients.factory import get_vision_client
 from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
+from src.paths import REPO_ROOT
 from src.pipeline.ingest import OCR_DPI, load_source_images
 from src.schema.loader import load_config
 
 DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
+PRIVATE_REAL_ROOT = REPO_ROOT / "private" / "reais"
+
+
+def _private_real_file(path: Path, root: Path = PRIVATE_REAL_ROOT) -> Path:
+    """Return a real input only when its resolved path stays under private/reais/."""
+    resolved = path.resolve(strict=True)
+    if not resolved.is_file():
+        raise FileNotFoundError(path)
+    root_absolute = root.absolute()
+    root_resolved = root.resolve(strict=True)
+    if root_resolved != root_absolute:
+        raise ValueError("private/reais root is redirected outside the repository.")
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ValueError("Input must be located under private/reais/.") from exc
+    return resolved
 
 
 def build_and_store(
@@ -65,19 +83,24 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     args = parser.parse_args(argv)
 
-    if not args.file.exists():
-        print(f"File not found: {args.file}", file=sys.stderr)
+    try:
+        source = _private_real_file(args.file, PRIVATE_REAL_ROOT)
+    except FileNotFoundError:
+        print("Input file not found.", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
         return 2
 
     config = load_config(args.config)
-    # Reader chosen by INTAKE_VISION (default local_ocr → unchanged behaviour;
-    # set INTAKE_VISION=local_vlm to run the local open VLM instead).
-    vision = get_vision_client()
+    # This entrypoint promises an offline real-document path, so inherited environment
+    # cannot silently switch it to an external adapter. Reader experiments live in evals.
+    vision = get_vision_client("local_ocr")
     llm = RuleBasedLLMClient(config)
     engine = make_engine()
 
     try:
-        draft_id = build_and_store(args.file, vision, llm, args.config, engine)
+        draft_id = build_and_store(source, vision, llm, args.config, engine)
     except RuntimeError as exc:
         print(f"Local OCR failed: {exc}", file=sys.stderr)
         return 1

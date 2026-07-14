@@ -17,12 +17,18 @@ from __future__ import annotations
 import base64
 import io
 import os
+import tempfile
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytesseract
 from PIL import Image
 
 from src.clients.base import TranscriptionResult, WordBox
+from src.paths import PRIVATE_ROOT, resolve_private_path
 
 # Real office scans are low-resolution; rasterizing them at high DPI upscales the
 # noise and *hurts* Tesseract. Empirically (real folhas) OCR peaks near ~150 DPI for
@@ -34,6 +40,36 @@ _MAX_OCR_LONG_SIDE = 1800
 # share one transform. Rounding can push a fraction a hair past [0,1]; clamp that.
 # Anything wildly out is a real bug — discard the word, never clamp it silently.
 _CLAMP_EPS = 0.01
+TESSERACT_TIMEOUT_SECONDS = 120.0
+TESSERACT_TEMP_ROOT = PRIVATE_ROOT / "tmp" / "tesseract"
+_TESSERACT_TEMP_LOCK = threading.Lock()
+
+
+@contextmanager
+def _tesseract_private_temp(root: Path) -> Iterator[None]:
+    """Route pytesseract and its subprocess temp files to a private, purgable root."""
+    if root == TESSERACT_TEMP_ROOT:
+        root = resolve_private_path(root, create_root=True)
+        root.mkdir(parents=True, exist_ok=True)
+    else:
+        root = root.expanduser().resolve(strict=False)
+        root.mkdir(parents=True, exist_ok=True)
+
+    with _TESSERACT_TEMP_LOCK:
+        previous_tempdir = tempfile.tempdir
+        previous_env = {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")}
+        private_temp = str(root)
+        tempfile.tempdir = private_temp
+        os.environ.update({name: private_temp for name in previous_env})
+        try:
+            yield
+        finally:
+            tempfile.tempdir = previous_tempdir
+            for name, value in previous_env.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
 
 
 def downscale_for_ocr(image: Image.Image) -> Image.Image:
@@ -125,9 +161,20 @@ def _reconstruct(data: dict[str, Any]) -> tuple[str, float]:
 class LocalOCRVisionClient:
     """VisionClient backed by local Tesseract OCR. No API key, no network."""
 
-    def __init__(self, lang: str = "por", fallback_lang: str = "eng") -> None:
+    def __init__(
+        self,
+        lang: str = "por",
+        fallback_lang: str = "eng",
+        *,
+        temp_root: Path = TESSERACT_TEMP_ROOT,
+        timeout: float = TESSERACT_TIMEOUT_SECONDS,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("Tesseract timeout must be greater than zero.")
         self._lang = lang
         self._fallback_lang = fallback_lang
+        self._temp_root = temp_root
+        self._timeout = timeout
 
     def _resolve_lang(self) -> str | None:
         """Prefer the configured language; fall back if its data isn't installed."""
@@ -149,9 +196,20 @@ class LocalOCRVisionClient:
         lang = self._resolve_lang()
         image = Image.open(io.BytesIO(base64.standard_b64decode(image_b64)))
         ocr_image = downscale_for_ocr(image)
-        data = pytesseract.image_to_data(
-            ocr_image, lang=lang, output_type=pytesseract.Output.DICT
-        )
+        try:
+            with _tesseract_private_temp(self._temp_root):
+                data = pytesseract.image_to_data(
+                    ocr_image,
+                    lang=lang,
+                    output_type=pytesseract.Output.DICT,
+                    timeout=self._timeout,
+                )
+        except RuntimeError as exc:
+            if str(exc) == "Tesseract process timeout":
+                raise RuntimeError(
+                    "Tesseract OCR timed out while processing one page; review the input."
+                ) from None
+            raise
         text, confidence = _reconstruct(data)
         words = _collect_words(data, ocr_image.width, ocr_image.height)
         return TranscriptionResult(

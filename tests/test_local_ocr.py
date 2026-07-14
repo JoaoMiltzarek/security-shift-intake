@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import pytesseract
 import pytest
 from PIL import Image
 
@@ -57,6 +63,89 @@ def test_transcribe_real_or_clear_error() -> None:
     else:
         with pytest.raises(RuntimeError, match="Tesseract OCR binary not found"):
             client.transcribe(_png_b64())
+
+
+def _empty_tesseract_data() -> dict[str, list[Any]]:
+    return {
+        "text": [],
+        "conf": [],
+        "left": [],
+        "top": [],
+        "width": [],
+        "height": [],
+        "block_num": [],
+        "par_num": [],
+        "line_num": [],
+    }
+
+
+def test_tesseract_temp_and_subprocess_environment_stay_in_private_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    temp_root = tmp_path / "private" / "tmp" / "tesseract"
+    captured: dict[str, Any] = {}
+    previous_tempdir = tempfile.tempdir
+    previous_env = {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")}
+
+    monkeypatch.setattr(pytesseract, "get_languages", lambda config="": ["por"])
+
+    def fake_image_to_data(image: Image.Image, **kwargs: Any) -> dict[str, list[Any]]:
+        captured["tempdir"] = Path(tempfile.gettempdir())
+        captured["env"] = {name: os.environ.get(name) for name in previous_env}
+        captured["timeout"] = kwargs.get("timeout")
+        return _empty_tesseract_data()
+
+    monkeypatch.setattr(pytesseract, "image_to_data", fake_image_to_data)
+
+    LocalOCRVisionClient(temp_root=temp_root).transcribe(_png_b64())
+
+    assert captured["tempdir"] == temp_root.resolve()
+    assert set(captured["env"].values()) == {str(temp_root.resolve())}
+    assert captured["timeout"] == 120.0
+    assert tempfile.tempdir == previous_tempdir
+    assert {name: os.environ.get(name) for name in previous_env} == previous_env
+
+
+def test_tesseract_timeout_is_finite_and_sanitized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(pytesseract, "get_languages", lambda config="": ["por"])
+
+    def timeout(image: Image.Image, **kwargs: Any) -> dict[str, list[Any]]:
+        captured.update(kwargs)
+        raise RuntimeError("Tesseract process timeout")
+
+    monkeypatch.setattr(pytesseract, "image_to_data", timeout)
+    client = LocalOCRVisionClient(temp_root=tmp_path / "tesseract", timeout=3.5)
+
+    with pytest.raises(RuntimeError, match="timed out") as exc_info:
+        client.transcribe(_png_b64())
+    assert captured["timeout"] == 3.5
+    assert "process timeout" not in str(exc_info.value)
+
+
+def test_default_tesseract_temp_creates_validated_nested_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import src.clients.local_ocr as local_ocr
+
+    isolated = tmp_path / "private" / "tmp" / "tesseract"
+    monkeypatch.setattr(
+        local_ocr,
+        "resolve_private_path",
+        lambda path, create_root=False: isolated,
+    )
+    monkeypatch.setattr(pytesseract, "get_languages", lambda config="": ["por"])
+    monkeypatch.setattr(
+        pytesseract,
+        "image_to_data",
+        lambda image, **kwargs: _empty_tesseract_data(),
+    )
+
+    LocalOCRVisionClient().transcribe(_png_b64())
+
+    assert isolated.is_dir()
 
 
 # --- Contrato F1 (SSI-1005): integração REAL — Tesseract sobre folha sintética ---

@@ -24,7 +24,11 @@ def transcribe(
 ) -> PipelineState:
     """Load + transcribe the source (PDF or image); return an updated PipelineState."""
     images = load_source_images(state.source_pdf, dpi=dpi)
-    results = [client.transcribe(image_to_base64_png(img)) for img in images]
+    try:
+        results = [client.transcribe(image_to_base64_png(img)) for img in images]
+    finally:
+        for image in images:
+            image.close()
 
     text = _PAGE_SEP.join(r.text for r in results)
     # Conservative aggregate: the least-confident page drives review (surfaces

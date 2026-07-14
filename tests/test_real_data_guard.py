@@ -78,12 +78,12 @@ def test_unknown_image_under_samples_blocked(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
-def test_screenshot_overlay_under_samples_allowed(
+def test_screenshot_overlay_under_samples_blocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     f = _write(Path("samples/screenshot_review_overlay.png"), "png")
-    assert check_file(f) == []
+    assert check_file(f)
 
 
 def test_legacy_cockpit_screenshot_name_is_blocked(
@@ -162,9 +162,11 @@ def test_synthetic_jsonl_with_slug_passes(tmp_path: Path) -> None:
 
 
 def test_txt_with_org_name_blocked(tmp_path: Path) -> None:
-    f = _write(tmp_path / "report.txt", "Property of HT Micron Security.\n")
+    sensitive_line = "Property of HT Micron Security."
+    f = _write(tmp_path / "report.txt", sensitive_line + "\n")
     violations = check_file(f)
     assert len(violations) >= 1
+    assert sensitive_line not in "\n".join(violations)
 
 
 def test_csv_under_data_raw_with_org_name_blocked(tmp_path: Path) -> None:

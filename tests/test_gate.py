@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -10,6 +13,7 @@ from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
 from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
+from src.api.models import DeliveryMode, Draft
 from src.api.repository import create_draft, get_audit, set_status
 from src.schema.state import ApprovalStatus, PipelineState
 
@@ -31,7 +35,9 @@ def _state() -> PipelineState:
 
 
 def test_mock_sender_satisfies_protocol() -> None:
-    assert isinstance(MockSender(), Sender)
+    sender = MockSender()
+    assert isinstance(sender, Sender)
+    assert sender.delivery_mode == "simulated"
 
 
 def test_approved_draft_sends_and_audits(session: Session) -> None:
@@ -44,7 +50,7 @@ def test_approved_draft_sends_and_audits(session: Session) -> None:
 
     assert sender.call_count == 1
     assert sender.sent[0][0] == ["tech_security", "general_support"]
-    assert "sent" in [a.action for a in get_audit(session, draft.id)]
+    assert "send_simulated" in [a.action for a in get_audit(session, draft.id)]
 
 
 # --- The invariant: an unapproved draft CANNOT be sent ---
@@ -144,3 +150,57 @@ def test_send_reruns_assert_reviewable_on_current_state(session: Session) -> Non
     with pytest.raises(DraftNotApprovedError):
         send_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 0
+
+
+def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> None:
+    engine = make_engine(
+        f"sqlite:///{(tmp_path / 'send-race.db').as_posix()}", allow_test_path=True
+    )
+    init_db(engine)
+    with Session(engine) as setup:
+        draft = create_draft(setup, _state())
+        assert draft.id is not None
+        draft_id = draft.id
+        set_status(setup, draft_id, ApprovalStatus.APPROVED, actor="r")
+
+    class SlowSender:
+        delivery_mode: DeliveryMode = "external"
+
+        def __init__(self) -> None:
+            self.call_count = 0
+            self._guard = threading.Lock()
+
+        def send(self, recipients: list[str], body: str) -> None:
+            with self._guard:
+                self.call_count += 1
+            time.sleep(0.1)  # deixa a segunda sessão explorar a janela pré-sent_at
+
+    sender = SlowSender()
+    start = threading.Barrier(3)
+
+    def attempt() -> str:
+        with Session(engine) as concurrent_session:
+            start.wait(timeout=5)
+            try:
+                send_draft(concurrent_session, draft_id, sender, actor="r")
+                return "sent"
+            except DraftNotApprovedError:
+                return "blocked"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(attempt) for _ in range(2)]
+        start.wait(timeout=5)
+        outcomes = [future.result(timeout=10) for future in futures]
+
+    assert sender.call_count == 1
+    assert sorted(outcomes) == ["blocked", "sent"]
+    with Session(engine) as verify:
+        persisted = verify.get(Draft, draft_id)
+        assert persisted is not None
+        assert persisted.delivery_mode == "external"
+        assert (
+            [entry.action for entry in get_audit(verify, draft_id)].count(
+                "external_dispatch_completed"
+            )
+            == 1
+        )

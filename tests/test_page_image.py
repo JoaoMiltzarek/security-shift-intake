@@ -16,7 +16,8 @@ from PIL import Image
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
-from src.api.page_images import resolve_page_image, save_page_images
+from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image, save_page_images
+from src.paths import PRIVATE_ROOT
 
 
 def test_resolve_rejects_out_of_range_index(tmp_path: Path) -> None:
@@ -37,7 +38,10 @@ def test_resolve_blocks_path_traversal(tmp_path: Path) -> None:
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[str]]]:
     rel = save_page_images([Image.new("RGB", (12, 10), "white")], root=tmp_path)
     app = create_app(
-        engine=make_engine("sqlite://"), sender=MockSender(), page_images_root=tmp_path
+        engine=make_engine("sqlite://"),
+        sender=MockSender(),
+        page_images_root=tmp_path,
+        enable_test_state_submission=True,
     )
     with TestClient(app) as client:
         yield client, rel
@@ -88,3 +92,7 @@ def test_saved_page_image_matches_ocr_dims(tmp_path: Path) -> None:
     rel = save_page_images([orig], root=tmp_path)
     saved = Image.open(tmp_path / rel[0])
     assert saved.size == downscale_for_ocr(orig).size
+
+
+def test_default_page_root_is_validated_under_private() -> None:
+    assert PAGE_IMAGES_ROOT == PRIVATE_ROOT / "page_images"
