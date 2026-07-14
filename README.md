@@ -1,7 +1,7 @@
 # Security Shift Intake — Local Document AI for Security Incident Logs
 
 [![CI](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.11+-blue)
+![Python](https://img.shields.io/badge/python-3.11-blue)
 ![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
 Local, privacy-first triage for handwritten **security incident sheets** ("Controle de
