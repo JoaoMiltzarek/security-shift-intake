@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 import subprocess
 import sys
 import time
@@ -46,7 +47,7 @@ import httpx
 from evals.metrics import cer, levenshtein
 from scripts.privacy_check import scan_text_for_pii
 from src.api.gate import DraftNotReviewableError, assert_reviewable
-from src.clients.base import VisionClient
+from src.clients.base import RuntimeMetadataProvider, VisionClient
 from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
@@ -427,13 +428,61 @@ def _model_tag(reader: str) -> str:
     return f"{model} unknown"
 
 
-def run_metadata(reader: str, dpi: int) -> dict[str, Any]:
+def _runtime_file_identity() -> tuple[str, str, str]:
+    """Return actual Python, declared Python and the locked dependency identity."""
+    actual_python = platform.python_version()
+    try:
+        expected_python = (REPO_ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    except OSError:
+        expected_python = "unavailable"
+    try:
+        lock_sha256 = hashlib.sha256((REPO_ROOT / "uv.lock").read_bytes()).hexdigest()
+    except OSError:
+        lock_sha256 = "unavailable"
+    return actual_python, expected_python, lock_sha256
+
+
+def run_metadata(
+    reader: str,
+    dpi: int,
+    *,
+    vision: VisionClient | RuntimeMetadataProvider | None = None,
+) -> dict[str, Any]:
     """Metadados que tornam a rodada re-executável (hash do prompt, modelo, commit)."""
     prompt_hash = (
         hashlib.sha256(_TRANSCRIPTION_PROMPT.encode("utf-8")).hexdigest()
         if reader == "local_vlm"
         else None
     )
+    actual_python, expected_python, lock_sha256 = _runtime_file_identity()
+    runtime: dict[str, Any] = {}
+    runtime_attested = (
+        actual_python == expected_python
+        and len(lock_sha256) == 64
+        and all(character in "0123456789abcdef" for character in lock_sha256)
+    )
+    if reader == "local_ocr":
+        provider = vision if vision is not None else LocalOCRVisionClient()
+        if isinstance(provider, RuntimeMetadataProvider):
+            try:
+                runtime = provider.runtime_metadata()
+            except Exception:  # noqa: BLE001 — o relatório público recebe só código seguro
+                runtime = {
+                    "tesseract_version": "unavailable",
+                    "tesseract_language": "unavailable",
+                }
+        else:
+            runtime = {
+                "tesseract_version": "unavailable",
+                "tesseract_language": "unavailable",
+            }
+        runtime_attested = runtime_attested and bool(runtime.get("tesseract_version"))
+        runtime_attested = runtime_attested and runtime.get("tesseract_version") not in {
+            "unavailable",
+            "unknown",
+        }
+        runtime_attested = runtime_attested and runtime.get("tesseract_language") == "por"
+
     return {
         "reader": reader,
         "model": _model_tag(reader),
@@ -442,6 +491,11 @@ def run_metadata(reader: str, dpi: int) -> dict[str, Any]:
         "git_commit": _git_commit(),
         # Compacto (sem ':') para não colidir com o padrão de hora do gate de PII.
         "timestamp": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
+        "python_version": actual_python,
+        "python_version_expected": expected_python,
+        "uv_lock_sha256": lock_sha256,
+        **runtime,
+        "runtime_attested": runtime_attested,
     }
 
 
@@ -918,7 +972,7 @@ def _instrumented(args: argparse.Namespace) -> int:
 
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_vision_client(args.vision)
-    meta = run_metadata(args.vision, args.dpi)
+    meta = run_metadata(args.vision, args.dpi, vision=vision)
     per_sheet = [
         run_sheet(
             cur,

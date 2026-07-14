@@ -69,6 +69,15 @@ class VisionClient(Protocol):
         ...
 
 
+@runtime_checkable
+class RuntimeMetadataProvider(Protocol):
+    """Provides a sanitized, reproducibility-focused runtime identity."""
+
+    def runtime_metadata(self) -> dict[str, str]:
+        """Return safe metadata for the exact reader instance used by a run."""
+        ...
+
+
 class ExtractedFieldRaw(BaseModel):
     """One field extracted from the transcription: raw string value + confidence.
 

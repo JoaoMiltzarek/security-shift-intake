@@ -470,10 +470,11 @@ def main(argv: list[str]) -> int:
 
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_vision_client(args.vision)
+    runtime_meta = run_metadata(reader=args.vision, dpi=args.dpi, vision=vision)
     per_sheet = [evaluate_sheet(cur, config, vision, args.dpi) for cur in sheets]
     summary = {
         "run": {
-            **run_metadata(reader=args.vision, dpi=args.dpi),
+            **runtime_meta,
             "dataset": dataset,
             "split": args.split,
             **contract_attestation,

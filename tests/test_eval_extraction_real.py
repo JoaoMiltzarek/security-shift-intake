@@ -609,10 +609,6 @@ def test_run_metadata_local_ocr_has_no_prompt_hash() -> None:
     assert ":" not in meta["timestamp"]  # compacto p/ não colidir com o gate de PII
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a rodada ainda não atesta Python, lock, versão e idioma do Tesseract",
-)
 def test_run_metadata_attests_exact_local_ocr_runtime() -> None:
     class AttestedOCR:
         def runtime_metadata(self) -> dict[str, str]:
