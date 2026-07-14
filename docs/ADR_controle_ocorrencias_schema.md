@@ -1,6 +1,7 @@
 # ADR — Suporte à folha "Controle de ocorrências" (tabela de N linhas)
 
-- **Status:** Aceito (2026-06-25) — caminho A aprovado pelo usuário após a auditoria. Fase 3 em andamento.
+- **Status:** Aceito e implementado. Semântica de disposição endurecida em 2026-07-11 para o
+  contrato tri-state descrito abaixo.
 - **Data:** 2026-06-24
 - **Contexto-base:** [AUDITORIA_FOLHAS_REAIS.md](AUDITORIA_FOLHAS_REAIS.md) · [CURADORIA_FORMATO.md](CURADORIA_FORMATO.md)
 
@@ -29,8 +30,9 @@ Adotar a **remodelagem completa (caminho A)** com separação de modelos (plano 
 
 1. **`RawDocumentExtraction`** (acoplado ao layout): cabeçalho + linhas + células, cada campo com
    **metadados de auditoria** (`value`, `confidence`, `source`, `status`, `evidence`).
-2. **`NormalizedIncidentModel`** (domínio estável): turno + lista de ocorrências normalizadas; `S/A`/risco →
-   `no_occurrence=true` com lista vazia (mata `FALSE_INCIDENT`).
+2. **`NormalizedIncidentModel`** (domínio estável): turno + lista de ocorrências normalizadas e
+   disposição `unknown | none | present`. `none` exige evidência explícita de `S/A`/risco ou
+   confirmação humana; zero linhas sem essa prova é `unknown`, nunca “sem ocorrência”.
 3. **Estágio `normalize`** novo entre `extract` e `validate` (`Raw → Normalized`).
 4. **Tipo de campo repetível ("table")** no schema (`src/schema/config.py`) + nova
    `configs/controle_ocorrencias.yaml`. A `htmicron_security.yaml` permanece intacta (coexistência).
@@ -58,6 +60,7 @@ Adotar a **remodelagem completa (caminho A)** com separação de modelos (plano 
 {
   "schema_version": "1.0",
   "report_type": "controle_ocorrencias",
+  "tabela_encontrada": true,
   "header": {
     "data_turno": {"value": "01/01", "confidence": 0.4, "source": "ocr", "status": "must_review", "evidence": "..."},
     "vigilantes": {"value": ["Vigilante A", "Vigilante B"], "confidence": 0.3, "source": "ocr", "status": "must_review", "evidence": "..."},
@@ -79,8 +82,9 @@ Adotar a **remodelagem completa (caminho A)** com separação de modelos (plano 
 **`NormalizedIncidentModel`** (o que o domínio entende):
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "shift": {"date": "01/01", "period": null, "guards": ["Vigilante A", "Vigilante B"], "unit": "Posto Exemplo"},
+  "disposition": "present",
   "no_occurrence": false,
   "occurrences": [
     {"category": "access", "entry_time": "HH:MM", "exit_time": "HH:MM",
@@ -89,11 +93,15 @@ Adotar a **remodelagem completa (caminho A)** com separação de modelos (plano 
   ]
 }
 ```
-Folha `S/A`/riscada → `{"no_occurrence": true, "occurrences": []}`.
+Folha com explicit S/A evidence →
+`{"schema_version": "1.1", "disposition": "none", "no_occurrence": true, "occurrences": []}`.
+Tabela ausente ou sem linha legível → `disposition="unknown"`; unknown blocks approval and export.
+`no_occurrence` permanece apenas como derived compatibility field calculado da disposição.
 
 ## 5. Consequências
 
-**Positivas:** captura N ocorrências; `S/A` deixa de virar incidente; trilha de evidência/`source` por campo;
+**Positivas:** captura N ocorrências; `S/A` deixa de virar incidente; falha estrutural não é lavada como
+“sem ocorrência”; trilha de evidência/`source` por campo;
 domínio estável a mudanças de layout; auditoria reflete progresso por taxonomia/severidade.
 **Negativas:** mudança maior (schema, estágio novo, crítico, template, geradores, testes); mais complexidade
 no contrato; manter dois modelos sincronizados via `normalize`.
@@ -122,6 +130,7 @@ no contrato; manter dois modelos sincronizados via `normalize`.
 
 - `make demo-pipeline FILE=private/reais/<folha>` offline, sem API paga.
 - Tabela de **N linhas** representável; **`S/A`/risco nunca vira ocorrência** (0 `FALSE_INCIDENT` em folhas S/A).
+- Sem evidência explícita, zero linhas produz `unknown`, cria pendência e bloqueia aprovação/exportação.
 - Ambíguo/baixa confiança → `must_review`; **draft não aprovável** com campo pendente (R4).
 - Fluxo antigo (`htmicron_security.yaml`) + mock/sintético **não regridem**; `make check` verde.
 - `git status` sem dado real; `make privacy-check` verde; relatório público sem PII.

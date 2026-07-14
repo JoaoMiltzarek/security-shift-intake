@@ -4,17 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a arquitetura e o ADR ainda documentam no_occurrence como fonte de verdade",
-)
 def test_core_docs_describe_the_tristate_disposition_contract() -> None:
     architecture = _read("docs/ARCHITECTURE.md")
     adr = _read("docs/ADR_controle_ocorrencias_schema.md")

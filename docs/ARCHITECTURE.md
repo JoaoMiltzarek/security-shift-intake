@@ -45,7 +45,10 @@ The domain is deliberately decoupled from the sheet layout (the layout can chang
   each cell an **`AuditedField`** = `value` + `confidence` + `source` (`ocr`|`rule`|`human`) +
   `status` (`accepted`|`must_review`|`missing`|`ambiguous`) + `evidence`.
 - **`NormalizedIncidentModel`** — *what the domain understands* (stable): shift (date, guards,
-  unit) + a list of normalized occurrences, or `no_occurrence` for an `S/A` sheet.
+  unit) + a list of normalized occurrences and the `unknown | none | present` disposition.
+  `none` requires explicit S/A evidence (or an explicit human confirmation); an empty or
+  unreadable table is `unknown`. In schema_version 1.1, `no_occurrence` is a derived compatibility
+  field, never an independent source of truth.
 
 The `normalize` stage is the only boundary between them. Models live in
 [src/schema/extraction.py](../src/schema/extraction.py).
@@ -62,6 +65,8 @@ numeric signal alone, drives the human gate.
   mode — no auto-classification, no operational draft — routing to manual transcription.
 - **Never guess.** Low-confidence/ambiguous values go to the human (`must_review`); they are
   never silently trusted.
+- **Structural uncertainty fails closed.** `unknown blocks approval and export`; only explicit
+  evidence can turn it into `none` or `present`.
 - **Human gate.** A draft cannot be **approved** while any field is pending. The v1 has no external
   delivery adapter: its `MockSender` records a terminal simulation only, after explicit approval,
   and the audit/UI identify that mode without claiming receipt — enforced in
