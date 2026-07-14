@@ -135,3 +135,35 @@ def test_git_output_preserves_leading_porcelain_status(
     output = preflight._run_git(tmp_path, "status", "--porcelain")
 
     assert output == " M scripts/preflight.py"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a coleta de baseline ainda pode sincronizar e escrever caches",
+)
+def test_test_baseline_is_locked_no_sync_and_cache_free(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        captured["command"] = command
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout="812 tests collected\n")
+
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/uv")
+    monkeypatch.setattr(preflight.subprocess, "run", run)
+
+    assert preflight.collect_test_baseline(tmp_path) == 812
+    assert captured["command"] == [
+        "uv",
+        "run",
+        "--locked",
+        "--no-sync",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+    ]
+    assert captured["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
