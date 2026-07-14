@@ -232,6 +232,23 @@ def test_resolved_output_alias_into_docs_is_rejected(
         ev._resolve_output_dir(alias, tmp_path)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="o resumo sintético ainda não declara schema nem rejeita números não finitos",
+)
+def test_public_summary_is_versioned_utf8_json_and_rejects_nonfinite() -> None:
+    payload = {"artifact_schema": ev.PUBLIC_SUMMARY_SCHEMA, "n_sheets": 1}
+
+    encoded = ev._public_summary_bytes(payload)
+
+    assert encoded.endswith(b"\n")
+    assert json.loads(encoded.decode("utf-8"))["artifact_schema"] == ("ssi-tier-c-eval-summary/v1")
+    with pytest.raises(ValueError):
+        ev._public_summary_bytes({"metric": float("nan")})
+    with pytest.raises(ValueError):
+        ev._public_summary_bytes({"metric": float("inf")})
+
+
 def test_safety_formulas_from_per_sheet_flags() -> None:
     """Preserva diagnósticos F-01 e mede recall pelos gates operacionais reais."""
     fake = [
