@@ -8,8 +8,12 @@ DB outside private → warn; DB tracked outside private → blocker; no tesserac
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
+import scripts.preflight as preflight
 from scripts.preflight import classify_db, evaluate, scan_dbs
 
 
@@ -119,3 +123,19 @@ def test_missing_portuguese_tesseract_language_warns() -> None:
 
     assert severity == 1
     assert any("por" in action for action in actions)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="_run_git remove o espaço significativo do primeiro status porcelain",
+)
+def test_git_output_preserves_leading_porcelain_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = SimpleNamespace(returncode=0, stdout=" M scripts/preflight.py\n")
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/git")
+    monkeypatch.setattr(preflight.subprocess, "run", lambda *_args, **_kwargs: result)
+
+    output = preflight._run_git(tmp_path, "status", "--porcelain")
+
+    assert output == " M scripts/preflight.py"
