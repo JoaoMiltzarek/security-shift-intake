@@ -12,7 +12,7 @@ import pytest
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
-from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
+from src.api.gate import DeliveryMode, DraftNotApprovedError, MockSender, Sender, send_draft
 from src.api.repository import create_draft, get_audit, set_status
 from src.schema.state import ApprovalStatus, PipelineState
 
@@ -34,7 +34,9 @@ def _state() -> PipelineState:
 
 
 def test_mock_sender_satisfies_protocol() -> None:
-    assert isinstance(MockSender(), Sender)
+    sender = MockSender()
+    assert isinstance(sender, Sender)
+    assert sender.delivery_mode == "simulated"
 
 
 def test_approved_draft_sends_and_audits(session: Session) -> None:
@@ -161,6 +163,8 @@ def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> Non
         set_status(setup, draft_id, ApprovalStatus.APPROVED, actor="r")
 
     class SlowSender:
+        delivery_mode: DeliveryMode = "external"
+
         def __init__(self) -> None:
             self.call_count = 0
             self._guard = threading.Lock()

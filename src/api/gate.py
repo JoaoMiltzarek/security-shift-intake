@@ -9,7 +9,7 @@ effect did or did not happen.
 from __future__ import annotations
 
 import threading
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from sqlmodel import Session
 
@@ -20,6 +20,8 @@ from src.schema.state import ApprovalStatus, PipelineState
 
 _SEND_LOCKS_GUARD = threading.Lock()
 _SEND_LOCKS: dict[int, threading.Lock] = {}
+
+DeliveryMode = Literal["simulated", "external"]
 
 
 def _draft_send_lock(draft_id: int) -> threading.Lock:
@@ -65,13 +67,18 @@ def assert_reviewable(state: PipelineState) -> None:
 
 @runtime_checkable
 class Sender(Protocol):
-    """Performs the irreversible action. Implementations: MockSender (tests)."""
+    """Performs a terminal delivery attempt and declares whether it is simulated."""
+
+    @property
+    def delivery_mode(self) -> DeliveryMode: ...
 
     def send(self, recipients: list[str], body: str) -> None: ...
 
 
 class MockSender:
     """Records sends instead of performing them. MOCK — nothing is actually sent."""
+
+    delivery_mode: DeliveryMode = "simulated"
 
     def __init__(self) -> None:
         self.sent: list[tuple[list[str], str]] = []
