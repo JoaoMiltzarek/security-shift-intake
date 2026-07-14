@@ -340,6 +340,17 @@ def test_eval_vlm_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
     assert out["confidence_source"] == "mock"  # lido do schema, não inferido
 
 
+def test_eval_preserves_source_paths_with_spaces(tmp_path: Path) -> None:
+    spaced_root = tmp_path / "canonical dataset with spaces"
+    spaced_root.mkdir()
+    cur = _sheet_with_file(spaced_root)
+
+    out = run_sheet(cur, TABLE_CONFIG, vision=_EmptyVision())
+
+    assert out["available"] is True
+    assert out["ran"] is True
+
+
 def test_public_report_whitelist_drops_pii() -> None:
     meta = {
         "reader": "local_vlm",

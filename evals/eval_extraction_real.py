@@ -487,7 +487,7 @@ def run_sheet(
         "n_occurrences_captured": 0,
         "ocr_confidence": 0.0,
     }
-    src = Path(str(cur.get("source_file", "")).split(" ")[0])
+    src = Path(str(cur.get("source_file", "")))
     if not src.exists():
         base["status"] = "pending_file"
         base["reason"] = "pending_file"
