@@ -66,10 +66,9 @@ def test_smoke_50_mock_no_false_incident(smoke_dir: Path) -> None:
 
 
 def test_main_default_split_is_val_and_public_is_aggregates_only(
-    smoke_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    smoke_dir: Path,
 ) -> None:
-    summary_path = tmp_path / "summary.json"
-    monkeypatch.setattr(ev, "SUMMARY_PATH", summary_path)
+    summary_path = smoke_dir / "eval" / "eval_synthetic_summary.json"
     assert ev.main(["--dir", str(smoke_dir)]) == 0
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["run"]["split"] == "val"  # default anti-tuning (§5)
@@ -90,10 +89,9 @@ def test_main_default_split_is_val_and_public_is_aggregates_only(
 
 
 def test_main_split_test_is_explicit(
-    smoke_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    smoke_dir: Path,
 ) -> None:
-    summary_path = tmp_path / "summary.json"
-    monkeypatch.setattr(ev, "SUMMARY_PATH", summary_path)
+    summary_path = smoke_dir / "eval" / "eval_synthetic_summary.json"
     assert ev.main(["--dir", str(smoke_dir), "--split", "test"]) == 0
     assert json.loads(summary_path.read_text(encoding="utf-8"))["run"]["split"] == "test"
 
@@ -176,10 +174,6 @@ def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> 
     assert eval_after == eval_before  # dataset intocado por esta rodada
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a execução exploratória ainda sobrescreve o resumo histórico em docs/",
-)
 def test_default_run_never_writes_inside_public_docs(
     smoke_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

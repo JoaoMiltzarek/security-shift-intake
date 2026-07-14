@@ -21,9 +21,10 @@ Métricas por linha são recomputadas por replay determinístico do estágio ext
 (RuleBasedTableExtractor + normalize sobre a transcrição devolvida por run_sheet) —
 mesmo código do pipeline, $0, sem tocar o eval real.
 
-Saída pública: docs/eval_synthetic_summary.json — AGREGADOS apenas (sem valores de
-campo); `scan_text_for_pii` roda como segunda camada antes de escrever (aborta, não
-escreve). Detalhado (com valores sintéticos) fica no diretório do dataset (gitignored).
+Saída de rodada: `<dir>/eval/eval_synthetic_summary.json` ou o `--output-dir` explícito —
+AGREGADOS apenas (sem valores de campo); `scan_text_for_pii` roda como segunda camada
+antes de escrever (aborta, não escreve). Publicar evidência versionada é uma operação
+separada e write-once; este avaliador nunca escreve diretamente em `docs/`.
 """
 
 from __future__ import annotations
@@ -57,7 +58,6 @@ from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
 
 TIER_C_DIR = REPO_ROOT / "data" / "synthetic" / "tier_c"
-SUMMARY_PATH = REPO_ROOT / "docs" / "eval_synthetic_summary.json"
 SYNTHETIC_STATUS = {"synthetic_ground_truth"}
 RELEASE_SAFETY_DATASET = "bench-balanced"
 RELEASE_SAFETY_SPLIT = "val"
@@ -522,13 +522,10 @@ def main(argv: list[str]) -> int:
         **aggregate(per_sheet),
     }
 
-    # --output-dir isola a rodada (gate contínuo/CI) dos artefatos congelados do repo.
+    # Toda rodada fica em área local/efêmera. Evidência versionada só entra em docs/
+    # por um publicador separado, validado e write-once.
     eval_dir = args.output_dir if args.output_dir is not None else args.dir / "eval"
-    summary_path = (
-        args.output_dir / "eval_synthetic_summary.json"
-        if args.output_dir is not None
-        else SUMMARY_PATH
-    )
+    summary_path = eval_dir / "eval_synthetic_summary.json"
     eval_dir.mkdir(parents=True, exist_ok=True)
     detailed_path = eval_dir / f"detailed_{args.vision}_dpi{args.dpi}_{args.split}.json"
     detailed_path.write_text(
