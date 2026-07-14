@@ -369,3 +369,4 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
         assert draft.revision == 1
         assert draft.approved_revision is None
         assert draft.approved_state_sha256 is None
+        assert draft.delivery_mode is None

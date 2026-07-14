@@ -36,6 +36,9 @@ class Draft(SQLModel, table=True):
     approved_state_sha256: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+    # Persisted because the active adapter can change after a restart.  ``sent_at``
+    # records a terminal adapter attempt; this mode says whether it left the process.
+    delivery_mode: str | None = Field(default=None)
     sent_at: datetime | None = Field(default=None)
 
 

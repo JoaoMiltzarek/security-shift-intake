@@ -68,6 +68,7 @@ _DRAFT_MIGRATIONS = {
     "revision": "INTEGER NOT NULL DEFAULT 1",
     "approved_revision": "INTEGER",
     "approved_state_sha256": "VARCHAR",
+    "delivery_mode": "VARCHAR",
 }
 
 
