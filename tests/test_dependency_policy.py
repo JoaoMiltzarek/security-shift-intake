@@ -5,8 +5,6 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-import pytest
-
 
 def test_runtime_pdf_backend_excludes_pymupdf_and_uses_pdfium() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
@@ -20,10 +18,6 @@ def test_runtime_pdf_backend_excludes_pymupdf_and_uses_pdfium() -> None:
     assert "pypdfium2" in locked_names
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o ambiente de teste ainda usa o fallback httpx depreciado do Starlette",
-)
 def test_testclient_uses_httpx2_and_blocks_deprecated_fallback() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))

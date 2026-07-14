@@ -68,3 +68,6 @@ follow_imports = "skip"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    "error::starlette.exceptions.StarletteDeprecationWarning",
+]
