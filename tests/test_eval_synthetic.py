@@ -304,10 +304,6 @@ def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
     ) == ["n_sheets_ran=44 (exigido n_sheets=45)"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o gate ainda não valida a identidade do runtime",
-)
 def test_release_runtime_attestation_fails_closed() -> None:
     attested = {
         "reader": "local_ocr",
@@ -334,10 +330,6 @@ def test_release_runtime_attestation_fails_closed() -> None:
     assert ev._runtime_attestation_failures({**attested, "runtime_attested": False})
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CLI de release ainda aceita o leitor mockado",
-)
 def test_release_gate_rejects_mock_before_reader_factory(
     smoke_dir: Path,
     tmp_path: Path,
@@ -368,10 +360,6 @@ def test_release_gate_rejects_mock_before_reader_factory(
     assert not out.exists()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o gate ainda processa folhas antes de validar o runtime",
-)
 def test_release_gate_rejects_incomplete_runtime_before_evaluation(
     smoke_dir: Path,
     tmp_path: Path,
@@ -475,6 +463,8 @@ def test_require_safety_gates_fails_before_reader_when_contract_is_invalid(
             str(smoke_dir),
             "--dataset",
             "bench-balanced",
+            "--vision",
+            "local_ocr",
             "--output-dir",
             str(out),
             "--require-safety-gates",
@@ -509,7 +499,15 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
     def unavailable_reader(*_args: object, **_kwargs: object) -> dict[str, object]:
         return {"ran": False, "available": False, "reason": "reader unavailable"}
 
+    class AttestedOCR:
+        def runtime_metadata(self) -> dict[str, str]:
+            return {
+                "tesseract_version": "5.4.0",
+                "tesseract_language": "por",
+            }
+
     monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
+    monkeypatch.setattr(ev, "get_vision_client", lambda _name: AttestedOCR())
     monkeypatch.setattr(ev, "evaluate_sheet", unavailable_reader)
     out = tmp_path / "unavailable"
     rc = ev.main(
@@ -518,6 +516,8 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
             str(smoke_dir),
             "--dataset",
             "bench-balanced",
+            "--vision",
+            "local_ocr",
             "--output-dir",
             str(out),
             "--require-safety-gates",

@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,7 @@ SUMMARY_PATH = REPO_ROOT / "docs" / "eval_synthetic_summary.json"
 SYNTHETIC_STATUS = {"synthetic_ground_truth"}
 RELEASE_SAFETY_DATASET = "bench-balanced"
 RELEASE_SAFETY_SPLIT = "val"
+RELEASE_SAFETY_READER = "local_ocr"
 
 # Campos de linha por família (contrato §12).
 _PARSER_CEILING_FIELDS = ("item", "acao", "resolvido")
@@ -285,6 +287,34 @@ def _safety_gate_failures(
     return failures
 
 
+def _runtime_attestation_failures(meta: dict[str, Any]) -> list[str]:
+    """Validate the exact, local runtime authorized to produce release evidence."""
+    failures: list[str] = []
+    if meta.get("reader") != RELEASE_SAFETY_READER:
+        failures.append(
+            f"reader={meta.get('reader')!r} (exigido {RELEASE_SAFETY_READER!r})"
+        )
+    actual_python = meta.get("python_version")
+    expected_python = meta.get("python_version_expected")
+    if not actual_python or actual_python != expected_python:
+        failures.append(
+            f"python_version={actual_python!r} (esperado {expected_python!r})"
+        )
+    lock_sha256 = str(meta.get("uv_lock_sha256") or "")
+    if re.fullmatch(r"[0-9a-f]{64}", lock_sha256) is None:
+        failures.append("uv_lock_sha256 inválido ou ausente")
+    tesseract_version = str(meta.get("tesseract_version") or "")
+    if tesseract_version.lower() in {"", "unknown", "unavailable"}:
+        failures.append("tesseract_version inválido ou ausente")
+    if meta.get("tesseract_language") != "por":
+        failures.append(
+            f"tesseract_language={meta.get('tesseract_language')!r} (exigido 'por')"
+        )
+    if meta.get("runtime_attested") is not True:
+        failures.append("runtime_attested não é true")
+    return failures
+
+
 def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
     """Agregados por família (§12) + breakdown difficulty × template."""
     ran = [s for s in per_sheet if s.get("ran")]
@@ -430,6 +460,12 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+    if args.require_safety_gates and args.vision != RELEASE_SAFETY_READER:
+        print(
+            f"EVAL-SAFETY exige reader={RELEASE_SAFETY_READER}",
+            file=sys.stderr,
+        )
+        return 1
 
     dataset = "unknown"
     contract_attestation: dict[str, Any] = {}
@@ -471,6 +507,16 @@ def main(argv: list[str]) -> int:
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_vision_client(args.vision)
     runtime_meta = run_metadata(reader=args.vision, dpi=args.dpi, vision=vision)
+    if args.require_safety_gates:
+        runtime_failures = _runtime_attestation_failures(runtime_meta)
+        if runtime_failures:
+            print(
+                "EVAL-SAFETY RUNTIME NÃO ATESTADO:",
+                *runtime_failures,
+                sep="\n  ",
+                file=sys.stderr,
+            )
+            return 1
     per_sheet = [evaluate_sheet(cur, config, vision, args.dpi) for cur in sheets]
     summary = {
         "run": {
