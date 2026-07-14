@@ -189,17 +189,26 @@ jobs:
       - name: Install Playwright Chromium
         run: uv run --locked playwright install --with-deps chromium
 
-      - name: Start the cockpit (controle_ocorrencias config)
-        run: |
-          mkdir -p private
-          INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
-            uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8000 &
-          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
-
       - name: Browser-smoke (bbox / overlay / save / CSP violations)
         env:
           BROWSER_SMOKE_SCREENSHOT: /tmp/browser_smoke.png
-        run: uv run --locked python scripts/browser_smoke.py
+        run: |
+          mkdir -p private
+          INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
+            uv run --locked uvicorn src.api.app:app --host 127.0.0.1 --port 8000 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          uv run --locked python scripts/browser_smoke.py
 
       - name: Upload cockpit screenshot (real page capture)
         if: always()

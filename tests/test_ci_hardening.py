@@ -39,3 +39,14 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
     assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", ref) for ref in action_refs)
     assert workflow.count("persist-credentials: false") == 4
     assert workflow.count('version: "0.11.23"') == 4
+
+
+def test_browser_gate_proves_readiness_and_cleans_up_the_server() -> None:
+    workflow = _workflow()
+
+    assert "server_pid=$!" in workflow
+    assert "trap 'kill \"$server_pid\" 2>/dev/null || true' EXIT" in workflow
+    assert 'test "$ready" -eq 1' in workflow
+    assert workflow.index('test "$ready" -eq 1') < workflow.index(
+        "uv run --locked python scripts/browser_smoke.py"
+    )
