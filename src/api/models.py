@@ -9,10 +9,13 @@ snapshot — required by the human-approval-gate invariant.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from sqlmodel import Field, SQLModel
 
 from src.schema.state import ApprovalStatus
+
+DeliveryMode = Literal["simulated", "external"]
 
 
 def utcnow() -> datetime:

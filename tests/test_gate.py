@@ -12,7 +12,8 @@ import pytest
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
-from src.api.gate import DeliveryMode, DraftNotApprovedError, MockSender, Sender, send_draft
+from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
+from src.api.models import DeliveryMode, Draft
 from src.api.repository import create_draft, get_audit, set_status
 from src.schema.state import ApprovalStatus, PipelineState
 
@@ -49,7 +50,7 @@ def test_approved_draft_sends_and_audits(session: Session) -> None:
 
     assert sender.call_count == 1
     assert sender.sent[0][0] == ["tech_security", "general_support"]
-    assert "sent" in [a.action for a in get_audit(session, draft.id)]
+    assert "send_simulated" in [a.action for a in get_audit(session, draft.id)]
 
 
 # --- The invariant: an unapproved draft CANNOT be sent ---
@@ -194,4 +195,12 @@ def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> Non
     assert sender.call_count == 1
     assert sorted(outcomes) == ["blocked", "sent"]
     with Session(engine) as verify:
-        assert [entry.action for entry in get_audit(verify, draft_id)].count("sent") == 1
+        persisted = verify.get(Draft, draft_id)
+        assert persisted is not None
+        assert persisted.delivery_mode == "external"
+        assert (
+            [entry.action for entry in get_audit(verify, draft_id)].count(
+                "external_dispatch_completed"
+            )
+            == 1
+        )

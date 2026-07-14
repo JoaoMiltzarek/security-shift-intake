@@ -9,20 +9,17 @@ effect did or did not happen.
 from __future__ import annotations
 
 import threading
-from typing import Literal, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from sqlmodel import Session
 
-from src.api.models import Draft
+from src.api.models import DeliveryMode, Draft
 from src.api.repository import add_audit, get_draft, mark_sent, state_sha256
 from src.pipeline.ocr_quality import OCR_FAILED
 from src.schema.state import ApprovalStatus, PipelineState
 
 _SEND_LOCKS_GUARD = threading.Lock()
 _SEND_LOCKS: dict[int, threading.Lock] = {}
-
-DeliveryMode = Literal["simulated", "external"]
-
 
 def _draft_send_lock(draft_id: int) -> threading.Lock:
     """Return the process-local lock for a draft (supported v1 is one Uvicorn process)."""
@@ -159,4 +156,9 @@ def _send_draft_once(
         raise DraftNotApprovedError(str(exc)) from exc
 
     sender.send(state.recipients, state.email_draft or "")
-    return mark_sent(session, draft_id, actor=actor)
+    return mark_sent(
+        session,
+        draft_id,
+        actor=actor,
+        delivery_mode=sender.delivery_mode,
+    )

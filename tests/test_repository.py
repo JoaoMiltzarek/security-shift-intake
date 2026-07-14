@@ -61,15 +61,19 @@ def test_set_status_updates_and_audits(session: Session) -> None:
     assert "status:approved" in actions
 
 
-def test_mark_sent_sets_timestamp_and_audit(session: Session) -> None:
+def test_mark_sent_persists_simulation_mode_and_audit(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r")
+    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
 
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None and refreshed.sent_at is not None
-    assert "sent" in [a.action for a in get_audit(session, draft.id)]
+    assert refreshed.delivery_mode == "simulated"
+    audit = get_audit(session, draft.id)
+    assert "send_simulated" in [a.action for a in audit]
+    assert audit[-1].detail is not None
+    assert "mode=simulated rev=1 sha256=" in audit[-1].detail
 
 
 def test_list_drafts_returns_all(session: Session) -> None:
@@ -221,7 +225,7 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r")
+    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
 
     with pytest.raises(DraftAlreadySentError):
         update_state(session, draft.id, _state(), actor="reviewer")
@@ -239,7 +243,7 @@ def test_sent_draft_rejects_later_status_changes(
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r")
+    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
 
     with pytest.raises(DraftAlreadySentError):
         set_status(session, draft.id, status, actor="r")
@@ -299,22 +303,23 @@ def test_status_rolls_back_when_status_audit_fails(
     assert "status:approved" not in [entry.action for entry in get_audit(session, draft.id)]
 
 
-def test_mark_sent_rolls_back_when_sent_audit_fails(
+def test_mark_sent_rolls_back_when_simulation_audit_fails(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    _fail_audit_action(monkeypatch, "sent")
+    _fail_audit_action(monkeypatch, "send_simulated")
 
     with pytest.raises(RuntimeError, match="injected audit"):
-        mark_sent(session, draft.id, actor="r")
+        mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
 
     session.expire_all()
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None
     assert refreshed.sent_at is None
-    assert "sent" not in [entry.action for entry in get_audit(session, draft.id)]
+    assert refreshed.delivery_mode is None
+    assert "send_simulated" not in [entry.action for entry in get_audit(session, draft.id)]
 
 
 def test_update_rolls_back_when_edit_audit_fails(

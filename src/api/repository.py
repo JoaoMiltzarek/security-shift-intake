@@ -15,7 +15,7 @@ import hashlib
 
 from sqlmodel import Session, col, select
 
-from src.api.models import AuditEntry, Draft, DraftRevision, utcnow
+from src.api.models import AuditEntry, DeliveryMode, Draft, DraftRevision, utcnow
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -136,15 +136,35 @@ def set_status(session: Session, draft_id: int, status: ApprovalStatus, actor: s
     return draft
 
 
-def mark_sent(session: Session, draft_id: int, actor: str) -> Draft:
-    """Record that a draft was sent (sets sent_at + audit). The gate enforces policy."""
+def mark_sent(
+    session: Session,
+    draft_id: int,
+    actor: str,
+    delivery_mode: DeliveryMode,
+) -> Draft:
+    """Record a completed adapter attempt without claiming recipient delivery."""
     draft = _require(session, draft_id)
     try:
         now = utcnow()
         draft.sent_at = now
+        draft.delivery_mode = delivery_mode
         draft.updated_at = now
         session.add(draft)
-        _stage_audit(session, draft_id, actor=actor, action="sent")
+        action = (
+            "send_simulated"
+            if delivery_mode == "simulated"
+            else "external_dispatch_completed"
+        )
+        _stage_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action=action,
+            detail=(
+                f"mode={delivery_mode} rev={draft.revision} "
+                f"sha256={state_sha256(draft.state_json)[:12]}"
+            ),
+        )
         session.commit()
     except Exception:
         session.rollback()
