@@ -3,7 +3,7 @@ name = "security-shift-intake"
 version = "1.0.0"
 description = "Document-intake pipeline: scanned handwritten shift reports -> transcription, extraction, classification, deterministic routing, and a human-approval gate. Config-driven, synthetic data only."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 license = { text = "PolyForm-Noncommercial-1.0.0" }
 dependencies = [
     "fastapi>=0.115,<1.0",

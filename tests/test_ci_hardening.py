@@ -31,6 +31,15 @@ def test_ci_jobs_are_bounded_and_use_fixed_runner_image() -> None:
     assert workflow.count("timeout-minutes:") == 4
 
 
+def test_python_metadata_matches_the_only_ci_minor() -> None:
+    workflow = _workflow()
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+
+    assert 'requires-python = ">=3.11,<3.12"' in pyproject
+    assert 'python_version = "3.11"' in pyproject
+    assert workflow.count("uv python install 3.11") == 4
+
+
 def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
     workflow = _workflow()
     action_refs = re.findall(r"uses:\s+([^\s#]+)", workflow)
