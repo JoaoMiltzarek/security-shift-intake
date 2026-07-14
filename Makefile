@@ -28,11 +28,15 @@ DATASET ?= smoke
 # Tier C synthetic eval split (contract par.5: val=default anti-tuning; test=milestone).
 SPLIT ?= val
 
+# Release-safety identity is intentionally not overridable from the command line.
+override SAFETY_DATASET := bench-balanced
+override SAFETY_SPLIT := val
+
 # Watch-dir for make watch (override: make watch WATCH_DIR=private/inbox).
 WATCH_DIR ?= private/inbox
 
 .PHONY: help install lint format format-check typecheck test check \
-        validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
+        validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-transcribe demo-pipeline \
         demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
@@ -49,6 +53,7 @@ help:
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
+	@echo   make gen-safety-sheets - generate the exact bench-balanced/val release corpus
 	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
@@ -100,6 +105,9 @@ gen-pdfs:
 gen-sheets:
 	uv run --locked python -m scripts.gen_sheets --dataset $(DATASET)
 
+gen-safety-sheets:
+	uv run --locked python -m scripts.gen_sheets --dataset $(SAFETY_DATASET)
+
 demo-transcribe:
 	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)"
 
@@ -145,7 +153,7 @@ eval-real:
 
 # Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
 eval-synthetic:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --dataset $(DATASET) --split $(SPLIT)
 
 # Structural-safety gate (SSI-1010): proves the core promise on val — nothing wrong
 # EXITS unnoticed. Binary gates: exit 1 on unsafe_clean>0, safe_review_recall<1.0 or
@@ -154,7 +162,7 @@ eval-synthetic:
 # the repo's frozen docs/ artifacts (OUT default lives under gitignored private/).
 OUT ?= private/audit/eval_safety
 eval-safety:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates
 
 # Intake Watch — experimental standalone watcher; process-local duplicate suppression.
 # Writes detached text drafts, NEVER sends email. Override: make watch WATCH_DIR=private/inbox.
