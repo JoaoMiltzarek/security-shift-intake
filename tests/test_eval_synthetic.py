@@ -194,6 +194,31 @@ def test_default_run_never_writes_inside_public_docs(
     assert (smoke_dir / "eval" / "eval_synthetic_summary.json").exists()
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="--output-dir ainda aceita um destino público dentro de docs/",
+)
+def test_output_dir_inside_docs_is_rejected_before_reader_construction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unexpected_reader(_name: str) -> object:
+        raise AssertionError("o reader não pode ser criado para um destino proibido")
+
+    monkeypatch.setattr(ev, "get_vision_client", unexpected_reader)
+
+    with pytest.raises(SystemExit) as exc_info:
+        ev.main(
+            [
+                "--dir",
+                str(tmp_path),
+                "--output-dir",
+                str(ev.REPO_ROOT / "docs" / "candidate"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+
+
 def test_safety_formulas_from_per_sheet_flags() -> None:
     """Preserva diagnósticos F-01 e mede recall pelos gates operacionais reais."""
     fake = [
