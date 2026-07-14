@@ -155,8 +155,9 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
   separate, paid external opt-in and is never selected by the default showcase.
 
 ### Evaluate a reader (the decision protocol)
-Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S) and BRESSAY,
-not private real sheets. The normative protocol is
+Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S), not private
+real sheets. BRESSAY is a secondary, non-blocking diagnostic and never changes a reader or
+release verdict by itself. The normative protocol is
 [docs/DATASET_CONTRACT.md](docs/DATASET_CONTRACT.md); hardware, release-safety and candidate
 promotion criteria are frozen in [docs/READER_DECISION.md](docs/READER_DECISION.md) before a
 new val run.
@@ -233,8 +234,9 @@ targets clean up without destroying validated curadoria. See
   This proves those safety cases, not production-wide field accuracy. Numbers and methodology:
   [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
 - **OCR fidelity is the honest ceiling.** Tesseract reads printed labels well but is **not
-  reliable on cursive handwriting** — the current real-handwriting baseline reads none of the
-  frozen BRESSAY slice. Uncertain/garbled values route to **human review** and cannot leave as a
+  reliable on cursive handwriting** — the historical BRESSAY diagnostic read none of its local
+  sample. That non-blocking result lacks the authenticated manifest/runtime required of current
+  release evidence. Uncertain/garbled values route to **human review** and cannot leave as a
   clean approved output. Raising fidelity requires a reader that beats the frozen safety gate.
 - **Synthetic evals** (classification/routing) are reproducible via `make eval`
   ([EVAL_REPORT.md](EVAL_REPORT.md)); their caveats (templated labels are partly circular) are
@@ -319,12 +321,16 @@ clean, zero invented incidents escape review, and every planted incident reaches
 (`safe_review_recall=1.0`). Numbers read from
 [eval_synthetic_summary.json](docs/eval_synthetic_summary.json), produced by committed code.
 
-**BRESSAY (real Brazilian-Portuguese handwriting, 20 word crops, frozen manifest):**
+**BRESSAY (historical, non-blocking PT-BR handwriting diagnostic; 20 word crops):**
 
 | Reader | mean CER |
 |---|---|
 | Tesseract 5 | 1.0 (reads none of it) |
 | qwen2.5vl:3b | 4.30 (hallucinates long insertions — worse than typing nothing) |
+
+These directional numbers do not participate in G1-S or the v1 release gate. The historical
+harness did not authenticate a versioned BRESSAY manifest, effective OCR runtime/language pack,
+or a predeclared CER tolerance.
 
 **Real curated sheets (human-verified ground truth, paired per field):** on the 2 real
 sheets with archived sources, the VLM reads **6 of 7 paired fields the Tesseract baseline
