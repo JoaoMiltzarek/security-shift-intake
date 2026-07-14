@@ -304,6 +304,124 @@ def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
     ) == ["n_sheets_ran=44 (exigido n_sheets=45)"]
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="o gate ainda não valida a identidade do runtime",
+)
+def test_release_runtime_attestation_fails_closed() -> None:
+    attested = {
+        "reader": "local_ocr",
+        "python_version": "3.11.15",
+        "python_version_expected": "3.11.15",
+        "uv_lock_sha256": "a" * 64,
+        "tesseract_version": "5.4.0",
+        "tesseract_language": "por",
+        "runtime_attested": True,
+    }
+    assert ev._runtime_attestation_failures(attested) == []
+
+    assert ev._runtime_attestation_failures({**attested, "reader": "mock"})
+    assert ev._runtime_attestation_failures(
+        {**attested, "python_version": "3.11.14"}
+    )
+    assert ev._runtime_attestation_failures({**attested, "uv_lock_sha256": "invalid"})
+    assert ev._runtime_attestation_failures(
+        {**attested, "tesseract_version": "unavailable"}
+    )
+    assert ev._runtime_attestation_failures(
+        {**attested, "tesseract_language": "eng"}
+    )
+    assert ev._runtime_attestation_failures({**attested, "runtime_attested": False})
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a CLI de release ainda aceita o leitor mockado",
+)
+def test_release_gate_rejects_mock_before_reader_factory(
+    smoke_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def forbidden_reader(_name: str) -> object:
+        raise AssertionError("mock must be rejected before reader construction")
+
+    monkeypatch.setattr(ev, "get_vision_client", forbidden_reader)
+    out = tmp_path / "mock-release"
+    rc = ev.main(
+        [
+            "--dir",
+            str(smoke_dir),
+            "--dataset",
+            "bench-balanced",
+            "--vision",
+            "mock",
+            "--output-dir",
+            str(out),
+            "--require-safety-gates",
+        ]
+    )
+
+    assert rc == 1
+    assert "local_ocr" in capsys.readouterr().err
+    assert not out.exists()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o gate ainda processa folhas antes de validar o runtime",
+)
+def test_release_gate_rejects_incomplete_runtime_before_evaluation(
+    smoke_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    verified = SimpleNamespace(
+        sheets=({"document_id": "tc-000001"},),
+        manifest_sha256="a" * 64,
+        meta=SimpleNamespace(
+            dataset="bench-balanced",
+            version="tier_c/v1",
+            manifest_schema="tier_c-manifest/v2",
+            counts={"train": 0, "val": 1, "test": 0},
+        ),
+    )
+
+    class EnglishOnlyOCR:
+        def runtime_metadata(self) -> dict[str, str]:
+            return {
+                "tesseract_version": "5.4.0",
+                "tesseract_language": "eng",
+            }
+
+    def forbidden_evaluation(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("sheets must not run under an unattested runtime")
+
+    monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
+    monkeypatch.setattr(ev, "get_vision_client", lambda _name: EnglishOnlyOCR())
+    monkeypatch.setattr(ev, "evaluate_sheet", forbidden_evaluation)
+    out = tmp_path / "unattested"
+    rc = ev.main(
+        [
+            "--dir",
+            str(smoke_dir),
+            "--dataset",
+            "bench-balanced",
+            "--vision",
+            "local_ocr",
+            "--output-dir",
+            str(out),
+            "--require-safety-gates",
+        ]
+    )
+
+    assert rc == 1
+    assert "tesseract_language" in capsys.readouterr().err
+    assert not out.exists()
+
+
 def test_require_safety_gates_rejects_noncanonical_smoke_before_reader(
     smoke_dir: Path,
     tmp_path: Path,
