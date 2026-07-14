@@ -21,7 +21,7 @@ env:
 
 jobs:
   quality:
-    name: lint - typecheck - test
+    name: format - lint - typecheck - test
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -57,6 +57,9 @@ jobs:
           if [ "$status" -ge 2 ]; then
             exit "$status"
           fi
+
+      - name: Format check (ruff)
+        run: make format-check
 
       - name: Lint (ruff)
         run: make lint
