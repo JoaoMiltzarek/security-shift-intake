@@ -144,8 +144,11 @@ jobs:
       - name: Sync dependencies (from uv.lock)
         run: uv sync --locked
 
-      - name: Generate frozen synthetic safety dataset
-        run: make gen-sheets DATASET=bench-balanced
+      - name: Verify the release manifest freeze is versioned
+        run: test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl
+
+      - name: Generate canonical synthetic safety dataset
+        run: make gen-safety-sheets
 
       - name: Run committed showcase fixture through real Tesseract
         env:
