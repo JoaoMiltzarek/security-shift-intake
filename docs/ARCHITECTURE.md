@@ -62,8 +62,10 @@ numeric signal alone, drives the human gate.
   mode — no auto-classification, no operational draft — routing to manual transcription.
 - **Never guess.** Low-confidence/ambiguous values go to the human (`must_review`); they are
   never silently trusted.
-- **Human gate.** A draft cannot be **approved** while any field is pending, and email is never
-  sent without explicit approval — enforced in [src/api/gate.py](../src/api/gate.py).
+- **Human gate.** A draft cannot be **approved** while any field is pending. The v1 has no external
+  delivery adapter: its `MockSender` records a terminal simulation only, after explicit approval,
+  and the audit/UI identify that mode without claiming receipt — enforced in
+  [src/api/gate.py](../src/api/gate.py).
 - **Config-driven.** Fields, taxonomy, routing live in YAML
   ([configs/](../configs/)); a new sheet type = a new config, not new code.
 
