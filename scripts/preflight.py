@@ -212,8 +212,42 @@ def precommit_hook_active(root: Path) -> bool:
         return False
 
 
-def venv_ok(root: Path) -> bool:
-    return (root / ".venv" / "pyvenv.cfg").is_file()
+def probe_venv(root: Path) -> dict[str, Any]:
+    """Verify that the repository venv runs the exact declared Python patch."""
+    try:
+        expected = (root / ".python-version").read_text(encoding="utf-8").strip()
+    except OSError:
+        expected = None
+    relative = Path("Scripts/python.exe") if os.name == "nt" else Path("bin/python")
+    executable = root / ".venv" / relative
+    if not executable.is_file():
+        return {
+            "ok": False,
+            "executable": str(executable),
+            "version": None,
+            "expected_version": expected,
+        }
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    try:
+        result = subprocess.run(
+            [str(executable), "-c", "import platform; print(platform.python_version())"],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        version = None
+    else:
+        version = result.stdout.strip() if result.returncode == 0 else None
+    return {
+        "ok": bool(expected and version == expected),
+        "executable": str(executable),
+        "version": version,
+        "expected_version": expected,
+    }
 
 
 def collect_test_baseline(root: Path) -> int | None:
@@ -237,6 +271,7 @@ def build_report(start: Path, with_test_baseline: bool = False) -> dict[str, Any
     tracked = git_tracked(base)
     branch = git_branch(base)
     expected = os.environ.get(_EXPECTED_BRANCH_ENV)
+    venv = probe_venv(base)
     return {
         "repo_root": str(root) if root else None,
         "branch": branch,
@@ -244,7 +279,8 @@ def build_report(start: Path, with_test_baseline: bool = False) -> dict[str, Any
         "expected_branch": expected,
         "dirty_tree": git_dirty(base),
         "tools": probe_tools(),
-        "venv_ok": venv_ok(base),
+        "venv_ok": venv["ok"],
+        "venv": venv,
         "test_baseline": collect_test_baseline(base) if with_test_baseline else None,
         "dbs": scan_dbs(base, tracked),
         "symlink_support": symlink_support(),
@@ -267,10 +303,19 @@ def evaluate(report: dict[str, Any]) -> tuple[int, list[str]]:
     if not report.get("repo_root"):
         bump(SEVERITY_BLOCKER, "run preflight inside the git repository")
     tools = report["tools"]
+    if not tools.get("uv"):
+        bump(SEVERITY_BLOCKER, "install uv to reproduce the locked environment")
     if not tools.get("python"):
         bump(SEVERITY_BLOCKER, "install python3")
     if not tools.get("make"):
         bump(SEVERITY_BLOCKER, "install make (Linux/WSL); Windows native is a documented fallback")
+    if report.get("venv_ok") is not True:
+        venv = report.get("venv") or {}
+        expected_version = venv.get("expected_version") or "declared in .python-version"
+        bump(
+            SEVERITY_BLOCKER,
+            f"recreate .venv with exact Python {expected_version} via `uv sync --locked`",
+        )
     if report.get("branch_ok") is False and not report["dirty_tree"]["clean"]:
         bump(SEVERITY_BLOCKER, "wrong branch with a dirty tree — switch branch or commit/stash")
 
@@ -284,6 +329,8 @@ def evaluate(report: dict[str, Any]) -> tuple[int, list[str]]:
 
     if not report["tesseract"]["present"]:
         bump(SEVERITY_WARN, "install tesseract-ocr (+por +eng); OCR path else skips")
+    elif "por" not in report["tesseract"].get("langs", []):
+        bump(SEVERITY_WARN, "install the Tesseract 'por' language pack for release evaluation")
     if not report["browser"]["chromium_present"]:
         bump(SEVERITY_WARN, "install Playwright Chromium for browser-smoke (CI is authoritative)")
     if not report["precommit_hook_active"]:

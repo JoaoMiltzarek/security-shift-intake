@@ -10,8 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from scripts.preflight import classify_db, evaluate, scan_dbs
 
 
@@ -25,10 +23,16 @@ def _clean_report(**over: Any) -> dict[str, Any]:
         "dirty_tree": {"clean": True, "untracked": [], "modified": [], "dangerous": []},
         "tools": {"uv": "/uv", "python": "/py", "make": "/make"},
         "venv_ok": True,
+        "venv": {
+            "ok": True,
+            "executable": "/repo/.venv/bin/python",
+            "version": "3.11.15",
+            "expected_version": "3.11.15",
+        },
         "test_baseline": None,
         "dbs": [],
         "symlink_support": True,
-        "tesseract": {"present": True, "langs": ["eng"]},
+        "tesseract": {"present": True, "langs": ["eng", "por"]},
         "browser": {"chromium_present": True, "path": "/x"},
         "precommit_hook_active": True,
     }
@@ -92,7 +96,6 @@ def test_missing_make_blocks() -> None:
     assert severity == 2
 
 
-@pytest.mark.xfail(strict=True, reason="o preflight ainda ignora uv ausente")
 def test_missing_uv_blocks() -> None:
     severity, actions = evaluate(
         _clean_report(tools={"uv": None, "python": "/py", "make": "/make"})
@@ -102,7 +105,6 @@ def test_missing_uv_blocks() -> None:
     assert any("uv" in action for action in actions)
 
 
-@pytest.mark.xfail(strict=True, reason="o preflight ainda ignora a venv inválida")
 def test_invalid_venv_blocks() -> None:
     severity, actions = evaluate(_clean_report(venv_ok=False))
 
@@ -110,7 +112,6 @@ def test_invalid_venv_blocks() -> None:
     assert any("3.11.15" in action for action in actions)
 
 
-@pytest.mark.xfail(strict=True, reason="o preflight ainda aceita OCR sem português")
 def test_missing_portuguese_tesseract_language_warns() -> None:
     severity, actions = evaluate(
         _clean_report(tesseract={"present": True, "langs": ["eng"]})
