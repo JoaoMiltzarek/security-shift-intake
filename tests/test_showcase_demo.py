@@ -367,6 +367,18 @@ def test_ci_job_with_tesseract_runs_showcase_fixture_contract() -> None:
     ) in workflow
 
 
+def test_ci_browser_automation_uses_the_locked_playwright() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    lock = Path("uv.lock").read_text(encoding="utf-8")
+
+    assert "uv run --with playwright" not in workflow
+    assert "uv run --locked playwright install --with-deps chromium" in workflow
+    assert "uv run --locked python scripts/browser_smoke.py" in workflow
+    assert '"playwright>=1.61,<1.62"' in pyproject
+    assert 'name = "playwright"' in lock
+
+
 def test_ci_eval_safety_generates_frozen_dataset_before_gate() -> None:
     """A clean checkout has only ``data/synthetic/.gitkeep``.
 

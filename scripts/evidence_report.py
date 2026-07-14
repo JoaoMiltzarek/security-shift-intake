@@ -111,7 +111,7 @@ def render_report(
         _section("Privacy check", safe_privacy_log, "make privacy-check 2>&1 | tee privacy.log",
                  fenced=True),
         _section("Browser-smoke (cockpit UI gate — CI authoritative)", smoke_log,
-                 "uv run --with playwright python scripts/browser_smoke.py 2>&1 | tee smoke.log",
+                  "uv run --locked python scripts/browser_smoke.py 2>&1 | tee smoke.log",
                  fenced=True),
         _section("Screenshot (real page capture)", screenshot,
                   "produced by scripts/browser_smoke.py step (8)"),

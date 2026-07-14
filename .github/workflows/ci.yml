@@ -158,7 +158,7 @@ jobs:
         run: uv sync --locked
 
       - name: Install Playwright Chromium
-        run: uv run --with playwright playwright install --with-deps chromium
+        run: uv run --locked playwright install --with-deps chromium
 
       - name: Start the cockpit (controle_ocorrencias config)
         run: |
@@ -170,7 +170,7 @@ jobs:
       - name: Browser-smoke (bbox / overlay / save / CSP violations)
         env:
           BROWSER_SMOKE_SCREENSHOT: /tmp/browser_smoke.png
-        run: uv run --with playwright python scripts/browser_smoke.py
+        run: uv run --locked python scripts/browser_smoke.py
 
       - name: Upload cockpit screenshot (real page capture)
         if: always()
