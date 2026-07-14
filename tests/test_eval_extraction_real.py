@@ -434,6 +434,33 @@ def test_public_report_replaces_untrusted_exception_text_with_safe_code() -> Non
     assert public["per_sheet"][0]["reason"] == "unavailable"
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="metadados públicos ainda são copiados por expansão do dict privado",
+)
+def test_public_report_whitelists_run_metadata() -> None:
+    public = build_public_run(
+        {
+            "reader": "local_ocr",
+            "model": "tesseract",
+            "dpi": 150,
+            "python_version": "3.11.15",
+            "uv_lock_sha256": "a" * 64,
+            "tesseract_version": "5.4.0",
+            "tesseract_language": "por",
+            "runtime_attested": True,
+            "secret_path": "C:/private/real-sheet.png",
+            "api_token": "must-not-leak",
+        },
+        [],
+    )
+
+    assert public["reader"] == "local_ocr"
+    assert public["runtime_attested"] is True
+    assert "secret_path" not in public
+    assert "api_token" not in public
+
+
 def test_invalid_dpi_rejected() -> None:
     with pytest.raises(SystemExit) as exc:
         main(["--dpi", "0"])
@@ -580,6 +607,27 @@ def test_run_metadata_local_ocr_has_no_prompt_hash() -> None:
     assert meta["model"] == "tesseract"
     assert meta["prompt_sha256"] is None
     assert ":" not in meta["timestamp"]  # compacto p/ não colidir com o gate de PII
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a rodada ainda não atesta Python, lock, versão e idioma do Tesseract",
+)
+def test_run_metadata_attests_exact_local_ocr_runtime() -> None:
+    class AttestedOCR:
+        def runtime_metadata(self) -> dict[str, str]:
+            return {
+                "tesseract_version": "5.4.0",
+                "tesseract_language": "por",
+            }
+
+    meta = run_metadata("local_ocr", 150, vision=AttestedOCR())
+
+    assert meta["python_version"] == "3.11.15"
+    assert len(meta["uv_lock_sha256"]) == 64
+    assert meta["tesseract_version"] == "5.4.0"
+    assert meta["tesseract_language"] == "por"
+    assert meta["runtime_attested"] is True
 
 
 def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(

@@ -21,6 +21,32 @@ def test_client_satisfies_protocol() -> None:
     assert isinstance(LocalOCRVisionClient(), VisionClient)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="o leitor ainda não expõe a identidade efetiva do runtime",
+)
+def test_runtime_metadata_attests_version_and_caches_effective_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    language_calls = 0
+
+    def available_languages(config: str = "") -> list[str]:
+        nonlocal language_calls
+        language_calls += 1
+        return ["eng", "por"]
+
+    monkeypatch.setattr(pytesseract, "get_languages", available_languages)
+    monkeypatch.setattr(pytesseract, "get_tesseract_version", lambda: "5.4.0")
+    client = LocalOCRVisionClient()
+
+    assert client.runtime_metadata() == {
+        "tesseract_version": "5.4.0",
+        "tesseract_language": "por",
+    }
+    assert client._resolve_lang() == "por"
+    assert language_calls == 1
+
+
 # --- line reconstruction (no binary needed) ---
 
 
