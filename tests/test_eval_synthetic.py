@@ -176,6 +176,30 @@ def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> 
     assert eval_after == eval_before  # dataset intocado por esta rodada
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="a execução exploratória ainda sobrescreve o resumo histórico em docs/",
+)
+def test_default_run_never_writes_inside_public_docs(
+    smoke_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Uma rodada exploratória só pode publicar no diretório local do dataset.
+
+    Publicar evidência versionada é uma operação separada, validada e write-once.
+    """
+    original_write_text = Path.write_text
+    public_docs = (ev.REPO_ROOT / "docs").resolve()
+
+    def guarded_write_text(path: Path, *args: object, **kwargs: object) -> int:
+        assert not path.resolve().is_relative_to(public_docs)
+        return original_write_text(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "write_text", guarded_write_text)
+
+    assert ev.main(["--dir", str(smoke_dir)]) == 0
+    assert (smoke_dir / "eval" / "eval_synthetic_summary.json").exists()
+
+
 def test_safety_formulas_from_per_sheet_flags() -> None:
     """Preserva diagnósticos F-01 e mede recall pelos gates operacionais reais."""
     fake = [
