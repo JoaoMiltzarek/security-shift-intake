@@ -30,6 +30,7 @@ def test_build_writes_expected_files(tmp_path: Path) -> None:
     assert len(list((out / "gt").glob("*.json"))) == 8
     assert sum(meta.counts.values()) == 8
     assert meta.version == "tier_c/v1"
+    assert meta.manifest_schema == "tier_c-manifest/v2"
     assert meta.heldout_bands == {"train": "lower80", "val": "lower80", "test": "upper20"}
     saved = json.loads((out / "meta.json").read_text(encoding="utf-8"))
     assert saved["heldout_vocab_seed"] == meta.heldout_vocab_seed
@@ -37,7 +38,16 @@ def test_build_writes_expected_files(tmp_path: Path) -> None:
         rows = _load_jsonl(out / "manifests" / f"{split}.jsonl")
         assert len(rows) == meta.counts[split]
         for row in rows:
-            assert set(row) == {"doc_id", "split", "pdf", "gt", "sha256_img", "sha256_gt"}
+            assert set(row) == {
+                "doc_id",
+                "split",
+                "image",
+                "gt",
+                "sha256_img",
+                "sha256_gt",
+            }
+            assert row["image"] == f"pngs/{row['doc_id']}.png"
+            assert row["gt"] == f"gt/{row['doc_id']}.json"
 
 
 def test_regeneration_reproduces_hashes(tmp_path: Path) -> None:
@@ -49,9 +59,7 @@ def test_regeneration_reproduces_hashes(tmp_path: Path) -> None:
     for split in ("train", "val", "test"):
         rows_a = _load_jsonl(a / "manifests" / f"{split}.jsonl")
         rows_b = _load_jsonl(b / "manifests" / f"{split}.jsonl")
-        assert [(r["doc_id"], r["sha256_img"], r["sha256_gt"]) for r in rows_a] == [
-            (r["doc_id"], r["sha256_img"], r["sha256_gt"]) for r in rows_b
-        ]
+        assert rows_a == rows_b
 
 
 def test_gt_shape_and_semantics(tmp_path: Path) -> None:
@@ -90,14 +98,14 @@ def test_heldout_end_to_end(tmp_path: Path) -> None:
     assert test_rows, "n=40 precisa produzir docs de test (70/15/15)"
     for split in ("train", "val"):
         for row in _load_jsonl(out / "manifests" / f"{split}.jsonl"):
-            gt = json.loads(Path(str(row["gt"])).read_text(encoding="utf-8"))
+            gt = json.loads((out / str(row["gt"])).read_text(encoding="utf-8"))
             syn = gt["synthetic"]
             assert syn["template"] != "controle_C"
             assert syn["band"] in (None, "lower80")
             assert set(gt["cabecalho"]["vigilantes"]) <= set(train_vocab.guards)
             assert gt["cabecalho"]["unidade"] in train_vocab.unidades
     for row in test_rows:
-        gt = json.loads(Path(str(row["gt"])).read_text(encoding="utf-8"))
+        gt = json.loads((out / str(row["gt"])).read_text(encoding="utf-8"))
         assert gt["synthetic"]["band"] in (None, "upper20")
 
 

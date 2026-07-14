@@ -10,9 +10,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from data.generators.tier_c import CANONICAL_DATASETS, DATASET_VERSION
+from data.generators.tier_c import CANONICAL_DATASETS, DATASET_VERSION, MANIFEST_SCHEMA
 from data.tier_c_contract import (
-    MANIFEST_SCHEMA,
     V2_FROZEN_ROOT,
     TierCContractError,
     TierCManifestEntry,

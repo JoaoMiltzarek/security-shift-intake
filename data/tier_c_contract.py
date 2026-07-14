@@ -28,10 +28,10 @@ from data.generators.tier_c import (
     CANONICAL_DATASETS,
     DATASET_VERSION,
     DEFAULT_SPLIT_SEED,
+    MANIFEST_SCHEMA,
 )
 from src.paths import REPO_ROOT
 
-MANIFEST_SCHEMA = "tier_c-manifest/v2"
 V2_FROZEN_ROOT = REPO_ROOT / "data" / "manifests" / "tier_c_manifest_v2"
 
 _DOC_ID_RE = re.compile(r"tc-\d{6}\Z")
