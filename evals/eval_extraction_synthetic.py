@@ -35,6 +35,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from data.generators.tier_c import CANONICAL_DATASETS
+from data.tier_c_contract import TierCContractError, load_verified_canonical_split
 from evals.eval_extraction_real import (
     CER_FAIL,
     TABLE_CONFIG_PATH,
@@ -48,13 +50,16 @@ from evals.metrics import cer
 from scripts.privacy_check import scan_text_for_pii
 from src.clients.factory import get_vision_client
 from src.clients.table_rules import RuleBasedTableExtractor
+from src.paths import REPO_ROOT
 from src.pipeline.normalize import normalize
 from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
 
-TIER_C_DIR = Path("data/synthetic/tier_c")
-SUMMARY_PATH = Path("docs/eval_synthetic_summary.json")
+TIER_C_DIR = REPO_ROOT / "data" / "synthetic" / "tier_c"
+SUMMARY_PATH = REPO_ROOT / "docs" / "eval_synthetic_summary.json"
 SYNTHETIC_STATUS = {"synthetic_ground_truth"}
+RELEASE_SAFETY_DATASET = "bench-balanced"
+RELEASE_SAFETY_SPLIT = "val"
 
 # Campos de linha por família (contrato §12).
 _PARSER_CEILING_FIELDS = ("item", "acao", "resolvido")
@@ -245,8 +250,7 @@ def _safety_gate_failures(
     complete = reader.get("operational_signal_complete_count")
     if type(n_sheets_ran) is not int or complete != n_sheets_ran:
         failures.append(
-            f"operational_signal_complete_count={complete} "
-            f"(exigido n_sheets_ran={n_sheets_ran})"
+            f"operational_signal_complete_count={complete} (exigido n_sheets_ran={n_sheets_ran})"
         )
     for metric in (
         "false_incident_unreviewed_count",
@@ -288,15 +292,11 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             "structural_failure_count": _sum("structural_failure", sheets),
             "unsafe_clean_count": _sum("unsafe_clean", sheets),
             "false_incident_unreviewed_count": _sum("false_incident_unreviewed", sheets),
-            "operational_signal_complete_count": _sum(
-                "operational_signal_complete", sheets
-            ),
+            "operational_signal_complete_count": _sum("operational_signal_complete", sheets),
             "operational_approvable_count": _sum("operational_approvable", sheets),
             "operational_exportable_count": _sum("operational_exportable", sheets),
             "operational_mismatch_count": _sum("operational_mismatch", sheets),
-            "operationally_blocked_mismatch_count": _sum(
-                "operationally_blocked_mismatch", sheets
-            ),
+            "operationally_blocked_mismatch_count": _sum("operationally_blocked_mismatch", sheets),
             "unsafe_approvable_count": _sum("unsafe_approvable", sheets),
             "unsafe_exportable_count": _sum("unsafe_exportable", sheets),
             # Dos mismatches do contrato completo, a fração bloqueada tanto para
@@ -332,22 +332,17 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
         }
 
     difficulty_labels = sorted(
-        value
-        for value in {s.get("difficulty") for s in ran}
-        if isinstance(value, str) and value
+        value for value in {s.get("difficulty") for s in ran} if isinstance(value, str) and value
     )
     template_labels = sorted(
-        value
-        for value in {s.get("template") for s in ran}
-        if isinstance(value, str) and value
+        value for value in {s.get("template") for s in ran} if isinstance(value, str) and value
     )
     by_difficulty = {
         label: _bucket([s for s in ran if s.get("difficulty") == label])
         for label in difficulty_labels
     }
     by_template = {
-        label: _bucket([s for s in ran if s.get("template") == label])
-        for label in template_labels
+        label: _bucket([s for s in ran if s.get("template") == label]) for label in template_labels
     }
     return {
         "n_sheets": len(per_sheet),
@@ -382,6 +377,12 @@ def main(argv: list[str]) -> int:
         default="val",
         help="default val (anti-tuning §5); test é ato explícito de milestone",
     )
+    parser.add_argument(
+        "--dataset",
+        choices=sorted(CANONICAL_DATASETS),
+        default=None,
+        help="identidade canônica a autenticar; obrigatória no gate de release",
+    )
     parser.add_argument("--dir", type=Path, default=TIER_C_DIR)
     parser.add_argument(
         "--output-dir",
@@ -403,9 +404,35 @@ def main(argv: list[str]) -> int:
         parser.error("--dpi deve ser um inteiro positivo")
     if args.require_safety_gates and args.n != 0:
         parser.error("--require-safety-gates exige o split completo; remova --n")
+    if args.require_safety_gates and (
+        args.dataset != RELEASE_SAFETY_DATASET or args.split != RELEASE_SAFETY_SPLIT
+    ):
+        print(
+            f"EVAL-SAFETY exige dataset={RELEASE_SAFETY_DATASET} split={RELEASE_SAFETY_SPLIT}",
+            file=sys.stderr,
+        )
+        return 1
 
-    gts = load_curadoria(directory=args.dir / "gt", valid_status=SYNTHETIC_STATUS)
-    sheets = [g for g in gts if (g.get("synthetic") or {}).get("split") == args.split]
+    dataset = "unknown"
+    contract_attestation: dict[str, Any] = {}
+    if args.dataset is not None:
+        try:
+            verified = load_verified_canonical_split(args.dir, args.dataset, args.split)
+        except TierCContractError as exc:
+            print(f"CONTRATO TIER C INVÁLIDO: {exc}", file=sys.stderr)
+            return 1
+        sheets = list(verified.sheets)
+        dataset = verified.meta.dataset
+        contract_attestation = {
+            "dataset_version": verified.meta.version,
+            "manifest_schema": verified.meta.manifest_schema,
+            "manifest_sha256": verified.manifest_sha256,
+            "input_artifact": "canonical_png",
+            "expected_split_count": verified.meta.counts[args.split],
+        }
+    else:
+        gts = load_curadoria(directory=args.dir / "gt", valid_status=SYNTHETIC_STATUS)
+        sheets = [g for g in gts if (g.get("synthetic") or {}).get("split") == args.split]
     if args.n > 0:
         sheets = sheets[: args.n]
     if not sheets:
@@ -417,9 +444,8 @@ def main(argv: list[str]) -> int:
         return 1
 
     meta_path = args.dir / "meta.json"
-    dataset = "unknown"
-    # meta corrompido/ilegível não bloqueia o eval; dataset fica "unknown".
-    if meta_path.exists():
+    # O modo exploratório legado continua tolerante; o modo canônico acima falha fechado.
+    if args.dataset is None and meta_path.exists():
         with contextlib.suppress(json.JSONDecodeError, OSError):
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             dataset = meta.get("dataset", "unknown")
@@ -432,6 +458,7 @@ def main(argv: list[str]) -> int:
             **run_metadata(reader=args.vision, dpi=args.dpi),
             "dataset": dataset,
             "split": args.split,
+            **contract_attestation,
         },
         **aggregate(per_sheet),
     }

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from data.generators.tier_c import build_tier_c
+from data.tier_c_contract import TierCContractError
 from evals import eval_extraction_real as real_ev
 from evals import eval_extraction_synthetic as ev
 from evals.eval_extraction_real import TABLE_CONFIG_PATH, load_curadoria
@@ -188,9 +190,7 @@ def test_safety_rejects_disconnected_operational_gates_even_when_old_proxy_is_sa
     approval/export guards are disconnected, the release gate must still fail."""
     cur = next(
         sheet
-        for sheet in load_curadoria(
-            smoke_dir / "gt", valid_status={"synthetic_ground_truth"}
-        )
+        for sheet in load_curadoria(smoke_dir / "gt", valid_status={"synthetic_ground_truth"})
         if sheet.get("ocorrencias")
     )
     config = load_config(TABLE_CONFIG_PATH)
@@ -264,9 +264,7 @@ def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
         "safe_review_recall": 1.0,
     }
 
-    assert ev._safety_gate_failures(
-        safe_reader, n_sheets=45, n_sheets_ran=45
-    ) == []
+    assert ev._safety_gate_failures(safe_reader, n_sheets=45, n_sheets_ran=45) == []
     assert ev._safety_gate_failures(
         {**safe_reader, "operational_signal_complete_count": 0},
         n_sheets=45,
@@ -279,17 +277,68 @@ def test_safety_gate_requires_all_expected_sheets_to_run() -> None:
     ) == ["n_sheets_ran=44 (exigido n_sheets=45)"]
 
 
-def test_require_safety_gates_green_on_smoke_mock(smoke_dir: Path, tmp_path: Path) -> None:
-    """Pós-F2 o colapso unknown→none não existe: no smoke com reader mock os gates
-    binários passam (rc 0). Um retrocesso em qualquer gate viraria rc 1 na CI."""
+def test_require_safety_gates_rejects_noncanonical_smoke_before_reader(
+    smoke_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Um smoke descartável nunca pode se apresentar como evidência de release."""
+
+    def forbidden_reader(_name: str) -> object:
+        raise AssertionError("reader must not be constructed for an invalid release request")
+
+    monkeypatch.setattr(ev, "get_vision_client", forbidden_reader)
+    out = tmp_path / "noncanonical"
     rc = ev.main(
         [
-            "--dir", str(smoke_dir),
-            "--output-dir", str(tmp_path / "o"),
+            "--dir",
+            str(smoke_dir),
+            "--dataset",
+            "smoke",
+            "--output-dir",
+            str(out),
             "--require-safety-gates",
         ]
     )
-    assert rc == 0
+
+    assert rc == 1
+    assert "bench-balanced" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_require_safety_gates_fails_before_reader_when_contract_is_invalid(
+    smoke_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Manifest ausente/corrompido não executa reader nem produz resumo parcial."""
+
+    def invalid_contract(*_args: object, **_kwargs: object) -> object:
+        raise TierCContractError("Tier C PNG hash mismatch for synthetic-id")
+
+    def forbidden_reader(_name: str) -> object:
+        raise AssertionError("reader must not be constructed before contract verification")
+
+    monkeypatch.setattr(ev, "load_verified_canonical_split", invalid_contract)
+    monkeypatch.setattr(ev, "get_vision_client", forbidden_reader)
+    out = tmp_path / "invalid-contract"
+    rc = ev.main(
+        [
+            "--dir",
+            str(smoke_dir),
+            "--dataset",
+            "bench-balanced",
+            "--output-dir",
+            str(out),
+            "--require-safety-gates",
+        ]
+    )
+
+    assert rc == 1
+    assert "CONTRATO TIER C INVÁLIDO" in capsys.readouterr().err
+    assert not out.exists()
 
 
 def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
@@ -300,15 +349,32 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
 ) -> None:
     """Prova a ligação main → gate; helper correto mas desconectado não basta."""
 
+    sheets = tuple({"document_id": f"tc-{index:06d}"} for index in range(45))
+    verified = SimpleNamespace(
+        sheets=sheets,
+        manifest_sha256="a" * 64,
+        meta=SimpleNamespace(
+            dataset="bench-balanced",
+            version="tier_c/v1",
+            manifest_schema="tier_c-manifest/v2",
+            counts={"train": 210, "val": 45, "test": 45},
+        ),
+    )
+
     def unavailable_reader(*_args: object, **_kwargs: object) -> dict[str, object]:
         return {"ran": False, "available": False, "reason": "reader unavailable"}
 
+    monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
     monkeypatch.setattr(ev, "evaluate_sheet", unavailable_reader)
     out = tmp_path / "unavailable"
     rc = ev.main(
         [
-            "--dir", str(smoke_dir),
-            "--output-dir", str(out),
+            "--dir",
+            str(smoke_dir),
+            "--dataset",
+            "bench-balanced",
+            "--output-dir",
+            str(out),
             "--require-safety-gates",
         ]
     )
@@ -318,6 +384,9 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
     summary = json.loads((out / "eval_synthetic_summary.json").read_text(encoding="utf-8"))
     assert summary["n_sheets"] > 0
     assert summary["n_sheets_ran"] == 0
+    assert summary["run"]["manifest_schema"] == "tier_c-manifest/v2"
+    assert summary["run"]["manifest_sha256"] == "a" * 64
+    assert summary["run"]["input_artifact"] == "canonical_png"
 
 
 def test_require_safety_gates_rejects_sheet_cap(smoke_dir: Path, tmp_path: Path) -> None:
@@ -325,9 +394,14 @@ def test_require_safety_gates_rejects_sheet_cap(smoke_dir: Path, tmp_path: Path)
     with pytest.raises(SystemExit) as exc_info:
         ev.main(
             [
-                "--dir", str(smoke_dir),
-                "--output-dir", str(tmp_path / "capped"),
-                "--n", "1",
+                "--dir",
+                str(smoke_dir),
+                "--dataset",
+                "bench-balanced",
+                "--output-dir",
+                str(tmp_path / "capped"),
+                "--n",
+                "1",
                 "--require-safety-gates",
             ]
         )
