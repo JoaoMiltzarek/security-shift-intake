@@ -61,7 +61,7 @@ def _run_git(root: Path, *args: str) -> str | None:
         return None
     if out.returncode != 0:
         return None
-    return out.stdout.strip()
+    return out.stdout.rstrip()
 
 
 def repo_root(start: Path) -> Path | None:
