@@ -47,3 +47,21 @@ def test_vlm_remote_base_url_allowed_with_optin(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("INTAKE_VLM_BASE_URL", "http://192.168.0.50:8000/v1")
     monkeypatch.setenv("INTAKE_VLM_ALLOW_REMOTE", "1")
     assert get_vlm_base_url() == "http://192.168.0.50:8000/v1"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file://localhost/tmp/model",
+        "http://user:secret@localhost:11434/v1",
+        "http://localhost:11434/v1?token=secret",
+        "http://localhost:11434/v1#secret",
+    ],
+)
+def test_vlm_base_url_rejects_unsafe_url_components(
+    url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INTAKE_VLM_BASE_URL", url)
+    with pytest.raises(RuntimeError, match="valid HTTP") as exc_info:
+        get_vlm_base_url()
+    assert "secret" not in str(exc_info.value)

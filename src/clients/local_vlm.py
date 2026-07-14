@@ -27,7 +27,7 @@ import math
 from typing import Any, Literal, Protocol, runtime_checkable
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from src.clients.base import TranscriptionResult
 from src.clients.settings import (
@@ -174,12 +174,14 @@ class LocalVLMVisionClient:
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise RuntimeError(
-                f"Could not reach a local VLM server at {self._base_url}. Start one, e.g.:\n"
+                "Could not reach the configured local VLM server. Start one, e.g.:\n"
                 "  ollama serve   &&   ollama pull qwen2.5vl:3b\n"
-                "or point INTAKE_VLM_BASE_URL at your vLLM/LM Studio endpoint. "
-                f"(underlying error: {exc})"
+                "or configure a validated INTAKE_VLM_BASE_URL."
             ) from exc
-        data: dict[str, Any] = response.json()
+        try:
+            data: dict[str, Any] = response.json()
+        except (TypeError, ValueError):
+            raise RuntimeError("Local VLM returned invalid JSON.") from None
         return data
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
@@ -192,10 +194,17 @@ class LocalVLMVisionClient:
             # confiança (aprimoramento), não requisito — 1 retry sem ele, e o
             # confidence_source registra "placeholder" honestamente. Erros de
             # conexão/timeout propagam direto (retry não ajudaria e dobraria a espera).
-            if not isinstance(exc.__cause__, httpx.HTTPStatusError):
+            cause = exc.__cause__
+            if (
+                not isinstance(cause, httpx.HTTPStatusError)
+                or cause.response.status_code != 500
+            ):
                 raise
             raw = self._transport({k: v for k, v in payload.items() if k != "logprobs"})
-        response = _ChatResponse.model_validate(raw)
+        try:
+            response = _ChatResponse.model_validate(raw)
+        except ValidationError:
+            raise RuntimeError("Local VLM returned an invalid response shape.") from None
         text = _parse_text(response)
         confidence, source = _confidence_from_logprobs(response, self._default_confidence)
         return TranscriptionResult(text=text, confidence=confidence, confidence_source=source)

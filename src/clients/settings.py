@@ -12,6 +12,7 @@ machine — the project's privacy-first invariant.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from urllib.parse import urlparse
 
@@ -56,13 +57,31 @@ def get_max_tokens() -> int:
     return int(raw) if raw else DEFAULT_MAX_TOKENS
 
 
-_LOOPBACK_VLM_HOSTS = {"localhost", "127.0.0.1", "::1"}
-
-
 def validate_vlm_base_url(url: str) -> str:
     """Enforce the local-only guard for env- and constructor-supplied URLs."""
-    host = urlparse(url).hostname or ""
-    if host not in _LOOPBACK_VLM_HOSTS and os.environ.get("INTAKE_VLM_ALLOW_REMOTE") != "1":
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        _ = parsed.port
+    except ValueError:
+        raise RuntimeError("INTAKE_VLM_BASE_URL must be a valid HTTP(S) URL.") from None
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not host
+        or parsed.username is not None
+        or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
+    ):
+        raise RuntimeError("INTAKE_VLM_BASE_URL must be a valid HTTP(S) URL.")
+
+    is_loopback = host.lower() == "localhost"
+    if not is_loopback:
+        try:
+            is_loopback = ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            is_loopback = False
+    if not is_loopback and os.environ.get("INTAKE_VLM_ALLOW_REMOTE") != "1":
         raise RuntimeError(
             f"INTAKE_VLM_BASE_URL aponta para fora de loopback ({host!r}) — as imagens "
             "das folhas (PII) seriam enviadas a outra máquina. Se é intencional, "
