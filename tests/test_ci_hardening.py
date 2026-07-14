@@ -6,6 +6,8 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
 
 def _workflow() -> str:
     return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -109,3 +111,8 @@ def test_ci_allows_preflight_warnings_but_blocks_severity_two() -> None:
     assert "status=${PIPESTATUS[0]}" in workflow
     assert 'if [ "$status" -ge 2 ]; then' in workflow
     assert 'exit "$status"' in workflow
+
+
+@pytest.mark.xfail(strict=True, reason="o job quality ainda não executa format-check")
+def test_ci_blocks_unformatted_python() -> None:
+    assert "make format-check" in _workflow()
