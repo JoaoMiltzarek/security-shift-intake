@@ -434,10 +434,6 @@ def test_public_report_replaces_untrusted_exception_text_with_safe_code() -> Non
     assert public["per_sheet"][0]["reason"] == "unavailable"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="metadados públicos ainda são copiados por expansão do dict privado",
-)
 def test_public_report_whitelists_run_metadata() -> None:
     public = build_public_run(
         {

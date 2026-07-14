@@ -124,6 +124,20 @@ _PUBLIC_SHEET_KEYS = (
     "confidence_source",
     "available",
 )
+_PUBLIC_RUN_META_KEYS = (
+    "reader",
+    "model",
+    "dpi",
+    "prompt_sha256",
+    "git_commit",
+    "timestamp",
+    "python_version",
+    "python_version_expected",
+    "uv_lock_sha256",
+    "tesseract_version",
+    "tesseract_language",
+    "runtime_attested",
+)
 
 
 # --- helpers puros (testáveis sem Tesseract) --------------------------------
@@ -690,8 +704,9 @@ def build_public_run(meta: dict[str, Any], per_sheet: list[dict[str, Any]]) -> d
             rep_den += mr
     n_verified = sum(1 for s in per_sheet if s.get("review_status") == "verified_by_user")
     elapsed = [s["elapsed_sec"] for s in ran if s.get("elapsed_sec") is not None]
+    public_meta = {key: meta.get(key) for key in _PUBLIC_RUN_META_KEYS if key in meta}
     return {
-        **meta,
+        **public_meta,
         "n_sheets": len(per_sheet),
         "n_sheets_ran": len(ran),
         "n_verified_by_user": n_verified,
