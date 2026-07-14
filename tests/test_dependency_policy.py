@@ -5,6 +5,8 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+import pytest
+
 
 def test_runtime_pdf_backend_excludes_pymupdf_and_uses_pdfium() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
@@ -28,3 +30,22 @@ def test_testclient_uses_httpx2_and_blocks_deprecated_fallback() -> None:
     assert any(dependency.startswith("httpx2") for dependency in dev_dependencies)
     assert "httpx2" in locked_names
     assert "error::starlette.exceptions.StarletteDeprecationWarning" in warnings
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a release ainda não possui auditoria bloqueante de vulnerabilidades",
+)
+def test_dependency_audit_is_locked_and_available_through_make() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    dev_dependencies = [dependency.lower() for dependency in pyproject["dependency-groups"]["dev"]]
+    locked_names = {package["name"].lower() for package in lock["package"]}
+
+    assert any(dependency.startswith("pip-audit") for dependency in dev_dependencies)
+    assert "pip-audit" in locked_names
+    assert "audit-deps:" in makefile
+    assert (
+        "uv run --locked pip-audit --local --strict --progress-spinner off" in makefile
+    )
