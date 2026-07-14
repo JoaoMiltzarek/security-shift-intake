@@ -21,10 +21,6 @@ def test_client_satisfies_protocol() -> None:
     assert isinstance(LocalOCRVisionClient(), VisionClient)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o leitor ainda não expõe a identidade efetiva do runtime",
-)
 def test_runtime_metadata_attests_version_and_caches_effective_language(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
