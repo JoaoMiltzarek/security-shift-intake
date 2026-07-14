@@ -251,13 +251,29 @@ def probe_venv(root: Path) -> dict[str, Any]:
 
 
 def collect_test_baseline(root: Path) -> int | None:
-    """Best-effort test count via ``uv run pytest --collect-only``; None if uncollectable."""
+    """Best-effort test count without syncing or writing Python/pytest caches."""
     if not shutil.which("uv"):
         return None
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     try:
         out = subprocess.run(
-            ["uv", "run", "pytest", "--collect-only", "-q"],
-            cwd=root, capture_output=True, text=True, timeout=300,
+            [
+                "uv",
+                "run",
+                "--locked",
+                "--no-sync",
+                "pytest",
+                "--collect-only",
+                "-q",
+                "-p",
+                "no:cacheprovider",
+            ],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
     except (OSError, subprocess.SubprocessError):
         return None

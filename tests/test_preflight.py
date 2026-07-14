@@ -137,10 +137,6 @@ def test_git_output_preserves_leading_porcelain_status(
     assert output == " M scripts/preflight.py"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a coleta de baseline ainda pode sincronizar e escrever caches",
-)
 def test_test_baseline_is_locked_no_sync_and_cache_free(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
