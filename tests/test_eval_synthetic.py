@@ -112,20 +112,47 @@ def test_missing_dataset_exits_1(tmp_path: Path) -> None:
     assert ev.main(["--dir", str(tmp_path)]) == 1
 
 
-# --- recusa correta (unidade): recuperar o irrecuperável NÃO é acerto --------
+# --- recusa segura: não recuperar + sinalizar + bloquear ----------------------
 
 
-def test_refusal_metric_rewards_refusal_not_recovery() -> None:
+def test_refusal_metric_requires_review_signal_and_operational_block() -> None:
     cur = {
         "ocorrencias": [{"descricao": "Portão da doca com sensor falhando."}],
         "synthetic": {"legibility": {"ocorrencias[0].descricao": "illegible"}},
     }
     recovered = NormalizedIncidentModel(
-        occurrences=[NormalizedOccurrence(description="Portão da doca com sensor falhando.")]
+        disposition="present",
+        occurrences=[
+            NormalizedOccurrence(
+                description="Portão da doca com sensor falhando.", needs_review=True
+            )
+        ],
     )
-    refused = NormalizedIncidentModel(occurrences=[NormalizedOccurrence(description="———")])
-    assert ev.refusal_metrics(cur, recovered) == {"illegible_fields": 1, "correct_refusals": 0}
-    assert ev.refusal_metrics(cur, refused) == {"illegible_fields": 1, "correct_refusals": 1}
+    accepted_gibberish = NormalizedIncidentModel(
+        disposition="present",
+        occurrences=[NormalizedOccurrence(description="———", needs_review=False)],
+    )
+    refused = NormalizedIncidentModel(
+        disposition="present",
+        occurrences=[NormalizedOccurrence(description="———", needs_review=True)],
+    )
+
+    assert ev.refusal_metrics(cur, recovered, operational_approvable=False) == {
+        "illegible_fields": 1,
+        "safe_illegible_refusals": 0,
+    }
+    assert ev.refusal_metrics(cur, accepted_gibberish, operational_approvable=False) == {
+        "illegible_fields": 1,
+        "safe_illegible_refusals": 0,
+    }
+    assert ev.refusal_metrics(cur, refused, operational_approvable=True) == {
+        "illegible_fields": 1,
+        "safe_illegible_refusals": 0,
+    }
+    assert ev.refusal_metrics(cur, refused, operational_approvable=False) == {
+        "illegible_fields": 1,
+        "safe_illegible_refusals": 1,
+    }
 
 
 # --- Contratos F7 (SSI-1010): eval-safety — output externo + gates binários ---

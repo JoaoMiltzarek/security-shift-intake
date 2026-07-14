@@ -131,11 +131,17 @@ def row_metrics(cur: dict[str, Any], normalized: NormalizedIncidentModel) -> dic
     return out
 
 
-def refusal_metrics(cur: dict[str, Any], normalized: NormalizedIncidentModel) -> dict[str, int]:
-    """Recusa correta em campo plantado como ilegível (contrato §2.2).
+def refusal_metrics(
+    cur: dict[str, Any],
+    normalized: NormalizedIncidentModel,
+    *,
+    operational_approvable: object,
+) -> dict[str, int]:
+    """Recusa segura de um campo plantado como ilegível.
 
-    Correto = a verdade LIMPA não foi "recuperada" (nenhuma ocorrência normalizada
-    casa com ela por CER) — recuperar o irrecuperável seria premiar alucinação.
+    Não recuperar a verdade limpa é necessário, mas não suficiente. A saída também
+    precisa sinalizar revisão na linha (ou disposição estrutural desconhecida) e o
+    estado executado precisa estar bloqueado para aprovação.
     """
     legibility = (cur.get("synthetic") or {}).get("legibility") or {}
     total = 0
@@ -149,10 +155,16 @@ def refusal_metrics(cur: dict[str, Any], normalized: NormalizedIncidentModel) ->
             continue
         total += 1
         clean = rows[index].get("descricao") or ""
-        recovered = any(_match(clean, o.description) for o in normalized.occurrences)
-        if not recovered:
+        occurrence = normalized.occurrences[index] if index < len(normalized.occurrences) else None
+        recovered = occurrence is not None and _match(clean, occurrence.description)
+        review_signaled = (
+            occurrence.needs_review
+            if occurrence is not None
+            else normalized.disposition == "unknown"
+        )
+        if not recovered and review_signaled and operational_approvable is False:
             ok += 1
-    return {"illegible_fields": total, "correct_refusals": ok}
+    return {"illegible_fields": total, "safe_illegible_refusals": ok}
 
 
 def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> dict[str, Any]:
@@ -209,7 +221,13 @@ def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> d
         occ.needs_review for occ in normalized.occurrences
     )
     result.update(row_metrics(cur, normalized))
-    result.update(refusal_metrics(cur, normalized))
+    result.update(
+        refusal_metrics(
+            cur,
+            normalized,
+            operational_approvable=result.get("operational_approvable"),
+        )
+    )
     if syn.get("surface"):
         result["transcription_cer_vs_surface"] = round(
             cer(_norm(_surface_reference(syn)), _norm(transcription)), 4
@@ -323,8 +341,8 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "descricao_acc": _rate(_sum("descricao_ok", sheets), _sum("descricao_total", sheets)),
             "hora_acc": _rate(_sum("hora_ok", sheets), _sum("hora_total", sheets)),
-            "correct_refusal_rate": _rate(
-                _sum("correct_refusals", sheets), _sum("illegible_fields", sheets)
+            "safe_illegible_refusal_rate": _rate(
+                _sum("safe_illegible_refusals", sheets), _sum("illegible_fields", sheets)
             ),
             "transcription_cer_vs_surface_mean": (
                 round(sum(cers) / len(cers), 4) if cers else None
