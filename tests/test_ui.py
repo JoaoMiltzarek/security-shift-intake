@@ -69,7 +69,7 @@ def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockS
     assert "tech_security, general_support" in text  # recipients
     assert "body text" in text                  # email draft
     assert "MUST REVIEW" in text                # flagged field
-    assert "Approve" in text and "Reject" in text and "Send" in text
+    assert "Approve" in text and "Reject" in text and "Simulate delivery" in text
 
 
 def test_ui_send_blocked_before_approval(
@@ -109,6 +109,9 @@ def test_sent_status_panel_has_no_mutation_controls(
 
     panel = client.get(f"/drafts/{draft_id}/review").text
 
+    assert "simulation completed" in panel
+    assert "no external delivery" in panel
+    assert "(sent " not in panel
     assert f'/ui/drafts/{draft_id}/approve' not in panel
     assert f'/ui/drafts/{draft_id}/reject' not in panel
     assert f'/ui/drafts/{draft_id}/send' not in panel
@@ -180,6 +183,35 @@ def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
             s.commit()
         html = client.get(f"/drafts/{draft_id}/review").text
         assert "reaprove" in html
+
+
+def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
+    from sqlmodel import Session
+
+    from src.api.models import Draft, utcnow
+
+    engine = make_engine("sqlite://")
+    app = create_app(
+        engine=engine,
+        sender=MockSender(),
+        config=_SCALAR_CONFIG,
+        enable_test_state_submission=True,
+    )
+    with TestClient(app) as client:
+        draft_id = _submit(client)
+        with Session(engine) as session:
+            draft = session.get(Draft, draft_id)
+            assert draft is not None
+            draft.sent_at = utcnow()
+            draft.delivery_mode = None
+            session.add(draft)
+            session.commit()
+
+        html = client.get(f"/drafts/{draft_id}/review").text
+
+    assert "legacy terminal state" in html
+    assert "delivery mode not recorded" in html
+    assert "(sent " not in html
 
 
 def test_security_headers_present(client_and_sender: tuple[TestClient, MockSender]) -> None:

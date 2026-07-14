@@ -4,7 +4,13 @@
   <p>
     Status: <span class="badge {{ draft.status }}">{{ draft.status }}</span>
     · Revisão {{ draft.revision }}{% if draft.approved_revision is not none %} · aprovada: rev {{ draft.approved_revision }}{% endif %}
-    {% if draft.sent_at %}<em>(sent {{ draft.sent_at.isoformat() }})</em>{% endif %}
+    {% if draft.sent_at and draft.delivery_mode == 'simulated' %}
+      <em>(simulation completed {{ draft.sent_at.isoformat() }} — no external delivery)</em>
+    {% elif draft.sent_at and draft.delivery_mode == 'external' %}
+      <em>(external adapter completed {{ draft.sent_at.isoformat() }} — receipt not confirmed)</em>
+    {% elif draft.sent_at %}
+      <em>(legacy terminal state {{ draft.sent_at.isoformat() }} — delivery mode not recorded)</em>
+    {% endif %}
   </p>
   {% if draft.status == 'approved' and draft.approved_revision is none %}
   <p><strong>⚠ aprovação anterior ao vínculo por revisão — reaprove antes de enviar.</strong></p>
@@ -17,7 +23,7 @@
     <button hx-post="/ui/drafts/{{ draft.id }}/reject" hx-target="#status-panel"
             hx-swap="outerHTML">Reject</button>
     <button hx-post="/ui/drafts/{{ draft.id }}/send" hx-target="#status-panel"
-            hx-swap="outerHTML">Send</button>
+            hx-swap="outerHTML">{% if active_delivery_mode == 'simulated' %}Simulate delivery{% else %}Dispatch externally{% endif %}</button>
   </div>{% endif %}
 
   <h3>Audit log</h3>

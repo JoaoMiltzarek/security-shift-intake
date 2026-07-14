@@ -683,8 +683,12 @@ def create_app(
         return _render(
             request,
             "_status_panel.html",
-            {"draft": draft, "audit": repository.get_audit(session, draft.id or 0),
-             "message": message},
+            {
+                "draft": draft,
+                "audit": repository.get_audit(session, draft.id or 0),
+                "message": message,
+                "active_delivery_mode": active_sender.delivery_mode,
+            },
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -696,7 +700,11 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
-        ctx: dict[str, Any] = {"draft": draft, "audit": repository.get_audit(session, draft_id)}
+        ctx: dict[str, Any] = {
+            "draft": draft,
+            "audit": repository.get_audit(session, draft_id),
+            "active_delivery_mode": active_sender.delivery_mode,
+        }
         ctx.update(_review_context(draft))
         return _render(request, "review.html", ctx)
 
