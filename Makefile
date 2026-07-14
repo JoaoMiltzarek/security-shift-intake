@@ -36,7 +36,7 @@ override SAFETY_VISION := local_ocr
 # Watch-dir for make watch (override: make watch WATCH_DIR=private/inbox).
 WATCH_DIR ?= private/inbox
 
-.PHONY: help install lint format format-check typecheck test check \
+.PHONY: help install lint format format-check typecheck test check audit-deps \
         validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-transcribe demo-pipeline \
         demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
@@ -50,6 +50,7 @@ help:
 	@echo   make typecheck       - mypy on src/data/scripts/evals
 	@echo   make test            - pytest
 	@echo   make check           - lint + typecheck + test (the M0 DoD)
+	@echo   make audit-deps      - fail on known vulnerabilities in the locked environment
 	@echo   make validate-config - [M1] validate configs against the schema
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
@@ -91,6 +92,9 @@ test:
 
 # Convenience aggregate matching the M0 Definition of Done.
 check: lint typecheck test
+
+audit-deps:
+	uv run --locked pip-audit --local --strict --progress-spinner off
 
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
