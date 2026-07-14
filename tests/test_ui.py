@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import create_app
+from src.api.app import MAX_FORM_VALUE_CHARS, MAX_REQUEST_BODY_BYTES, create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
 from src.schema.loader import load_config
@@ -186,6 +186,43 @@ def test_security_headers_present(client_and_sender: tuple[TestClient, MockSende
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp          # no 'unsafe-inline' for scripts
     assert "frame-ancestors 'none'" in csp
+
+
+def test_edit_rejects_oversized_request_without_mutating_draft(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    before = client.get(f"/drafts/{draft_id}").json()
+
+    response = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        content=b"x" * (MAX_REQUEST_BODY_BYTES + 1),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 413
+    after = client.get(f"/drafts/{draft_id}").json()
+    assert after["state"] == before["state"]
+    assert after["audit"] == before["audit"]
+
+
+def test_edit_rejects_oversized_field_without_mutating_draft(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = _submit(client)
+    before = client.get(f"/drafts/{draft_id}").json()
+
+    response = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={"field__guard_name": "x" * (MAX_FORM_VALUE_CHARS + 1)},
+    )
+
+    assert response.status_code == 422
+    after = client.get(f"/drafts/{draft_id}").json()
+    assert after["state"] == before["state"]
+    assert after["audit"] == before["audit"]
 
 
 def test_edit_rejects_draft_from_a_different_config() -> None:

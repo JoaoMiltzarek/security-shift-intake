@@ -30,6 +30,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src import __version__
 from src.api import repository
@@ -70,6 +71,84 @@ _GUARD_SPLIT = re.compile(r"[;,]| e ")
 _OCC_KEY = re.compile(r"^occ__(\d+)__(item|hora|descricao|acao|resolvido)$")
 _UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _LOCAL_ACTOR = "local_operator"
+MAX_REQUEST_BODY_BYTES = 256 * 1024
+MAX_FORM_FIELDS = 600
+MAX_FORM_VALUE_CHARS = 4_000
+
+
+class RequestBodyLimitMiddleware:
+    """Bound unsafe request bodies even when Content-Length is absent or false."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("method") not in _UNSAFE_HTTP_METHODS:
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        raw_length = headers.get(b"content-length")
+        if raw_length is not None:
+            try:
+                declared_length = int(raw_length)
+            except ValueError:
+                response = Response("Invalid Content-Length.", status_code=400)
+                await response(scope, receive, send)
+                return
+            if declared_length > self.max_bytes:
+                response = Response("Request body too large.", status_code=413)
+                await response(scope, receive, send)
+                return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                response = Response("Request interrupted.", status_code=400)
+                await response(scope, receive, send)
+                return
+            if message["type"] != "http.request":
+                continue
+            body.extend(message.get("body", b""))
+            if len(body) > self.max_bytes:
+                response = Response("Request body too large.", status_code=413)
+                await response(scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
+
+        replayed = False
+
+        async def replay_receive() -> Message:
+            nonlocal replayed
+            if replayed:
+                return {"type": "http.disconnect"}
+            replayed = True
+            return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+        await self.app(scope, replay_receive, send)
+
+
+async def _bounded_review_form(request: Request) -> Any:
+    """Parse the edit form with finite field, upload and per-value budgets."""
+    form = await request.form(
+        max_files=0,
+        max_fields=MAX_FORM_FIELDS,
+        max_part_size=MAX_REQUEST_BODY_BYTES,
+    )
+    items = list(form.multi_items())
+    if len(items) > MAX_FORM_FIELDS:
+        raise HTTPException(status_code=422, detail="Review form has too many fields.")
+    for key, value in items:
+        if (
+            not isinstance(value, str)
+            or len(str(key)) > 128
+            or len(value) > MAX_FORM_VALUE_CHARS
+        ):
+            raise HTTPException(status_code=422, detail="Review form field is too large.")
+    return form
 
 
 def _is_loopback_client(host: str) -> bool:
@@ -437,6 +516,7 @@ def create_app(
         allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"],
         www_redirect=False,
     )
+    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
     app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
@@ -695,7 +775,7 @@ def create_app(
             )
         state = PipelineState.model_validate_json(draft.state_json)
         _assert_config_compatible(state, active_config)
-        form = await request.form()
+        form = await _bounded_review_form(request)
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
