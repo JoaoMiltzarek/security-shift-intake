@@ -38,6 +38,25 @@ def test_transcribe_does_not_mutate_input(sample_pdf: Path) -> None:
     assert state.transcription_confidence is None
 
 
+def test_transcribe_closes_loaded_page_images(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from PIL import Image
+
+    import src.pipeline.transcribe as mod
+
+    image = Image.new("RGB", (10, 10), "white")
+    monkeypatch.setattr(mod, "load_source_images", lambda path, dpi=250: [image])
+
+    transcribe(
+        PipelineState(source_pdf=Path("synthetic.pdf")),
+        MockVisionClient(text="synthetic"),
+    )
+
+    with pytest.raises(ValueError):
+        image.getpixel((0, 0))
+
+
 class _MultiPageFake:
     """Returns a different result per call — to test page aggregation."""
 
