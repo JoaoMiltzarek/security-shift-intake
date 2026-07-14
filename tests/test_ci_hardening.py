@@ -59,3 +59,20 @@ def test_browser_gate_proves_readiness_and_cleans_up_the_server() -> None:
     assert workflow.index('test "$ready" -eq 1') < workflow.index(
         "uv run --locked python scripts/browser_smoke.py"
     )
+
+
+def test_ci_executes_project_tools_only_through_the_locked_environment() -> None:
+    workflow = _workflow()
+
+    unlocked = re.findall(r"\buv run (?!\-\-locked\b)[^\n]*", workflow)
+    assert unlocked == []
+    assert "python3 scripts/preflight.py" not in workflow
+    assert "uv run --locked python scripts/preflight.py" in workflow
+
+
+def test_ci_fails_when_a_declared_release_artifact_is_missing() -> None:
+    workflow = _workflow()
+    uploads = workflow.count("uses: actions/upload-artifact@")
+
+    assert uploads == 4
+    assert workflow.count("if-no-files-found: error") == uploads

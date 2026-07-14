@@ -44,7 +44,7 @@ jobs:
 
       - name: Preflight (non-blocking env probe)
         continue-on-error: true
-        run: python3 scripts/preflight.py --json | tee preflight.json
+        run: uv run --locked python scripts/preflight.py --json | tee preflight.json
 
       - name: Lint (ruff)
         run: make lint
@@ -65,7 +65,7 @@ jobs:
       - name: Evidence report (authoritative collector — uploaded, not committed)
         if: ${{ success() && steps.privacy.outcome == 'success' }}
         run: >
-          uv run python scripts/evidence_report.py
+          uv run --locked python scripts/evidence_report.py
           --preflight preflight.json --pytest-log pytest.log --privacy-log privacy.log
           --authoritative-sha ${{ github.sha }} --out SSI-1002_EVIDENCE.md
 
@@ -75,6 +75,7 @@ jobs:
         with:
           name: ssi-1002-evidence
           path: SSI-1002_EVIDENCE.md
+          if-no-files-found: error
 
   smoke-eval:
     name: smoke-eval (metrics + report)
@@ -102,7 +103,7 @@ jobs:
         run: uv sync --locked
 
       - name: Run eval on a tiny fixture
-        run: PYTHONPATH=. uv run python -m evals.run_eval --classification-n 400 --transcription-n 2
+        run: uv run --locked python -m evals.run_eval --classification-n 400 --transcription-n 2
 
       - name: Show generated report
         run: cat EVAL_REPORT.md
@@ -114,6 +115,7 @@ jobs:
           path: |
             metrics.json
             EVAL_REPORT.md
+          if-no-files-found: error
 
   # SSI-1010: mede a promessa CENTRAL do produto (falha estrutural de parse nunca vira
   # "sem alteração" aceito) com Tesseract real sobre o split val congelado. Gates
@@ -166,6 +168,7 @@ jobs:
         with:
           name: eval-safety-artifacts
           path: /tmp/eval_safety/
+          if-no-files-found: error
 
   browser-smoke:
     name: browser-smoke (cockpit UI gate — BLOCKING)
@@ -219,3 +222,4 @@ jobs:
         with:
           name: cockpit-screenshot
           path: /tmp/browser_smoke.png
+          if-no-files-found: error
