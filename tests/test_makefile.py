@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 
 def test_python_recipes_do_not_depend_on_posix_env_assignment() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
@@ -39,10 +37,6 @@ def test_release_safety_targets_share_one_fixed_dataset_contract() -> None:
     assert '--output-dir "$(OUT)"' in gate.group("body")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o Makefile ainda permite substituir o reader do gate autoritativo",
-)
 def test_release_safety_target_freezes_real_ocr_reader() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
     gate = re.search(r"(?ms)^eval-safety:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)

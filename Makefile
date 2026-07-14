@@ -31,6 +31,7 @@ SPLIT ?= val
 # Release-safety identity is intentionally not overridable from the command line.
 override SAFETY_DATASET := bench-balanced
 override SAFETY_SPLIT := val
+override SAFETY_VISION := local_ocr
 
 # Watch-dir for make watch (override: make watch WATCH_DIR=private/inbox).
 WATCH_DIR ?= private/inbox
@@ -162,7 +163,7 @@ eval-synthetic:
 # the repo's frozen docs/ artifacts (OUT default lives under gitignored private/).
 OUT ?= private/audit/eval_safety
 eval-safety:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(SAFETY_VISION) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates
 
 # Intake Watch — experimental standalone watcher; process-local duplicate suppression.
 # Writes detached text drafts, NEVER sends email. Override: make watch WATCH_DIR=private/inbox.
