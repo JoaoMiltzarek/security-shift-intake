@@ -6,8 +6,6 @@ import re
 import tomllib
 from pathlib import Path
 
-import pytest
-
 
 def _workflow() -> str:
     return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -106,10 +104,6 @@ def test_ci_blocks_known_dependency_vulnerabilities() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CI ainda ignora blockers do preflight junto com warnings",
-)
 def test_ci_allows_preflight_warnings_but_blocks_severity_two() -> None:
     workflow = _workflow()
 

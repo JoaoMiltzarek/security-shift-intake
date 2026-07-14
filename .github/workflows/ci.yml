@@ -48,9 +48,15 @@ jobs:
       - name: Audit locked dependencies
         run: make audit-deps
 
-      - name: Preflight (non-blocking env probe)
-        continue-on-error: true
-        run: uv run --locked python scripts/preflight.py --json | tee preflight.json
+      - name: Preflight (warnings reported, blockers enforced)
+        run: |
+          set +e
+          uv run --locked python scripts/preflight.py --json | tee preflight.json
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ge 2 ]; then
+            exit "$status"
+          fi
 
       - name: Lint (ruff)
         run: make lint
