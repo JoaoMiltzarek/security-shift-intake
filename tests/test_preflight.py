@@ -10,6 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from scripts.preflight import classify_db, evaluate, scan_dbs
 
 
@@ -88,3 +90,31 @@ def test_missing_tesseract_warns() -> None:
 def test_missing_make_blocks() -> None:
     severity, _ = evaluate(_clean_report(tools={"uv": "/uv", "python": "/py", "make": None}))
     assert severity == 2
+
+
+@pytest.mark.xfail(strict=True, reason="o preflight ainda ignora uv ausente")
+def test_missing_uv_blocks() -> None:
+    severity, actions = evaluate(
+        _clean_report(tools={"uv": None, "python": "/py", "make": "/make"})
+    )
+
+    assert severity == 2
+    assert any("uv" in action for action in actions)
+
+
+@pytest.mark.xfail(strict=True, reason="o preflight ainda ignora a venv inválida")
+def test_invalid_venv_blocks() -> None:
+    severity, actions = evaluate(_clean_report(venv_ok=False))
+
+    assert severity == 2
+    assert any("3.11.15" in action for action in actions)
+
+
+@pytest.mark.xfail(strict=True, reason="o preflight ainda aceita OCR sem português")
+def test_missing_portuguese_tesseract_language_warns() -> None:
+    severity, actions = evaluate(
+        _clean_report(tesseract={"present": True, "langs": ["eng"]})
+    )
+
+    assert severity == 1
+    assert any("por" in action for action in actions)
