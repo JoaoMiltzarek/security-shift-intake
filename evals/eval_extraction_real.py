@@ -54,6 +54,7 @@ from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
 from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MODEL
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
+from src.paths import PRIVATE_ROOT, REPO_ROOT
 from src.pipeline.ingest import OCR_DPI
 from src.pipeline.outputs import export_blockers
 from src.schema.config import ReportConfig
@@ -61,12 +62,12 @@ from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
 from src.schema.state import ExtractedField
 
-CURADORIA_DIR = Path("private/curadoria")
-AUDIT_DIR = Path("private/audit")
-CONFIG_PATH = Path("configs/htmicron_security.yaml")  # ANTES (escalar, legado)
-TABLE_CONFIG_PATH = Path("configs/controle_ocorrencias.yaml")  # DEPOIS (tabela)
-REPORT_PATH = Path("docs/AUDITORIA_FOLHAS_REAIS.md")
-SUMMARY_PATH = Path("docs/eval_real_summary.json")
+CURADORIA_DIR = PRIVATE_ROOT / "curadoria"
+AUDIT_DIR = PRIVATE_ROOT / "audit"
+CONFIG_PATH = REPO_ROOT / "configs" / "htmicron_security.yaml"  # ANTES (escalar, legado)
+TABLE_CONFIG_PATH = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"  # DEPOIS (tabela)
+REPORT_PATH = REPO_ROOT / "docs" / "AUDITORIA_FOLHAS_REAIS.md"
+SUMMARY_PATH = REPO_ROOT / "docs" / "eval_real_summary.json"
 
 VALID_REVIEW_STATUS = {"draft_by_claude", "needs_review", "verified_by_user"}
 
@@ -386,7 +387,9 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _git_commit() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, cwd=REPO_ROOT
+        ).strip()
     except Exception:  # noqa: BLE001 — forense best-effort, nunca derruba a rodada
         return "unknown"
 

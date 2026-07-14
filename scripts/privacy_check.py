@@ -31,6 +31,7 @@ from scripts.check_real_data import (
     _is_allowed_sample_binary,
     _is_text_scan_exempt,
 )
+from src.paths import PRIVATE_ROOT, REPO_ROOT
 
 # Directories that never hold committable source and are skipped by the tree scan.
 _SKIP_DIRS = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
@@ -59,7 +60,7 @@ _PUBLIC_CODE_EXT = {".py", ".js", ".html", ".j2", ".json", ".jsonl", ".csv", ".t
 _SYNTHETIC_TREES = ("data", "tests")
 
 # Optional, gitignored file with real terms (names, units) to scan public outputs for.
-_PII_TERMS_FILE = Path(_PRIVATE_DIR) / "pii_terms.txt"
+_PII_TERMS_FILE = PRIVATE_ROOT / "pii_terms.txt"
 
 # Org sentinels — like check_real_data, only flagged where the org name is NOT a
 # legitimate mention (i.e. not in source/docs/config, which are about the org).
@@ -116,7 +117,7 @@ def scan_text_for_pii(
 
 def _tracked_files() -> list[Path]:
     out = subprocess.run(
-        ["git", "ls-files"], capture_output=True, text=True, check=True
+        ["git", "ls-files"], capture_output=True, text=True, check=True, cwd=REPO_ROOT
     ).stdout
     return [Path(p) for p in out.splitlines() if p.strip()]
 
@@ -152,7 +153,7 @@ def _iter_tree(root: Path) -> list[Path]:
     return files
 
 
-def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
+def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
     """(2) No sensitive binary file sits outside private/.
 
     Allowed: synthetic sample images under samples/ and generated synthetic artifacts
@@ -174,7 +175,7 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
     return violations
 
 
-def check_public_no_pii(root: Path = Path(".")) -> list[str]:
+def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
     """(3) No committable public text file contains obvious PII."""
     extra = _load_extra_terms()
     violations: list[str] = []
@@ -208,7 +209,7 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
     return violations
 
 
-def run_all(root: Path = Path(".")) -> list[str]:
+def run_all(root: Path = REPO_ROOT) -> list[str]:
     return (
         check_no_sensitive_tracked()
         + check_no_sensitive_outside_private(root)

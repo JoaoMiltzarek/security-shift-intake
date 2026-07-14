@@ -163,6 +163,31 @@ def test_tracked_source_files_ok(monkeypatch) -> None:  # type: ignore[no-untype
     assert pc.check_no_sensitive_tracked() == []
 
 
+def test_default_privacy_scan_and_private_terms_are_repo_anchored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    observed_roots: list[Path] = []
+    monkeypatch.setattr(pc, "check_no_sensitive_tracked", lambda: [])
+    monkeypatch.setattr(
+        pc,
+        "check_no_sensitive_outside_private",
+        lambda root: observed_roots.append(root) or [],
+    )
+    monkeypatch.setattr(
+        pc,
+        "check_public_no_pii",
+        lambda root: observed_roots.append(root) or [],
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert pc.run_all() == []
+    assert observed_roots == [REPO_ROOT, REPO_ROOT]
+    assert pc._PII_TERMS_FILE == PRIVATE_ROOT / "pii_terms.txt"
+
+
 def test_tracked_showcase_gif_is_allowed_only_at_repo_root(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     import scripts.privacy_check as pc
 

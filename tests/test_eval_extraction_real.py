@@ -420,6 +420,24 @@ def test_real_eval_cli_accepts_paddle_reader(monkeypatch: pytest.MonkeyPatch) ->
     assert selected == ["paddle_ocr"]
 
 
+def test_real_eval_paths_and_git_metadata_do_not_depend_on_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evals.eval_extraction_real as mod
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    monkeypatch.chdir(tmp_path)
+
+    assert mod.CURADORIA_DIR == PRIVATE_ROOT / "curadoria"
+    assert mod.AUDIT_DIR == PRIVATE_ROOT / "audit"
+    assert mod.CONFIG_PATH == REPO_ROOT / "configs" / "htmicron_security.yaml"
+    assert mod.TABLE_CONFIG_PATH == REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
+    assert mod.REPORT_PATH == REPO_ROOT / "docs" / "AUDITORIA_FOLHAS_REAIS.md"
+    assert mod.SUMMARY_PATH == REPO_ROOT / "docs" / "eval_real_summary.json"
+    assert load_config(mod.TABLE_CONFIG_PATH).report_type == "controle_ocorrencias"
+    assert mod._git_commit() != "unknown"
+
+
 # --- comparação pareada + merge do resumo (EVAL_PROTOCOL §2.5/§6) -------------
 
 
