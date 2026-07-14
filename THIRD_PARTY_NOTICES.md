@@ -13,3 +13,17 @@ of the third-party components listed here.
 
 The vendored bytes match the upstream `v2.0.3/dist/htmx.min.js` artifact at the
 recorded hash.
+
+## pypdfium2 5.11.0
+
+- Upstream release: <https://pypi.org/project/pypdfium2/5.11.0/>
+- Runtime role: local PDF rasterization through PDFium
+- License: `Apache-2.0 OR BSD-3-Clause`, plus dependency licenses
+- Locked artifact hashes: recorded in `uv.lock`
+
+The platform wheel includes PDFium and other third-party components. Their
+license texts are shipped by pypdfium2 under
+`pypdfium2-5.11.0.dist-info/licenses`, including the PDFium build-license
+bundle. Any packaged or redistributed build of Security Shift Intake must keep
+that directory and all of its notices intact. This repository does not replace,
+relicense, or grant additional rights to those components.
