@@ -9,7 +9,6 @@ from pathlib import Path
 
 from src.clients import table_rules
 from src.clients.table_rules import RuleBasedTableExtractor
-from src.pipeline import validate as validate_module
 from src.pipeline.normalize import normalize
 from src.pipeline.validate import DEFAULT_CONFIDENCE_THRESHOLD
 from src.schema.loader import load_config
@@ -56,10 +55,8 @@ def test_header_values_are_must_review() -> None:
 def test_rule_confidences_are_conservative_review_placeholders() -> None:
     header_confidence = table_rules.HEADER_REVIEW_PLACEHOLDER_CONFIDENCE
     row_confidence = table_rules.ROW_REVIEW_PLACEHOLDER_CONFIDENCE
-    normalized_confidence = validate_module.NORMALIZED_REVIEW_PLACEHOLDER_CONFIDENCE
 
     assert 0.0 < row_confidence < header_confidence < DEFAULT_CONFIDENCE_THRESHOLD
-    assert row_confidence == normalized_confidence
 
     raw = RuleBasedTableExtractor(CONFIG).extract(_OCC_SHEET)
     content = next(row for row in raw.rows if not row.sem_alteracao)

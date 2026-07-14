@@ -347,29 +347,50 @@ def _edit_table(
                                      status="must_review"))
         must_review.append("ocorrencias")
     else:
+        def add_reviewed_cell(
+            index: int,
+            suffix: str,
+            value: str | None,
+            *,
+            required: bool = False,
+            missing_value: str | None = None,
+        ) -> None:
+            name = f"ocorrencia_{index}_{suffix}"
+            missing_required = required and not value
+            fields.append(
+                ExtractedField(
+                    name=name,
+                    value=missing_value if missing_required else value,
+                    confidence=0.0 if missing_required else 1.0,
+                    must_review=missing_required,
+                    source=None if missing_required else "human",
+                    status="missing" if missing_required else "accepted",
+                    evidence_method=None if missing_required else "human_edit",
+                )
+            )
+            if missing_required:
+                must_review.append(name)
+
         for i, occ in enumerate(norm.occurrences, start=1):
-            obj_blank = occ.category is None
-            fields.append(
-                ExtractedField(name=f"ocorrencia_{i}_objeto",
-                               value=occ.category or "(revisar)",
-                               confidence=0.0 if obj_blank else 1.0, must_review=obj_blank,
-                               source=None if obj_blank else "human",
-                               status="missing" if obj_blank else "accepted",
-                               evidence_method=None if obj_blank else "human_edit")
+            time_value = " ".join(
+                value for value in (occ.entry_time, occ.exit_time) if value
+            ) or None
+            resolved_value = (
+                None if occ.resolved is None else ("sim" if occ.resolved else "nao")
             )
-            if obj_blank:
-                must_review.append(f"ocorrencia_{i}_objeto")
-            desc_blank = occ.description is None
-            fields.append(
-                ExtractedField(name=f"ocorrencia_{i}",
-                               value=occ.description or "(sem descrição)",
-                               confidence=0.0 if desc_blank else 1.0, must_review=desc_blank,
-                               source=None if desc_blank else "human",
-                               status="missing" if desc_blank else "accepted",
-                               evidence_method=None if desc_blank else "human_edit")
+            add_reviewed_cell(
+                i, "objeto", occ.category, required=True, missing_value="(revisar)"
             )
-            if desc_blank:
-                must_review.append(f"ocorrencia_{i}")
+            add_reviewed_cell(i, "hora", time_value)
+            add_reviewed_cell(
+                i,
+                "descricao",
+                occ.description,
+                required=True,
+                missing_value="(sem descrição)",
+            )
+            add_reviewed_cell(i, "acao", occ.action)
+            add_reviewed_cell(i, "resolvido", resolved_value)
 
     updates: dict[str, Any] = {
         "normalized": norm, "extracted_fields": fields, "must_review_fields": must_review,

@@ -94,11 +94,30 @@ def test_header_rule_values_are_must_review() -> None:
 
 def test_occurrence_becomes_flagged_field() -> None:
     state = _run(_OCC)
-    occ = next(f for f in state.extracted_fields if f.name == "ocorrencia_1")
+    occ = next(f for f in state.extracted_fields if f.name == "ocorrencia_1_descricao")
     assert occ.must_review is True
-    assert "ocorrencia_1" in state.must_review_fields
+    assert "ocorrencia_1_descricao" in state.must_review_fields
     assert occ.source == "rule"
     assert occ.status == "must_review"
+
+
+def test_occurrence_exposes_provenance_for_all_five_cells() -> None:
+    state = _run(_OCC)
+    cells = {
+        field.name: field
+        for field in state.extracted_fields
+        if field.name.startswith("ocorrencia_1_")
+    }
+
+    assert set(cells) == {
+        "ocorrencia_1_objeto",
+        "ocorrencia_1_hora",
+        "ocorrencia_1_descricao",
+        "ocorrencia_1_acao",
+        "ocorrencia_1_resolvido",
+    }
+    assert all(cell.source in {"ocr", "rule"} for cell in cells.values())
+    assert all(cell.status in {"missing", "must_review", "accepted"} for cell in cells.values())
 
 
 def test_sa_yields_non_flagged_no_change_field() -> None:

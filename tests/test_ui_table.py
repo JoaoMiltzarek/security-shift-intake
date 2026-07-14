@@ -213,6 +213,43 @@ def test_add_row_with_all_five_columns(client: TestClient) -> None:
     assert added["resolved"] is False
 
 
+def test_human_edit_audits_all_five_occurrence_cells(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Portao",
+        "occ__1__hora": "15:10 16:00",
+        "occ__1__descricao": "Portao lateral aberto sem autorizacao",
+        "occ__1__acao": "Fechado e registrado",
+        "occ__1__resolvido": "nao",
+    }
+
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    state = _state_of(client, draft_id)
+    cells = {
+        field["name"]: field
+        for field in state["extracted_fields"]
+        if field["name"].startswith("ocorrencia_1_")
+    }
+
+    assert set(cells) == {
+        "ocorrencia_1_objeto",
+        "ocorrencia_1_hora",
+        "ocorrencia_1_descricao",
+        "ocorrencia_1_acao",
+        "ocorrencia_1_resolvido",
+    }
+    assert cells["ocorrencia_1_hora"]["value"] == "15:10 16:00"
+    assert cells["ocorrencia_1_resolvido"]["value"] == "nao"
+    for cell in cells.values():
+        assert cell["source"] == "human"
+        assert cell["status"] == "accepted"
+        assert cell["evidence_method"] == "human_edit"
+        assert cell["bbox"] is None
+        assert cell["evidence_text"] is None
+
+
 def test_clearing_rows_with_sa_confirmation_removes_them(client: TestClient) -> None:
     """Limpar todas as linhas + confirmar S/A remove as ocorrências (cardinalidade 0)."""
     draft_id = _submit_table_draft(client)  # nasce com 1 ocorrência
