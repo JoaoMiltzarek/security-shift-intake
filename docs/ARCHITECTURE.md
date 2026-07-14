@@ -70,8 +70,9 @@ numeric signal alone, drives the human gate.
   ([configs/](../configs/)); a new sheet type = a new config, not new code.
 
 ## Stack
-Python 3.11 · Pydantic v2 (typed contracts) · PyMuPDF + Pillow (ingest) · Tesseract/pytesseract
-(local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) · SQLModel + SQLite (drafts,
+Python 3.11.15 · Pydantic v2 (typed contracts) · pypdfium2/PDFium + Pillow (ingest) ·
+Tesseract/pytesseract (local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) ·
+SQLModel + SQLite (drafts,
 audit) · pytest + ruff + mypy(strict) + GitHub Actions. Anthropic Vision is factory-selectable
 only through explicit external opt-in. The Anthropic LLM adapter is not wired into the v1
 executable path; offline fake-SDK tests cover request/response shape, not live integration.
