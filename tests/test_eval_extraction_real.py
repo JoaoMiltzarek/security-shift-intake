@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -329,7 +330,25 @@ def test_eval_marks_vlm_runtime_error_available_false(tmp_path: Path) -> None:
     out = run_sheet(_sheet_with_file(tmp_path), TABLE_CONFIG, vision=_RaisingVision())
     assert out["available"] is False
     assert out["ran"] is False
-    assert "VLM server" in str(out["reason"])
+    assert out["reason"] == "reader_error"
+    assert "VLM server" in str(out["_detail"]["reader_error"])
+
+
+def test_real_mode_rejects_source_outside_private_before_reader(tmp_path: Path) -> None:
+    class ForbiddenVision:
+        def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+            raise AssertionError("source confinement must run before the reader")
+
+    out = run_sheet(
+        _sheet_with_file(tmp_path),
+        TABLE_CONFIG,
+        vision=ForbiddenVision(),
+        require_private_source=True,
+    )
+
+    assert out["available"] is False
+    assert out["ran"] is False
+    assert out["reason"] == "source_outside_private"
 
 
 def test_eval_vlm_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
@@ -393,6 +412,28 @@ def test_public_report_whitelist_drops_pii() -> None:
     assert '"estimated_chars_to_type": 7' in text
 
 
+def test_public_report_replaces_untrusted_exception_text_with_safe_code() -> None:
+    secret = "PERSON-NAME in C:/private/real-sheet.png"
+    public = build_public_run(
+        {"reader": "local_ocr"},
+        [
+            {
+                "document_id": "secret-id",
+                "review_status": "verified_by_user",
+                "ran": False,
+                "available": False,
+                "status": f"reader_error: {secret}",
+                "reason": secret,
+            }
+        ],
+    )
+
+    rendered = json.dumps(public)
+    assert secret not in rendered
+    assert "private/real-sheet" not in rendered
+    assert public["per_sheet"][0]["reason"] == "unavailable"
+
+
 def test_invalid_dpi_rejected() -> None:
     with pytest.raises(SystemExit) as exc:
         main(["--dpi", "0"])
@@ -436,6 +477,35 @@ def test_real_eval_paths_and_git_metadata_do_not_depend_on_cwd(
     assert mod.SUMMARY_PATH == REPO_ROOT / "docs" / "eval_real_summary.json"
     assert load_config(mod.TABLE_CONFIG_PATH).report_type == "controle_ocorrencias"
     assert mod._git_commit() != "unknown"
+
+
+def test_instrumented_real_eval_enforces_private_source_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evals.eval_extraction_real as mod
+
+    captured: list[bool] = []
+
+    def fake_run_sheet(*_args: object, **kwargs: object) -> dict[str, Any]:
+        captured.append(kwargs.get("require_private_source") is True)
+        return {
+            "document_id": "synthetic-id",
+            "review_status": "verified_by_user",
+            "ran": False,
+            "available": False,
+            "status": "pending_file",
+            "reason": "pending_file",
+        }
+
+    monkeypatch.setattr(mod, "load_curadoria", lambda: [_occ_sheet()])
+    monkeypatch.setattr(mod, "load_config", lambda _path: TABLE_CONFIG)
+    monkeypatch.setattr(mod, "get_vision_client", lambda _name: _EmptyVision())
+    monkeypatch.setattr(mod, "run_sheet", fake_run_sheet)
+    monkeypatch.setattr(mod, "AUDIT_DIR", tmp_path / "audit")
+
+    args = SimpleNamespace(n=0, vision="mock", dpi=150, no_report=True)
+    assert mod._instrumented(args) == 0
+    assert captured == [True]
 
 
 # --- comparação pareada + merge do resumo (EVAL_PROTOCOL §2.5/§6) -------------

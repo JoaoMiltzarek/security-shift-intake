@@ -54,7 +54,7 @@ from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
 from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MODEL
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
-from src.paths import PRIVATE_ROOT, REPO_ROOT
+from src.paths import PRIVATE_ROOT, REPO_ROOT, resolve_private_path
 from src.pipeline.ingest import OCR_DPI
 from src.pipeline.outputs import export_blockers
 from src.schema.config import ReportConfig
@@ -99,8 +99,11 @@ ROW_COUNT_TOLERANCE = 0
 # Mínimos de honestidade estatística (EVAL_PROTOCOL §4).
 MIN_VERIFIED_SHEETS = 10
 
-# Motivos de falha publicados são truncados (whitelist §7: sem valores, sem folhas).
-_REASON_MAX_CHARS = 160
+# Detalhe bruto fica somente no artefato privado e tem limite contra exceções enormes.
+_DETAIL_ERROR_MAX_CHARS = 2_000
+_PUBLIC_FAILURE_REASONS = frozenset(
+    {"pending_file", "reader_error", "source_outside_private", "unavailable"}
+)
 
 # Chaves por folha que entram no público — whitelist POR CONSTRUÇÃO (§7): o dict
 # público nasce só destas chaves; nunca é o detalhado com campos removidos.
@@ -469,6 +472,8 @@ def run_sheet(
     config: Any,
     vision: VisionClient | None = None,
     dpi: int = OCR_DPI,
+    *,
+    require_private_source: bool = False,
 ) -> dict[str, Any]:
     """Roda o pipeline numa folha; devolve o resultado detalhado (com PII).
 
@@ -490,7 +495,20 @@ def run_sheet(
         "n_occurrences_captured": 0,
         "ocr_confidence": 0.0,
     }
-    src = Path(str(cur.get("source_file", "")))
+    source_value = str(cur.get("source_file", "")).strip()
+    if not source_value:
+        base["status"] = "pending_file"
+        base["reason"] = "pending_file"
+        return base
+    src = Path(source_value)
+    if require_private_source:
+        candidate = src if src.is_absolute() else REPO_ROOT / src
+        try:
+            src = resolve_private_path(candidate)
+        except (OSError, ValueError):
+            base["status"] = "source_outside_private"
+            base["reason"] = "source_outside_private"
+            return base
     if not src.exists():
         base["status"] = "pending_file"
         base["reason"] = "pending_file"
@@ -500,8 +518,9 @@ def run_sheet(
     try:
         state = run_pipeline(src, reader, RuleBasedLLMClient(config), config, dpi=dpi)
     except RuntimeError as exc:  # leitor indisponível/falha — nunca mata a rodada
-        base["status"] = f"reader_error: {exc}"
-        base["reason"] = str(exc)[:_REASON_MAX_CHARS]
+        base["status"] = "reader_error"
+        base["reason"] = "reader_error"
+        base["_detail"] = {"reader_error": str(exc)[:_DETAIL_ERROR_MAX_CHARS]}
         return base
     elapsed = time.monotonic() - started
 
@@ -594,7 +613,14 @@ def build_public_run(meta: dict[str, Any], per_sheet: list[dict[str, Any]]) -> d
         for key in _PUBLIC_SHEET_KEYS:
             entry[key] = s.get(key)
         if not s.get("available"):
-            entry["reason"] = str(s.get("reason") or s.get("status") or "")[:_REASON_MAX_CHARS]
+            reason = str(s.get("reason") or "")
+            status = str(s.get("status") or "")
+            if reason in _PUBLIC_FAILURE_REASONS:
+                entry["reason"] = reason
+            elif status in _PUBLIC_FAILURE_REASONS:
+                entry["reason"] = status
+            else:
+                entry["reason"] = "unavailable"
         pub_sheets.append(entry)
 
     ran = [s for s in ordered if s.get("ran")]
@@ -893,7 +919,16 @@ def _instrumented(args: argparse.Namespace) -> int:
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_vision_client(args.vision)
     meta = run_metadata(args.vision, args.dpi)
-    per_sheet = [run_sheet(cur, config, vision=vision, dpi=args.dpi) for cur in curadoria]
+    per_sheet = [
+        run_sheet(
+            cur,
+            config,
+            vision=vision,
+            dpi=args.dpi,
+            require_private_source=True,
+        )
+        for cur in curadoria
+    ]
 
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
     detailed_path = AUDIT_DIR / f"eval_real_detailed_{args.vision}_dpi{args.dpi}.json"
