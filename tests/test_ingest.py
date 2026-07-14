@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
-import pymupdf
+import pypdfium2 as pdfium
 import pytest
 from PIL import Image
 
@@ -146,8 +145,8 @@ def test_invalid_dpi_is_rejected_before_opening_source(
     source = tmp_path / "source.pdf"
     source.write_bytes(b"synthetic")
     monkeypatch.setattr(
-        pymupdf,
-        "open",
+        pdfium,
+        "PdfDocument",
         lambda *args: pytest.fail("invalid DPI must fail before PDF parsing"),
     )
     with pytest.raises(IngestLimitError, match="DPI"):
@@ -161,8 +160,8 @@ def test_source_byte_budget_is_checked_before_pdf_parsing(
     source.write_bytes(b"1234")
     monkeypatch.setattr(ingest, "MAX_SOURCE_BYTES", 3)
     monkeypatch.setattr(
-        pymupdf,
-        "open",
+        pdfium,
+        "PdfDocument",
         lambda *args: pytest.fail("oversized input must fail before PDF parsing"),
     )
     with pytest.raises(IngestLimitError, match="byte budget"):
@@ -171,11 +170,12 @@ def test_source_byte_budget_is_checked_before_pdf_parsing(
 
 def test_pdf_page_budget_is_rejected_before_rasterization(tmp_path: Path) -> None:
     source = tmp_path / "too-many-pages.pdf"
-    document = pymupdf.open()
-    for _ in range(MAX_PAGES + 1):
-        document.new_page(width=72, height=72)
-    document.save(source)
-    document.close()
+    pages = [Image.new("RGB", (8, 8), "white") for _ in range(MAX_PAGES + 1)]
+    try:
+        pages[0].save(source, "PDF", resolution=72.0, save_all=True, append_images=pages[1:])
+    finally:
+        for page in pages:
+            page.close()
 
     with pytest.raises(IngestLimitError, match="page budget"):
         rasterize_pdf(source, dpi=72)
@@ -188,13 +188,18 @@ def test_pdf_pixel_budget_is_rejected_before_get_pixmap(
     source.write_bytes(b"synthetic")
 
     class FakePage:
-        rect = SimpleNamespace(width=100_000.0, height=100_000.0)
+        def get_size(self) -> tuple[float, float]:
+            return 100_000.0, 100_000.0
 
-        def get_pixmap(self, **kwargs: Any) -> object:
+        def render(self, **kwargs: Any) -> object:
             pytest.fail("pixel budget must fail before rasterization")
 
+        def close(self) -> None:
+            pass
+
     class FakeDocument:
-        page_count = 1
+        def __len__(self) -> int:
+            return 1
 
         def __getitem__(self, index: int) -> FakePage:
             assert index == 0
@@ -203,7 +208,7 @@ def test_pdf_pixel_budget_is_rejected_before_get_pixmap(
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr(pymupdf, "open", lambda path: FakeDocument())
+    monkeypatch.setattr(pdfium, "PdfDocument", lambda path: FakeDocument())
     with pytest.raises(IngestLimitError, match="pixel budget"):
         rasterize_pdf(source, dpi=300)
 
