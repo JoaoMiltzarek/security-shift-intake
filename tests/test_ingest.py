@@ -8,13 +8,20 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
+import pymupdf
 import pytest
 from PIL import Image
 
 from data.generators.tier_b import build_tier_b
+from src.pipeline import ingest
 from src.pipeline.ingest import (
     DEFAULT_DPI,
+    MAX_DPI,
+    MAX_PAGES,
+    IngestLimitError,
     image_to_base64_png,
     load_source_images,
     rasterize_pdf,
@@ -97,3 +104,83 @@ def test_load_source_images_rejects_unknown_type(tmp_path: Path) -> None:
 def test_load_source_images_missing(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_source_images(tmp_path / "nope.pdf")
+
+
+@pytest.mark.parametrize("dpi", [0, -1, MAX_DPI + 1])
+def test_invalid_dpi_is_rejected_before_opening_source(
+    tmp_path: Path, dpi: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.pdf"
+    source.write_bytes(b"synthetic")
+    monkeypatch.setattr(
+        pymupdf,
+        "open",
+        lambda *args: pytest.fail("invalid DPI must fail before PDF parsing"),
+    )
+    with pytest.raises(IngestLimitError, match="DPI"):
+        rasterize_pdf(source, dpi=dpi)
+
+
+def test_source_byte_budget_is_checked_before_pdf_parsing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "oversized.pdf"
+    source.write_bytes(b"1234")
+    monkeypatch.setattr(ingest, "MAX_SOURCE_BYTES", 3)
+    monkeypatch.setattr(
+        pymupdf,
+        "open",
+        lambda *args: pytest.fail("oversized input must fail before PDF parsing"),
+    )
+    with pytest.raises(IngestLimitError, match="byte budget"):
+        rasterize_pdf(source, dpi=150)
+
+
+def test_pdf_page_budget_is_rejected_before_rasterization(tmp_path: Path) -> None:
+    source = tmp_path / "too-many-pages.pdf"
+    document = pymupdf.open()
+    for _ in range(MAX_PAGES + 1):
+        document.new_page(width=72, height=72)
+    document.save(source)
+    document.close()
+
+    with pytest.raises(IngestLimitError, match="page budget"):
+        rasterize_pdf(source, dpi=72)
+
+
+def test_pdf_pixel_budget_is_rejected_before_get_pixmap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "huge-page.pdf"
+    source.write_bytes(b"synthetic")
+
+    class FakePage:
+        rect = SimpleNamespace(width=100_000.0, height=100_000.0)
+
+        def get_pixmap(self, **kwargs: Any) -> object:
+            pytest.fail("pixel budget must fail before rasterization")
+
+    class FakeDocument:
+        page_count = 1
+
+        def __getitem__(self, index: int) -> FakePage:
+            assert index == 0
+            return FakePage()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(pymupdf, "open", lambda path: FakeDocument())
+    with pytest.raises(IngestLimitError, match="pixel budget"):
+        rasterize_pdf(source, dpi=300)
+
+
+def test_image_pixel_budget_is_checked_before_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "large.png"
+    Image.new("RGB", (11, 10), "white").save(source)
+    monkeypatch.setattr(ingest, "MAX_PIXELS_PER_PAGE", 100)
+
+    with pytest.raises(IngestLimitError, match="pixel budget"):
+        load_source_images(source)
