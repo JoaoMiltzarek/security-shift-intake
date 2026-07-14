@@ -47,6 +47,7 @@ from src.api.models import Draft
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
 from src.clients.base import LLMClient
 from src.clients.local_rules import RuleBasedLLMClient
+from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
 from src.pipeline.draft import draft as draft_stage
 from src.pipeline.normalize import parse_resolved, parse_times
@@ -412,13 +413,14 @@ def _edit_table(
         new_state = route(new_state, config)
     return build_outputs(new_state, config)
 
-_templates = Jinja2Templates(directory="ui/templates")
-_DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
+_templates = Jinja2Templates(directory=REPO_ROOT / "ui" / "templates")
+_DEFAULT_CONFIG = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
 
 
 def _default_config_path() -> Path:
     """Config the app serves; overridable via INTAKE_CONFIG (e.g. controle_ocorrencias)."""
-    return Path(os.environ.get("INTAKE_CONFIG", str(_DEFAULT_CONFIG)))
+    configured = Path(os.environ.get("INTAKE_CONFIG", str(_DEFAULT_CONFIG))).expanduser()
+    return configured if configured.is_absolute() else REPO_ROOT / configured
 
 
 def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLResponse:
@@ -540,7 +542,7 @@ def create_app(
     )
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
-    app.mount("/static", StaticFiles(directory="ui/static"), name="static")
+    app.mount("/static", StaticFiles(directory=REPO_ROOT / "ui" / "static"), name="static")
 
     @app.middleware("http")
     async def _security_headers(
