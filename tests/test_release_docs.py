@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -83,3 +85,19 @@ def test_eval_protocol_documents_runtime_allowlist_and_partial_effort() -> None:
         "partial human-effort proxy",
     )
     assert all(value in protocol for value in required)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o contrato Tier C ainda inventa um gate BRESSAY não implementado",
+)
+def test_bressay_is_consistently_documented_as_nonthresholded() -> None:
+    paths = ("README.md", "docs/EVAL_BRESSAY.md", "docs/DATASET_CONTRACT.md")
+    documents = [_read(path) for path in paths]
+    combined = "\n".join(documents)
+
+    assert all("non-blocking" in document for document in documents)
+    assert "thresholded: false" in documents[1]
+    assert "BRESSAY sem regressão" not in combined
+    assert "BRESSAY ausente ⇒ G1-S = INCOMPLETO" not in combined
+    assert "frozen BRESSAY manifest" not in combined
