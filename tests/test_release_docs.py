@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -27,10 +25,6 @@ def test_core_docs_describe_the_tristate_disposition_contract() -> None:
     assert "or `no_occurrence` for an `S/A` sheet" not in architecture
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o contrato ainda descreve apenas os freezes v1/test históricos",
-)
 def test_dataset_contract_identifies_the_authenticated_release_freeze() -> None:
     contract = _read("docs/DATASET_CONTRACT.md")
 
@@ -44,10 +38,6 @@ def test_dataset_contract_identifies_the_authenticated_release_freeze() -> None:
     assert all(value in contract for value in required)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a decisão do reader omite gates operacionais e atestação do runtime",
-)
 def test_reader_decision_lists_every_executable_release_gate() -> None:
     decision = _read("docs/READER_DECISION.md")
 

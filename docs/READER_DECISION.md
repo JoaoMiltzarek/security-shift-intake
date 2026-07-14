@@ -29,8 +29,17 @@
    “sem alteração” aceita.
 6. **`safe_review_recall=1.0`** — toda falha estrutural deve ser encaminhada para
    revisão.
+7. **`unsafe_approvable=0` e `unsafe_exportable=0`** — nenhuma divergência completa
+   pode atravessar os gates operacionais.
+8. **Cobertura integral:** `operational_signal_complete_count` deve ser igual ao número
+   de folhas executadas, e todas as 45 entradas congeladas devem executar.
+9. **Runtime autenticado antes da primeira folha:** `reader=local_ocr`, Python 3.11.15
+   igual a `.python-version`, `uv_lock_sha256` com 64 hexadecimais, versão exata do
+   Tesseract presente e `tesseract_language=por`. Mock, fallback `eng`, versão ausente
+   ou `runtime_attested=false` reprovam sem gerar evidência parcial.
 
-Esses três invariantes são os gates executáveis de `make eval-safety`. O valor bruto
+Esses invariantes são os gates executáveis de `make eval-safety`. Dataset, split e reader
+são congelados no Makefile (`bench-balanced`, `val`, `local_ocr`). O valor bruto
 de `false_incident_count` continua publicado como ruído e carga de revisão do reader;
 ele não é, sozinho, evidência de uma saída insegura.
 

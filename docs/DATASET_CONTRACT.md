@@ -104,20 +104,27 @@ Com ocorrências: mesmo shape, `sem_alteracao: false`, 1..3 entradas
 ```
 data/synthetic/tier_c/            # gitignored (regenerável por seed)
   pdfs/tc-000000.pdf …            # 1 página por folha
+  pngs/tc-000000.png               # entrada canônica autenticada do eval
   gt/tc-000000.json               # gabarito (§2)
   manifests/{train,val,test}.jsonl
   meta.json
-data/manifests/tier_c_v1_bench_balanced_test.jsonl     # COMMITADO (manifesto congelado)
-data/manifests/tier_c_v1_bench_operational_test.jsonl  # COMMITADO
+data/manifests/tier_c_manifest_v2/
+  bench-balanced.val.jsonl        # COMMITADO: freeze do gate da release
+data/manifests/tier_c_v1_bench_balanced_test.jsonl     # historical test freezes
+data/manifests/tier_c_v1_bench_operational_test.jsonl  # historical test freezes
 assets/fonts/                     # COMMITADO: .ttf OFL + OFL.txt + FONTS.md (registro)
 samples/sample_tc-000000.png …    # COMMITADO: 2–3 amostras (guard estendido, PR-D5)
 ```
 
-- **Versionamento:** imagens/GT nunca no git; commit = código + vocabulários + contrato +
-  samples + manifesto congelado. Qualquer mudança de vocabulário/layout/degradação ⇒
-  bump `tier_c/v2` (em `meta.json` e novo manifesto congelado). Nunca "ajustar hash na mão".
-- **Política de hash (manifesto):** linha JSONL =
-  `{"doc_id", "split", "pdf", "gt", "sha256_img", "sha256_gt"}`.
+- **Dois versionamentos independentes:** o conteúdo gerado permanece `tier_c/v1`; o contrato
+  estrito do manifesto é `tier_c-manifest/v2`. Mudança de vocabulário/layout/degradação exige
+  novo dataset `tier_c/vN`; mudança do envelope/autenticação exige novo manifest schema. Nunca
+  "ajustar hash na mão".
+- **Política de hash (manifest schema v2):** cada linha canônica contém exatamente
+  `{"doc_id", "split", "image", "gt", "sha256_img", "sha256_gt"}`, em que
+  `"image": "pngs/<doc_id>.png"` e `gt` segue `gt/<doc_id>.json`. Campos extras, paths
+  absolutos, `..`, ids fora do padrão, duplicatas e contagens divergentes são recusados antes
+  de construir o reader.
   `sha256_gt` = JSON canônico (chaves ordenadas, `ensure_ascii=False`, separadores fixos);
   `sha256_img` = bytes **PNG** da página degradada — **nunca o PDF** (o writer PDF do
   Pillow embute metadados de criação que quebram reprodutibilidade; o PDF é artefato
@@ -125,16 +132,21 @@ samples/sample_tc-000000.png …    # COMMITADO: 2–3 amostras (guard estendido
 - **Caveat de toolchain (declarado):** os sha256 de imagem valem **sob o ambiente do
   `uv.lock`** (rasterização depende de Pillow/FreeType). O teste de regeneração falha com
   mensagem apontando drift de toolchain; upgrade que mude a rasterização ⇒ bump `tier_c/vN`.
-- **meta.json:** `{"version", "dataset", "seed", "split_seed", "n", "profile", "counts",
-  "heldout_vocab_seed", "heldout_fractions", "heldout_bands", "git_commit"}`.
+- **Freeze autoritativo da release:** `bench-balanced/val`, 45 entradas, em
+  `data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl`; SHA-256 canônico
+  `aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd`. O arquivo é
+  write-once: `scripts.freeze_tier_c_manifest` aceita bytes idênticos e recusa sobrescrita.
+- **meta.json v2:** `{"manifest_schema", "version", "dataset", "seed", "split_seed", "n",
+  "profile", "counts", "heldout_vocab_seed", "heldout_fractions", "heldout_bands",
+  "git_commit"}`; `manifest_schema` deve ser `tier_c-manifest/v2`.
 
 ## 4. Datasets canônicos `tier_c/v1` (fixos)
 
 | Nome | N | seed | profile | split_seed | Papel | Manifesto congelado |
 |---|---|---|---|---|---|---|
 | `smoke` | 50 | 42 | balanced | 0 | G-S1, iteração de dev; descartável | não |
-| `bench-balanced` | 300 | 43 | balanced | 0 | **benchmark oficial** (G-S2, G1-S) | `data/manifests/tier_c_v1_bench_balanced_test.jsonl` |
-| `bench-operational` | 300 | 44 | operational | 0 | prior operacional; FALSE_INCIDENT sob prior real | `data/manifests/tier_c_v1_bench_operational_test.jsonl` |
+| `bench-balanced` | 300 | 43 | balanced | 0 | **benchmark oficial** (G-S2, G1-S; gate atual em val) | `data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl` |
+| `bench-operational` | 300 | 44 | operational | 0 | prior operacional; FALSE_INCIDENT sob prior real | freeze v1/test histórico; não é gate da release atual |
 | `stress` | 1000 | 45 | balanced | 0 | robustez em escala; **só mock/tesseract** | não |
 
 A tabela vive em código (`data/generators/tier_c.py::CANONICAL_DATASETS`) e aqui;
