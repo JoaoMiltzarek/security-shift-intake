@@ -54,6 +54,39 @@ def test_higher_dpi_yields_larger_image(sample_pdf: Path) -> None:
     assert high.height > low.height
 
 
+@pytest.mark.parametrize(
+    ("dpi", "expected_size"),
+    [(72, (72, 36)), (150, (150, 75)), (250, (250, 125)), (300, (300, 150))],
+)
+def test_known_page_size_has_exact_dimensions_at_supported_dpi(
+    tmp_path: Path, dpi: int, expected_size: tuple[int, int]
+) -> None:
+    source = tmp_path / "folha ç segurança.pdf"
+    Image.new("RGB", (72, 36), "white").save(source, "PDF", resolution=72.0)
+
+    image = rasterize_pdf(source, dpi=dpi)[0]
+
+    assert image.size == expected_size
+    assert image.mode == "RGB"
+
+
+def test_multipage_order_and_pixels_survive_document_close(tmp_path: Path) -> None:
+    source = tmp_path / "multi page ç.pdf"
+    red = Image.new("RGB", (60, 40), (240, 10, 10))
+    blue = Image.new("RGB", (60, 40), (10, 10, 240))
+    red.save(source, "PDF", resolution=72.0, save_all=True, append_images=[blue])
+
+    images = rasterize_pdf(source, dpi=72)
+    source.unlink()
+
+    assert len(images) == 2
+    assert all(image.mode == "RGB" for image in images)
+    first = images[0].getpixel((30, 20))
+    second = images[1].getpixel((30, 20))
+    assert first[0] > first[2]
+    assert second[2] > second[0]
+
+
 def test_default_dpi_is_250() -> None:
     assert DEFAULT_DPI == 250
 
