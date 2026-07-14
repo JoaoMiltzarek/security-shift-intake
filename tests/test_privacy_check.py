@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.check_real_data import _ALLOWED_SAMPLE_SHA256, _REPO_ROOT
 from scripts.privacy_check import (
     check_no_sensitive_outside_private,
     check_public_no_pii,
@@ -94,14 +95,22 @@ def test_nested_private_directory_is_not_exempt(tmp_path: Path, prefix: str) -> 
     assert check_no_sensitive_outside_private(tmp_path)
 
 
-def test_sample_image_allowed(tmp_path: Path) -> None:
-    _write(tmp_path / "samples" / "sample_doc-00000.png", "png")
+@pytest.mark.parametrize("relative_path", sorted(_ALLOWED_SAMPLE_SHA256, key=str))
+def test_reviewed_sample_hash_allowed_in_repository_tree(
+    tmp_path: Path, relative_path: Path
+) -> None:
+    destination = tmp_path / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes((_REPO_ROOT / relative_path).read_bytes())
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
-def test_exact_cockpit_demo_gif_allowed(tmp_path: Path) -> None:
-    _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
-    assert check_no_sensitive_outside_private(tmp_path) == []
+@pytest.mark.parametrize("relative_path", sorted(_ALLOWED_SAMPLE_SHA256, key=str))
+def test_allowlisted_sample_path_with_wrong_hash_is_flagged(
+    tmp_path: Path, relative_path: Path
+) -> None:
+    _write(tmp_path / relative_path, "not-the-reviewed-synthetic-asset")
+    assert check_no_sensitive_outside_private(tmp_path)
 
 
 @pytest.mark.parametrize(

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.check_real_data import check_file
+from scripts.check_real_data import _ALLOWED_SAMPLE_SHA256, _REPO_ROOT, check_file
 
 
 def _write(path: Path, content: str) -> Path:
@@ -48,22 +48,18 @@ def test_binary_blocked_even_under_synthetic(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
-def test_sample_png_under_samples_allowed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Synthetic sample images committed under samples/ are allowed.
-    monkeypatch.chdir(tmp_path)
-    f = _write(Path("samples/sample_doc-00000.png"), "fake-png")
-    assert check_file(f) == []
+@pytest.mark.parametrize("relative_path", sorted(_ALLOWED_SAMPLE_SHA256, key=str))
+def test_exact_reviewed_sample_bytes_are_allowed(relative_path: Path) -> None:
+    assert check_file(_REPO_ROOT / relative_path) == []
 
 
-def test_sample_tc_png_under_samples_allowed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("relative_path", sorted(_ALLOWED_SAMPLE_SHA256, key=str))
+def test_allowlisted_sample_path_with_wrong_bytes_is_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relative_path: Path
 ) -> None:
-    # Tier C sample images (PR-D5, docs/DATASET_CONTRACT.md §3) are also allowed.
     monkeypatch.chdir(tmp_path)
-    f = _write(Path("samples/sample_tc-000000.png"), "fake-png")
-    assert check_file(f) == []
+    f = _write(relative_path, "not-the-reviewed-synthetic-asset")
+    assert check_file(f)
 
 
 def test_pdf_under_samples_still_blocked(tmp_path: Path) -> None:
@@ -93,14 +89,6 @@ def test_legacy_cockpit_screenshot_name_is_blocked(
     monkeypatch.chdir(tmp_path)
     f = _write(Path("samples/cockpit_screenshot.png"), "png")
     assert check_file(f)
-
-
-def test_exact_cockpit_demo_gif_under_samples_allowed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    f = _write(Path("samples/cockpit_demo.gif"), "gif")
-    assert check_file(f) == []
 
 
 @pytest.mark.parametrize(

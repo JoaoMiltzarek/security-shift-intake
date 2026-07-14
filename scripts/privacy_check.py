@@ -12,7 +12,7 @@ Three checks, all aborting with exit 1 on any violation:
 The report writers import `scan_text_for_pii` and abort before writing if it returns hits
 — a public artifact is never generated with PII in it (plan R4).
 
-Standalone: `python scripts/privacy_check.py` → exit 0 (clean) or 1 (violations).
+Standalone: `python -m scripts.privacy_check` → exit 0 (clean) or 1 (violations).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from scripts.check_real_data import (
     _DB_EXT,
     _SYNTHETIC_SUBPATH,
     _has_subpath,
-    _is_allowed_sample_image,
+    _is_allowed_sample_binary,
     _is_text_scan_exempt,
 )
 
@@ -132,7 +132,7 @@ def check_no_sensitive_tracked() -> list[str]:
     for path in _tracked_files():
         if _DB_EXT.search(path.name):
             violations.append(f"  tracked database: {path}")
-        if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
+        if _BINARY_EXT.search(path.name) and not _is_allowed_sample_binary(path):
             violations.append(f"  tracked sensitive file: {path}")
     return violations
 
@@ -167,7 +167,9 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
             continue
         if _DB_EXT.search(p.name):
             violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
-        if _BINARY_EXT.search(p.name) and not _is_allowed_sample_image(rel):
+        if _BINARY_EXT.search(p.name) and not _is_allowed_sample_binary(
+            p, repository_relative_path=rel
+        ):
             violations.append(f"  sensitive file outside {_PRIVATE_DIR}/: {rel}")
     return violations
 
