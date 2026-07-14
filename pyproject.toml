@@ -31,6 +31,7 @@ dev = [
     "mypy>=1.11,<2.0",
     "playwright>=1.61,<1.62",
     "types-pyyaml>=6.0,<7.0",
+    "httpx2>=2,<3",
 ]
 
 # This is an application, not a distributable library: uv manages the venv and
