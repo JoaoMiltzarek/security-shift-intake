@@ -36,11 +36,14 @@ jobs:
           enable-cache: true
           version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Preflight (non-blocking env probe)
         continue-on-error: true
@@ -96,11 +99,14 @@ jobs:
           enable-cache: true
           version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Run eval on a tiny fixture
         run: uv run --locked python -m evals.run_eval --classification-n 400 --transcription-n 2
@@ -140,11 +146,14 @@ jobs:
           enable-cache: true
           version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Verify the release manifest freeze is versioned
         run: test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl
@@ -186,11 +195,14 @@ jobs:
           enable-cache: true
           version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Install Playwright Chromium
         run: uv run --locked playwright install --with-deps chromium

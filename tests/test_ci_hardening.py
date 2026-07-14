@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 
@@ -31,13 +32,19 @@ def test_ci_jobs_are_bounded_and_use_fixed_runner_image() -> None:
     assert workflow.count("timeout-minutes:") == 4
 
 
-def test_python_metadata_matches_the_only_ci_minor() -> None:
+def test_python_runtime_is_pinned_to_the_security_release_used_by_ci() -> None:
     workflow = _workflow()
-    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
 
-    assert 'requires-python = ">=3.11,<3.12"' in pyproject
-    assert 'python_version = "3.11"' in pyproject
-    assert workflow.count("uv python install 3.11") == 4
+    assert Path(".python-version").read_text(encoding="utf-8").strip() == "3.11.15"
+    assert pyproject["project"]["requires-python"] == ">=3.11.15,<3.12"
+    assert pyproject["tool"]["mypy"]["python_version"] == "3.11"
+    assert ">=3.11.15" in lock["requires-python"]
+    assert "<3.12" in lock["requires-python"]
+    assert workflow.count("uv python install 3.11.15") == 4
+    assert workflow.count("uv sync --locked --python 3.11.15") == 4
+    assert workflow.count("assert sys.version_info[:3] == (3, 11, 15)") == 4
 
 
 def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
