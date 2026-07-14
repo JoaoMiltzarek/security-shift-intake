@@ -257,9 +257,12 @@ def test_load_verified_split_rejects_gt_provenance_even_with_matching_hash(tmp_p
 
 
 def test_default_v2_freezes_are_repo_anchored_and_leave_v1_untouched() -> None:
-    expected = V2_FROZEN_ROOT / "bench-balanced.test.jsonl"
-    assert default_frozen_manifest_path("bench-balanced", "test") == expected
+    expected = V2_FROZEN_ROOT / "bench-balanced.val.jsonl"
+    assert default_frozen_manifest_path("bench-balanced", "val") == expected
     assert expected.is_absolute()
     assert expected.is_relative_to(REPO_ROOT)
+    assert default_frozen_manifest_path("bench-balanced", "test") is None
+    assert default_frozen_manifest_path("bench-operational", "val") is None
+    assert default_frozen_manifest_path("bench-operational", "test") is None
     assert default_frozen_manifest_path("smoke", "val") is None
     assert CANONICAL_DATASETS["bench-balanced"].frozen_manifest != str(expected)

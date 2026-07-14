@@ -46,14 +46,10 @@ _EXPECTED_FRACTIONS = {
     "band_cut": _BAND_CUT,
 }
 
-# Smoke/stress are disposable development datasets.  The two benchmark priors
-# freeze both the tuning split and the one-shot test split under new v2 names;
-# the historical v1 JSONL files remain untouched.
-_DEFAULT_FROZEN_SPLITS = frozenset(
-    (dataset, split)
-    for dataset in ("bench-balanced", "bench-operational")
-    for split in ("val", "test")
-)
+# The v1 release gate is exactly bench-balanced/val.  Historical one-shot test
+# freezes remain under their v1 names and are not silently redefined as v2.
+# Smoke, stress, and the operational prior remain disposable/non-release inputs.
+_DEFAULT_FROZEN_SPLITS = frozenset({("bench-balanced", "val")})
 
 
 class TierCContractError(RuntimeError):
