@@ -194,10 +194,6 @@ def test_default_run_never_writes_inside_public_docs(
     assert (smoke_dir / "eval" / "eval_synthetic_summary.json").exists()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="--output-dir ainda aceita um destino público dentro de docs/",
-)
 def test_output_dir_inside_docs_is_rejected_before_reader_construction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -217,6 +213,23 @@ def test_output_dir_inside_docs_is_rejected_before_reader_construction(
         )
 
     assert exc_info.value.code == 2
+
+
+def test_resolved_output_alias_into_docs_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alias = tmp_path / "public-alias"
+    original_resolve = Path.resolve
+
+    def resolve_alias(path: Path, *args: object, **kwargs: object) -> Path:
+        if path == alias:
+            return ev.REPO_ROOT / "docs" / "aliased-run"
+        return original_resolve(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "resolve", resolve_alias)
+
+    with pytest.raises(ValueError, match="publisher"):
+        ev._resolve_output_dir(alias, tmp_path)
 
 
 def test_safety_formulas_from_per_sheet_flags() -> None:

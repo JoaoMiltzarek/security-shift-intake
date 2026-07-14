@@ -67,6 +67,16 @@ RELEASE_SAFETY_READER = "local_ocr"
 _PARSER_CEILING_FIELDS = ("item", "acao", "resolvido")
 
 
+def _resolve_output_dir(requested: Path | None, dataset_dir: Path) -> Path:
+    """Resolve the run directory while reserving public docs for the publisher."""
+    output_dir = requested if requested is not None else dataset_dir / "eval"
+    resolved = output_dir.expanduser().resolve(strict=False)
+    public_docs = (REPO_ROOT / "docs").resolve(strict=True)
+    if resolved == public_docs or resolved.is_relative_to(public_docs):
+        raise ValueError("--output-dir não pode apontar para docs/; use o publisher")
+    return resolved
+
+
 def _match(truth: str | None, value: str | None) -> bool:
     """Acerto do protocolo §2: ambos não-vazios e cer(_norm) <= CER_FAIL."""
     if not truth or not value:
@@ -442,6 +452,10 @@ def main(argv: list[str]) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    try:
+        output_dir = _resolve_output_dir(args.output_dir, args.dir)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.dpi <= 0:
         parser.error("--dpi deve ser um inteiro positivo")
     if args.require_safety_gates and args.n != 0:
@@ -524,7 +538,7 @@ def main(argv: list[str]) -> int:
 
     # Toda rodada fica em área local/efêmera. Evidência versionada só entra em docs/
     # por um publicador separado, validado e write-once.
-    eval_dir = args.output_dir if args.output_dir is not None else args.dir / "eval"
+    eval_dir = output_dir
     summary_path = eval_dir / "eval_synthetic_summary.json"
     eval_dir.mkdir(parents=True, exist_ok=True)
     detailed_path = eval_dir / f"detailed_{args.vision}_dpi{args.dpi}_{args.split}.json"
