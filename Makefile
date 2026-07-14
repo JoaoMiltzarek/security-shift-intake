@@ -49,7 +49,7 @@ help:
 	@echo   make format-check    - ruff format (check only)
 	@echo   make typecheck       - mypy on src/data/scripts/evals
 	@echo   make test            - pytest
-	@echo   make check           - lint + typecheck + test (the M0 DoD)
+	@echo   make check           - format-check + lint + typecheck + test
 	@echo   make audit-deps      - fail on known vulnerabilities in the locked environment
 	@echo   make validate-config - [M1] validate configs against the schema
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
@@ -91,7 +91,7 @@ test:
 	uv run --locked pytest
 
 # Convenience aggregate matching the M0 Definition of Done.
-check: lint typecheck test
+check: format-check lint typecheck test
 
 audit-deps:
 	uv run --locked pip-audit --local --strict --progress-spinner off

@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 
 def test_python_recipes_do_not_depend_on_posix_env_assignment() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
@@ -49,7 +47,6 @@ def test_release_safety_target_freezes_real_ocr_reader() -> None:
     assert "--vision $(VISION)" not in gate.group("body")
 
 
-@pytest.mark.xfail(strict=True, reason="make check ainda não bloqueia formatação divergente")
 def test_check_includes_format_gate() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
 
