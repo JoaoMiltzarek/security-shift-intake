@@ -266,3 +266,14 @@ def test_default_v2_freezes_are_repo_anchored_and_leave_v1_untouched() -> None:
     assert default_frozen_manifest_path("bench-operational", "test") is None
     assert default_frozen_manifest_path("smoke", "val") is None
     assert CANONICAL_DATASETS["bench-balanced"].frozen_manifest != str(expected)
+
+
+def test_release_v2_freeze_is_versioned_complete_and_content_addressed() -> None:
+    frozen = default_frozen_manifest_path("bench-balanced", "val")
+    assert frozen is not None and frozen.is_file()
+
+    entries = parse_manifest(frozen, expected_split="val")
+    assert len(entries) == 45
+    assert hashlib.sha256(canonical_manifest_bytes(entries)).hexdigest() == (
+        "aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd"
+    )
