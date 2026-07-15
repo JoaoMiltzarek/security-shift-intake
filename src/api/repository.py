@@ -96,6 +96,25 @@ def _stage_revision(session: Session, draft: Draft) -> DraftRevision:
     return revision
 
 
+def _ensure_revision_snapshot(session: Session, draft: Draft) -> DraftRevision:
+    """Create a legacy snapshot once, or verify the existing revision is identical."""
+    assert draft.id is not None
+    existing = session.exec(
+        select(DraftRevision).where(
+            DraftRevision.draft_id == draft.id,
+            DraftRevision.revision == draft.revision,
+        )
+    ).first()
+    digest = state_sha256(draft.state_json)
+    if existing is None:
+        return _stage_revision(session, draft)
+    if existing.state_sha256 != digest or existing.state_json != draft.state_json:
+        raise DraftOperationConflictError(
+            f"Draft {draft.id} revision {draft.revision} conflicts with its preserved snapshot."
+        )
+    return existing
+
+
 def create_draft(session: Session, state: PipelineState, actor: str = "system") -> Draft:
     """Persist a new pending draft from a PipelineState and audit the submission."""
     draft = Draft(status=ApprovalStatus.PENDING, state_json=state.model_dump_json())
@@ -148,6 +167,7 @@ def _set_status_locked(
     try:
         draft.status = status
         if status == ApprovalStatus.APPROVED:
+            _ensure_revision_snapshot(session, draft)
             draft.approved_revision = draft.revision
             draft.approved_state_sha256 = state_sha256(draft.state_json)
             detail = f"rev={draft.revision} sha256={draft.approved_state_sha256[:12]}"
