@@ -385,3 +385,92 @@ def test_catalog_update_refuses_divergent_release_entry_without_mutation(
         publisher.update_catalog(catalog_path, divergent, root=tmp_path)
 
     assert catalog_path.read_bytes() == before
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o modo write ainda não vincula HEAD e worktree ao commit medido",
+)
+def test_write_context_requires_matching_head_and_clean_worktree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = {
+        ("rev-parse", "HEAD"): ("b" * 40 + "\n").encode(),
+        ("status", "--porcelain=v1", "-z", "--untracked-files=all"): b"",
+    }
+    monkeypatch.setattr(publisher, "_git_output", lambda args: responses[tuple(args)])
+
+    with pytest.raises(publisher.EvidenceValidationError, match="HEAD"):
+        publisher.assert_write_context(expected_commit=EXPECTED_COMMIT)
+
+    responses[("rev-parse", "HEAD")] = (EXPECTED_COMMIT + "\n").encode()
+    responses[("status", "--porcelain=v1", "-z", "--untracked-files=all")] = (
+        b" M private/arquivo-nao-expor\0"
+    )
+    with pytest.raises(publisher.EvidenceValidationError, match="worktree") as exc_info:
+        publisher.assert_write_context(expected_commit=EXPECTED_COMMIT)
+    assert "arquivo-nao-expor" not in str(exc_info.value)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o modo write ainda não permite recuperação idempotente controlada",
+)
+def test_write_context_allows_only_pending_release_artifact_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending = f"?? {publisher.RELEASE_EVIDENCE_RELATIVE.as_posix()}\0".encode()
+
+    def git_output(args: list[str]) -> bytes:
+        return (EXPECTED_COMMIT + "\n").encode() if args[0] == "rev-parse" else pending
+
+    monkeypatch.setattr(publisher, "_git_output", git_output)
+
+    publisher.assert_write_context(expected_commit=EXPECTED_COMMIT)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a CLI ainda não liga validação, write-once e catálogo sob --write",
+)
+def test_cli_write_validates_context_then_persists_and_catalogs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "candidate.json"
+    source.write_bytes(valid_release_bytes())
+    calls: list[str] = []
+    monkeypatch.setattr(
+        publisher,
+        "load_and_validate_catalog",
+        lambda *_args, **_kwargs: calls.append("catalog-validated") or {},
+    )
+    monkeypatch.setattr(
+        publisher,
+        "assert_write_context",
+        lambda **_kwargs: calls.append("git-validated"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        publisher,
+        "persist_once",
+        lambda *_args, **_kwargs: calls.append("persisted") or "created",
+    )
+    monkeypatch.setattr(
+        publisher,
+        "update_catalog",
+        lambda *_args, **_kwargs: calls.append("catalog-updated") or "created",
+    )
+
+    assert (
+        publisher.main(
+            [
+                "--source",
+                str(source),
+                "--expected-commit",
+                EXPECTED_COMMIT,
+                "--write",
+            ]
+        )
+        == 0
+    )
+    assert calls == ["catalog-validated", "git-validated", "persisted", "catalog-updated"]
