@@ -127,6 +127,20 @@ def test_load_source_images_jpg(tmp_path: Path) -> None:
     assert len(load_source_images(jpg)) == 1
 
 
+def test_multiframe_image_is_rejected_for_the_single_page_v1_contract(tmp_path: Path) -> None:
+    tiff = tmp_path / "multipage.tiff"
+    first = Image.new("RGB", (30, 30), "white")
+    second = Image.new("RGB", (30, 30), "black")
+    try:
+        first.save(tiff, save_all=True, append_images=[second])
+    finally:
+        first.close()
+        second.close()
+
+    with pytest.raises(IngestLimitError, match="single-page"):
+        load_source_images(tiff)
+
+
 def test_load_source_images_rejects_unknown_type(tmp_path: Path) -> None:
     bad = tmp_path / "notes.txt"
     bad.write_text("hi", encoding="utf-8")
