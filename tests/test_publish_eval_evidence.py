@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 
 import pytest
 
-pytestmark = pytest.mark.xfail(
-    strict=True,
-    reason="o publisher estrito de evidência ainda não foi implementado",
-)
-
-
-def _publisher():  # type: ignore[no-untyped-def]
-    return importlib.import_module("scripts.publish_eval_evidence")
+from scripts import publish_eval_evidence as publisher
 
 
 def test_strict_json_accepts_one_utf8_object() -> None:
-    publisher = _publisher()
     assert publisher.load_strict_json(b'{"schema":"v1","count":1}') == {
         "schema": "v1",
         "count": 1,
@@ -38,13 +29,11 @@ def test_strict_json_accepts_one_utf8_object() -> None:
     ],
 )
 def test_strict_json_rejects_ambiguous_or_non_object_payloads(content: bytes) -> None:
-    publisher = _publisher()
     with pytest.raises(publisher.EvidenceValidationError, match="JSON inválido"):
         publisher.load_strict_json(content)
 
 
 def test_strict_json_rejects_oversized_payload() -> None:
-    publisher = _publisher()
     oversized = json.dumps({"padding": "x" * publisher.MAX_SOURCE_BYTES}).encode()
 
     with pytest.raises(publisher.EvidenceValidationError, match="tamanho máximo"):
@@ -52,7 +41,6 @@ def test_strict_json_rejects_oversized_payload() -> None:
 
 
 def test_strict_json_error_never_echoes_source_content() -> None:
-    publisher = _publisher()
     sensitive_marker = "VALOR_PRIVADO_NAO_ECOAR"
     content = f'{{"duplicate":"{sensitive_marker}","duplicate":2}}'.encode()
 
