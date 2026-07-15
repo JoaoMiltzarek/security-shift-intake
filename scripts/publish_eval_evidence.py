@@ -248,20 +248,34 @@ def _validate_metrics(value: object) -> dict[str, Any]:
         nullable=True,
     )
 
-    mismatch = metrics["operational_mismatch_count"]
-    blocked = metrics["operationally_blocked_mismatch_count"]
+    false_incident = metrics["false_incident_count"]
+    missed_incident = metrics["missed_incident_count"]
+    unknown = metrics["unknown_disposition_count"]
     structural_failure = metrics["structural_failure_count"]
     unsafe_clean = metrics["unsafe_clean_count"]
+    mismatch = metrics["operational_mismatch_count"]
+    blocked = metrics["operationally_blocked_mismatch_count"]
+    unsafe_approvable = metrics["unsafe_approvable_count"]
+    unsafe_exportable = metrics["unsafe_exportable_count"]
+    approvable = metrics["operational_approvable_count"]
+    exportable = metrics["operational_exportable_count"]
+    gate_overlap = blocked + unsafe_approvable + unsafe_exportable - mismatch
+    non_mismatch = n_ran - mismatch
     if (
         metrics["operational_signal_complete_count"] != n_ran
         or blocked > mismatch
-        or metrics["missed_incident_count"] > structural_failure
-        or unsafe_clean != metrics["missed_incident_count"]
-        or metrics["false_incident_unreviewed_count"] > metrics["false_incident_count"]
-        or metrics["unsafe_approvable_count"] > mismatch
-        or metrics["unsafe_approvable_count"] > metrics["operational_approvable_count"]
-        or metrics["unsafe_exportable_count"] > mismatch
-        or metrics["unsafe_exportable_count"] > metrics["operational_exportable_count"]
+        or unsafe_clean != missed_incident
+        or missed_incident > structural_failure
+        or structural_failure - missed_incident > unknown
+        or missed_incident + unknown + false_incident > n_ran
+        or metrics["false_incident_unreviewed_count"] > false_incident
+        or any(
+            count > mismatch
+            for count in (false_incident, missed_incident, unknown, structural_failure)
+        )
+        or not 0 <= gate_overlap <= min(unsafe_approvable, unsafe_exportable)
+        or not 0 <= approvable - unsafe_approvable <= non_mismatch
+        or not 0 <= exportable - unsafe_exportable <= non_mismatch
     ):
         raise EvidenceValidationError("métrica derivada da evidência diverge das contagens")
 
