@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -213,10 +211,6 @@ def test_active_documentation_uses_locked_project_commands() -> None:
     assert "python scripts/preflight.py --json" in documents["README.md"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o README ainda apresenta resultado histórico como evidência atual da v1",
-)
 def test_readme_release_evidence_state_matches_the_catalog() -> None:
     catalog = json.loads(_read("docs/evals/catalog.json"))
     current = [entry for entry in catalog["artifacts"] if entry["status"] == "current_release"]
@@ -229,10 +223,6 @@ def test_readme_release_evidence_state_matches_the_catalog() -> None:
     assert "v1.0.0 milestone re-measurement" not in readme
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o fluxo write-once de promoção do eval ainda não está documentado",
-)
 def test_release_eval_publication_workflow_is_executable_and_fail_closed() -> None:
     guide = _read("docs/EVAL_RELEASE.md")
     required = (
@@ -252,10 +242,6 @@ def test_release_eval_publication_workflow_is_executable_and_fail_closed() -> No
     assert "copy the historical numbers" not in guide.lower()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="os contratos ainda sugerem que o evaluator publica diretamente em docs",
-)
 def test_eval_docs_separate_diagnostic_generation_from_publication() -> None:
     documents = "\n".join(
         _read(path) for path in ("README.md", "docs/EVAL_PROTOCOL.md", "docs/DATASET_CONTRACT.md")

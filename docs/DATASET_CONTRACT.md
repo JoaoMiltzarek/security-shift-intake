@@ -225,9 +225,13 @@ a VRAM. Portanto:
 |---|---|---|
 | **G-S0** contrato gerador↔parser | `ideal_lines → RuleBasedTableExtractor → normalize` ⇒ `parse_table_success = 100%` no clean (3 variantes). Falhou ⇒ bug de render/parser, não de leitor | `test_ideal_transcription_parses_all_variants` (PR-D3) |
 | **G-S1** smoke 50 | pipeline mock roda 50 folhas sem crash; S/A **nunca** vira ocorrência aceita (FALSE_INCIDENT = 0 no mock) | `test_smoke_50_mock_no_false_incident` (PR-D6) + saída real de `make eval-synthetic VISION=mock` |
-| **G-S2** régua de leitor | números Tesseract × VLM por dificuldade × variante; **sem alvo pré-fabricado** — alvo entra aqui só após a 1ª rodada medida (disciplina do SLO, `EVAL_PROTOCOL.md` §5) | `docs/eval_synthetic_summary.json` gerado, nunca digitado |
+| **G-S2** régua de leitor | números Tesseract × VLM por dificuldade × variante; **sem alvo pré-fabricado** — alvo entra aqui só após a 1ª rodada medida (disciplina do SLO, `EVAL_PROTOCOL.md` §5) | saídas diagnósticas locais; resultados históricos e freeze inventariados em `docs/evals/catalog.json` |
 | **G-S3** anti-memorização | held-out em 4 dimensões (§5) + test congelado (sha256) fora do prompt tuning | `test_heldout_vocab_disjoint`, `test_heldout_templates_disjoint` (PR-D2); `test_variant_c_only_in_test`, `test_degrade_bands_disjoint_by_split` (PR-D3/D4); `test_frozen_manifest_matches_regeneration` (PR-D5); default `--split val` (PR-D6) |
 | **G1-S** adoção histórica de leitor (**substituiu o G1 real como régua oficial naquele ciclo**) | no **test do `bench-balanced`**: `parse_table_success_rate ≥ 0.30`; `false_incident_count ≤ 6`; `estimated_chars_to_type ≤ 4000`; `hora_acc ≥ 0.0`. BRESSAY é registrado apenas em `observations_not_thresholded` e não altera o veredito | `scripts/g1s_verdict.py` + `docs/eval_g1s_calibration.json` |
+
+Contract: evaluators never write directly to `docs/`; publication is a separate write-once operation,
+validada pelo procedimento em `docs/EVAL_RELEASE.md` e indexada por hash em
+`docs/evals/catalog.json`.
 
 **Protocolo de calibração do G1-S:** margens/tolerâncias são calibradas rodando em
 `val`, **congeladas neste contrato (via commit)**, e só então avaliadas **UMA vez** em

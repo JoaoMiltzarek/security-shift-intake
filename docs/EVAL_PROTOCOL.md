@@ -166,6 +166,10 @@ publica nem atualiza arquivos em `docs/`. O JSON versionado atual é histórico 
 atestação completa de Python/lock/Tesseract; seus números não comprovam o HEAD atual. O exemplo
 de schema em §7 é **exemplo**, não evidência.
 
+Contract: evaluators never write directly to `docs/`; publication is a separate write-once operation.
+O inventário verificável está em `docs/evals/catalog.json` e a promoção autenticada da v1 em
+`docs/EVAL_RELEASE.md`.
+
 ## 7. Schema público sanitizado (whitelist — nunca subtração)
 
 O JSON público contém **somente**:

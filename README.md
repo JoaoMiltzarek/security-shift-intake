@@ -277,8 +277,13 @@ live cockpit is proven by a **blocking browser-smoke gate** in CI (real Chromium
 
 ## Evaluation results (synthetic benchmark + real-handwriting check)
 
-Every number below is produced by committed code and read from a committed JSON — never
-hand-typed: [eval_g1s_calibration.json](docs/eval_g1s_calibration.json),
+**Authenticated v1 release evidence: PENDING.** The CI candidate for the final code commit must be
+promoted through the [write-once publication procedure](docs/EVAL_RELEASE.md). The
+[artifact catalog](docs/evals/catalog.json) currently contains historical/auxiliary results and
+the authenticated input freeze, but no `current_release` entry. No historical JSON is a substitute for that artifact.
+
+Every historical number below was produced by committed code and read from a committed JSON —
+never hand-typed: [eval_g1s_calibration.json](docs/eval_g1s_calibration.json),
 [eval_synthetic_summary.json](docs/eval_synthetic_summary.json),
 [eval_bressay_baseline.json](docs/eval_bressay_baseline.json). Protocol
 ([DATASET_CONTRACT.md](docs/DATASET_CONTRACT.md) §10): calibrate on `val`, freeze thresholds
@@ -317,10 +322,10 @@ perfect refusal. The current structural gate instead requires `unsafe_clean=0`,
 [scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses to overwrite the recorded
 verdict; project governance, not the evaluator CLI, enforces the one-test-run rule.
 
-**v1.0.0 milestone re-measurement — `bench-balanced` test (45 sheets, 2026-07-13, one
-sanctioned re-run under the tri-state ruler):**
+**Historical tri-state re-measurement — `bench-balanced` test (45 sheets, 2026-07-13,
+pre-runtime-attestation):**
 
-| Metric (test) | Historical (2026-07-08) | v1.0.0 |
+| Metric (test) | Historical (2026-07-08) | Tri-state run (2026-07-13) |
 |---|---|---|
 | parse_table_success_rate | 0.1111 | 0.0222 |
 | false_incident_count | 1 | 1 |
@@ -329,14 +334,16 @@ sanctioned re-run under the tri-state ruler):**
 | unsafe_clean_count / false_incident_unreviewed_count | not measured | **0 / 0** |
 | safe_review_recall | not measured | **1.0** |
 
-The release plan reserved exactly one test re-measurement for this milestone. The tri-state
+The historical plan reserved exactly one test re-measurement for that milestone. The tri-state
 ruler is stricter by design: a sheet whose table region cannot be confirmed is published as
 `unknown` (43/45) and **blocks approval/export/delivery simulation** instead of silently counting
 as a parse — so the headline parse rate drops while nothing gets easier to ship. Reading remains honestly
-weak on the held-out split; the structural safety gates hold on it: zero incidents exit
-clean, zero invented incidents escape review, and every planted incident reaches a reviewer
-(`safe_review_recall=1.0`). Numbers read from
-[eval_synthetic_summary.json](docs/eval_synthetic_summary.json), produced by committed code.
+weak on the held-out split. That run reported zero unsafe clean outputs, zero unreviewed invented
+incidents and `safe_review_recall=1.0`, but it predates the current manifest/runtime attestation
+and is not the v1 release result. Numbers read from the historical
+[eval_synthetic_summary.json](docs/eval_synthetic_summary.json).
+
+Contract: evaluators never write directly to `docs/`; publication is a separate write-once operation.
 
 **BRESSAY (historical, non-blocking PT-BR handwriting diagnostic; 20 word crops):**
 
