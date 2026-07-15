@@ -120,6 +120,15 @@ def test_ci_separates_diagnostics_from_validated_release_candidate() -> None:
     assert "eval-safety-artifacts" not in workflow
 
 
+def test_component_eval_artifacts_stay_outside_the_checkout() -> None:
+    workflow = _workflow()
+
+    assert "python -m evals.run_eval --out /tmp/component_eval" in workflow
+    assert "cat /tmp/component_eval/EVAL_REPORT.md" in workflow
+    assert "path: |\n            /tmp/component_eval/metrics.json" in workflow
+    assert "            /tmp/component_eval/EVAL_REPORT.md" in workflow
+
+
 def test_ci_blocks_known_dependency_vulnerabilities() -> None:
     workflow = _workflow()
 
