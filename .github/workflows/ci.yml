@@ -121,18 +121,18 @@ jobs:
         run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Run eval on a tiny fixture
-        run: uv run --locked python -m evals.run_eval --classification-n 400 --transcription-n 2
+        run: uv run --locked python -m evals.run_eval --out /tmp/component_eval --classification-n 400 --transcription-n 2
 
       - name: Show generated report
-        run: cat EVAL_REPORT.md
+        run: cat /tmp/component_eval/EVAL_REPORT.md
 
       - name: Upload eval artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: eval-artifacts
           path: |
-            metrics.json
-            EVAL_REPORT.md
+            /tmp/component_eval/metrics.json
+            /tmp/component_eval/EVAL_REPORT.md
           if-no-files-found: error
 
   # SSI-1010: mede a promessa CENTRAL do produto (falha estrutural de parse nunca vira
