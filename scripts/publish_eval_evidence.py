@@ -361,8 +361,11 @@ def validate_release_evidence(payload: dict[str, Any], *, expected_commit: str) 
 def validate_source_bytes(content: bytes, *, expected_commit: str) -> dict[str, Any]:
     """Validate source syntax, privacy, identity and gates without writing anything."""
     payload = load_strict_json(content)
-    text = content.decode("utf-8", errors="strict")
-    if scan_text_for_pii(text, include_times=True):
+    raw_text = content.decode("utf-8", errors="strict")
+    decoded_text = json.dumps(payload, ensure_ascii=False, allow_nan=False)
+    if scan_text_for_pii(raw_text, include_times=True) or scan_text_for_pii(
+        decoded_text, include_times=True
+    ):
         raise EvidenceValidationError("evidência recusada pelo gate de privacidade")
     validate_release_evidence(payload, expected_commit=expected_commit)
     return payload
