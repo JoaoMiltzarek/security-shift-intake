@@ -45,6 +45,7 @@ RELEASE_EVIDENCE_RELATIVE = Path(
     "docs/evals/releases/v1.0.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
 )
 RELEASE_EVIDENCE_PATH = REPO_ROOT / RELEASE_EVIDENCE_RELATIVE
+RELEASE_CATALOG_ID = "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
 _ROOT_KEYS = frozenset(
     {
         "artifact_schema",
@@ -457,7 +458,12 @@ def _validate_catalog_entry(entry: object, *, root: Path) -> dict[str, Any]:
     _expect_exact_keys(value, _CATALOG_ENTRY_KEYS)
     if type(value["id"]) is not str or re.fullmatch(r"[a-z0-9][a-z0-9.-]*", value["id"]) is None:
         raise EvidenceValidationError("id do catálogo inválido")
-    if value["kind"] not in _CATALOG_KINDS or value["status"] not in _CATALOG_STATUSES:
+    if (
+        type(value["kind"]) is not str
+        or type(value["status"]) is not str
+        or value["kind"] not in _CATALOG_KINDS
+        or value["status"] not in _CATALOG_STATUSES
+    ):
         raise EvidenceValidationError("classificação do catálogo inválida")
     if type(value["release_blocking"]) is not bool:
         raise EvidenceValidationError("classificação do catálogo inválida")
@@ -492,6 +498,15 @@ def _validate_catalog_entry(entry: object, *, root: Path) -> dict[str, Any]:
         raise EvidenceValidationError("artefato catalogado não pôde ser lido") from exc
     if len(content) != value["bytes"] or hashlib.sha256(content).hexdigest() != value["sha256"]:
         raise EvidenceValidationError("integridade do artefato catalogado diverge")
+    if value["status"] == "current_release":
+        if (
+            value["id"] != RELEASE_CATALOG_ID
+            or value["path"] != RELEASE_EVIDENCE_RELATIVE.as_posix()
+            or value["kind"] != "result"
+            or value["limitations"] != []
+        ):
+            raise EvidenceValidationError("entrada current_release não é a evidência v1 autorizada")
+        validate_source_bytes(content, expected_commit=cast(str, run_commit))
     return value
 
 
@@ -526,7 +541,7 @@ def build_release_catalog_entry(content: bytes, *, expected_commit: str) -> dict
     if re.fullmatch(r"[0-9a-f]{40}", expected_commit) is None:
         raise EvidenceValidationError("commit esperado inválido")
     return {
-        "id": "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150",
+        "id": RELEASE_CATALOG_ID,
         "path": RELEASE_EVIDENCE_RELATIVE.as_posix(),
         "sha256": hashlib.sha256(content).hexdigest(),
         "bytes": len(content),
