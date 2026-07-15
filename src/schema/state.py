@@ -134,3 +134,11 @@ class PipelineState(BaseModel):
     audit_log: list[dict[str, str]] = Field(default_factory=list)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def exceeds_v1_page_scope(self) -> bool:
+        """Detect persisted legacy states that predate the single-page v1 contract."""
+        return (
+            len(self.image_paths) > 1
+            or len(self.page_image_paths) > 1
+            or "\f" in (self.transcription or "")
+        )

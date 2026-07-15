@@ -63,6 +63,8 @@ def build_spreadsheet(normalized: NormalizedIncidentModel) -> list[SpreadsheetRo
 def export_blockers(state: PipelineState) -> list[str]:
     """Pendências que impedem um output operacional limpo (vazio = pronto)."""
     blockers: list[str] = []
+    if state.exceeds_v1_page_scope():
+        blockers.append("documento multipÃ¡gina incompatÃ­vel com v1")
     if state.ocr_quality == "failed":
         blockers.append("OCR insuficiente")
     blockers.extend(state.must_review_fields)

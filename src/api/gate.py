@@ -44,6 +44,10 @@ def assert_reviewable(state: PipelineState) -> None:
     clears the failed state). Explicit so the block does not rely on the critic
     coincidentally leaving fields pending.
     """
+    if state.exceeds_v1_page_scope():
+        raise DraftNotReviewableError(
+            "Legacy multi-page state exceeds the supported single-page v1 contract."
+        )
     if state.ocr_quality == OCR_FAILED:
         raise DraftNotReviewableError(
             "OCR quality failed — manual transcription required before approval."
