@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -186,10 +184,6 @@ def test_readme_and_roadmap_match_the_implemented_occurrence_editor() -> None:
         assert f"`{field}`" in readme
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a arquitetura promete extensibilidade config-only além das famílias suportadas",
-)
 def test_architecture_bounds_the_config_driven_extension_surface() -> None:
     architecture = _read("docs/ARCHITECTURE.md")
     readme = _read("README.md")

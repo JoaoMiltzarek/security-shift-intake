@@ -61,8 +61,8 @@ honestly: the sheets are **handwritten** (free OCR fails on cursive), the data i
 PII** (must not go to an external API), and automation **must not invent** information.
 
 ## The solution
-A staged, **config-driven** pipeline whose supported default path runs fully locally (no paid
-API, no cloud):
+A staged, **config-driven** pipeline within the supported schema families, whose default path
+runs fully locally (no paid API, no cloud):
 local OCR → best-effort extraction → an **OCR quality gate** → auditable per-field results →
 normalization → **human review** → blocked drafts when unsafe → an append-only audit trail
 with per-revision content snapshots. Approval records the revision and hashes the stored state

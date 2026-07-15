@@ -32,7 +32,8 @@ so it is swappable and **mockable in tests** (the whole suite runs offline at $0
    [8] Human Gate ─────► revisão: corrige campos → regenera; aprovar só sem pendência
 ```
 
-Two report types coexist, selected by config (no code change):
+Two report types coexist; switching between the two implemented families is selected by config
+without a code change:
 - **`controle_ocorrencias`** (v1.0): the occurrence-table sheet → the path above.
 - **`htmicron_security`** (legacy): a single-incident scalar form → `extract`/`validate`/Jinja
   draft. Kept for non-regression.
@@ -71,8 +72,10 @@ numeric signal alone, drives the human gate.
   delivery adapter: its `MockSender` records a terminal simulation only, after explicit approval,
   and the audit/UI identify that mode without claiming receipt — enforced in
   [src/api/gate.py](../src/api/gate.py).
-- **Config-driven.** Fields, taxonomy, routing live in YAML
-  ([configs/](../configs/)); a new sheet type = a new config, not new code.
+- **Config-driven within a bounded surface.** Fields, taxonomy and routing within the implemented
+  schema families live in YAML ([configs/](../configs/)). A new table layout or domain can require extractor, normalizer and output code
+  plus contract/integration tests; configuration alone is
+  not claimed as a universal sheet-type plugin system.
 
 ## Stack
 Python 3.11.15 · Pydantic v2 (typed contracts) · pypdfium2/PDFium + Pillow (ingest) ·
