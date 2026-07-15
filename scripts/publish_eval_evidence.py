@@ -6,10 +6,12 @@ boundary for promoting one aggregate result into version-controlled evidence.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import math
 import re
+import sys
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
@@ -29,6 +31,7 @@ from evals.eval_extraction_synthetic import (
     _runtime_attestation_failures,
     _safety_gate_failures,
 )
+from scripts.privacy_check import scan_text_for_pii
 from src.paths import REPO_ROOT
 
 MAX_SOURCE_BYTES = 1_048_576
@@ -329,3 +332,35 @@ def validate_release_evidence(payload: dict[str, Any], *, expected_commit: str) 
         expected_keys=_TEMPLATE_KEYS,
         reader_metrics=reader_metrics,
     )
+
+
+def validate_source_bytes(content: bytes, *, expected_commit: str) -> dict[str, Any]:
+    """Validate source syntax, privacy, identity and gates without writing anything."""
+    payload = load_strict_json(content)
+    text = content.decode("utf-8", errors="strict")
+    if scan_text_for_pii(text, include_times=True):
+        raise EvidenceValidationError("evidência recusada pelo gate de privacidade")
+    validate_release_evidence(payload, expected_commit=expected_commit)
+    return payload
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="Validate authenticated v1 release-eval evidence (check-only)."
+    )
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--expected-commit", required=True)
+    args = parser.parse_args(argv)
+
+    try:
+        content = args.source.read_bytes()
+        validate_source_bytes(content, expected_commit=args.expected_commit)
+    except (OSError, EvidenceValidationError, UnicodeError):
+        print("EVIDÊNCIA RECUSADA: fonte ilegível ou contrato inválido", file=sys.stderr)
+        return 1
+    print("Evidência de release válida (check-only); nenhum arquivo foi alterado.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

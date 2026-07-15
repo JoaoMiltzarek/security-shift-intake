@@ -219,10 +219,6 @@ def test_release_evidence_rejects_extra_fields(section: str) -> None:
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a validação ainda não aplica o scanner de privacidade aos bytes originais",
-)
 def test_source_validation_applies_strict_privacy_scan() -> None:
     payload = valid_release_payload()
     payload["parser_ceiling"]["note"] = "diagnóstico gerado às 12:34"
@@ -234,10 +230,6 @@ def test_source_validation_applies_strict_privacy_scan() -> None:
     assert "12:34" not in str(exc_info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o publisher ainda não oferece check-only pela CLI",
-)
 def test_cli_check_mode_validates_without_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -253,10 +245,6 @@ def test_cli_check_mode_validates_without_writing(
     assert str(source) not in output.err
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o publisher ainda não oferece check-only pela CLI",
-)
 def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     sensitive_marker = "VALOR_PRIVADO_NAO_ECOAR"
     source = tmp_path / "candidate.json"
