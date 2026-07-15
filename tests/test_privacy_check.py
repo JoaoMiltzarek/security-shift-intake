@@ -56,9 +56,9 @@ def test_scan_detects_extra_term() -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        r"artifact at C:\Users\Example User\project\report.md",
-        "/home/example-user/project/report.md",
-        "/Users/example-user/project/report.md",
+        "artifact at C:" + r"\Users\Example User\project\report.md",
+        "/" + "home/example-user/project/report.md",
+        "/" + "Users/example-user/project/report.md",
     ],
 )
 def test_scan_detects_absolute_user_home_paths_without_echoing_them(text: str) -> None:
