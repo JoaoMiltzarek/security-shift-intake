@@ -97,6 +97,18 @@ def test_assert_reviewable_blocks_unknown_without_pending_fields() -> None:
         assert_reviewable(state)
 
 
+@pytest.mark.parametrize(
+    "state",
+    [
+        PipelineState(source_pdf=Path("x.pdf"), page_image_paths=["p1.png", "p2.png"]),
+        PipelineState(source_pdf=Path("x.pdf"), transcription="page one\n\f\npage two"),
+    ],
+)
+def test_assert_reviewable_blocks_legacy_multi_page_state(state: PipelineState) -> None:
+    with pytest.raises(DraftNotReviewableError, match="single-page"):
+        assert_reviewable(state)
+
+
 def test_api_approve_blocked_when_pending(client: TestClient) -> None:
     draft_id = client.post("/drafts", json=_PENDING_BODY).json()["id"]
     r = client.post(f"/drafts/{draft_id}/approve")
