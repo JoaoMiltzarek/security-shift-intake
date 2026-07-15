@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+import pytest
 
 
 def _read(path: str) -> str:
@@ -107,3 +110,61 @@ def test_purge_is_documented_as_logical_removal_not_secure_erase() -> None:
     assert "snapshots" in privacy_contract
     assert "storage blocks" in privacy_contract
     assert "wipe" not in combined.lower()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a narrativa aggregate-only contradiz os contadores pseudônimos publicados",
+)
+def test_privacy_docs_describe_the_value_free_public_allowlist() -> None:
+    documents = [_read(path) for path in ("README.md", "docs/PRIVACY.md")]
+    combined = "\n".join(documents)
+    required = (
+        "allowlisted, value-free public evidence",
+        "pseudonymous per-sheet counters",
+        "paired outcome labels",
+    )
+
+    assert all(all(value in document for value in required) for document in documents)
+    assert "aggregate metrics + synthetic examples only" not in combined
+    assert "only the allowlisted aggregate summary" not in combined
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a allowlist normativa do eval real está atrás das chaves executáveis",
+)
+def test_eval_protocol_lists_the_executable_public_allowlist() -> None:
+    from evals.eval_extraction_real import (
+        _PUBLIC_FAILURE_REASONS,
+        _PUBLIC_RUN_META_KEYS,
+        _PUBLIC_SHEET_KEYS,
+    )
+
+    protocol = _read("docs/EVAL_PROTOCOL.md")
+    for key in (*_PUBLIC_RUN_META_KEYS, *_PUBLIC_SHEET_KEYS, *_PUBLIC_FAILURE_REASONS):
+        assert f"`{key}`" in protocol
+    assert "safe allowlisted reason code" in protocol
+    assert "reason` de falha, truncada" not in protocol
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o eval real histórico ainda é narrado como evidência corrente",
+)
+def test_real_eval_artifact_is_labeled_historical_when_runtime_is_unattested() -> None:
+    artifact = json.loads(_read("docs/eval_real_summary.json"))
+    runtime_keys = {
+        "python_version",
+        "uv_lock_sha256",
+        "tesseract_version",
+        "tesseract_language",
+        "runtime_attested",
+    }
+    runs = artifact.get("runs", [])
+    assert runs
+    if not all(runtime_keys <= set(run) for run in runs):
+        documents = _read("README.md") + "\n" + _read("docs/EVAL_PROTOCOL.md")
+        assert "historical, directional, pre-runtime-attestation diagnostic" in documents
+        assert "not release evidence" in documents
+        assert "private/audit/eval_real_summary.json" in documents
