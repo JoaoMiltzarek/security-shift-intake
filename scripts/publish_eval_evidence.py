@@ -10,9 +10,11 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sys
-from pathlib import Path
+import tempfile
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal, NoReturn, cast
 
 from data.generators.occurrences import Split
@@ -36,6 +38,12 @@ from src.paths import REPO_ROOT
 
 MAX_SOURCE_BYTES = 1_048_576
 RELEASE_DPI = 150
+CATALOG_SCHEMA = "ssi-eval-artifact-catalog/v1"
+CATALOG_PATH = REPO_ROOT / "docs" / "evals" / "catalog.json"
+RELEASE_EVIDENCE_RELATIVE = Path(
+    "docs/evals/releases/v1.0.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
+)
+RELEASE_EVIDENCE_PATH = REPO_ROOT / RELEASE_EVIDENCE_RELATIVE
 _ROOT_KEYS = frozenset(
     {
         "artifact_schema",
@@ -137,6 +145,21 @@ _NULLABLE_RATE_KEYS = frozenset(
 _PARSER_CEILING_KEYS = frozenset({"note", "item_present", "acao_present", "resolvido_present"})
 _DIFFICULTY_KEYS = frozenset({"clean", "photo", "scan"})
 _TEMPLATE_KEYS = frozenset({"controle_A", "controle_B"})
+_CATALOG_ENTRY_KEYS = frozenset(
+    {
+        "id",
+        "path",
+        "sha256",
+        "bytes",
+        "kind",
+        "status",
+        "release_blocking",
+        "run_commit",
+        "limitations",
+    }
+)
+_CATALOG_KINDS = frozenset({"result", "input_contract", "report"})
+_CATALOG_STATUSES = frozenset({"historical", "auxiliary", "current_input", "current_release"})
 
 
 class EvidenceValidationError(RuntimeError):
@@ -374,6 +397,173 @@ def persist_once(destination: Path, content: bytes) -> Literal["created", "verif
         return "verified"
     except OSError as exc:
         raise EvidenceValidationError("evidência write-once não pôde ser criada") from exc
+    return "created"
+
+
+def _catalog_artifact_path(root: Path, raw_path: object) -> Path:
+    if type(raw_path) is not str or "\\" in raw_path:
+        raise EvidenceValidationError("caminho do catálogo inválido")
+    portable = PurePosixPath(raw_path)
+    if portable.is_absolute() or ".." in portable.parts or not portable.parts:
+        raise EvidenceValidationError("caminho do catálogo inválido")
+    candidate = root.joinpath(*portable.parts)
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved_candidate = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise EvidenceValidationError("artefato catalogado não está disponível") from exc
+    if not resolved_candidate.is_relative_to(resolved_root):
+        raise EvidenceValidationError("artefato catalogado sai da raiz autorizada")
+    return resolved_candidate
+
+
+def _validate_catalog_entry(entry: object, *, root: Path) -> dict[str, Any]:
+    value = _mapping(entry)
+    _expect_exact_keys(value, _CATALOG_ENTRY_KEYS)
+    if type(value["id"]) is not str or re.fullmatch(r"[a-z0-9][a-z0-9.-]*", value["id"]) is None:
+        raise EvidenceValidationError("id do catálogo inválido")
+    if value["kind"] not in _CATALOG_KINDS or value["status"] not in _CATALOG_STATUSES:
+        raise EvidenceValidationError("classificação do catálogo inválida")
+    if type(value["release_blocking"]) is not bool:
+        raise EvidenceValidationError("classificação do catálogo inválida")
+    should_block = value["status"] in {"current_input", "current_release"}
+    if value["release_blocking"] is not should_block:
+        raise EvidenceValidationError("classificação do catálogo inválida")
+    if type(value["bytes"]) is not int or value["bytes"] < 0:
+        raise EvidenceValidationError("tamanho do catálogo inválido")
+    if type(value["sha256"]) is not str or re.fullmatch(r"[0-9a-f]{64}", value["sha256"]) is None:
+        raise EvidenceValidationError("hash do catálogo inválido")
+    run_commit = value["run_commit"]
+    if run_commit is not None and (
+        type(run_commit) is not str or re.fullmatch(r"[0-9a-f]{40}", run_commit) is None
+    ):
+        raise EvidenceValidationError("commit do catálogo inválido")
+    if value["status"] == "current_release" and run_commit is None:
+        raise EvidenceValidationError("commit da evidência de release ausente")
+    limitations = value["limitations"]
+    if type(limitations) is not list:
+        raise EvidenceValidationError("limitações do catálogo inválidas")
+    if any(
+        type(item) is not str or re.fullmatch(r"[a-z0-9-]+", item) is None for item in limitations
+    ):
+        raise EvidenceValidationError("limitações do catálogo inválidas")
+    if len(limitations) != len(set(limitations)):
+        raise EvidenceValidationError("limitações do catálogo inválidas")
+
+    artifact = _catalog_artifact_path(root, value["path"])
+    try:
+        content = artifact.read_bytes()
+    except OSError as exc:
+        raise EvidenceValidationError("artefato catalogado não pôde ser lido") from exc
+    if len(content) != value["bytes"] or hashlib.sha256(content).hexdigest() != value["sha256"]:
+        raise EvidenceValidationError("integridade do artefato catalogado diverge")
+    return value
+
+
+def _validate_catalog_payload(payload: dict[str, Any], *, root: Path) -> dict[str, Any]:
+    if set(payload) != {"schema", "artifacts"} or payload["schema"] != CATALOG_SCHEMA:
+        raise EvidenceValidationError("schema do catálogo inválido")
+    raw_entries = payload["artifacts"]
+    if type(raw_entries) is not list:
+        raise EvidenceValidationError("lista do catálogo inválida")
+    entries = [_validate_catalog_entry(entry, root=root) for entry in raw_entries]
+    paths = [entry["path"] for entry in entries]
+    ids = [entry["id"] for entry in entries]
+    if paths != sorted(paths) or len(paths) != len(set(paths)) or len(ids) != len(set(ids)):
+        raise EvidenceValidationError("ordem ou unicidade do catálogo inválida")
+    if sum(entry["status"] == "current_release" for entry in entries) > 1:
+        raise EvidenceValidationError("mais de uma evidência atual no catálogo")
+    return {"schema": CATALOG_SCHEMA, "artifacts": entries}
+
+
+def load_and_validate_catalog(
+    catalog_path: Path = CATALOG_PATH, *, root: Path = REPO_ROOT
+) -> dict[str, Any]:
+    """Load a strict catalog and authenticate every referenced worktree artifact."""
+    try:
+        content = catalog_path.read_bytes()
+    except OSError as exc:
+        raise EvidenceValidationError("catálogo de evidências indisponível") from exc
+    return _validate_catalog_payload(load_strict_json(content), root=root)
+
+
+def build_release_catalog_entry(content: bytes, *, expected_commit: str) -> dict[str, Any]:
+    if re.fullmatch(r"[0-9a-f]{40}", expected_commit) is None:
+        raise EvidenceValidationError("commit esperado inválido")
+    return {
+        "id": "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150",
+        "path": RELEASE_EVIDENCE_RELATIVE.as_posix(),
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": len(content),
+        "kind": "result",
+        "status": "current_release",
+        "release_blocking": True,
+        "run_commit": expected_commit,
+        "limitations": [],
+    }
+
+
+def _catalog_bytes(payload: dict[str, Any]) -> bytes:
+    text = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
+    return (text + "\n").encode("utf-8")
+
+
+def _replace_catalog_atomically(catalog_path: Path, *, original: bytes, replacement: bytes) -> None:
+    if catalog_path.is_symlink():
+        raise EvidenceValidationError("catálogo não pode ser um link simbólico")
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="xb", dir=catalog_path.parent, prefix=".catalog-", suffix=".tmp", delete=False
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(replacement)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if catalog_path.read_bytes() != original:
+            raise EvidenceValidationError("catálogo mudou durante a publicação")
+        os.replace(temporary, catalog_path)
+        temporary = None
+    except EvidenceValidationError:
+        raise
+    except OSError as exc:
+        raise EvidenceValidationError("catálogo não pôde ser atualizado atomicamente") from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def update_catalog(
+    catalog_path: Path,
+    entry: dict[str, Any],
+    *,
+    root: Path = REPO_ROOT,
+) -> Literal["created", "verified"]:
+    """Append one current release entry, preserving catalog integrity and retries."""
+    try:
+        original = catalog_path.read_bytes()
+    except OSError as exc:
+        raise EvidenceValidationError("catálogo de evidências indisponível") from exc
+    catalog = _validate_catalog_payload(load_strict_json(original), root=root)
+    entries = catalog["artifacts"]
+    existing = next((item for item in entries if item["path"] == entry.get("path")), None)
+    if existing is not None:
+        if existing != entry:
+            raise EvidenceValidationError("entrada de release existente é divergente")
+        return "verified"
+    if any(item["status"] == "current_release" for item in entries):
+        raise EvidenceValidationError("evidência current_release existente é divergente")
+
+    candidate = {
+        "schema": CATALOG_SCHEMA,
+        "artifacts": sorted([*entries, entry], key=lambda item: item["path"]),
+    }
+    validated = _validate_catalog_payload(candidate, root=root)
+    _replace_catalog_atomically(
+        catalog_path,
+        original=original,
+        replacement=_catalog_bytes(validated),
+    )
     return "created"
 
 

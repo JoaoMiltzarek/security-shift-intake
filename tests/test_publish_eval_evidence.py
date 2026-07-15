@@ -333,18 +333,10 @@ def _write_minimal_catalog(root: Path) -> tuple[Path, bytes]:
     return catalog_path, content
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
-)
 def test_committed_catalog_passes_publisher_integrity_validation() -> None:
     publisher.load_and_validate_catalog(Path("docs/evals/catalog.json"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
-)
 def test_catalog_rejects_stale_existing_hash(tmp_path: Path) -> None:
     catalog_path, _content = _write_minimal_catalog(tmp_path)
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
@@ -355,10 +347,6 @@ def test_catalog_rejects_stale_existing_hash(tmp_path: Path) -> None:
         publisher.load_and_validate_catalog(catalog_path, root=tmp_path)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
-)
 def test_catalog_update_is_sorted_idempotent_and_hashes_release_bytes(tmp_path: Path) -> None:
     catalog_path, _content = _write_minimal_catalog(tmp_path)
     release_content = valid_release_bytes()
@@ -380,10 +368,6 @@ def test_catalog_update_is_sorted_idempotent_and_hashes_release_bytes(tmp_path: 
     assert current[0]["sha256"] == hashlib.sha256(release_content).hexdigest()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
-)
 def test_catalog_update_refuses_divergent_release_entry_without_mutation(
     tmp_path: Path,
 ) -> None:
