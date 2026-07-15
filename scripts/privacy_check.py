@@ -73,6 +73,13 @@ _ORG_PATTERNS: list[re.Pattern[str]] = [
 # seconds; ISO has HH:MM:SS and tz offsets) — always sensitive in a public output.
 _TIME_PATTERN = re.compile(r"(?<![\d:+-])\d{1,2}:\d{2}(?!:?\d)")
 
+# Local workstation paths disclose usernames and directory layout even when document
+# contents are sanitized. Findings report only a category and line number.
+_LOCAL_HOME_PATTERNS = (
+    re.compile(r"(?<![A-Za-z0-9])[A-Z]:[\\/]+Users[\\/]+[^\\/\r\n]+", re.IGNORECASE),
+    re.compile(r"/(?:home|Users)/[^/\r\n]+"),
+)
+
 
 def _is_root_directory(path: Path, name: str) -> bool:
     """True only when *name* is the first repository-relative path component."""
@@ -103,6 +110,7 @@ def scan_text_for_pii(
         patterns.extend(("organization-sentinel", pattern) for pattern in _ORG_PATTERNS)
     if include_times:
         patterns.append(("clock-time", _TIME_PATTERN))
+    patterns.extend(("local-home-path", pattern) for pattern in _LOCAL_HOME_PATTERNS)
     patterns.extend(
         ("private-term", pattern)
         for pattern in (extra_terms if extra_terms is not None else _load_extra_terms())
