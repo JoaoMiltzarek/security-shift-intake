@@ -7,8 +7,6 @@ import json
 import re
 from pathlib import Path, PurePosixPath
 
-import pytest
-
 CATALOG_PATH = Path("docs/evals/catalog.json")
 EXPECTED_ARTIFACTS = {
     "EVAL_REPORT.md",
@@ -22,11 +20,6 @@ EXPECTED_ARTIFACTS = {
     "docs/eval_real_summary.json",
     "docs/eval_synthetic_summary.json",
 }
-
-pytestmark = pytest.mark.xfail(
-    strict=True,
-    reason="o inventário público de eval ainda não possui catálogo por hash",
-)
 
 
 def _catalog() -> dict[str, object]:
@@ -87,6 +80,17 @@ def test_catalog_classifies_only_v2_val_manifest_as_current_input() -> None:
 
 def test_catalog_metadata_uses_closed_values() -> None:
     for entry in _entries():
+        assert set(entry) == {
+            "id",
+            "path",
+            "sha256",
+            "bytes",
+            "kind",
+            "status",
+            "release_blocking",
+            "run_commit",
+            "limitations",
+        }
         assert entry["kind"] in {"result", "input_contract", "report"}
         assert entry["status"] in {
             "historical",

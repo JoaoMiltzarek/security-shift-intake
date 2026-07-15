@@ -1,0 +1,119 @@
+{
+  "schema": "ssi-eval-artifact-catalog/v1",
+  "artifacts": [
+    {
+      "id": "component-smoke-report-2026-07-13",
+      "path": "EVAL_REPORT.md",
+      "sha256": "7df60597fd3be1f528a2afc1aa0f3153d701bdafa3610d57c6166f19a21c7676",
+      "bytes": 1592,
+      "kind": "report",
+      "status": "auxiliary",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["component-smoke", "no-runtime-attestation"]
+    },
+    {
+      "id": "tier-c-v2-bench-balanced-val",
+      "path": "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl",
+      "sha256": "aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd",
+      "bytes": 11250,
+      "kind": "input_contract",
+      "status": "current_input",
+      "release_blocking": true,
+      "run_commit": null,
+      "limitations": []
+    },
+    {
+      "id": "tier-c-v1-bench-balanced-test",
+      "path": "data/manifests/tier_c_v1_bench_balanced_test.jsonl",
+      "sha256": "4be61d0f3f16650c9ab1628dba602b0244ce106b59cc8f4ea567a5c87228482e",
+      "bytes": 13725,
+      "kind": "input_contract",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["legacy-manifest-schema", "historical-test-split"]
+    },
+    {
+      "id": "tier-c-v1-bench-operational-test",
+      "path": "data/manifests/tier_c_v1_bench_operational_test.jsonl",
+      "sha256": "f5db547022f354b56ccce0ff997271c674ecf878b52309df53aaddcd3bcfb929",
+      "bytes": 13725,
+      "kind": "input_contract",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["legacy-manifest-schema", "historical-test-split"]
+    },
+    {
+      "id": "real-sheet-architecture-audit-2026-07",
+      "path": "docs/AUDITORIA_FOLHAS_REAIS.md",
+      "sha256": "133d7b7a47f37c7305b086a29a71f8aafb04155be50ed8698eac66520d359fa8",
+      "bytes": 2549,
+      "kind": "report",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["private-subset", "pre-runtime-attestation"]
+    },
+    {
+      "id": "bressay-directional-baseline",
+      "path": "docs/eval_bressay_baseline.json",
+      "sha256": "9a453e2cf07a9dfb17069a1a1536add472706d0d56010423fbc031346c323a7e",
+      "bytes": 1386,
+      "kind": "result",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["third-party-unversioned-input", "pre-runtime-attestation"]
+    },
+    {
+      "id": "g1s-reader-governance-cycle",
+      "path": "docs/eval_g1s_calibration.json",
+      "sha256": "0319df4fec7c97f9be326051d883cedd7c8abbf60e34cb9461e3e4d839f4d899",
+      "bytes": 3819,
+      "kind": "result",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["historical-governance-cycle", "legacy-test-split"]
+    },
+    {
+      "id": "paddle-reader-bakeoff-val",
+      "path": "docs/eval_paddle_bakeoff_val.json",
+      "sha256": "66f148bdccbe5002cb620da9586bf02f08e7bfa1c5b8eadc393bdba9d6b201cc",
+      "bytes": 3868,
+      "kind": "result",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": "74f29e54fa619ba72c39ae6d0796e713f05c7a8a",
+      "limitations": ["rejected-reader-experiment", "pre-runtime-attestation"]
+    },
+    {
+      "id": "private-real-eval-directional",
+      "path": "docs/eval_real_summary.json",
+      "sha256": "859b2abfd9ebd588c8064da0ff350a38260908a89390ae6746c76eb51a5c8266",
+      "bytes": 14551,
+      "kind": "result",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": null,
+      "limitations": ["directional-private-eval", "pre-runtime-attestation"]
+    },
+    {
+      "id": "tier-c-test-tristate-2026-07-13",
+      "path": "docs/eval_synthetic_summary.json",
+      "sha256": "cebb88350a896b9a950ad90e2714cda7b5e5d512f769009596541302a5e794b1",
+      "bytes": 4317,
+      "kind": "result",
+      "status": "historical",
+      "release_blocking": false,
+      "run_commit": "3dabd5887767f1575be820cbfcaa019cafca1e7e",
+      "limitations": [
+        "historical-test-split",
+        "legacy-refusal-metric",
+        "pre-runtime-attestation"
+      ]
+    }
+  ]
+}
