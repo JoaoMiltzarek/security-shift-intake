@@ -6,11 +6,12 @@ tree (never re-runs anything), tolerates missing artifacts, and embeds a screens
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
-from scripts.evidence_report import render_report
+from scripts.evidence_report import SCREENSHOT, render_report
 
 
 def test_render_tolerates_missing_inputs() -> None:
@@ -46,6 +47,43 @@ def test_render_embeds_collected_artifacts() -> None:
     assert "FINALSHA" in md
     assert "a" * 64 in md
     assert "450 passed, 1 skipped" in md
+    assert "browser-smoke OK" in md
+
+
+def test_render_whitelists_diagnostics_without_local_paths_or_db_hashes() -> None:
+    local_path = "C:" + r"\Users\Example User\project"
+    db_digest = "d" * 64
+    preflight = json.dumps(
+        {
+            "severity": 0,
+            "branch_ok": True,
+            "dirty_tree": {"clean": True},
+            "venv_ok": True,
+            "tools": {"uv": local_path + r"\uv.exe", "python": local_path, "make": "make"},
+            "dbs": [{"path": "private/app.db", "sha256": db_digest}],
+            "tesseract": {"present": True, "langs": ["eng", "por"], "path": local_path},
+            "browser": {"chromium_present": True, "path": local_path},
+            "symlink_support": True,
+            "precommit_hook_active": True,
+            "test_baseline": 100,
+        }
+    )
+    md = render_report(
+        branch="b",
+        parent_sha="p",
+        tree_hash="t",
+        authoritative_sha="sha",
+        preflight=preflight,
+        pytest_log=f"diagnostic {local_path}\n100 passed in 1.0s",
+        privacy_log="privacy-check OK",
+        smoke_log=f"browser-smoke OK: screenshot {local_path}",
+        screenshot_sha="a" * 64,
+    )
+
+    assert local_path not in md
+    assert db_digest not in md
+    assert str(SCREENSHOT) not in md
+    assert "100 passed in 1.0s" in md
     assert "browser-smoke OK" in md
 
 
