@@ -198,6 +198,18 @@ def load_strict_json(content: bytes) -> dict[str, Any]:
     return payload
 
 
+def read_bounded_source(path: Path) -> bytes:
+    """Read at most one public-evidence payload plus the overflow sentinel byte."""
+    try:
+        with path.open("rb") as handle:
+            content = handle.read(MAX_SOURCE_BYTES + 1)
+    except OSError as exc:
+        raise EvidenceValidationError("fonte da evidÃªncia nÃ£o pÃ´de ser lida") from exc
+    if len(content) > MAX_SOURCE_BYTES:
+        raise EvidenceValidationError("evidÃªncia excede o tamanho mÃ¡ximo permitido")
+    return content
+
+
 def _mapping(value: object) -> dict[str, Any]:
     if type(value) is not dict:
         raise EvidenceValidationError("schema da evidência inválido")
@@ -673,7 +685,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     try:
-        content = args.source.read_bytes()
+        content = read_bounded_source(args.source)
         validate_source_bytes(content, expected_commit=args.expected_commit)
         load_and_validate_catalog(CATALOG_PATH, root=REPO_ROOT)
         if args.write:
