@@ -40,6 +40,7 @@
 
       <h3>Extracted fields — verify / correct, then Save</h3>
       <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
+        <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
         <table>
           <tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th><th>Evidência</th></tr>
           {% for f in fields %}
