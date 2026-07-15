@@ -53,6 +53,27 @@ def test_scan_detects_extra_term() -> None:
     assert scan_text_for_pii("vigilante fulano da silva", extra_terms=terms)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        r"artifact at C:\Users\Example User\project\report.md",
+        "/home/example-user/project/report.md",
+        "/Users/example-user/project/report.md",
+    ],
+)
+def test_scan_detects_absolute_user_home_paths_without_echoing_them(text: str) -> None:
+    hits = scan_text_for_pii(
+        text,
+        extra_terms=[],
+        include_org=False,
+        include_times=False,
+    )
+
+    assert hits
+    assert "local-home-path" in "\n".join(hits)
+    assert text not in "\n".join(hits)
+
+
 def test_scan_findings_never_repeat_the_sensitive_value_or_pattern() -> None:
     import re
 
