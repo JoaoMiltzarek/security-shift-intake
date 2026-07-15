@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -182,3 +184,19 @@ def test_readme_and_roadmap_match_the_implemented_occurrence_editor() -> None:
     assert "0/1/N occurrence editor" in readme
     for field in ("item", "time", "description", "action", "resolved"):
         assert f"`{field}`" in readme
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a arquitetura promete extensibilidade config-only além das famílias suportadas",
+)
+def test_architecture_bounds_the_config_driven_extension_surface() -> None:
+    architecture = _read("docs/ARCHITECTURE.md")
+    readme = _read("README.md")
+
+    assert "a new sheet type = a new config, not new code" not in architecture
+    assert "switching between the two implemented families" in architecture
+    assert "new table layout or domain can require extractor, normalizer and output code" in (
+        architecture
+    )
+    assert "within the supported schema families" in readme
