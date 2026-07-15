@@ -98,6 +98,19 @@ def test_bressay_is_consistently_documented_as_nonthresholded() -> None:
     assert "frozen BRESSAY manifest" not in combined
 
 
+def test_bressay_active_docs_use_the_privacy_allowlisted_root() -> None:
+    paths = (
+        ".env.example",
+        "README.md",
+        "docs/EVAL_BRESSAY.md",
+        "docs/EVAL_PROTOCOL.md",
+    )
+    documents = [_read(path) for path in paths]
+
+    assert all("data/bressay" not in document for document in documents)
+    assert all("datasets/bressay" in document for document in documents)
+
+
 def test_purge_is_documented_as_logical_removal_not_secure_erase() -> None:
     documents = [_read(path) for path in ("README.md", "docs/PRIVACY.md", "Makefile")]
     combined = "\n".join(documents)
