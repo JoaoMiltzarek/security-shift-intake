@@ -151,8 +151,8 @@ eval:
 eval-bressay:
 	uv run --locked python -m evals.eval_htr_bressay --n $(N)
 
-# Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
-# Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
+# Instrumented eval on real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
+# Detailed and allowlisted outputs stay in private/audit/; docs/ history is write-protected.
 eval-real:
 	uv run --locked python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
 
