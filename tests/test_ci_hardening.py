@@ -129,6 +129,19 @@ def test_component_eval_artifacts_stay_outside_the_checkout() -> None:
     assert "            /tmp/component_eval/EVAL_REPORT.md" in workflow
 
 
+def test_quality_diagnostics_stay_outside_the_checkout() -> None:
+    workflow = _workflow()
+
+    assert "tee /tmp/preflight.json" in workflow
+    assert "tee /tmp/pytest.log" in workflow
+    assert "tee /tmp/privacy.log" in workflow
+    assert "--preflight /tmp/preflight.json" in workflow
+    assert "--pytest-log /tmp/pytest.log" in workflow
+    assert "--privacy-log /tmp/privacy.log" in workflow
+    assert "--out /tmp/SSI-1002_EVIDENCE.md" in workflow
+    assert "path: /tmp/SSI-1002_EVIDENCE.md" in workflow
+
+
 def test_ci_blocks_known_dependency_vulnerabilities() -> None:
     workflow = _workflow()
 
