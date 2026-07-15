@@ -34,7 +34,7 @@ _TIME = re.compile(r"\d{1,2}:\d{2}")
 _SA = re.compile(r"^[S5]\s*[/|1lI]\s*A$", re.IGNORECASE)
 # Linha de cabeçalho da tabela e marcador de rodapé (texto impresso, OCR confiável).
 _COLHDR = re.compile(r"item.*(?:descri|ocorr)", re.IGNORECASE)
-_FOOTER = re.compile(r"\bronda\b", re.IGNORECASE)
+_FOOTER = re.compile(r"^\s*ronda(?:\s*[:\-]?\s*(?:x|ok))?\s*$", re.IGNORECASE)
 
 
 def _is_sa(text: str) -> bool:
