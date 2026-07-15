@@ -222,9 +222,11 @@ def test_edit_cannot_interleave_with_irreversible_send(tmp_path: Path) -> None:
 
         def send(self, recipients: list[str], body: str) -> None:
             edited = original.model_copy(update={"email_draft": "unapproved replacement"})
-            with Session(engine) as editing:
-                with pytest.raises(repository.DraftOperationConflictError):
-                    repository.update_state(editing, draft_id, edited, actor="concurrent-editor")
+            with (
+                Session(engine) as editing,
+                pytest.raises(repository.DraftOperationConflictError),
+            ):
+                repository.update_state(editing, draft_id, edited, actor="concurrent-editor")
 
     with Session(engine) as sending:
         send_draft(sending, draft_id, ReentrantEditingSender(), actor="reviewer")

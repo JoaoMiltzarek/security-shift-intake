@@ -12,6 +12,9 @@ aprovação silenciosamente.
 from __future__ import annotations
 
 import hashlib
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlmodel import Session, col, select
 
@@ -21,6 +24,33 @@ from src.schema.state import ApprovalStatus, PipelineState
 
 class DraftAlreadySentError(RuntimeError):
     """Raised when an edit is attempted on a draft that was already sent."""
+
+
+class DraftOperationConflictError(RuntimeError):
+    """Raised when another operation owns the draft's irreversible transition."""
+
+
+_DRAFT_LOCKS_GUARD = threading.Lock()
+_DRAFT_LOCKS: dict[tuple[int, int], threading.Lock] = {}
+
+
+@contextmanager
+def draft_operation_lock(
+    session: Session, draft_id: int, *, wait: bool
+) -> Iterator[None]:
+    """Serialize one draft inside the supported single-process v1 runtime."""
+    key = (id(session.get_bind()), draft_id)
+    with _DRAFT_LOCKS_GUARD:
+        lock = _DRAFT_LOCKS.setdefault(key, threading.Lock())
+    acquired = lock.acquire(blocking=wait)
+    if not acquired:
+        raise DraftOperationConflictError(
+            f"Draft {draft_id} has another operation in progress â€” retry safely."
+        )
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def state_sha256(state_json: str) -> str:
@@ -92,6 +122,14 @@ def list_drafts(session: Session) -> list[Draft]:
 
 
 def set_status(session: Session, draft_id: int, status: ApprovalStatus, actor: str) -> Draft:
+    with draft_operation_lock(session, draft_id, wait=False):
+        session.expire_all()
+        return _set_status_locked(session, draft_id, status, actor)
+
+
+def _set_status_locked(
+    session: Session, draft_id: int, status: ApprovalStatus, actor: str
+) -> Draft:
     """Update a draft's status and write an audit row.
 
     APPROVED estampa a revisão + hash do conteúdo aprovado (o gate de envio exige
@@ -140,6 +178,17 @@ def mark_sent(
     actor: str,
     delivery_mode: DeliveryMode,
 ) -> Draft:
+    with draft_operation_lock(session, draft_id, wait=False):
+        session.expire_all()
+        return _mark_sent_locked(session, draft_id, actor, delivery_mode)
+
+
+def _mark_sent_locked(
+    session: Session,
+    draft_id: int,
+    actor: str,
+    delivery_mode: DeliveryMode,
+) -> Draft:
     """Record a completed adapter attempt without claiming recipient delivery."""
     draft = _require(session, draft_id)
     try:
@@ -168,7 +217,34 @@ def mark_sent(
 
 
 def update_state(
-    session: Session, draft_id: int, state: PipelineState, actor: str, action: str = "edited"
+    session: Session,
+    draft_id: int,
+    state: PipelineState,
+    actor: str,
+    action: str = "edited",
+    *,
+    expected_revision: int | None = None,
+) -> Draft:
+    with draft_operation_lock(session, draft_id, wait=False):
+        session.expire_all()
+        return _update_state_locked(
+            session,
+            draft_id,
+            state,
+            actor,
+            action,
+            expected_revision=expected_revision,
+        )
+
+
+def _update_state_locked(
+    session: Session,
+    draft_id: int,
+    state: PipelineState,
+    actor: str,
+    action: str,
+    *,
+    expected_revision: int | None,
 ) -> Draft:
     """Replace a draft's stored PipelineState (e.g. after human edits) + audit.
 
@@ -179,6 +255,11 @@ def update_state(
       novo precisa ser reaprovado por um humano antes de qualquer envio.
     """
     draft = _require(session, draft_id)
+    if expected_revision is not None and draft.revision != expected_revision:
+        raise DraftOperationConflictError(
+            f"Draft {draft_id} changed from revision {expected_revision} to "
+            f"{draft.revision} â€” reload before saving."
+        )
     if draft.sent_at is not None:
         add_audit(session, draft_id, actor=actor, action="edit_blocked", detail="already_sent")
         raise DraftAlreadySentError(f"Draft {draft_id} was already sent — edit blocked.")
