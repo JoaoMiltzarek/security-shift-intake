@@ -187,7 +187,7 @@ aggregates, pseudonymous per-sheet counters and paired outcome labels, but never
 transcriptions or paths. A secondary reader sanity check is available:
 
 ```console
-uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20
+uv run --locked python -m scripts.build_bressay_manifest --bressay-dir datasets/bressay --n 20
 make eval-bressay N=20
 ```
 

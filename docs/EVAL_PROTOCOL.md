@@ -242,7 +242,7 @@ Exemplo ilustrativo (EXEMPLO, não evidência):
 ```bash
 # 0. pré-requisito humano: curadorias → verified_by_user (docs/CURADORIA_FORMATO.md)
 ollama serve && ollama pull qwen2.5vl:3b
-uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20
+uv run --locked python -m scripts.build_bressay_manifest --bressay-dir datasets/bressay --n 20
 make eval-bressay N=20                                   # sanity: o leitor lê manuscrito pt-BR?
 make eval-real VISION=local_ocr DPI=150                  # baseline instrumentado
 make eval-real VISION=local_vlm DPI=150                  # a medição que decide
