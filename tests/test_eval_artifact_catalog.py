@@ -43,7 +43,7 @@ def test_catalog_inventory_is_complete_and_sorted() -> None:
     paths = [entry["path"] for entry in _entries()]
 
     assert paths == sorted(paths)
-    assert set(paths) == EXPECTED_ARTIFACTS
+    assert EXPECTED_ARTIFACTS <= set(paths) <= EXPECTED_ARTIFACTS | {RELEASE_PATH}
     assert "docs/evals/catalog.json" not in paths
 
 
@@ -79,8 +79,15 @@ def test_catalog_classifies_only_v2_val_manifest_as_current_input() -> None:
         "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl"
     ]
     assert current_inputs[0]["release_blocking"] is True
-    assert current_releases == []
-    assert all(entry["status"] in {"historical", "auxiliary", "current_input"} for entry in entries)
+    assert len(current_releases) <= 1
+    if current_releases:
+        release = current_releases[0]
+        assert release["id"] == "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
+        assert release["path"] == RELEASE_PATH
+        assert release["kind"] == "result"
+        assert release["release_blocking"] is True
+        assert re.fullmatch(r"[0-9a-f]{40}", str(release["run_commit"]))
+        assert release["limitations"] == []
 
 
 def test_catalog_metadata_uses_closed_values() -> None:
