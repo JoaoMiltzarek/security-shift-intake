@@ -872,6 +872,3 @@ def create_app(
         return _render(request, "_review_body.html", ctx)
 
     return app
-
-
-app = create_app()
