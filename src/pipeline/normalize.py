@@ -113,6 +113,8 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
     disposition: Disposition
     if occurrences:
         disposition = "present"
+    elif not raw.tabela_encontrada:
+        disposition = "unknown"
     elif any(row.sem_alteracao for row in raw.rows):
         disposition = "none"
     else:
