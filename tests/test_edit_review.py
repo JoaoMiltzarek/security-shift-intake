@@ -58,6 +58,7 @@ def test_review_shows_edit_form(client: TestClient) -> None:
     draft_id = _submit(client)
     html = client.get(f"/drafts/{draft_id}/review").text
     assert 'name="field__guard_name"' in html
+    assert 'name="expected_revision" value="1"' in html
     assert "Salvar revisão" in html
 
 
