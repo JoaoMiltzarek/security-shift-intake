@@ -632,6 +632,8 @@ def create_app(
                 "actor": a.actor,
                 "action": a.action,
                 "detail": a.detail,
+                "revision": a.revision,
+                "state_sha256": a.state_sha256,
                 "timestamp": a.timestamp.isoformat(),
             }
             for a in repository.get_audit(session, draft_id)
@@ -758,10 +760,24 @@ def create_app(
                     _csv_safe(row.descricao),
                 ]
             )
+        snapshot_sha256 = repository.state_sha256(draft.state_json)
+        repository.add_audit(
+            session,
+            draft_id,
+            actor=_LOCAL_ACTOR,
+            action="export_csv",
+            detail=f"rev={draft.revision} sha256={snapshot_sha256[:12]}",
+            revision=draft.revision,
+            snapshot_sha256=snapshot_sha256,
+        )
         return Response(
             content=buffer.getvalue(),
             media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="draft_{draft_id}.csv"'},
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="draft_{draft_id}_rev_{draft.revision}.csv"'
+                )
+            },
         )
 
     @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
