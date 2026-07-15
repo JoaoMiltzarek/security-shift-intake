@@ -146,6 +146,24 @@ def test_missing_column_header_sets_tabela_nao_encontrada() -> None:
     assert raw.rows == []
 
 
+def test_occurrence_text_cannot_impersonate_the_column_header() -> None:
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+12:00 Item localizado, abrir ocorrencia de achados
+S/A
+Ronda x
+"""
+
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    normalized = normalize(raw)
+
+    assert raw.tabela_encontrada is False
+    assert normalized.disposition == "unknown"
+    assert normalized.no_occurrence is False
+
+
 def test_sa_on_one_page_cannot_hide_unparsed_later_page() -> None:
     page_one = _SA_SHEET
     page_two = """Controle de ocorrencias
