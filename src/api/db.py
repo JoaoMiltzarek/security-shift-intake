@@ -80,7 +80,19 @@ def _ensure_draft_columns(engine: Engine) -> None:
         conn.commit()
 
 
+def _ensure_revision_uniqueness(engine: Engine) -> None:
+    """Prevent duplicate revision identities, including on databases created pre-v1."""
+    with engine.connect() as conn:
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "ux_draftrevision_draft_id_revision "
+            "ON draftrevision (draft_id, revision)"
+        )
+        conn.commit()
+
+
 def init_db(engine: Engine) -> None:
     """Create all tables if they don't exist, then apply in-place column migrations."""
     SQLModel.metadata.create_all(engine)
     _ensure_draft_columns(engine)
+    _ensure_revision_uniqueness(engine)
