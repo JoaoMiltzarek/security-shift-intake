@@ -157,6 +157,9 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
   paths select exactly one reader.
 - `AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline. Anthropic Vision is a
   separate, paid external opt-in and is never selected by the default showcase.
+- PP-OCRv5 was measured and **not promoted**. The adapter remains an experimental opt-in via
+  `INTAKE_VISION=paddle_ocr`, is not installed by uv sync, and requires an isolated environment
+  with the Paddle stack; it is not part of `make demo` or the release gate.
 
 ### Evaluate a reader (the decision protocol)
 Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S), not private
@@ -219,6 +222,10 @@ Two decoupled models keep the domain stable as the sheet layout changes:
   (value + confidence + source `ocr|rule|human` + status + evidence).
 - **`NormalizedIncidentModel`** — what the domain understands, with disposition
   `unknown | none | present`; explicit `S/A` evidence is the only OCR/rule path to `none`.
+
+The **0/1/N occurrence editor** can add or clear rows and edits all five cells:
+`item`, `time`, `description`, `action` and `resolved`. Saving rebuilds the row list, reruns
+classification/routing and revokes any approval tied to the previous revision.
 
 Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why this schema:
 [docs/ADR_controle_ocorrencias_schema.md](docs/ADR_controle_ocorrencias_schema.md).
@@ -361,7 +368,7 @@ decision-maker. Adopting a better reader (Roadmap) requires beating this same fr
 new val → freeze → test cycle.
 
 ## Roadmap
-A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
+A newly measured reader or table-structure improvement, multi-sheet aggregation, `.xlsx` export,
 and authenticated/multi-user deployment are deferred to keep v1.0 focused.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 

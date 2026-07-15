@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -158,10 +156,6 @@ def test_real_eval_artifact_is_labeled_historical_when_runtime_is_unattested() -
         assert "private/audit/eval_real_summary.json" in documents
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o Roadmap ainda apresenta Paddle e o SLO resolvido como trabalho pendente",
-)
 def test_reader_roadmap_records_the_measured_paddle_outcome() -> None:
     roadmap = _read("docs/ROADMAP.md")
     readme = _read("README.md")
@@ -180,10 +174,6 @@ def test_reader_roadmap_records_the_measured_paddle_outcome() -> None:
     assert "SLO pendente" not in roadmap
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o Roadmap ainda vende o editor 0/1/N implementado como futuro",
-)
 def test_readme_and_roadmap_match_the_implemented_occurrence_editor() -> None:
     roadmap = _read("docs/ROADMAP.md")
     readme = _read("README.md")
