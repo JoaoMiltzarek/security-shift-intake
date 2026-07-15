@@ -18,18 +18,18 @@ def _metrics(n_ran: int) -> dict[str, Any]:
     return {
         "n_ran": n_ran,
         "parse_table_success_rate": 0.2,
-        "estimated_chars_to_type_total": 2000,
-        "false_incident_count": 4,
-        "missed_incident_count": 20,
-        "unknown_disposition_count": 40,
-        "structural_failure_count": 40,
+        "estimated_chars_to_type_total": n_ran * 10,
+        "false_incident_count": 0,
+        "missed_incident_count": 0,
+        "unknown_disposition_count": 0,
+        "structural_failure_count": 0,
         "unsafe_clean_count": 0,
         "false_incident_unreviewed_count": 0,
         "operational_signal_complete_count": n_ran,
         "operational_approvable_count": 0,
         "operational_exportable_count": 0,
-        "operational_mismatch_count": 40,
-        "operationally_blocked_mismatch_count": 40,
+        "operational_mismatch_count": 0,
+        "operationally_blocked_mismatch_count": 0,
         "unsafe_approvable_count": 0,
         "unsafe_exportable_count": 0,
         "safe_review_recall": 1.0,
@@ -137,18 +137,10 @@ def test_strict_json_error_never_echoes_source_content() -> None:
     assert sensitive_marker not in str(exc_info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a identidade autenticada da evidência ainda não é validada",
-)
 def test_release_evidence_accepts_exact_authenticated_contract() -> None:
     publisher.validate_release_evidence(valid_release_payload(), expected_commit=EXPECTED_COMMIT)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a identidade autenticada da evidência ainda não é validada",
-)
 @pytest.mark.parametrize(
     ("path", "value"),
     [
@@ -183,10 +175,6 @@ def test_release_evidence_rejects_identity_drift(path: str, value: Any) -> None:
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="allowlists, tipos e gates da evidência ainda não são validados",
-)
 @pytest.mark.parametrize(
     ("path", "value"),
     [
@@ -209,10 +197,6 @@ def test_release_evidence_rejects_unsafe_or_malformed_metrics(path: str, value: 
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="allowlists, tipos e gates da evidência ainda não são validados",
-)
 @pytest.mark.parametrize("section", ["root", "run", "reader_metrics"])
 def test_release_evidence_rejects_extra_fields(section: str) -> None:
     payload = valid_release_payload()
