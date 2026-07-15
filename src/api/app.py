@@ -829,6 +829,18 @@ def create_app(
         state = PipelineState.model_validate_json(draft.state_json)
         _assert_config_compatible(state, active_config)
         form = await _bounded_review_form(request)
+        raw_expected_revision = form.get("expected_revision")
+        expected_revision = draft.revision
+        if raw_expected_revision is not None:
+            if (
+                not isinstance(raw_expected_revision, str)
+                or not raw_expected_revision.isascii()
+                or not raw_expected_revision.isdigit()
+            ):
+                raise HTTPException(status_code=422, detail="Invalid expected revision.")
+            expected_revision = int(raw_expected_revision)
+            if expected_revision < 1:
+                raise HTTPException(status_code=422, detail="Invalid expected revision.")
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
@@ -865,7 +877,14 @@ def create_app(
             state = validate(state, active_config)  # recompute MUST_REVIEW flags
             state = draft_stage(state, active_config)  # re-render the email draft
         try:
-            repository.update_state(session, draft_id, state, actor=_LOCAL_ACTOR, action="edited")
+            repository.update_state(
+                session,
+                draft_id,
+                state,
+                actor=_LOCAL_ACTOR,
+                action="edited",
+                expected_revision=expected_revision,
+            )
         except (
             repository.DraftAlreadySentError,
             repository.DraftOperationConflictError,
