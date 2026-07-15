@@ -135,6 +135,17 @@ def test_git_output_preserves_leading_porcelain_status(
     assert output == " M scripts/preflight.py"
 
 
+def test_untracked_webp_is_classified_as_dangerous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(preflight, "_run_git", lambda *_args: "?? leaked-page.webp")
+
+    dirty = preflight.git_dirty(tmp_path)
+
+    assert dirty["untracked"] == ["leaked-page.webp"]
+    assert dirty["dangerous"] == ["leaked-page.webp"]
+
+
 def test_test_baseline_is_locked_no_sync_and_cache_free(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
