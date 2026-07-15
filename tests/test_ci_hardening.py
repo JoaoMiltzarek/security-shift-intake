@@ -6,6 +6,8 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
 
 def _workflow() -> str:
     return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -93,6 +95,33 @@ def test_ci_logs_and_verifies_the_frozen_ocr_runtime() -> None:
     assert "grep -qx por" in workflow
     assert "make eval-safety DPI=150 OUT=/tmp/eval_safety" in workflow
     assert "make eval-safety VISION=" not in workflow
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a CI ainda mistura diagnóstico reprovado e candidato de release",
+)
+def test_ci_separates_diagnostics_from_validated_release_candidate() -> None:
+    workflow = _workflow()
+    gate = "make eval-safety DPI=150 OUT=/tmp/eval_safety"
+    validator = "uv run --locked python -m scripts.publish_eval_evidence"
+    candidate = "eval-safety-release-candidate-${{ github.sha }}"
+    diagnostics = "eval-safety-diagnostics-${{ github.sha }}"
+
+    assert validator in workflow
+    assert "--source /tmp/eval_safety/eval_synthetic_summary.json" in workflow
+    assert '--expected-commit "$(git rev-parse HEAD)"' in workflow
+    assert candidate in workflow
+    assert diagnostics in workflow
+    assert workflow.index(gate) < workflow.index(validator) < workflow.index(candidate)
+
+    candidate_block = workflow[workflow.index(candidate) : workflow.index(diagnostics)]
+    diagnostics_block = workflow[workflow.index(diagnostics) : workflow.index("browser-smoke:")]
+    assert "if: success()" in candidate_block
+    assert "path: /tmp/eval_safety/eval_synthetic_summary.json" in candidate_block
+    assert "if: always()" in diagnostics_block
+    assert "path: /tmp/eval_safety/" in diagnostics_block
+    assert "eval-safety-artifacts" not in workflow
 
 
 def test_ci_blocks_known_dependency_vulnerabilities() -> None:
