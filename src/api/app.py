@@ -1,8 +1,8 @@
 """FastAPI application for the approval gate.
 
 `create_app(engine, sender)` builds the app with injectable persistence and sender
-so tests run against an in-memory DB and a mock sender. The module-level `app` is
-the default instance for `uvicorn`.
+so tests run against an in-memory DB and a mock sender. ``src.api.asgi:app`` is the
+intentional production entry point for Uvicorn.
 
 Endpoints expose the state machine: submit -> review -> approve/reject -> send.
 Sending always goes through the gate (M7.b) — never auto-sent.

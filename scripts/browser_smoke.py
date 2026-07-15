@@ -2,7 +2,7 @@
 """Browser-smoke: the FIRST UI gate — prove the evidence cockpit live in real Chromium.
 
 Rendering an overlay outside a browser proves nothing, so this drives a real Chromium
-(Playwright, headless) against a running `uvicorn src.api.app:app`:
+(Playwright, headless) against a running `uvicorn src.api.asgi:app`:
 
   1. seed a synthetic table draft (mock reader, one field given a bbox) and open its review;
   2. click the bbox field  -> assert the highlight overlay becomes visible in the DOM;

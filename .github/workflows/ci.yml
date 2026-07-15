@@ -247,7 +247,7 @@ jobs:
         run: |
           mkdir -p private
           INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
-            uv run --locked uvicorn src.api.app:app --host 127.0.0.1 --port 8000 &
+            uv run --locked uvicorn src.api.asgi:app --host 127.0.0.1 --port 8000 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 

@@ -65,7 +65,7 @@ def main(argv: list[str]) -> int:
         ids.append(build_and_store(SAMPLE, vision, llm, CONFIG, engine))
 
     print("\nRevise no navegador (suba a UI com a config de tabela):")
-    print("  INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.app:app")
+    print("  INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.asgi:app")
     for draft_id in ids:
         print(f"  http://127.0.0.1:8000/drafts/{draft_id}/review")
     print("\nDados 100% sintéticos. Limpe com:  make purge-demo-data")

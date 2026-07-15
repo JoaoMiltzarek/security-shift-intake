@@ -71,7 +71,7 @@ def _seed_demo(
 def _build_server(port: int) -> uvicorn.Server:
     """Create the supported local-only server; callers cannot override its host."""
     config = uvicorn.Config(
-        "src.api.app:app",
+        "src.api.asgi:app",
         host=LOOPBACK_HOST,
         port=port,
     )
