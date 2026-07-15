@@ -33,7 +33,9 @@ OCR_DPI = 150
 MIN_DPI = 50
 MAX_DPI = 300
 MAX_SOURCE_BYTES = 50 * 1024 * 1024
-MAX_PAGES = 20
+# The v1 cockpit and authenticated dataset are single-page. Reject extra pages instead
+# of presenting page-0 evidence for content extracted from a different page.
+MAX_PAGES = 1
 MAX_PIXELS_PER_PAGE = 25_000_000
 MAX_TOTAL_PIXELS = 75_000_000
 
@@ -79,8 +81,10 @@ def rasterize_pdf(path: Path, dpi: int = DEFAULT_DPI) -> list[Image.Image]:
 
         try:
             page_count = len(document)
-            if not 1 <= page_count <= MAX_PAGES:
-                raise IngestLimitError(f"PDF page budget is 1 to {MAX_PAGES} pages per document.")
+            if page_count != MAX_PAGES:
+                raise IngestLimitError(
+                    "PDF page budget is exactly 1 (single-page v1 document)."
+                )
 
             expected_sizes: list[tuple[int, int]] = []
             total_pixels = 0
@@ -159,6 +163,8 @@ def load_source_images(path: Path, dpi: int = DEFAULT_DPI) -> list[Image.Image]:
     if path.suffix.lower() in _IMAGE_SUFFIXES:
         try:
             with Image.open(path) as img:
+                if getattr(img, "n_frames", 1) != 1:
+                    raise IngestLimitError("Image must be a single-page v1 document.")
                 if img.width * img.height > MAX_PIXELS_PER_PAGE:
                     raise IngestLimitError("Image exceeds the local pixel budget.")
                 return [img.convert("RGB")]
