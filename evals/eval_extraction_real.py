@@ -16,7 +16,8 @@ Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates)
            2ª camada). Evidência histórica em docs/ nunca é sobrescrita pelo evaluator.
 
 2. **`--legacy-compare`** — o compare ANTES (escalar) × DEPOIS (tabela) original,
-   com a taxonomia R3, que gera docs/AUDITORIA_FOLHAS_REAIS.md. Inalterado.
+   com a taxonomia R3, gravado na área local de auditoria. O relatório histórico
+   versionado em docs/ não é atualizado automaticamente.
 
 `--compare A.json B.json` calcula a comparação PAREADA por campo entre duas rodadas
 detalhadas (baseline × VLM) — o formato que sustenta o gate G1 com n pequeno.
@@ -68,17 +69,17 @@ CURADORIA_DIR = PRIVATE_ROOT / "curadoria"
 AUDIT_DIR = PRIVATE_ROOT / "audit"
 CONFIG_PATH = REPO_ROOT / "configs" / "htmicron_security.yaml"  # ANTES (escalar, legado)
 TABLE_CONFIG_PATH = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"  # DEPOIS (tabela)
-REPORT_PATH = REPO_ROOT / "docs" / "AUDITORIA_FOLHAS_REAIS.md"
+REPORT_PATH = AUDIT_DIR / "AUDITORIA_FOLHAS_REAIS.md"
 SUMMARY_PATH = AUDIT_DIR / "eval_real_summary.json"
 
 VALID_REVIEW_STATUS = {"draft_by_claude", "needs_review", "verified_by_user"}
 
 
-def _resolve_summary_output(requested: Path) -> Path:
+def _resolve_local_output(requested: Path, *, option: str) -> Path:
     resolved = requested.expanduser().resolve(strict=False)
     public_docs = (REPO_ROOT / "docs").resolve(strict=True)
     if resolved == public_docs or resolved.is_relative_to(public_docs):
-        raise ValueError("--summary-output não pode apontar para docs/; use um publisher")
+        raise ValueError(f"{option} não pode apontar para docs/; use um publisher")
     return resolved
 
 
@@ -952,9 +953,9 @@ def _legacy_compare(args: argparse.Namespace) -> int:
         return 2
 
     if not args.no_report:
-        REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        REPORT_PATH.write_text(report, encoding="utf-8")
-        print(f"Escrito {REPORT_PATH} e {AUDIT_DIR / 'metrics_real.json'}")
+        args.legacy_report_output.parent.mkdir(parents=True, exist_ok=True)
+        args.legacy_report_output.write_text(report, encoding="utf-8")
+        print("Relatório legado e métricas escritos na área local de auditoria.")
     print(json.dumps({"antes": antes_agg, "depois": depois_agg}, indent=2, ensure_ascii=False))
     return 0
 
@@ -1051,19 +1052,28 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--legacy-compare",
         action="store_true",
-        help="modo legado ANTES×DEPOIS -> docs/AUDITORIA_FOLHAS_REAIS.md",
+        help="modo legado ANTES×DEPOIS -> área local de auditoria",
     )
-    parser.add_argument("--no-report", action="store_true", help="não escrever docs públicos")
+    parser.add_argument("--no-report", action="store_true", help="não escrever saídas locais")
     parser.add_argument(
         "--summary-output",
         type=Path,
         default=SUMMARY_PATH,
         help="resumo allowlisted local (docs/ é reservado para publicação controlada)",
     )
+    parser.add_argument(
+        "--legacy-report-output",
+        type=Path,
+        default=REPORT_PATH,
+        help="relatório legado local (docs/ é reservado para publicação controlada)",
+    )
     args = parser.parse_args(argv)
 
     try:
-        args.summary_output = _resolve_summary_output(args.summary_output)
+        args.summary_output = _resolve_local_output(args.summary_output, option="--summary-output")
+        args.legacy_report_output = _resolve_local_output(
+            args.legacy_report_output, option="--legacy-report-output"
+        )
     except ValueError as exc:
         parser.error(str(exc))
 
