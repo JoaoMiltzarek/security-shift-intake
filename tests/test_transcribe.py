@@ -96,3 +96,55 @@ def test_confidence_is_minimum_across_pages() -> None:
 
     assert result.transcription == "page one\n\npage two"
     assert result.transcription_confidence == 0.4
+
+
+def test_multipage_occurrence_after_sa_is_not_lost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from PIL import Image
+
+    import src.pipeline.transcribe as mod
+    from src.clients.table_rules import RuleBasedTableExtractor
+    from src.pipeline.normalize import normalize
+    from src.schema.loader import load_config
+
+    page_one = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido
+S/A
+Ronda x
+"""
+    page_two = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido
+15:10 Portao lateral aberto sem autorizacao
+Ronda x
+"""
+    client = _MultiPageFake(
+        [
+            TranscriptionResult(text=page_one, confidence=0.9),
+            TranscriptionResult(text=page_two, confidence=0.8),
+        ]
+    )
+    monkeypatch.setattr(
+        mod,
+        "load_source_images",
+        lambda path, dpi=250: [
+            Image.new("RGB", (10, 10), "white"),
+            Image.new("RGB", (10, 10), "white"),
+        ],
+    )
+
+    state = transcribe(PipelineState(source_pdf=Path("synthetic.pdf")), client)
+    config = load_config(Path("configs/controle_ocorrencias.yaml"))
+    raw = RuleBasedTableExtractor(config).extract(state.transcription or "")
+    normalized = normalize(raw)
+
+    assert normalized.disposition == "present"
+    assert len(normalized.occurrences) == 1
+    assert "Portao" in (normalized.occurrences[0].description or "")
+    assert raw.rows[-1].descricao.page == 1
