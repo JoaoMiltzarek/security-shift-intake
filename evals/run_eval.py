@@ -4,7 +4,7 @@ Every number in the report comes from `metrics` computed here — nothing is
 hand-typed (spec §8.7). Model-dependent metrics that need a live API are recorded
 as `pending` (mock-first), never fabricated.
 
-Usage: python -m evals.run_eval [--seed 42] [--out .]
+Usage: python -m evals.run_eval [--seed 42] [--out private/audit/component_eval]
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ TARGETS: dict[str, Any] = {
 
 # Metrics that require a live VLM/LLM API — pending until ANTHROPIC_API_KEY exists.
 _PENDING = {"status": "pending", "reason": "requires ANTHROPIC_API_KEY (mock-first)"}
+_DEFAULT_OUT = Path("private/audit/component_eval")
 
 
 def build_metrics(
@@ -139,7 +140,7 @@ def write_artifacts(metrics: dict[str, Any], report: str, out_dir: Path) -> tupl
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Run the eval harness.")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--out", type=Path, default=Path("."))
+    parser.add_argument("--out", type=Path, default=_DEFAULT_OUT)
     parser.add_argument("--classification-n", type=int, default=2000)
     parser.add_argument("--transcription-n", type=int, default=5)
     args = parser.parse_args(argv)
