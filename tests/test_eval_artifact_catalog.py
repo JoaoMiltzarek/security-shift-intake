@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path, PurePosixPath
 
 CATALOG_PATH = Path("docs/evals/catalog.json")
@@ -20,6 +21,10 @@ EXPECTED_ARTIFACTS = {
     "docs/eval_real_summary.json",
     "docs/eval_synthetic_summary.json",
 }
+RELEASE_PATH = (
+    "docs/evals/releases/v1.0.0/"
+    "eval-safety.bench-balanced.val.local_ocr.dpi150.json"
+)
 
 
 def _catalog() -> dict[str, object]:
@@ -106,3 +111,31 @@ def test_catalog_metadata_uses_closed_values() -> None:
         limitations = entry["limitations"]
         assert isinstance(limitations, list)
         assert all(re.fullmatch(r"[a-z0-9-]+", str(value)) for value in limitations)
+
+
+def test_catalog_contract_accepts_the_future_published_state(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    catalog = _catalog()
+    artifacts = catalog["artifacts"]
+    assert isinstance(artifacts, list)
+    artifacts.append(
+        {
+            "id": "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150",
+            "path": RELEASE_PATH,
+            "sha256": "a" * 64,
+            "bytes": 1,
+            "kind": "result",
+            "status": "current_release",
+            "release_blocking": True,
+            "run_commit": "b" * 40,
+            "limitations": [],
+        }
+    )
+    artifacts.sort(key=lambda entry: entry["path"])
+    candidate = tmp_path / "catalog.json"
+    candidate.write_text(json.dumps(catalog), encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "CATALOG_PATH", candidate)
+
+    test_catalog_inventory_is_complete_and_sorted()
+    test_catalog_classifies_only_v2_val_manifest_as_current_input()
