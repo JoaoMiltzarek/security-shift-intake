@@ -227,7 +227,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         page.click('button[type="submit"]')
         page.wait_for_selector("#status-panel .badge.pending", timeout=5000)
 
-        page.get_by_role("button", name="Send", exact=True).click()
+        page.get_by_role("button", name="Simulate delivery", exact=True).click()
         page.wait_for_selector("#status-panel strong", timeout=5000)
         panel = page.locator("#status-panel").inner_text()
         if "Blocked:" not in panel:
