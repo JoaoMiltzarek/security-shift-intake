@@ -33,7 +33,7 @@ _TIME = re.compile(r"\d{1,2}:\d{2}")
 # S/A e variações de OCR (barra lida como I/1/l/|, S como 5, etc.).
 _SA = re.compile(r"^[S5]\s*[/|1lI]\s*A$", re.IGNORECASE)
 # Linha de cabeçalho da tabela e marcador de rodapé (texto impresso, OCR confiável).
-_COLHDR = re.compile(r"item.*(?:descri|ocorr)", re.IGNORECASE)
+_COLHDR = re.compile(r"^\s*[iIlL]tem\b.*\bhora\b.*(?:descri|ocorr)", re.IGNORECASE)
 _FOOTER = re.compile(r"^\s*ronda(?:\s*[:\-]?\s*(?:x|ok))?\s*$", re.IGNORECASE)
 
 
