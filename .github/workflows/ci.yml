@@ -51,7 +51,7 @@ jobs:
       - name: Preflight (warnings reported, blockers enforced)
         run: |
           set +e
-          uv run --locked python scripts/preflight.py --json | tee preflight.json
+          uv run --locked python scripts/preflight.py --json | tee /tmp/preflight.json
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ge 2 ]; then
@@ -68,28 +68,29 @@ jobs:
         run: make typecheck
 
       - name: Test (pytest)
-        run: set -o pipefail; make test 2>&1 | tee pytest.log
+        run: set -o pipefail; make test 2>&1 | tee /tmp/pytest.log
 
       - name: Validate configs (schema-for-the-schema)
         run: make validate-config
 
       - name: Privacy check (no real data / PII)
         id: privacy
-        run: set -o pipefail; make privacy-check 2>&1 | tee privacy.log
+        run: set -o pipefail; make privacy-check 2>&1 | tee /tmp/privacy.log
 
       - name: Evidence report (authoritative collector — uploaded, not committed)
         if: ${{ success() && steps.privacy.outcome == 'success' }}
         run: >
           uv run --locked python scripts/evidence_report.py
-          --preflight preflight.json --pytest-log pytest.log --privacy-log privacy.log
-          --authoritative-sha ${{ github.sha }} --out SSI-1002_EVIDENCE.md
+          --preflight /tmp/preflight.json --pytest-log /tmp/pytest.log
+          --privacy-log /tmp/privacy.log --authoritative-sha ${{ github.sha }}
+          --out /tmp/SSI-1002_EVIDENCE.md
 
       - name: Upload evidence report
         if: ${{ success() && steps.privacy.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ssi-1002-evidence
-          path: SSI-1002_EVIDENCE.md
+          path: /tmp/SSI-1002_EVIDENCE.md
           if-no-files-found: error
 
   smoke-eval:
