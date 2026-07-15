@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 
 def _has_phrase(text: str, phrase: str) -> bool:
     return re.search(r"\s+".join(re.escape(word) for word in phrase.split()), text) is not None
@@ -25,7 +23,6 @@ def test_readme_showcase_is_current_and_evidence_backed() -> None:
         "RawDocumentExtraction",
         "NormalizedIncidentModel",
         "Tesseract is not reliable on cursive handwriting",
-        "756 passed, 3 skipped",
         "unknown_disposition_count",
     )
     assert all(value in readme for value in required)
@@ -111,10 +108,6 @@ def test_readme_reader_section_points_to_normative_contracts() -> None:
     assert all(value not in readme for value in forbidden)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o README ainda congela uma baseline antiga e omite o patch exato do Python",
-)
 def test_readme_uses_reproducible_runtime_without_ephemeral_test_counts() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     python_version = Path(".python-version").read_text(encoding="utf-8").strip()

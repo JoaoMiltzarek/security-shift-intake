@@ -1,7 +1,7 @@
 # Security Shift Intake — Local Document AI for Security Incident Logs
 
 [![CI](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.11-blue)
+![Python](https://img.shields.io/badge/python-3.11.15-blue)
 ![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
 Local, privacy-first triage for handwritten **security incident sheets** ("Controle de
@@ -16,9 +16,13 @@ spreadsheet and a copy-ready message without sending the document to a cloud ser
 ![Evidence cockpit on a synthetic sheet: real OCR bbox, then human edit invalidates the old evidence](samples/cockpit_demo.gif)
 
 ```console
-uv sync --locked
+uv sync --locked --python 3.11.15
 make demo
 ```
+
+Python 3.11.15 is the exact supported interpreter for the v1 environment; `uv.lock` and CI
+enforce that patch level. The showcase additionally requires the Tesseract executable and its
+Portuguese (`por`) language pack.
 
 `make demo` runs the committed synthetic sheet through real local Tesseract, starts the review
 UI on `127.0.0.1`, opens the draft, and sends nothing. Stop with `Ctrl+C`, then run
@@ -243,10 +247,9 @@ targets clean up without destroying validated curadoria. See
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-The latest local Windows baseline (`3dabd588`, 2026-07-13, release v1.0.0) ran `make check`:
-Ruff passed, strict mypy passed across 87 source files, and pytest reported
-**756 passed, 3 skipped** offline at $0 (with local Tesseract on `PATH` the OCR-dependent
-tests activate: 758 passed, 1 skipped).
+`make check` is the canonical local verification target: it runs Ruff lint/format checks,
+strict mypy and the complete pytest suite under the locked environment. Current pass/skip counts
+belong to each immutable CI run and are intentionally not frozen in this README.
 Model/network boundaries are mock-first, while CI also exercises the committed fixture through
 real Tesseract and drives the cockpit in real Chromium. Coverage includes: OCR quality gate, the two-model
 schema, normalization, the table extractor, the critic, the human-approval gate (pending fields
