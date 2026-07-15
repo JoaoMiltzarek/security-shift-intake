@@ -9,6 +9,9 @@
 # override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
 CONFIG ?= configs/controle_ocorrencias.yaml
 
+# External Anthropic demo stays disabled unless the operator gives literal consent.
+ALLOW_EXTERNAL ?= NO
+
 # Optional arguments for the one-command synthetic showcase (e.g. --no-open).
 DEMO_ARGS ?=
 
@@ -59,7 +62,7 @@ help:
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make gen-safety-sheets - generate the exact bench-balanced/val release corpus
-	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
+	@echo   make demo-transcribe - external Anthropic call; requires FILE=... ALLOW_EXTERNAL=YES
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
@@ -117,7 +120,7 @@ gen-safety-sheets:
 	uv run --locked python -m scripts.gen_sheets --dataset $(SAFETY_DATASET)
 
 demo-transcribe:
-	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)"
+	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)" $(if $(filter YES,$(ALLOW_EXTERNAL)),--allow-external,)
 
 demo-pipeline:
 	uv run --locked python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"
