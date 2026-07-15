@@ -21,6 +21,9 @@ VISION ?= local_ocr
 DPI ?= 150
 REAL_N ?= 0
 
+# Generated component-eval diagnostics stay outside the versioned evidence root.
+EVAL_OUT ?= private/audit/component_eval
+
 # Tier C canonical dataset name (docs/DATASET_CONTRACT.md par.4). Override:
 # `make gen-sheets DATASET=bench-balanced`.
 DATASET ?= smoke
@@ -64,7 +67,7 @@ help:
 	@echo   make purge-real-data - remove real-sheet entries (private/reais/), needs CONFIRM=YES
 	@echo   make purge-all-private - remove active entries under private/, needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
-	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
+	@echo   make eval            - [M8] produce component diagnostics under private/audit/component_eval
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
 	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
 	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
@@ -143,7 +146,7 @@ privacy-check:
 	uv run --locked python -m scripts.privacy_check
 
 eval:
-	uv run --locked python -m evals.run_eval
+	uv run --locked python -m evals.run_eval --out "$(EVAL_OUT)"
 
 # Real-handwriting eval (BRESSAY). Kept out of the default `eval`/CI: it needs the
 # third-party dataset and (for the VLM column) a local server. Fails loudly /
