@@ -74,6 +74,7 @@ def test_main_default_split_is_val_and_public_is_aggregates_only(
     assert summary["run"]["split"] == "val"  # default anti-tuning (§5)
     assert summary["run"]["dataset"] == "smoke"
     assert set(summary) == {
+        "artifact_schema",
         "run",
         "n_sheets",
         "n_sheets_ran",
@@ -232,10 +233,6 @@ def test_resolved_output_alias_into_docs_is_rejected(
         ev._resolve_output_dir(alias, tmp_path)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o resumo sintético ainda não declara schema nem rejeita números não finitos",
-)
 def test_public_summary_is_versioned_utf8_json_and_rejects_nonfinite() -> None:
     payload = {"artifact_schema": ev.PUBLIC_SUMMARY_SCHEMA, "n_sheets": 1}
 

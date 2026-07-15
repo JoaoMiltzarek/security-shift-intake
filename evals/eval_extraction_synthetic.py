@@ -62,6 +62,7 @@ SYNTHETIC_STATUS = {"synthetic_ground_truth"}
 RELEASE_SAFETY_DATASET = "bench-balanced"
 RELEASE_SAFETY_SPLIT = "val"
 RELEASE_SAFETY_READER = "local_ocr"
+PUBLIC_SUMMARY_SCHEMA = "ssi-tier-c-eval-summary/v1"
 
 # Campos de linha por família (contrato §12).
 _PARSER_CEILING_FIELDS = ("item", "acao", "resolvido")
@@ -75,6 +76,12 @@ def _resolve_output_dir(requested: Path | None, dataset_dir: Path) -> Path:
     if resolved == public_docs or resolved.is_relative_to(public_docs):
         raise ValueError("--output-dir não pode apontar para docs/; use o publisher")
     return resolved
+
+
+def _public_summary_bytes(summary: dict[str, Any]) -> bytes:
+    """Serialize a public summary as strict, deterministic-enough UTF-8 JSON."""
+    text = json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False)
+    return (text + "\n").encode("utf-8")
 
 
 def _match(truth: str | None, value: str | None) -> bool:
@@ -527,6 +534,7 @@ def main(argv: list[str]) -> int:
             return 1
     per_sheet = [evaluate_sheet(cur, config, vision, args.dpi) for cur in sheets]
     summary = {
+        "artifact_schema": PUBLIC_SUMMARY_SCHEMA,
         "run": {
             **runtime_meta,
             "dataset": dataset,
@@ -543,16 +551,22 @@ def main(argv: list[str]) -> int:
     eval_dir.mkdir(parents=True, exist_ok=True)
     detailed_path = eval_dir / f"detailed_{args.vision}_dpi{args.dpi}_{args.split}.json"
     detailed_path.write_text(
-        json.dumps({"summary": summary, "per_sheet": per_sheet}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {"summary": summary, "per_sheet": per_sheet},
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        ),
         encoding="utf-8",
     )
 
-    public_text = json.dumps(summary, ensure_ascii=False, indent=2)
+    public_bytes = _public_summary_bytes(summary)
+    public_text = public_bytes.decode("utf-8")
     hits = scan_text_for_pii(public_text)
     if hits:
         print("PII no resumo público — NÃO escrito:", *hits, sep="\n", file=sys.stderr)
         return 2
-    summary_path.write_text(public_text + "\n", encoding="utf-8")
+    summary_path.write_bytes(public_bytes)
 
     reader = summary["reader_metrics"]
     print(
