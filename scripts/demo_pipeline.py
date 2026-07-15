@@ -104,7 +104,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     print(f"\nReview at: http://127.0.0.1:8000/drafts/{draft_id}/review")
-    print("Start the UI with:  uv run uvicorn src.api.asgi:app")
+    print(f'Start the UI with:  INTAKE_CONFIG="{args.config.as_posix()}" make serve')
     print("After the test, wipe real data with:  make purge-demo-data")
     return 0
 
