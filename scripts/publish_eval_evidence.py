@@ -13,7 +13,7 @@ import math
 import re
 import sys
 from pathlib import Path
-from typing import Any, NoReturn, cast
+from typing import Any, Literal, NoReturn, cast
 
 from data.generators.occurrences import Split
 from data.generators.tier_c import DATASET_VERSION, MANIFEST_SCHEMA
@@ -342,6 +342,39 @@ def validate_source_bytes(content: bytes, *, expected_commit: str) -> dict[str, 
         raise EvidenceValidationError("evidência recusada pelo gate de privacidade")
     validate_release_evidence(payload, expected_commit=expected_commit)
     return payload
+
+
+def _existing_bytes(destination: Path) -> bytes | None:
+    if destination.is_symlink():
+        raise EvidenceValidationError("destino write-once é um link simbólico")
+    try:
+        return destination.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise EvidenceValidationError("destino write-once não pôde ser lido") from exc
+
+
+def persist_once(destination: Path, content: bytes) -> Literal["created", "verified"]:
+    """Create exact bytes once; retries may only verify identical content."""
+    existing = _existing_bytes(destination)
+    if existing is not None:
+        if existing != content:
+            raise EvidenceValidationError("evidência write-once existente é divergente")
+        return "verified"
+
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as handle:
+            handle.write(content)
+    except FileExistsError:
+        existing = _existing_bytes(destination)
+        if existing != content:
+            raise EvidenceValidationError("evidência write-once concorrente é divergente") from None
+        return "verified"
+    except OSError as exc:
+        raise EvidenceValidationError("evidência write-once não pôde ser criada") from exc
+    return "created"
 
 
 def main(argv: list[str]) -> int:

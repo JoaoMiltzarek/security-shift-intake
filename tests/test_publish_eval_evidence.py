@@ -256,10 +256,6 @@ def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert sensitive_marker not in output.err
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a persistência write-once da evidência ainda não foi implementada",
-)
 def test_persist_once_creates_exact_bytes_and_accepts_identical_retry(tmp_path: Path) -> None:
     destination = tmp_path / "release" / "evidence.json"
     content = valid_release_bytes()
@@ -270,10 +266,6 @@ def test_persist_once_creates_exact_bytes_and_accepts_identical_retry(tmp_path: 
     assert destination.read_bytes() == content
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a persistência write-once da evidência ainda não foi implementada",
-)
 def test_persist_once_refuses_divergent_existing_bytes_without_overwrite(
     tmp_path: Path,
 ) -> None:
@@ -287,10 +279,6 @@ def test_persist_once_refuses_divergent_existing_bytes_without_overwrite(
     assert destination.read_bytes() == original
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a persistência write-once da evidência ainda não foi implementada",
-)
 def test_persist_once_refuses_symbolic_link(tmp_path: Path) -> None:
     target = tmp_path / "target.json"
     target.write_bytes(valid_release_bytes())
