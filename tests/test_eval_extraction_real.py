@@ -502,6 +502,31 @@ def test_real_eval_paths_and_git_metadata_do_not_depend_on_cwd(
     assert mod._git_commit() != "unknown"
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="o eval real ainda sobrescreve o resumo histórico em docs/ por padrão",
+)
+def test_real_eval_summary_defaults_to_private_and_rejects_docs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import evals.eval_extraction_real as mod
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    assert mod.SUMMARY_PATH == PRIVATE_ROOT / "audit" / "eval_real_summary.json"
+    monkeypatch.setattr(mod, "_instrumented", lambda _args: 0)
+
+    with pytest.raises(SystemExit) as exc_info:
+        mod.main(
+            [
+                "--summary-output",
+                str(REPO_ROOT / "docs" / "replacement.json"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "publisher" in capsys.readouterr().err
+
+
 def test_instrumented_real_eval_enforces_private_source_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
