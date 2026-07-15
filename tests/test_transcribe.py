@@ -94,7 +94,7 @@ def test_confidence_is_minimum_across_pages() -> None:
     finally:
         mod.load_source_images = original  # type: ignore[assignment]
 
-    assert result.transcription == "page one\n\npage two"
+    assert result.transcription == "page one\n\f\npage two"
     assert result.transcription_confidence == 0.4
 
 

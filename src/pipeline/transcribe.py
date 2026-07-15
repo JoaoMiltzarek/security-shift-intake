@@ -13,8 +13,8 @@ from src.clients.base import VisionClient, WordBox
 from src.pipeline.ingest import DEFAULT_DPI, image_to_base64_png, load_source_images
 from src.schema.state import PipelineState
 
-# Separator between page transcriptions in the combined text.
-_PAGE_SEP = "\n\n"
+# Standard form-feed keeps page boundaries explicit for downstream table parsing.
+_PAGE_SEP = "\n\f\n"
 
 
 def transcribe(
