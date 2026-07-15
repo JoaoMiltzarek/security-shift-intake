@@ -246,6 +246,37 @@ def _validate_metrics(value: object) -> dict[str, Any]:
         unit_interval=False,
         nullable=True,
     )
+
+    mismatch = metrics["operational_mismatch_count"]
+    blocked = metrics["operationally_blocked_mismatch_count"]
+    structural_failure = metrics["structural_failure_count"]
+    unsafe_clean = metrics["unsafe_clean_count"]
+    if (
+        metrics["operational_signal_complete_count"] != n_ran
+        or blocked > mismatch
+        or metrics["missed_incident_count"] > structural_failure
+        or unsafe_clean != metrics["missed_incident_count"]
+        or metrics["false_incident_unreviewed_count"] > metrics["false_incident_count"]
+        or metrics["unsafe_approvable_count"] > mismatch
+        or metrics["unsafe_approvable_count"] > metrics["operational_approvable_count"]
+        or metrics["unsafe_exportable_count"] > mismatch
+        or metrics["unsafe_exportable_count"] > metrics["operational_exportable_count"]
+    ):
+        raise EvidenceValidationError("métrica derivada da evidência diverge das contagens")
+
+    expected_parse_rate = round((n_ran - mismatch) / n_ran, 4) if n_ran else None
+    expected_safe_review = round(blocked / mismatch, 4) if mismatch else 1.0
+    expected_structural_recall = (
+        round((structural_failure - unsafe_clean) / structural_failure, 4)
+        if structural_failure
+        else 1.0
+    )
+    if (
+        metrics["parse_table_success_rate"] != expected_parse_rate
+        or metrics["safe_review_recall"] != expected_safe_review
+        or metrics["structural_disposition_recall"] != expected_structural_recall
+    ):
+        raise EvidenceValidationError("métrica derivada da evidência diverge das contagens")
     return metrics
 
 
