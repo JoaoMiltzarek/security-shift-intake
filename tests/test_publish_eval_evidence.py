@@ -377,6 +377,23 @@ def test_catalog_rejects_stale_existing_hash(tmp_path: Path) -> None:
         publisher.load_and_validate_catalog(catalog_path, root=tmp_path)
 
 
+def test_catalog_rejects_arbitrary_artifact_as_current_release(tmp_path: Path) -> None:
+    catalog_path, content = _write_minimal_catalog(tmp_path)
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    entry = _catalog_entry(
+        "docs/historical.json",
+        content,
+        status="current_release",
+        entry_id="arbitrary-release",
+    )
+    entry["kind"] = "report"
+    catalog["artifacts"] = [entry]
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with pytest.raises(publisher.EvidenceValidationError, match="current_release"):
+        publisher.load_and_validate_catalog(catalog_path, root=tmp_path)
+
+
 def test_catalog_update_is_sorted_idempotent_and_hashes_release_bytes(tmp_path: Path) -> None:
     catalog_path, _content = _write_minimal_catalog(tmp_path)
     release_content = valid_release_bytes()
