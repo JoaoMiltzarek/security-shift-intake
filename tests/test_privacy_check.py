@@ -285,6 +285,12 @@ def test_non_bressay_dataset_binary_still_flagged(tmp_path: Path) -> None:
     assert len(check_no_sensitive_outside_private(tmp_path)) >= 1
 
 
+def test_nested_bressay_named_directory_is_not_privacy_exempt(tmp_path: Path) -> None:
+    _write(tmp_path / "archive" / "datasets" / "bressay" / "scan.pdf", "%PDF")
+
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
 def test_bressay_ground_truth_text_exempt_from_pii_scan(tmp_path: Path) -> None:
     # BRESSAY .txt ground truth legitimately contains names/times of essay authors.
     _write(tmp_path / "datasets" / "bressay" / "gt.txt", "encontro às 14:30 com colega")
