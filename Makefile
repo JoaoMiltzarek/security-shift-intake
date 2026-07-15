@@ -60,9 +60,9 @@ help:
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
-	@echo   make purge-demo-data - wipe temp demo artifacts (DB+sidecars, audit/, page_images/, debug/)
-	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
-	@echo   make purge-all-private - wipe ALL of private/ (incl. curadoria), needs CONFIRM=YES
+	@echo   make purge-demo-data - remove active demo artifacts (DB+sidecars, audit/, page_images/, debug/)
+	@echo   make purge-real-data - remove real-sheet entries (private/reais/), needs CONFIRM=YES
+	@echo   make purge-all-private - remove active entries under private/, needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
 	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md

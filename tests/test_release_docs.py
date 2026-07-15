@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -99,10 +97,6 @@ def test_bressay_is_consistently_documented_as_nonthresholded() -> None:
     assert "frozen BRESSAY manifest" not in combined
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="purge ainda é descrito como wipe apesar de não sobrescrever o storage",
-)
 def test_purge_is_documented_as_logical_removal_not_secure_erase() -> None:
     documents = [_read(path) for path in ("README.md", "docs/PRIVACY.md", "Makefile")]
     combined = "\n".join(documents)

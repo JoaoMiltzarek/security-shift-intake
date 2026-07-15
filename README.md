@@ -140,7 +140,7 @@ folder, never committed):
 # Uses the v1 occurrence-table config (configs/controle_ocorrencias.yaml).
 make demo-pipeline FILE="private/reais/your-file.pdf"  # replace with your private file
 make serve SERVE_ARGS="--port 8000"
-make purge-demo-data           # wipe temporary demo artifacts when done
+make purge-demo-data           # remove active demo artifacts when done
 ```
 
 `make demo-pipeline-mock` remains available as a no-Tesseract UI fallback. It deliberately has
