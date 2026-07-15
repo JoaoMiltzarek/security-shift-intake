@@ -409,6 +409,10 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
     init_db(engine)  # segunda chamada não pode falhar nem duplicar colunas
 
     with Session(engine) as s:
+        from sqlmodel import select
+
+        from src.api.models import DraftRevision
+
         draft = s.get(Draft, 1)
         assert draft is not None
         assert draft.status == "approved"
@@ -416,3 +420,9 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
         assert draft.approved_revision is None
         assert draft.approved_state_sha256 is None
         assert draft.delivery_mode is None
+
+        reapproved = set_status(s, 1, ApprovalStatus.APPROVED, actor="legacy-reviewer")
+        snapshots = list(s.exec(select(DraftRevision).where(DraftRevision.draft_id == 1)))
+        assert len(snapshots) == 1
+        assert snapshots[0].revision == reapproved.revision == 1
+        assert snapshots[0].state_sha256 == reapproved.approved_state_sha256
