@@ -121,6 +121,21 @@ def test_render_refuses_failed_privacy_evidence() -> None:
         )
 
 
+def test_render_refuses_pytest_log_with_any_failure() -> None:
+    with pytest.raises(ValueError, match="pytest evidence"):
+        render_report(
+            branch="b",
+            parent_sha="p",
+            tree_hash="t",
+            authoritative_sha="sha",
+            preflight=None,
+            pytest_log="1 failed, 5 passed in 1.0s",
+            privacy_log="privacy-check OK",
+            smoke_log=None,
+            screenshot_sha=None,
+        )
+
+
 def test_ci_does_not_collect_or_upload_evidence_after_privacy_failure() -> None:
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     condition = "if: ${{ success() && steps.privacy.outcome == 'success' }}"
