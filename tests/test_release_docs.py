@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -194,3 +196,22 @@ def test_architecture_bounds_the_config_driven_extension_surface() -> None:
         architecture
     )
     assert "within the supported schema families" in readme
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o protocolo ativo ainda contém comandos fora do ambiente locked",
+)
+def test_active_documentation_uses_locked_project_commands() -> None:
+    paths = [Path("README.md")]
+    paths.extend(path for path in Path("docs").rglob("*.md") if "archive" not in path.parts)
+    documents = {str(path): path.read_text(encoding="utf-8") for path in paths}
+
+    for path, document in documents.items():
+        for line in document.splitlines():
+            if "uv run " in line:
+                assert "uv run --locked " in line, f"comando unlocked em {path}"
+    combined = "\n".join(documents.values())
+    assert "PYTHONPATH=." not in combined
+    assert "python scripts/build_bressay_manifest.py" not in combined
+    assert "python scripts/preflight.py --json" in documents["README.md"]
