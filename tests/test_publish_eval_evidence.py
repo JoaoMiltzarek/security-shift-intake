@@ -230,6 +230,17 @@ def test_source_validation_applies_strict_privacy_scan() -> None:
     assert "12:34" not in str(exc_info.value)
 
 
+def test_source_validation_scans_decoded_unicode_escapes_for_pii() -> None:
+    payload = valid_release_payload()
+    payload["parser_ceiling"]["note"] = "diagnóstico gerado às 12:34"
+    serialized = json.dumps(payload, ensure_ascii=False)
+    escaped = serialized.replace("12:34", r"\u0031\u0032\u003a\u0033\u0034").encode()
+    assert b"12:34" not in escaped
+
+    with pytest.raises(publisher.EvidenceValidationError, match="privacidade"):
+        publisher.validate_source_bytes(escaped, expected_commit=EXPECTED_COMMIT)
+
+
 def test_cli_check_mode_validates_without_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
