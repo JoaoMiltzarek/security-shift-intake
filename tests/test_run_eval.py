@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import evals.run_eval as run_eval
+import pytest
 from evals.run_eval import build_metrics, main, render_report, write_artifacts
 
 
@@ -78,3 +79,15 @@ def test_main_defaults_to_private_diagnostics(monkeypatch) -> None:
 
     assert run_eval.main([]) == 0
     assert observed["out_dir"] == Path("private/audit/component_eval")
+
+
+@pytest.mark.parametrize("out_dir", [Path("."), Path("docs"), Path("data")])
+def test_main_refuses_generated_artifacts_in_public_repo_paths(
+    monkeypatch, out_dir: Path
+) -> None:
+    def fail_if_called(**_kwargs):
+        raise AssertionError("metrics must not run for an unsafe output path")
+
+    monkeypatch.setattr(run_eval, "build_metrics", fail_if_called)
+
+    assert run_eval.main(["--out", str(out_dir)]) == 2
