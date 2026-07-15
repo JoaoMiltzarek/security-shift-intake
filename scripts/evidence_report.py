@@ -20,9 +20,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
+import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 DEFAULT_OUT = Path("docs/archive/SSI-1002_EVIDENCE.md")
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +74,89 @@ def _privacy_summary(log: str | None) -> str | None:
     return "privacy-check OK — successful gate (raw detector output intentionally omitted)"
 
 
+def _preflight_summary(raw: str | None) -> str | None:
+    """Whitelist release-relevant booleans; omit paths, DB hashes and local identities."""
+    if raw is None:
+        return None
+    try:
+        parsed: object = json.loads(raw)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ValueError("preflight evidence is not valid JSON") from exc
+    if type(parsed) is not dict:
+        raise ValueError("preflight evidence is not a JSON object")
+    payload = cast(dict[str, Any], parsed)
+
+    tools = cast(dict[str, Any], payload.get("tools")) if type(payload.get("tools")) is dict else {}
+    tesseract = (
+        cast(dict[str, Any], payload.get("tesseract"))
+        if type(payload.get("tesseract")) is dict
+        else {}
+    )
+    browser = (
+        cast(dict[str, Any], payload.get("browser"))
+        if type(payload.get("browser")) is dict
+        else {}
+    )
+    dirty = (
+        cast(dict[str, Any], payload.get("dirty_tree"))
+        if type(payload.get("dirty_tree")) is dict
+        else {}
+    )
+    raw_langs = (
+        cast(list[Any], tesseract.get("langs")) if type(tesseract.get("langs")) is list else []
+    )
+    langs = [
+        value
+        for value in raw_langs
+        if type(value) is str and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", value)
+    ]
+    dbs = cast(list[Any], payload.get("dbs")) if type(payload.get("dbs")) is list else []
+    db_counts: dict[str, int] = {}
+    for item in dbs:
+        if type(item) is not dict or type(item.get("classification")) is not str:
+            continue
+        classification = item["classification"]
+        if re.fullmatch(r"[a-z_]{1,40}", classification):
+            db_counts[classification] = db_counts.get(classification, 0) + 1
+
+    safe = {
+        "severity": payload.get("severity"),
+        "branch_ok": payload.get("branch_ok"),
+        "dirty_tree_clean": dirty.get("clean"),
+        "venv_ok": payload.get("venv_ok"),
+        "tools_present": {name: bool(tools.get(name)) for name in ("uv", "python", "make")},
+        "test_baseline": payload.get("test_baseline"),
+        "db_classification_counts": db_counts,
+        "symlink_support": payload.get("symlink_support"),
+        "tesseract": {"present": tesseract.get("present"), "langs": langs},
+        "browser_present": browser.get("chromium_present"),
+        "precommit_hook_active": payload.get("precommit_hook_active"),
+    }
+    return json.dumps(safe, indent=2, sort_keys=True)
+
+
+def _pytest_summary(log: str | None) -> str | None:
+    """Keep only the successful count/duration token, never the raw test log."""
+    if log is None:
+        return None
+    matches: list[str] = re.findall(
+        r"(?m)(\d+ passed(?:, \d+ (?:skipped|xfailed|xpassed|deselected))*(?: in \d+(?:\.\d+)?s)?)",
+        log,
+    )
+    if not matches:
+        raise ValueError("pytest evidence has no successful summary")
+    return matches[-1]
+
+
+def _smoke_summary(log: str | None) -> str | None:
+    """Reduce browser output to a pass token; screenshot identity is carried by its hash."""
+    if log is None:
+        return None
+    if "browser-smoke OK" not in log or "FAILED" in log or "REPORTED" in log:
+        raise ValueError("browser-smoke evidence is not a successful result")
+    return "browser-smoke OK — successful real-browser gate (raw log intentionally omitted)"
+
+
 def render_report(
     *,
     branch: str | None,
@@ -85,9 +171,12 @@ def render_report(
 ) -> str:
     """Render the evidence markdown from already-collected pieces (pure/testable)."""
     auth = authoritative_sha or "pending — see the post-commit CI artifact"
+    safe_preflight = _preflight_summary(preflight)
+    safe_pytest_log = _pytest_summary(pytest_log)
     safe_privacy_log = _privacy_summary(privacy_log)
+    safe_smoke_log = _smoke_summary(smoke_log)
     screenshot = (
-        f"`{SCREENSHOT}` — sha256 `{screenshot_sha}` (synthetic sample; real page capture)"
+        f"Synthetic cockpit screenshot — sha256 `{screenshot_sha}` (real browser capture)"
         if screenshot_sha
         else None
     )
@@ -107,11 +196,16 @@ def render_report(
         "",
         _section(
             "Preflight",
-            preflight,
+            safe_preflight,
             "python3 scripts/preflight.py --json > preflight.json",
             fenced=True,
         ),
-        _section("Tests (make check)", pytest_log, "make check 2>&1 | tee pytest.log", fenced=True),
+        _section(
+            "Tests (make check)",
+            safe_pytest_log,
+            "make check 2>&1 | tee pytest.log",
+            fenced=True,
+        ),
         _section(
             "Privacy check",
             safe_privacy_log,
@@ -120,7 +214,7 @@ def render_report(
         ),
         _section(
             "Browser-smoke (cockpit UI gate — CI authoritative)",
-            smoke_log,
+            safe_smoke_log,
             "uv run --locked python scripts/browser_smoke.py 2>&1 | tee smoke.log",
             fenced=True,
         ),
