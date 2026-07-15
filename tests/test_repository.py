@@ -268,6 +268,25 @@ def test_approve_stamps_revision_and_hash(session: Session) -> None:
     assert approved.approved_state_sha256 == state_sha256(approved.state_json)
 
 
+def test_approval_and_send_audit_reference_the_full_snapshot(session: Session) -> None:
+    from src.api.repository import state_sha256
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="reviewer")
+    mark_sent(session, draft.id, actor="reviewer", delivery_mode="simulated")
+
+    expected_hash = state_sha256(draft.state_json)
+    entries = {
+        entry.action: entry
+        for entry in get_audit(session, draft.id)
+        if entry.action in {"status:approved", "send_simulated"}
+    }
+    assert set(entries) == {"status:approved", "send_simulated"}
+    assert all(entry.revision == 1 for entry in entries.values())
+    assert all(entry.state_sha256 == expected_hash for entry in entries.values())
+
+
 def test_reject_clears_approval_stamp(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
