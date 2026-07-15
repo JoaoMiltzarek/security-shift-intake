@@ -12,6 +12,7 @@ from src.api.db import init_db, make_engine
 from src.api.models import Draft
 from src.api.repository import (
     DraftAlreadySentError,
+    DraftOperationConflictError,
     add_audit,
     create_draft,
     get_audit,
@@ -181,6 +182,51 @@ def test_update_state_bumps_revision_and_audits_hash(session: Session) -> None:
     assert entry.detail is not None
     assert "rev=2" in entry.detail
     assert state_sha256(updated.state_json)[:12] in entry.detail
+
+
+def test_stale_editor_cannot_overwrite_a_newer_revision(tmp_path: Path) -> None:
+    from sqlmodel import select
+
+    from src.api.models import DraftRevision
+    from src.api.repository import update_state
+
+    engine = make_engine(
+        f"sqlite:///{(tmp_path / 'stale-editor.db').as_posix()}", allow_test_path=True
+    )
+    init_db(engine)
+    with Session(engine) as setup:
+        draft = create_draft(setup, _state())
+        assert draft.id is not None
+        draft_id = draft.id
+
+    with Session(engine) as first, Session(engine) as stale:
+        assert first.get(Draft, draft_id) is not None
+        assert stale.get(Draft, draft_id) is not None
+        update_state(
+            first,
+            draft_id,
+            PipelineState(source_pdf=Path("report.pdf"), transcription="first edit"),
+            actor="first",
+            expected_revision=1,
+        )
+        with pytest.raises(DraftOperationConflictError, match="reload"):
+            update_state(
+                stale,
+                draft_id,
+                PipelineState(source_pdf=Path("report.pdf"), transcription="stale edit"),
+                actor="stale",
+                expected_revision=1,
+            )
+
+    with Session(engine) as verify:
+        persisted = verify.get(Draft, draft_id)
+        assert persisted is not None
+        assert persisted.revision == 2
+        assert PipelineState.model_validate_json(persisted.state_json).transcription == "first edit"
+        revisions = list(
+            verify.exec(select(DraftRevision).where(DraftRevision.draft_id == draft_id))
+        )
+        assert [revision.revision for revision in revisions] == [1, 2]
 
 
 def test_approve_stamps_revision_and_hash(session: Session) -> None:
