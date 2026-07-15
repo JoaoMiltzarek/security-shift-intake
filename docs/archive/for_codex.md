@@ -5,7 +5,7 @@
 > saída real, decisão e desvio está documentado aqui, DENTRO do próprio commit do micro-step.
 > **Se você é o Codex / uma nova sessão / um humano retomando:** leia `## ESTADO ATUAL` e siga
 > o "RETOME AQUI". O plano completo aprovado está em
-> `C:\Users\charu\.claude\plans\quero-alinhar-esse-projeto-steady-sonnet.md` (fora do repo);
+- Plano anexado originalmente ao handoff; caminho local removido por privacidade.
 > o `## MAPA DO PLANO` abaixo é o espelho executável dele.
 > Convenções: branch por fase `SSI-10xx-<slug>`; commits `tipo(SSI-10xx): descrição` (PT,
 > 3ª pessoa, autor JoaoMiltzarek, sem co-author); commit por micro-alteração; NUNCA fazer push
