@@ -130,7 +130,7 @@ def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
 def test_server_config_is_fixed_to_loopback() -> None:
     demo = _showcase_demo()
     server = demo._build_server(8125)
-    assert server.config.app == "src.api.app:app"
+    assert server.config.app == "src.api.asgi:app"
     assert server.config.host == "127.0.0.1"
     assert server.config.port == 8125
 
