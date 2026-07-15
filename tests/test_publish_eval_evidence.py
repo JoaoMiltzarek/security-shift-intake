@@ -209,6 +209,25 @@ def test_release_evidence_rejects_unsafe_or_malformed_metrics(path: str, value: 
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
 
 
+def test_release_evidence_recomputes_safe_review_recall_from_counts() -> None:
+    payload = valid_release_payload()
+    reader = payload["reader_metrics"]
+    reader["operational_mismatch_count"] = 45
+    reader["operationally_blocked_mismatch_count"] = 0
+    reader["safe_review_recall"] = 1.0
+    for bucket in payload["by_difficulty"].values():
+        bucket["operational_mismatch_count"] = bucket["n_ran"]
+        bucket["operationally_blocked_mismatch_count"] = 0
+        bucket["safe_review_recall"] = 1.0
+    for bucket in payload["by_template"].values():
+        bucket["operational_mismatch_count"] = bucket["n_ran"]
+        bucket["operationally_blocked_mismatch_count"] = 0
+        bucket["safe_review_recall"] = 1.0
+
+    with pytest.raises(publisher.EvidenceValidationError, match="métrica derivada"):
+        publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
+
+
 @pytest.mark.parametrize("section", ["root", "run", "reader_metrics"])
 def test_release_evidence_rejects_extra_fields(section: str) -> None:
     payload = valid_release_payload()
