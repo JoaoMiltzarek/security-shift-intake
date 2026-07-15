@@ -19,8 +19,9 @@ the repository.
 - **Real data lives only in `private/`** — gitignored. It holds: input sheets (`private/reais/`),
   the SQLite DB with PII (`private/app.db`), detailed audit (`private/audit/`), and the curated
   ground-truth (`private/curadoria/`).
-- **Public artifacts are sanitized.** READMEs, docs and the committed audit report carry only
-  **aggregate metrics + synthetic examples** — no names, times, descriptions or OCR snippets.
+- **Public artifacts are sanitized.** Any allowlisted, value-free public evidence is limited to
+  run aggregates, pseudonymous per-sheet counters, paired outcome labels and synthetic examples.
+  It contains no source names, field values, descriptions, transcriptions, OCR snippets or paths.
 - **No fabricated metrics.** Every number comes from code that ran; model-dependent metrics are
   marked pending rather than invented.
 

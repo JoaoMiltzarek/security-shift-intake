@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -112,10 +110,6 @@ def test_purge_is_documented_as_logical_removal_not_secure_erase() -> None:
     assert "wipe" not in combined.lower()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a narrativa aggregate-only contradiz os contadores pseudônimos publicados",
-)
 def test_privacy_docs_describe_the_value_free_public_allowlist() -> None:
     documents = [_read(path) for path in ("README.md", "docs/PRIVACY.md")]
     combined = "\n".join(documents)
@@ -130,10 +124,6 @@ def test_privacy_docs_describe_the_value_free_public_allowlist() -> None:
     assert "only the allowlisted aggregate summary" not in combined
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a allowlist normativa do eval real está atrás das chaves executáveis",
-)
 def test_eval_protocol_lists_the_executable_public_allowlist() -> None:
     from evals.eval_extraction_real import (
         _PUBLIC_FAILURE_REASONS,
@@ -148,10 +138,6 @@ def test_eval_protocol_lists_the_executable_public_allowlist() -> None:
     assert "reason` de falha, truncada" not in protocol
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o eval real histórico ainda é narrado como evidência corrente",
-)
 def test_real_eval_artifact_is_labeled_historical_when_runtime_is_unattested() -> None:
     artifact = json.loads(_read("docs/eval_real_summary.json"))
     runtime_keys = {

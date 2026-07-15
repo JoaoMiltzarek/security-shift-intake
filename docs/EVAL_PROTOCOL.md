@@ -157,12 +157,14 @@ contra esta margem; nenhuma decisão de threshold antes deste número.
 | artefato | caminho | conteúdo |
 |---|---|---|
 | Detalhado (PII) | `private/audit/eval_real_detailed_{reader}_dpi{dpi}.json` | tudo, por folha, inclusive transcrição/valores. Substitui `metrics_real.json` como fonte detalhada das rodadas instrumentadas. Gitignored. |
-| Público (evidência) | `docs/eval_real_summary.json` | **construído por whitelist** (§7): uma entrada por rodada `(reader, dpi)` + seção `paired`. |
-| Compare legado | `docs/AUDITORIA_FOLHAS_REAIS.md` | ANTES escalar × DEPOIS tabela (modo `--legacy-compare`), inalterado. |
+| Resumo local allowlisted | `private/audit/eval_real_summary.json` | Construído por whitelist (§7): uma entrada por rodada `(reader, dpi)` + seção `paired`; gitignored. |
+| Público histórico | `docs/eval_real_summary.json` | Historical, directional, pre-runtime-attestation diagnostic; not release evidence e nunca sobrescrito pelo evaluator atual. |
+| Compare legado local | `private/audit/AUDITORIA_FOLHAS_REAIS.md` | ANTES escalar × DEPOIS tabela (modo `--legacy-compare`); o relatório histórico em `docs/` é preservado. |
 
-**Nascimento honesto:** `docs/eval_real_summary.json` só passa a existir depois de uma
-rodada real. Sem rodada, o arquivo está ausente — nunca um placeholder apresentado
-como evidência. O exemplo de schema em §7 é **exemplo**, não evidência.
+**Fronteira de publicação:** rodadas novas nascem somente em `private/audit/`. O evaluator não
+publica nem atualiza arquivos em `docs/`. O JSON versionado atual é histórico e anterior à
+atestação completa de Python/lock/Tesseract; seus números não comprovam o HEAD atual. O exemplo
+de schema em §7 é **exemplo**, não evidência.
 
 ## 7. Schema público sanitizado (whitelist — nunca subtração)
 
@@ -176,8 +178,11 @@ O JSON público contém **somente**:
 - métricas agregadas e por folha **anônima** (`sheet_1`, ordem = `document_id`
   ordenado): `parse_table_success`, `must_review_count`, `missing_count`,
   `repairable_ratio`, `estimated_chars_to_type`, `prefilled_but_wrong_count`,
-  `blank_field_count`, `illegible_token_count`, `elapsed_sec`, `ocr_quality`,
-  `confidence_source`, `available` (+ `reason` de falha, truncada e sem valores);
+  `blank_field_count`, `illegible_token_count`, `campos_corrigidos_por_folha`,
+  `n_fields_compared`, `elapsed_sec`, `ocr_quality`, `confidence_source`, `available`;
+- para folha indisponível, `reason` é sempre um safe allowlisted reason code:
+  `pending_file`, `reader_error`, `source_outside_private` ou `unavailable`; texto de exceção
+  nunca entra no resumo;
 - pareado por índice anônimo de campo: `sheet_1.data_turno → only_vlm` etc.
 
 **Proibidos** (ficam só no detalhado em `private/audit/`): transcrições, valores de

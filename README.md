@@ -176,8 +176,12 @@ make eval-real VISION=local_vlm DPI=150      # explicit opt-in; requires Ollama
 make eval-real VISION=local_vlm DPI=250      # DPI sensitivity; lower to 100 after VRAM OOM
 uv run --locked python -m evals.eval_extraction_real --compare private/audit/eval_real_detailed_local_ocr_dpi150.json private/audit/eval_real_detailed_local_vlm_dpi150.json
 ```
-Detailed output (PII) stays in gitignored `private/audit/`; only the allowlisted aggregate summary
-may be published as `docs/eval_real_summary.json`. A secondary reader sanity check is available:
+Detailed output (PII) and the allowlisted local summary stay in gitignored `private/audit/`.
+The evaluator never overwrites `docs/eval_real_summary.json`; that file is a
+**historical, directional, pre-runtime-attestation diagnostic** and is not release evidence. If a separate
+authorized publication is needed, allowlisted, value-free public evidence may contain run
+aggregates, pseudonymous per-sheet counters and paired outcome labels, but never source values,
+transcriptions or paths. A secondary reader sanity check is available:
 
 ```console
 uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20
@@ -213,14 +217,17 @@ simulation requires the approved revision and matching stored-state hash.
 Two decoupled models keep the domain stable as the sheet layout changes:
 - **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
   (value + confidence + source `ocr|rule|human` + status + evidence).
-- **`NormalizedIncidentModel`** — what the domain understands (shift + occurrences, or `S/A`).
+- **`NormalizedIncidentModel`** — what the domain understands, with disposition
+  `unknown | none | present`; explicit `S/A` evidence is the only OCR/rule path to `none`.
 
 Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why this schema:
 [docs/ADR_controle_ocorrencias_schema.md](docs/ADR_controle_ocorrencias_schema.md).
 
 ## Privacy & security
 Real sheets are PII and stay **only in `private/`** (gitignored). No external API is used in
-the default flow. Public artifacts carry **aggregate metrics + synthetic examples only**.
+the default flow. Any allowlisted, value-free public evidence is limited to run aggregates,
+pseudonymous per-sheet counters, paired outcome labels and synthetic examples; it excludes source
+values, transcriptions, identifiers and paths.
 `make privacy-check` blocks known sensitive file classes and configured PII patterns; it is a
 documented heuristic, not a proof that every possible identifier is detected. Scoped `purge-*`
 targets clean up without destroying validated curadoria. See
@@ -335,12 +342,13 @@ These directional numbers do not participate in G1-S or the v1 release gate. The
 harness did not authenticate a versioned BRESSAY manifest, effective OCR runtime/language pack,
 or a predeclared CER tolerance.
 
-**Real curated sheets (human-verified ground truth, paired per field):** on the 2 real
-sheets with archived sources, the VLM reads **6 of 7 paired fields the Tesseract baseline
-cannot** (0 fields go the other way) and leaves 136 chars to type vs 318 — numbers in
-[eval_real_summary.json](docs/eval_real_summary.json). The tension is deliberate and
-measured: real sheets favour the VLM, but the synthetic bench shows it fabricates incidents
-on degraded scans — which is why it still is not trusted as an automatic transcriber.
+**Real curated sheets (historical diagnostic):** on the 2 real sheets with archived sources,
+the VLM read **6 of 7 paired fields the Tesseract baseline could not** (0 fields went the other
+way) and left 136 chars to type vs 318. These numbers in
+[eval_real_summary.json](docs/eval_real_summary.json) are a
+**historical, directional, pre-runtime-attestation diagnostic** and are not release evidence or a default-reader gate. They
+show why the VLM was investigated; the authenticated synthetic ruler rejected it for fabricated
+incidents on degraded scans.
 
 **What these numbers mean (honest limitations):** Tesseract is not reliable on cursive
 handwriting in the measured datasets;
