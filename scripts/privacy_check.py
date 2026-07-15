@@ -86,6 +86,11 @@ def _is_root_directory(path: Path, name: str) -> bool:
     return bool(path.parts) and path.parts[0] == name
 
 
+def _is_bressay_root(path: Path) -> bool:
+    """Allow only the repository-root datasets/bressay subtree, never nested aliases."""
+    return path.parts[: len(_BRESSAY_SUBPATH)] == _BRESSAY_SUBPATH
+
+
 def _load_extra_terms() -> list[re.Pattern[str]]:
     """Compile case-insensitive patterns from the optional private PII-terms file."""
     if not _PII_TERMS_FILE.exists():
@@ -172,7 +177,7 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR) or _has_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
-        if _has_subpath(rel, _BRESSAY_SUBPATH):
+        if _is_bressay_root(rel):
             continue
         if _DB_EXT.search(p.name):
             violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
@@ -191,7 +196,7 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR):
             continue
-        if _has_subpath(rel, _BRESSAY_SUBPATH):
+        if _is_bressay_root(rel):
             continue
         suffix = p.suffix.lower()
         terms = extra

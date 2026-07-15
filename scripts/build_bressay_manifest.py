@@ -9,7 +9,7 @@ decide é a folha real (docs/EVAL_PROTOCOL.md).
 Honestidade: ids sem imagem/ground-truth são pulados e CONTADOS no stderr; split
 ausente ou zero pares = exit 1 com instrução — nunca um manifest vazio silencioso.
 
-Uso: python scripts/build_bressay_manifest.py --bressay-dir data/bressay --n 20
+Uso: python scripts/build_bressay_manifest.py --bressay-dir datasets/bressay --n 20
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from pathlib import Path
 # "word": cada amostra do split tem uma subpasta words/{id}/ com arquivos {id}-*.png.
 _LEVEL_DIRS = {"line": "lines", "page": "pages", "word": "words"}
 _SPLIT = Path("sets") / "test.txt"
+_DEFAULT_BRESSAY_DIR = Path(os.environ.get("BRESSAY_DIR", "datasets/bressay"))
 
 
 def build_manifest(bressay_dir: Path, level: str = "line", n: int = 0) -> list[dict[str, str]]:
@@ -79,8 +80,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--bressay-dir",
         type=Path,
-        default=Path(os.environ.get("BRESSAY_DIR", "data/bressay")),
-        help="pasta da release (contém sets/ e data/); default: $BRESSAY_DIR ou data/bressay",
+        default=_DEFAULT_BRESSAY_DIR,
+        help=(
+            "pasta da release (contém sets/ e data/); "
+            "default: $BRESSAY_DIR ou datasets/bressay"
+        ),
     )
     parser.add_argument(
         "--level",
