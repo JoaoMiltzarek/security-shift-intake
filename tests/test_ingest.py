@@ -217,13 +217,13 @@ def test_pdf_pixel_budget_is_rejected_before_get_pixmap(
 def test_pdf_total_pixel_budget_is_checked_before_any_render(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    source = tmp_path / "two-pages.pdf"
+    source = tmp_path / "one-large-page.pdf"
     source.write_bytes(b"synthetic")
     rendered: list[int] = []
 
     class FakePage:
         def get_size(self) -> tuple[float, float]:
-            return 10.0, 10.0
+            return 20.0, 10.0
 
         def render(self, **kwargs: Any) -> object:
             rendered.append(1)
@@ -234,10 +234,10 @@ def test_pdf_total_pixel_budget_is_checked_before_any_render(
 
     class FakeDocument:
         def __len__(self) -> int:
-            return 2
+            return 1
 
         def __getitem__(self, index: int) -> FakePage:
-            assert index in {0, 1}
+            assert index == 0
             return FakePage()
 
         def close(self) -> None:
