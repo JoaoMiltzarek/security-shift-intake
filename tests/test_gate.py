@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from sqlmodel import Session
 
+from src.api import repository
 from src.api.db import init_db, make_engine
 from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
 from src.api.models import DeliveryMode, Draft
@@ -201,3 +202,39 @@ def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> Non
         assert [entry.action for entry in get_audit(verify, draft_id)].count(
             "external_dispatch_completed"
         ) == 1
+
+
+def test_edit_cannot_interleave_with_irreversible_send(tmp_path: Path) -> None:
+    """The persisted terminal state must be the exact revision sent by the adapter."""
+    engine = make_engine(
+        f"sqlite:///{(tmp_path / 'edit-send-race.db').as_posix()}", allow_test_path=True
+    )
+    init_db(engine)
+    original = _state()
+    with Session(engine) as setup:
+        draft = create_draft(setup, original)
+        assert draft.id is not None
+        draft_id = draft.id
+        set_status(setup, draft_id, ApprovalStatus.APPROVED, actor="reviewer")
+
+    class ReentrantEditingSender:
+        delivery_mode: DeliveryMode = "external"
+
+        def send(self, recipients: list[str], body: str) -> None:
+            edited = original.model_copy(update={"email_draft": "unapproved replacement"})
+            with Session(engine) as editing:
+                with pytest.raises(repository.DraftOperationConflictError):
+                    repository.update_state(editing, draft_id, edited, actor="concurrent-editor")
+
+    with Session(engine) as sending:
+        send_draft(sending, draft_id, ReentrantEditingSender(), actor="reviewer")
+
+    with Session(engine) as verify:
+        persisted = verify.get(Draft, draft_id)
+        assert persisted is not None
+        assert persisted.sent_at is not None
+        assert persisted.revision == 1
+        assert persisted.state_json == original.model_dump_json()
+        actions = [entry.action for entry in get_audit(verify, draft_id)]
+        assert "edited" not in actions
+        assert actions.count("external_dispatch_completed") == 1
