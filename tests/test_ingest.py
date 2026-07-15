@@ -73,21 +73,18 @@ def test_known_page_size_has_exact_dimensions_at_supported_dpi(
     assert image.mode == "RGB"
 
 
-def test_multipage_order_and_pixels_survive_document_close(tmp_path: Path) -> None:
+def test_multipage_pdf_is_rejected_for_the_single_page_v1_contract(tmp_path: Path) -> None:
     source = tmp_path / "multi page ç.pdf"
     red = Image.new("RGB", (60, 40), (240, 10, 10))
     blue = Image.new("RGB", (60, 40), (10, 10, 240))
-    red.save(source, "PDF", resolution=72.0, save_all=True, append_images=[blue])
+    try:
+        red.save(source, "PDF", resolution=72.0, save_all=True, append_images=[blue])
+    finally:
+        red.close()
+        blue.close()
 
-    images = rasterize_pdf(source, dpi=72)
-    source.unlink()
-
-    assert len(images) == 2
-    assert all(image.mode == "RGB" for image in images)
-    first = images[0].getpixel((30, 20))
-    second = images[1].getpixel((30, 20))
-    assert first[0] > first[2]
-    assert second[2] > second[0]
+    with pytest.raises(IngestLimitError, match="single-page"):
+        rasterize_pdf(source, dpi=72)
 
 
 def test_default_dpi_is_250() -> None:
