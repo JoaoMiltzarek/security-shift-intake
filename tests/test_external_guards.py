@@ -22,6 +22,14 @@ def test_demo_transcribe_refuses_without_allow_external(tmp_path: Path) -> None:
     assert transcribe_main(["--file", str(pdf)]) == 2  # consentimento ausente
 
 
+def test_make_target_can_only_forward_explicit_external_consent() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+
+    assert "ALLOW_EXTERNAL ?= NO" in makefile
+    assert "$(filter YES,$(ALLOW_EXTERNAL))" in makefile
+    assert "--allow-external" in makefile
+
+
 def test_vlm_base_url_loopback_default_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("INTAKE_VLM_BASE_URL", raising=False)
     monkeypatch.delenv("INTAKE_VLM_ALLOW_REMOTE", raising=False)
