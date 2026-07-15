@@ -17,7 +17,7 @@ EXPECTED_COMMIT = "a" * 40
 def _metrics(n_ran: int) -> dict[str, Any]:
     return {
         "n_ran": n_ran,
-        "parse_table_success_rate": 0.2,
+        "parse_table_success_rate": 1.0,
         "estimated_chars_to_type_total": n_ran * 10,
         "false_incident_count": 0,
         "missed_incident_count": 0,
