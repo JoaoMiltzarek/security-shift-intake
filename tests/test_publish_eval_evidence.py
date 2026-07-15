@@ -96,6 +96,18 @@ def _set_path(payload: dict[str, Any], path: str, value: Any) -> None:
     target[parts[-1]] = value
 
 
+def valid_release_bytes() -> bytes:
+    return (
+        json.dumps(
+            valid_release_payload(),
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def test_strict_json_accepts_one_utf8_object() -> None:
     assert publisher.load_strict_json(b'{"schema":"v1","count":1}') == {
         "schema": "v1",
@@ -205,3 +217,52 @@ def test_release_evidence_rejects_extra_fields(section: str) -> None:
 
     with pytest.raises(publisher.EvidenceValidationError):
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a validação ainda não aplica o scanner de privacidade aos bytes originais",
+)
+def test_source_validation_applies_strict_privacy_scan() -> None:
+    payload = valid_release_payload()
+    payload["parser_ceiling"]["note"] = "diagnóstico gerado às 12:34"
+    content = (json.dumps(payload, ensure_ascii=False) + "\n").encode()
+
+    with pytest.raises(publisher.EvidenceValidationError, match="privacidade") as exc_info:
+        publisher.validate_source_bytes(content, expected_commit=EXPECTED_COMMIT)
+
+    assert "12:34" not in str(exc_info.value)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o publisher ainda não oferece check-only pela CLI",
+)
+def test_cli_check_mode_validates_without_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "candidate.json"
+    destination = tmp_path / "must-not-exist.json"
+    source.write_bytes(valid_release_bytes())
+    monkeypatch.setattr(publisher, "RELEASE_EVIDENCE_PATH", destination, raising=False)
+
+    assert publisher.main(["--source", str(source), "--expected-commit", EXPECTED_COMMIT]) == 0
+    assert not destination.exists()
+    output = capsys.readouterr()
+    assert str(source) not in output.out
+    assert str(source) not in output.err
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o publisher ainda não oferece check-only pela CLI",
+)
+def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    sensitive_marker = "VALOR_PRIVADO_NAO_ECOAR"
+    source = tmp_path / "candidate.json"
+    source.write_text(sensitive_marker, encoding="utf-8")
+
+    assert publisher.main(["--source", str(source), "--expected-commit", EXPECTED_COMMIT]) == 1
+    output = capsys.readouterr()
+    assert sensitive_marker not in output.out
+    assert sensitive_marker not in output.err
