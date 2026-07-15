@@ -197,11 +197,11 @@ jobs:
           --source /tmp/eval_safety/eval_synthetic_summary.json
           --expected-commit "$(git rev-parse HEAD)"
 
-      - name: Upload validated release-candidate summary
+      - name: Upload validated intermediate summary
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: eval-safety-release-candidate-${{ github.sha }}
+          name: eval-safety-intermediate-${{ github.sha }}
           path: /tmp/eval_safety/eval_synthetic_summary.json
           if-no-files-found: error
 
@@ -268,4 +268,52 @@ jobs:
         with:
           name: cockpit-screenshot
           path: /tmp/browser_smoke.png
+          if-no-files-found: error
+
+  # O JSON só se torna candidato promovível depois que TODOS os gates bloqueantes
+  # deste mesmo commit passam. O artifact do job eval-safety é intermediário.
+  release-evidence-candidate:
+    name: release-evidence candidate (all gates passed)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [quality, smoke-eval, eval-safety, browser-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+          version: "0.11.23"
+
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
+
+      - name: Sync dependencies (from uv.lock)
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
+
+      - name: Download validated intermediate summary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: eval-safety-intermediate-${{ github.sha }}
+          path: /tmp/release_candidate
+
+      - name: Revalidate release-candidate summary
+        run: >-
+          uv run --locked python -m scripts.publish_eval_evidence
+          --source /tmp/release_candidate/eval_synthetic_summary.json
+          --expected-commit "$(git rev-parse HEAD)"
+
+      - name: Upload promotable release-candidate summary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: eval-safety-release-candidate-${{ github.sha }}
+          path: /tmp/release_candidate/eval_synthetic_summary.json
           if-no-files-found: error
