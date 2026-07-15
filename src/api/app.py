@@ -672,7 +672,10 @@ def create_app(
             draft = repository.set_status(session, draft_id, status, actor)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except repository.DraftAlreadySentError as exc:
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _draft_summary(draft)
 
@@ -773,7 +776,10 @@ def create_app(
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
         try:
             draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
-        except repository.DraftAlreadySentError as exc:
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
@@ -783,7 +789,10 @@ def create_app(
     ) -> HTMLResponse:
         try:
             draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
-        except repository.DraftAlreadySentError as exc:
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
@@ -857,7 +866,10 @@ def create_app(
             state = draft_stage(state, active_config)  # re-render the email draft
         try:
             repository.update_state(session, draft_id, state, actor=_LOCAL_ACTOR, action="edited")
-        except repository.DraftAlreadySentError as exc:
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             # Backstop: update_state protege TODOS os callers; aqui vira HTTP 409.
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
