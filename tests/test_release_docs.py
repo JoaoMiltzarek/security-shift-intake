@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -95,3 +97,19 @@ def test_bressay_is_consistently_documented_as_nonthresholded() -> None:
     assert "BRESSAY sem regressão" not in combined
     assert "BRESSAY ausente ⇒ G1-S = INCOMPLETO" not in combined
     assert "frozen BRESSAY manifest" not in combined
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="purge ainda é descrito como wipe apesar de não sobrescrever o storage",
+)
+def test_purge_is_documented_as_logical_removal_not_secure_erase() -> None:
+    documents = [_read(path) for path in ("README.md", "docs/PRIVACY.md", "Makefile")]
+    combined = "\n".join(documents)
+    privacy_contract = documents[1]
+
+    assert "not a secure erase" in privacy_contract
+    assert "backups" in privacy_contract
+    assert "snapshots" in privacy_contract
+    assert "storage blocks" in privacy_contract
+    assert "wipe" not in combined.lower()
