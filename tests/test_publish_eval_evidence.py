@@ -228,6 +228,70 @@ def test_release_evidence_recomputes_safe_review_recall_from_counts() -> None:
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
 
 
+def test_metric_equations_reject_impossible_operational_partitions() -> None:
+    structural_without_unknown = _metrics(45)
+    structural_without_unknown.update(
+        structural_failure_count=1,
+        operational_mismatch_count=1,
+        operationally_blocked_mismatch_count=1,
+        parse_table_success_rate=0.9778,
+    )
+
+    overlapping_dispositions = _metrics(45)
+    overlapping_dispositions.update(
+        missed_incident_count=20,
+        unsafe_clean_count=20,
+        structural_failure_count=20,
+        unknown_disposition_count=20,
+        false_incident_count=20,
+        operational_mismatch_count=45,
+        operationally_blocked_mismatch_count=45,
+        parse_table_success_rate=0.0,
+        structural_disposition_recall=0.0,
+    )
+
+    false_incident_without_mismatch = _metrics(45)
+    false_incident_without_mismatch["false_incident_count"] = 1
+
+    missing_partition_member = _metrics(45)
+    missing_partition_member.update(
+        operational_mismatch_count=1,
+        parse_table_success_rate=0.9778,
+        safe_review_recall=0.0,
+    )
+
+    impossible_gate_overlap = _metrics(45)
+    impossible_gate_overlap.update(
+        operational_mismatch_count=1,
+        operationally_blocked_mismatch_count=1,
+        unsafe_approvable_count=1,
+        unsafe_exportable_count=1,
+        operational_approvable_count=1,
+        operational_exportable_count=1,
+        parse_table_success_rate=0.9778,
+    )
+
+    approvable_count_outside_partition = _metrics(45)
+    approvable_count_outside_partition.update(
+        operational_mismatch_count=1,
+        operationally_blocked_mismatch_count=1,
+        operational_approvable_count=45,
+        parse_table_success_rate=0.9778,
+    )
+
+    cases = {
+        "structural_without_unknown": structural_without_unknown,
+        "overlapping_dispositions": overlapping_dispositions,
+        "false_incident_without_mismatch": false_incident_without_mismatch,
+        "missing_partition_member": missing_partition_member,
+        "impossible_gate_overlap": impossible_gate_overlap,
+        "approvable_count_outside_partition": approvable_count_outside_partition,
+    }
+    for metrics in cases.values():
+        with pytest.raises(publisher.EvidenceValidationError, match="métrica derivada"):
+            publisher._validate_metrics(metrics)
+
+
 @pytest.mark.parametrize("section", ["root", "run", "reader_metrics"])
 def test_release_evidence_rejects_extra_fields(section: str) -> None:
     payload = valid_release_payload()
