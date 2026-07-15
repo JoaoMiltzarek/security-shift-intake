@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import evals.run_eval as run_eval
 import pytest
+
+import evals.run_eval as run_eval
 from evals.run_eval import build_metrics, main, render_report, write_artifacts
 
 
