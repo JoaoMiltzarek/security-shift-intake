@@ -87,6 +87,30 @@ def test_edit_corrects_field_and_clears_review_flag(client: TestClient) -> None:
     assert "edited" in [a["action"] for a in detail["audit"]]
 
 
+def test_stale_review_form_cannot_overwrite_a_newer_edit(client: TestClient) -> None:
+    draft_id = _submit(client)
+    first_form = {
+        "expected_revision": "1",
+        "field__guard_name": "Primeira revisÃ£o",
+        "field__shift_date": "2026-01-15",
+        "field__post": "Portaria 1",
+        "field__shift_period": "day",
+        "field__incident_occurred": "nao",
+        "field__incident_description": "",
+    }
+    assert client.post(f"/ui/drafts/{draft_id}/edit", data=first_form).status_code == 200
+
+    stale_form = {**first_form, "field__guard_name": "Sobrescrita obsoleta"}
+    response = client.post(f"/ui/drafts/{draft_id}/edit", data=stale_form)
+
+    assert response.status_code == 409
+    detail = client.get(f"/drafts/{draft_id}").json()
+    guard = next(
+        field for field in detail["state"]["extracted_fields"] if field["name"] == "guard_name"
+    )
+    assert guard["value"] == "Primeira revisÃ£o"
+
+
 def test_invalid_edit_stays_flagged(client: TestClient) -> None:
     draft_id = _submit(client)
     form = {
