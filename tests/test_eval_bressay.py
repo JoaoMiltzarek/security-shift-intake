@@ -15,7 +15,7 @@ from evals.eval_htr_bressay import DEFAULT_DATASET_DIR, load_manifest, run
 
 
 def test_default_dataset_path_matches_the_privacy_allowlist() -> None:
-    assert DEFAULT_DATASET_DIR == Path(os.environ.get("BRESSAY_DIR", "datasets/bressay"))
+    assert Path(os.environ.get("BRESSAY_DIR", "datasets/bressay")) == DEFAULT_DATASET_DIR
 
 
 def test_run_without_manifest_is_unavailable(tmp_path: Path) -> None:
