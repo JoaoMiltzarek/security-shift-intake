@@ -254,3 +254,51 @@ def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[
     output = capsys.readouterr()
     assert sensitive_marker not in output.out
     assert sensitive_marker not in output.err
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a persistência write-once da evidência ainda não foi implementada",
+)
+def test_persist_once_creates_exact_bytes_and_accepts_identical_retry(tmp_path: Path) -> None:
+    destination = tmp_path / "release" / "evidence.json"
+    content = valid_release_bytes()
+
+    assert publisher.persist_once(destination, content) == "created"
+    assert destination.read_bytes() == content
+    assert publisher.persist_once(destination, content) == "verified"
+    assert destination.read_bytes() == content
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a persistência write-once da evidência ainda não foi implementada",
+)
+def test_persist_once_refuses_divergent_existing_bytes_without_overwrite(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "evidence.json"
+    original = b'{"original":true}\n'
+    destination.write_bytes(original)
+
+    with pytest.raises(publisher.EvidenceValidationError, match="divergente"):
+        publisher.persist_once(destination, b'{"replacement":true}\n')
+
+    assert destination.read_bytes() == original
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a persistência write-once da evidência ainda não foi implementada",
+)
+def test_persist_once_refuses_symbolic_link(tmp_path: Path) -> None:
+    target = tmp_path / "target.json"
+    target.write_bytes(valid_release_bytes())
+    link = tmp_path / "link.json"
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("criação de symlink indisponível neste host")
+
+    with pytest.raises(publisher.EvidenceValidationError, match="link simbólico"):
+        publisher.persist_once(link, target.read_bytes())
