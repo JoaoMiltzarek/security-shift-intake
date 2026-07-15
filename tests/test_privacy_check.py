@@ -84,6 +84,11 @@ def test_pdf_outside_private_flagged(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path)
 
 
+def test_webp_outside_private_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "reais" / "folha.webp", "binary")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
 def test_pdf_inside_private_ok(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "reais" / "folha.pdf", "%PDF")
     assert check_no_sensitive_outside_private(tmp_path) == []
@@ -153,6 +158,13 @@ def test_tracked_db_under_synthetic_flagged(monkeypatch) -> None:  # type: ignor
     import scripts.privacy_check as pc
 
     monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("data/synthetic/report.db")])
+    assert pc.check_no_sensitive_tracked()
+
+
+def test_tracked_webp_is_flagged(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("reais/folha.webp")])
     assert pc.check_no_sensitive_tracked()
 
 

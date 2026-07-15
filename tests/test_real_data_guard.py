@@ -37,6 +37,11 @@ def test_jpg_extension_blocked(tmp_path: Path) -> None:
     assert len(check_file(f)) >= 1
 
 
+def test_webp_extension_blocked(tmp_path: Path) -> None:
+    f = _write(tmp_path / "scan.webp", "binary")
+    assert len(check_file(f)) >= 1
+
+
 def test_xlsx_extension_blocked(tmp_path: Path) -> None:
     f = _write(tmp_path / "roster.xlsx", "binary")
     assert len(check_file(f)) >= 1
