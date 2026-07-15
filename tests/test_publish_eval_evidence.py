@@ -290,3 +290,114 @@ def test_persist_once_refuses_symbolic_link(tmp_path: Path) -> None:
 
     with pytest.raises(publisher.EvidenceValidationError, match="link simbólico"):
         publisher.persist_once(link, target.read_bytes())
+
+
+def _catalog_entry(
+    relative_path: str,
+    content: bytes,
+    *,
+    status: str = "historical",
+    entry_id: str = "historical-fixture",
+) -> dict[str, Any]:
+    return {
+        "id": entry_id,
+        "path": relative_path,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": len(content),
+        "kind": "result",
+        "status": status,
+        "release_blocking": status == "current_release",
+        "run_commit": EXPECTED_COMMIT if status == "current_release" else None,
+        "limitations": [],
+    }
+
+
+def _write_minimal_catalog(root: Path) -> tuple[Path, bytes]:
+    content = b'{"historical":true}\n'
+    artifact = root / "docs" / "historical.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(content)
+    catalog_path = root / "docs" / "evals" / "catalog.json"
+    catalog_path.parent.mkdir(parents=True)
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schema": "ssi-eval-artifact-catalog/v1",
+                "artifacts": [_catalog_entry("docs/historical.json", content)],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return catalog_path, content
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
+)
+def test_committed_catalog_passes_publisher_integrity_validation() -> None:
+    publisher.load_and_validate_catalog(Path("docs/evals/catalog.json"))
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
+)
+def test_catalog_rejects_stale_existing_hash(tmp_path: Path) -> None:
+    catalog_path, _content = _write_minimal_catalog(tmp_path)
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["artifacts"][0]["sha256"] = "0" * 64
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with pytest.raises(publisher.EvidenceValidationError, match="integridade"):
+        publisher.load_and_validate_catalog(catalog_path, root=tmp_path)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
+)
+def test_catalog_update_is_sorted_idempotent_and_hashes_release_bytes(tmp_path: Path) -> None:
+    catalog_path, _content = _write_minimal_catalog(tmp_path)
+    release_content = valid_release_bytes()
+    release_path = tmp_path / publisher.RELEASE_EVIDENCE_RELATIVE
+    release_path.parent.mkdir(parents=True)
+    release_path.write_bytes(release_content)
+    entry = publisher.build_release_catalog_entry(release_content, expected_commit=EXPECTED_COMMIT)
+
+    assert publisher.update_catalog(catalog_path, entry, root=tmp_path) == "created"
+    first_bytes = catalog_path.read_bytes()
+    assert publisher.update_catalog(catalog_path, entry, root=tmp_path) == "verified"
+    assert catalog_path.read_bytes() == first_bytes
+
+    catalog = publisher.load_and_validate_catalog(catalog_path, root=tmp_path)
+    entries = catalog["artifacts"]
+    assert [item["path"] for item in entries] == sorted(item["path"] for item in entries)
+    current = [item for item in entries if item["status"] == "current_release"]
+    assert current == [entry]
+    assert current[0]["sha256"] == hashlib.sha256(release_content).hexdigest()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o publisher ainda não valida nem atualiza o catálogo atomicamente",
+)
+def test_catalog_update_refuses_divergent_release_entry_without_mutation(
+    tmp_path: Path,
+) -> None:
+    catalog_path, _content = _write_minimal_catalog(tmp_path)
+    release_content = valid_release_bytes()
+    release_path = tmp_path / publisher.RELEASE_EVIDENCE_RELATIVE
+    release_path.parent.mkdir(parents=True)
+    release_path.write_bytes(release_content)
+    entry = publisher.build_release_catalog_entry(release_content, expected_commit=EXPECTED_COMMIT)
+    publisher.update_catalog(catalog_path, entry, root=tmp_path)
+    before = catalog_path.read_bytes()
+    divergent = {**entry, "sha256": "0" * 64}
+
+    with pytest.raises(publisher.EvidenceValidationError, match="divergente"):
+        publisher.update_catalog(catalog_path, divergent, root=tmp_path)
+
+    assert catalog_path.read_bytes() == before
