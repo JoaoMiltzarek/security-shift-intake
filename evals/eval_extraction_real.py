@@ -12,7 +12,8 @@ Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates)
    leitor (ex.: Ollama offline) NUNCA derruba a rodada: a folha sai
    `available:false` com motivo (invariante EVAL_PROTOCOL §9).
    Saídas: detalhado (PII) -> private/audit/eval_real_detailed_{reader}_dpi{dpi}.json
-           público whitelist -> docs/eval_real_summary.json (gate de PII em 2ª camada)
+           resumo allowlisted -> private/audit/eval_real_summary.json (gate de PII em
+           2ª camada). Evidência histórica em docs/ nunca é sobrescrita pelo evaluator.
 
 2. **`--legacy-compare`** — o compare ANTES (escalar) × DEPOIS (tabela) original,
    com a taxonomia R3, que gera docs/AUDITORIA_FOLHAS_REAIS.md. Inalterado.
@@ -24,7 +25,7 @@ Quality gates: curadoria sem review_status válido é ignorada; só `verified_by
 conta como número oficial (senão PRELIMINAR/DIRECIONAL, EVAL_PROTOCOL §4); relatório
 público não é escrito se a varredura de PII achar algo.
 
-Uso: PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision local_vlm --dpi 150
+Uso: uv run --locked python -m evals.eval_extraction_real --vision local_vlm --dpi 150
 """
 
 from __future__ import annotations
@@ -68,9 +69,18 @@ AUDIT_DIR = PRIVATE_ROOT / "audit"
 CONFIG_PATH = REPO_ROOT / "configs" / "htmicron_security.yaml"  # ANTES (escalar, legado)
 TABLE_CONFIG_PATH = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"  # DEPOIS (tabela)
 REPORT_PATH = REPO_ROOT / "docs" / "AUDITORIA_FOLHAS_REAIS.md"
-SUMMARY_PATH = REPO_ROOT / "docs" / "eval_real_summary.json"
+SUMMARY_PATH = AUDIT_DIR / "eval_real_summary.json"
 
 VALID_REVIEW_STATUS = {"draft_by_claude", "needs_review", "verified_by_user"}
+
+
+def _resolve_summary_output(requested: Path) -> Path:
+    resolved = requested.expanduser().resolve(strict=False)
+    public_docs = (REPO_ROOT / "docs").resolve(strict=True)
+    if resolved == public_docs or resolved.is_relative_to(public_docs):
+        raise ValueError("--summary-output não pode apontar para docs/; use um publisher")
+    return resolved
+
 
 SEVERITY: dict[str, str] = {
     "FALSE_INCIDENT": "BLOCKER",
@@ -785,7 +795,7 @@ def render_summary(
     run: dict[str, Any] | None = None,
     paired: dict[str, Any] | None = None,
 ) -> tuple[str, list[str]]:
-    """Merge no docs/eval_real_summary.json: 1 entrada por (reader, dpi) + `paired`.
+    """Merge no resumo diagnóstico local: 1 entrada por (reader, dpi) + `paired`.
 
     Retorna (texto_json, hits_de_pii). O chamador só escreve se hits == [] —
     segunda camada de defesa; a primeira é a whitelist por construção.
@@ -949,16 +959,20 @@ def _legacy_compare(args: argparse.Namespace) -> int:
     return 0
 
 
-def _write_summary(run: dict[str, Any] | None = None, paired: dict[str, Any] | None = None) -> int:
-    text, pii = render_summary(SUMMARY_PATH, run=run, paired=paired)
+def _write_summary(
+    path: Path,
+    run: dict[str, Any] | None = None,
+    paired: dict[str, Any] | None = None,
+) -> int:
+    text, pii = render_summary(path, run=run, paired=paired)
     if pii:
         print("ABORTADO: PII detectada no resumo público:", file=sys.stderr)
         for h in pii:
             print(h, file=sys.stderr)
         return 2
-    SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SUMMARY_PATH.write_text(text, encoding="utf-8")
-    print(f"Escrito {SUMMARY_PATH}", file=sys.stderr)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    print("Resumo allowlisted escrito na área local de auditoria.", file=sys.stderr)
     return 0
 
 
@@ -995,7 +1009,7 @@ def _instrumented(args: argparse.Namespace) -> int:
 
     public = build_public_run(meta, per_sheet)
     if not args.no_report:
-        code = _write_summary(run=public)
+        code = _write_summary(args.summary_output, run=public)
         if code:
             return code
     print(json.dumps(public, indent=2, ensure_ascii=False))
@@ -1009,7 +1023,7 @@ def _compare(args: argparse.Namespace) -> int:
         json.loads(other_path.read_text(encoding="utf-8")),
     )
     if not args.no_report:
-        code = _write_summary(paired=paired)
+        code = _write_summary(args.summary_output, paired=paired)
         if code:
             return code
     print(json.dumps(paired, indent=2, ensure_ascii=False))
@@ -1040,7 +1054,18 @@ def main(argv: list[str]) -> int:
         help="modo legado ANTES×DEPOIS -> docs/AUDITORIA_FOLHAS_REAIS.md",
     )
     parser.add_argument("--no-report", action="store_true", help="não escrever docs públicos")
+    parser.add_argument(
+        "--summary-output",
+        type=Path,
+        default=SUMMARY_PATH,
+        help="resumo allowlisted local (docs/ é reservado para publicação controlada)",
+    )
     args = parser.parse_args(argv)
+
+    try:
+        args.summary_output = _resolve_summary_output(args.summary_output)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if args.dpi <= 0:
         parser.error("--dpi deve ser um inteiro positivo")

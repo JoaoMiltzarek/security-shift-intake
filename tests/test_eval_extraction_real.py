@@ -497,15 +497,11 @@ def test_real_eval_paths_and_git_metadata_do_not_depend_on_cwd(
     assert mod.CONFIG_PATH == REPO_ROOT / "configs" / "htmicron_security.yaml"
     assert mod.TABLE_CONFIG_PATH == REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
     assert mod.REPORT_PATH == REPO_ROOT / "docs" / "AUDITORIA_FOLHAS_REAIS.md"
-    assert mod.SUMMARY_PATH == REPO_ROOT / "docs" / "eval_real_summary.json"
+    assert mod.SUMMARY_PATH == PRIVATE_ROOT / "audit" / "eval_real_summary.json"
     assert load_config(mod.TABLE_CONFIG_PATH).report_type == "controle_ocorrencias"
     assert mod._git_commit() != "unknown"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o eval real ainda sobrescreve o resumo histórico em docs/ por padrão",
-)
 def test_real_eval_summary_defaults_to_private_and_rejects_docs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
