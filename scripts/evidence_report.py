@@ -139,6 +139,8 @@ def _pytest_summary(log: str | None) -> str | None:
     """Keep only the successful count/duration token, never the raw test log."""
     if log is None:
         return None
+    if re.search(r"\b(?:failed|errors?)\b", log, re.IGNORECASE):
+        raise ValueError("pytest evidence contains a failure token")
     matches: list[str] = re.findall(
         r"(?m)(\d+ passed(?:, \d+ (?:skipped|xfailed|xpassed|deselected))*(?: in \d+(?:\.\d+)?s)?)",
         log,
