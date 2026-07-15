@@ -6,8 +6,6 @@ import re
 import tomllib
 from pathlib import Path
 
-import pytest
-
 
 def _workflow() -> str:
     return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -83,7 +81,7 @@ def test_ci_fails_when_a_declared_release_artifact_is_missing() -> None:
     workflow = _workflow()
     uploads = workflow.count("uses: actions/upload-artifact@")
 
-    assert uploads == 4
+    assert uploads == 5
     assert workflow.count("if-no-files-found: error") == uploads
 
 
@@ -97,10 +95,6 @@ def test_ci_logs_and_verifies_the_frozen_ocr_runtime() -> None:
     assert "make eval-safety VISION=" not in workflow
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CI ainda mistura diagnóstico reprovado e candidato de release",
-)
 def test_ci_separates_diagnostics_from_validated_release_candidate() -> None:
     workflow = _workflow()
     gate = "make eval-safety DPI=150 OUT=/tmp/eval_safety"
@@ -115,8 +109,10 @@ def test_ci_separates_diagnostics_from_validated_release_candidate() -> None:
     assert diagnostics in workflow
     assert workflow.index(gate) < workflow.index(validator) < workflow.index(candidate)
 
-    candidate_block = workflow[workflow.index(candidate) : workflow.index(diagnostics)]
-    diagnostics_block = workflow[workflow.index(diagnostics) : workflow.index("browser-smoke:")]
+    candidate_start = workflow.index("- name: Upload validated release-candidate summary")
+    diagnostics_start = workflow.index("- name: Upload safety-eval diagnostics")
+    candidate_block = workflow[candidate_start:diagnostics_start]
+    diagnostics_block = workflow[diagnostics_start : workflow.index("browser-smoke:")]
     assert "if: success()" in candidate_block
     assert "path: /tmp/eval_safety/eval_synthetic_summary.json" in candidate_block
     assert "if: always()" in diagnostics_block

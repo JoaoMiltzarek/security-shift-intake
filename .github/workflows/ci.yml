@@ -190,11 +190,25 @@ jobs:
       - name: Run structural-safety gates (val split, Tesseract)
         run: make eval-safety DPI=150 OUT=/tmp/eval_safety
 
-      - name: Upload safety-eval artifacts
+      - name: Validate release-candidate summary
+        run: >-
+          uv run --locked python -m scripts.publish_eval_evidence
+          --source /tmp/eval_safety/eval_synthetic_summary.json
+          --expected-commit "$(git rev-parse HEAD)"
+
+      - name: Upload validated release-candidate summary
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: eval-safety-release-candidate-${{ github.sha }}
+          path: /tmp/eval_safety/eval_synthetic_summary.json
+          if-no-files-found: error
+
+      - name: Upload safety-eval diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: eval-safety-artifacts
+          name: eval-safety-diagnostics-${{ github.sha }}
           path: /tmp/eval_safety/
           if-no-files-found: error
 
