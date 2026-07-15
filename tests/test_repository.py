@@ -153,6 +153,34 @@ def test_approved_hash_matches_a_preserved_revision(session: Session) -> None:
 # --- F3.B1 (SSI-1006): revisão do draft + migração de DB legado ---
 
 
+def test_database_rejects_duplicate_revision_numbers(session: Session) -> None:
+    from sqlalchemy.exc import IntegrityError
+    from sqlmodel import select
+
+    from src.api.models import DraftRevision
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    original = session.exec(
+        select(DraftRevision).where(
+            DraftRevision.draft_id == draft.id,
+            DraftRevision.revision == 1,
+        )
+    ).one()
+    session.add(
+        DraftRevision(
+            draft_id=draft.id,
+            revision=1,
+            state_sha256=original.state_sha256,
+            state_json=original.state_json,
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
+
+
 def test_new_draft_starts_at_revision_1_without_approval_stamp(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.revision == 1
