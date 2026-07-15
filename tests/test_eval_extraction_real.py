@@ -523,6 +523,32 @@ def test_real_eval_summary_defaults_to_private_and_rejects_docs(
     assert "publisher" in capsys.readouterr().err
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="o compare legado ainda sobrescreve o relatório histórico em docs/",
+)
+def test_legacy_real_report_defaults_to_private_and_rejects_docs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import evals.eval_extraction_real as mod
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    assert mod.REPORT_PATH == PRIVATE_ROOT / "audit" / "AUDITORIA_FOLHAS_REAIS.md"
+    monkeypatch.setattr(mod, "_legacy_compare", lambda _args: 0)
+
+    with pytest.raises(SystemExit) as exc_info:
+        mod.main(
+            [
+                "--legacy-compare",
+                "--legacy-report-output",
+                str(REPO_ROOT / "docs" / "replacement.md"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "publisher" in capsys.readouterr().err
+
+
 def test_instrumented_real_eval_enforces_private_source_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
