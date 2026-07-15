@@ -66,19 +66,48 @@ def _require(session: Session, draft_id: int) -> Draft:
 
 
 def add_audit(
-    session: Session, draft_id: int, actor: str, action: str, detail: str | None = None
+    session: Session,
+    draft_id: int,
+    actor: str,
+    action: str,
+    detail: str | None = None,
+    *,
+    revision: int | None = None,
+    snapshot_sha256: str | None = None,
 ) -> AuditEntry:
-    entry = _stage_audit(session, draft_id, actor, action, detail)
+    entry = _stage_audit(
+        session,
+        draft_id,
+        actor,
+        action,
+        detail,
+        revision=revision,
+        snapshot_sha256=snapshot_sha256,
+    )
     session.commit()
     session.refresh(entry)
     return entry
 
 
 def _stage_audit(
-    session: Session, draft_id: int, actor: str, action: str, detail: str | None = None
+    session: Session,
+    draft_id: int,
+    actor: str,
+    action: str,
+    detail: str | None = None,
+    *,
+    revision: int | None = None,
+    snapshot_sha256: str | None = None,
 ) -> AuditEntry:
     """Attach an audit entry without committing, for atomic repository operations."""
-    entry = AuditEntry(draft_id=draft_id, actor=actor, action=action, detail=detail)
+    entry = AuditEntry(
+        draft_id=draft_id,
+        actor=actor,
+        action=action,
+        detail=detail,
+        revision=revision,
+        state_sha256=snapshot_sha256,
+    )
     session.add(entry)
     return entry
 
@@ -123,7 +152,14 @@ def create_draft(session: Session, state: PipelineState, actor: str = "system") 
         session.flush()  # assigns the PK without ending the transaction
         assert draft.id is not None
         _stage_revision(session, draft)
-        _stage_audit(session, draft.id, actor=actor, action="submitted")
+        _stage_audit(
+            session,
+            draft.id,
+            actor=actor,
+            action="submitted",
+            revision=draft.revision,
+            snapshot_sha256=state_sha256(draft.state_json),
+        )
         session.commit()
     except Exception:
         session.rollback()
@@ -183,6 +219,8 @@ def _set_status_locked(
             actor=actor,
             action=f"status:{status}",
             detail=detail,
+            revision=draft.revision,
+            snapshot_sha256=state_sha256(draft.state_json),
         )
         session.commit()
     except Exception:
@@ -227,6 +265,8 @@ def _mark_sent_locked(
                 f"mode={delivery_mode} rev={draft.revision} "
                 f"sha256={state_sha256(draft.state_json)[:12]}"
             ),
+            revision=draft.revision,
+            snapshot_sha256=state_sha256(draft.state_json),
         )
         session.commit()
     except Exception:
@@ -297,6 +337,8 @@ def _update_state_locked(
                 actor=actor,
                 action="approval_revoked",
                 detail=f"rev={draft.revision}",
+                revision=draft.revision,
+                snapshot_sha256=state_sha256(draft.state_json),
             )
         draft.updated_at = utcnow()
         session.add(draft)
@@ -307,6 +349,8 @@ def _update_state_locked(
             actor=actor,
             action=action,
             detail=(f"rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}"),
+            revision=draft.revision,
+            snapshot_sha256=state_sha256(draft.state_json),
         )
         session.commit()
     except Exception:
