@@ -139,6 +139,14 @@ def test_strict_json_rejects_oversized_payload() -> None:
         publisher.load_strict_json(oversized)
 
 
+def test_source_reader_stops_at_the_public_evidence_limit(tmp_path: Path) -> None:
+    source = tmp_path / "oversized.json"
+    source.write_bytes(b"x" * (publisher.MAX_SOURCE_BYTES + 1))
+
+    with pytest.raises(publisher.EvidenceValidationError, match="tamanho mÃ¡ximo"):
+        publisher.read_bounded_source(source)
+
+
 def test_strict_json_error_never_echoes_source_content() -> None:
     sensitive_marker = "VALOR_PRIVADO_NAO_ECOAR"
     content = f'{{"duplicate":"{sensitive_marker}","duplicate":2}}'.encode()
