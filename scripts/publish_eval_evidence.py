@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path, PurePosixPath
@@ -567,21 +568,63 @@ def update_catalog(
     return "created"
 
 
+def _git_output(args: list[str]) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise EvidenceValidationError("Git indisponível para autorizar publicação") from exc
+    if result.returncode != 0:
+        raise EvidenceValidationError("Git recusou a verificação da publicação")
+    return result.stdout
+
+
+def assert_write_context(*, expected_commit: str) -> None:
+    """Require the measured HEAD and a clean tree, except an interrupted artifact create."""
+    if re.fullmatch(r"[0-9a-f]{40}", expected_commit) is None:
+        raise EvidenceValidationError("commit esperado inválido")
+    head = _git_output(["rev-parse", "HEAD"]).decode("ascii", errors="strict").strip()
+    if head != expected_commit:
+        raise EvidenceValidationError("HEAD não corresponde ao commit medido")
+    status = _git_output(["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+    pending_release = f"?? {RELEASE_EVIDENCE_RELATIVE.as_posix()}\0".encode()
+    if status not in {b"", pending_release}:
+        raise EvidenceValidationError("worktree não está limpo para publicação")
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Validate authenticated v1 release-eval evidence (check-only)."
+        description="Validate or explicitly publish authenticated v1 release-eval evidence."
     )
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--expected-commit", required=True)
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="authorize write-once artifact creation and atomic catalog update",
+    )
     args = parser.parse_args(argv)
 
     try:
         content = args.source.read_bytes()
         validate_source_bytes(content, expected_commit=args.expected_commit)
+        load_and_validate_catalog(CATALOG_PATH, root=REPO_ROOT)
+        if args.write:
+            assert_write_context(expected_commit=args.expected_commit)
+            entry = build_release_catalog_entry(content, expected_commit=args.expected_commit)
+            persist_once(RELEASE_EVIDENCE_PATH, content)
+            update_catalog(CATALOG_PATH, entry, root=REPO_ROOT)
     except (OSError, EvidenceValidationError, UnicodeError):
         print("EVIDÊNCIA RECUSADA: fonte ilegível ou contrato inválido", file=sys.stderr)
         return 1
-    print("Evidência de release válida (check-only); nenhum arquivo foi alterado.")
+    if args.write:
+        print("Evidência de release publicada em modo write-once; catálogo atualizado.")
+    else:
+        print("Evidência de release válida (check-only); nenhum arquivo foi alterado.")
     return 0
 
 

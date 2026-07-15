@@ -387,10 +387,6 @@ def test_catalog_update_refuses_divergent_release_entry_without_mutation(
     assert catalog_path.read_bytes() == before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o modo write ainda não vincula HEAD e worktree ao commit medido",
-)
 def test_write_context_requires_matching_head_and_clean_worktree(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -412,10 +408,6 @@ def test_write_context_requires_matching_head_and_clean_worktree(
     assert "arquivo-nao-expor" not in str(exc_info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="o modo write ainda não permite recuperação idempotente controlada",
-)
 def test_write_context_allows_only_pending_release_artifact_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -429,10 +421,6 @@ def test_write_context_allows_only_pending_release_artifact_recovery(
     publisher.assert_write_context(expected_commit=EXPECTED_COMMIT)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CLI ainda não liga validação, write-once e catálogo sob --write",
-)
 def test_cli_write_validates_context_then_persists_and_catalogs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
