@@ -51,3 +51,12 @@ def test_check_includes_format_gate() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
 
     assert "check: format-check lint typecheck test" in makefile
+
+
+def test_component_eval_keeps_generated_artifacts_out_of_tracked_root() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    target = re.search(r"(?ms)^eval:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)
+
+    assert "EVAL_OUT ?= private/audit/component_eval" in makefile
+    assert target is not None
+    assert '--out "$(EVAL_OUT)"' in target.group("body")
