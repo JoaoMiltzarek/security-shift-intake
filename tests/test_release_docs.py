@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
@@ -154,3 +156,39 @@ def test_real_eval_artifact_is_labeled_historical_when_runtime_is_unattested() -
         assert "historical, directional, pre-runtime-attestation diagnostic" in documents
         assert "not release evidence" in documents
         assert "private/audit/eval_real_summary.json" in documents
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o Roadmap ainda apresenta Paddle e o SLO resolvido como trabalho pendente",
+)
+def test_reader_roadmap_records_the_measured_paddle_outcome() -> None:
+    roadmap = _read("docs/ROADMAP.md")
+    readme = _read("README.md")
+    combined = roadmap + "\n" + readme
+
+    required = (
+        "MEDIDO",
+        "NÃO PROMOVIDO",
+        "INTAKE_VISION=paddle_ocr",
+        "not installed by uv sync",
+        "isolated environment",
+    )
+    assert all(value in combined for value in required)
+    assert "Próximo candidato triado: PP-OCRv5" not in roadmap
+    assert "PaddleOCR / TrOCR / handwriting-tuned HTR" not in roadmap
+    assert "SLO pendente" not in roadmap
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="o Roadmap ainda vende o editor 0/1/N implementado como futuro",
+)
+def test_readme_and_roadmap_match_the_implemented_occurrence_editor() -> None:
+    roadmap = _read("docs/ROADMAP.md")
+    readme = _read("README.md")
+
+    assert "add/remove rows" not in roadmap
+    assert "0/1/N occurrence editor" in readme
+    for field in ("item", "time", "description", "action", "resolved"):
+        assert f"`{field}`" in readme
