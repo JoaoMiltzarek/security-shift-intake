@@ -168,6 +168,7 @@ def test_release_evidence_accepts_exact_authenticated_contract() -> None:
         ("run.reader", "mock"),
         ("run.model", "vlm"),
         ("run.dpi", 100),
+        ("run.dpi", 150.0),
         ("run.prompt_sha256", "a" * 64),
         ("run.git_commit", "b" * 40),
         ("run.python_version", "3.11.14"),
@@ -183,6 +184,8 @@ def test_release_evidence_accepts_exact_authenticated_contract() -> None:
         ("run.manifest_sha256", "0" * 64),
         ("run.input_artifact", "generated_gt"),
         ("run.expected_split_count", 44),
+        ("run.expected_split_count", 45.0),
+        ("run.timestamp", "20260230T120000Z"),
         ("n_sheets", 44),
         ("n_sheets_ran", 44),
     ],
@@ -214,6 +217,14 @@ def test_release_evidence_rejects_unsafe_or_malformed_metrics(path: str, value: 
     _set_path(payload, path, value)
 
     with pytest.raises(publisher.EvidenceValidationError):
+        publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
+
+
+def test_release_evidence_rejects_arbitrary_parser_ceiling_note() -> None:
+    payload = valid_release_payload()
+    payload["parser_ceiling"]["note"] = "another printable description"
+
+    with pytest.raises(publisher.EvidenceValidationError, match="parser ceiling"):
         publisher.validate_release_evidence(payload, expected_commit=EXPECTED_COMMIT)
 
 
