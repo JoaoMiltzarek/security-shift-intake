@@ -26,6 +26,19 @@ def test_core_docs_describe_the_tristate_disposition_contract() -> None:
     assert "or `no_occurrence` for an `S/A` sheet" not in architecture
 
 
+def test_public_docs_declare_the_single_page_v1_input_contract() -> None:
+    readme = _read("README.md")
+    architecture = _read("docs/ARCHITECTURE.md")
+
+    required = (
+        "exactly one page or image frame",
+        "PDF, PNG, JPEG, TIFF, BMP and WebP",
+        "rejected before OCR",
+    )
+    assert all(value in readme for value in required)
+    assert all(value in architecture for value in required)
+
+
 def test_dataset_contract_identifies_the_authenticated_release_freeze() -> None:
     contract = _read("docs/DATASET_CONTRACT.md")
 
