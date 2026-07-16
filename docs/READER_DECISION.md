@@ -33,7 +33,7 @@
    pode atravessar os gates operacionais.
 8. **Cobertura integral:** `operational_signal_complete_count` deve ser igual ao número
    de folhas executadas, e todas as 45 entradas congeladas devem executar.
-9. **Runtime autenticado antes da primeira folha:** `reader=local_ocr`, Python 3.11.15
+9. **Runtime atestado antes da primeira folha:** `reader=local_ocr`, Python 3.11.15
    igual a `.python-version`, `uv_lock_sha256` com 64 hexadecimais, versão exata do
    Tesseract presente e `tesseract_language=por`. Mock, fallback `eng`, versão ausente
    ou `runtime_attested=false` reprovam sem gerar evidência parcial.

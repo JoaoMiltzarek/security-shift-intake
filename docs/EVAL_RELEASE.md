@@ -1,4 +1,4 @@
-# Authenticated v1 eval-evidence publication
+# Schema/identity-validated v1 eval-evidence publication
 
 This guide separates three different things that must never be conflated:
 
@@ -13,7 +13,7 @@ by filename.
 ## Generate and validate in CI
 
 The blocking `eval-safety` job installs the exact Python runtime, Tesseract and the Portuguese
-language pack, authenticates the Tier C v2 freeze, then runs:
+language pack, verifies the Tier C v2 freeze, then runs:
 
 ```console
 make gen-safety-sheets
@@ -23,15 +23,18 @@ uv run --locked python -m scripts.publish_eval_evidence \
   --expected-commit "$(git rev-parse HEAD)"
 ```
 
-CI uploads two intentionally different artifacts:
+CI keeps three intentionally different artifact classes:
 
 - `eval-safety-diagnostics-${{ github.sha }}` uses `if: always()` and may contain a failed run;
-- `eval-safety-release-candidate-${{ github.sha }}` uses `if: success()` and contains only the
-  validated aggregate summary.
+- `eval-safety-intermediate-${{ github.sha }}` is the summary validated by the eval job alone;
+- `eval-safety-release-candidate-${{ github.sha }}` is emitted only by the final job after
+  `quality`, `smoke-eval`, `eval-safety` and `browser-smoke` all pass for the same commit.
 
-The publisher requires Tesseract language `por`, the exact Python and `uv.lock`, the authenticated
-manifest, full split coverage and every operational gate; mock and `eng` results are never publishable.
-A diagnostic artifact name or a green unit test is not a substitute for these checks.
+The publisher requires Tesseract language `por`, the exact Python and `uv.lock`, the
+integrity-validated manifest, full split coverage and every operational gate;
+mock and `eng` results are never publishable. This is schema/identity-validated evidence, not a cryptographically
+signed provenance attestation. A diagnostic artifact name or a green unit test is not a substitute
+for these checks.
 
 ## Promote write-once
 
@@ -65,6 +68,6 @@ metrics into the release path and do not rerun or tune against the historical he
 
 ## Current state
 
-Until the catalog contains exactly one `current_release` entry, authenticated v1 release evidence
+Until the catalog contains exactly one `current_release` entry, validated v1 release evidence
 is pending. That is an external release gate, not permission to publish mock numbers or to weaken
 runtime attestation.

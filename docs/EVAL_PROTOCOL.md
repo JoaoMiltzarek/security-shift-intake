@@ -167,7 +167,7 @@ atestação completa de Python/lock/Tesseract; seus números não comprovam o HE
 de schema em §7 é **exemplo**, não evidência.
 
 Contract: evaluators never write directly to `docs/`; publication is a separate write-once operation.
-O inventário verificável está em `docs/evals/catalog.json` e a promoção autenticada da v1 em
+O inventário verificável está em `docs/evals/catalog.json` e a promoção validada da v1 em
 `docs/EVAL_RELEASE.md`.
 
 ## 7. Schema público sanitizado (whitelist — nunca subtração)

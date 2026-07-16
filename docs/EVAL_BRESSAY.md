@@ -71,6 +71,6 @@ respective column reports `available: false` with a reason — it never invents 
   promote or reject a reader by itself.
 - **Domain gap:** BRESSAY is student essays; occurrence forms differ in vocabulary and
   layout. These numbers are **directional**. The historical run in
-  `docs/eval_bressay_baseline.json` did not authenticate a versioned dataset manifest,
+  `docs/eval_bressay_baseline.json` did not validate a versioned dataset manifest,
   the effective OCR runtime/language pack, or a predeclared CER tolerance; it is not
   evidence that the current release gate passed and is not proof of "no regression".

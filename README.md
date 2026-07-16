@@ -253,7 +253,7 @@ targets clean up without destroying validated curadoria. See
   [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
 - **OCR fidelity is the honest ceiling.** Tesseract reads printed labels well but is **not
   reliable on cursive handwriting** — the historical BRESSAY diagnostic read none of its local
-  sample. That non-blocking result lacks the authenticated manifest/runtime required of current
+  sample. That non-blocking result lacks the versioned manifest and attested runtime required of current
   release evidence. Uncertain/garbled values route to **human review** and cannot leave as a
   clean approved output. Raising fidelity requires a reader that beats the frozen safety gate.
 - **Synthetic evals** (classification/routing) are reproducible via `make eval`
@@ -277,10 +277,10 @@ live cockpit is proven by a **blocking browser-smoke gate** in CI (real Chromium
 
 ## Evaluation results (synthetic benchmark + real-handwriting check)
 
-**Authenticated v1 release evidence: PENDING.** The CI candidate for the final code commit must be
+**Validated v1 release evidence: PENDING.** The CI candidate for the final code commit must be
 promoted through the [write-once publication procedure](docs/EVAL_RELEASE.md). The
 [artifact catalog](docs/evals/catalog.json) currently contains historical/auxiliary results and
-the authenticated input freeze, but no `current_release` entry. No historical JSON is a substitute for that artifact.
+the integrity-validated input freeze, but no `current_release` entry. No historical JSON is a substitute for that artifact.
 
 Every historical number below was produced by committed code and read from a committed JSON —
 never hand-typed: [eval_g1s_calibration.json](docs/eval_g1s_calibration.json),
@@ -353,7 +353,7 @@ Contract: evaluators never write directly to `docs/`; publication is a separate 
 | qwen2.5vl:3b | 4.30 (hallucinates long insertions — worse than typing nothing) |
 
 These directional numbers do not participate in G1-S or the v1 release gate. The historical
-harness did not authenticate a versioned BRESSAY manifest, effective OCR runtime/language pack,
+harness did not validate a versioned BRESSAY manifest, effective OCR runtime/language pack,
 or a predeclared CER tolerance.
 
 **Real curated sheets (historical diagnostic):** on the 2 real sheets with archived sources,
@@ -361,7 +361,7 @@ the VLM read **6 of 7 paired fields the Tesseract baseline could not** (0 fields
 way) and left 136 chars to type vs 318. These numbers in
 [eval_real_summary.json](docs/eval_real_summary.json) are a
 **historical, directional, pre-runtime-attestation diagnostic** and are not release evidence or a default-reader gate. They
-show why the VLM was investigated; the authenticated synthetic ruler rejected it for fabricated
+show why the VLM was investigated; the versioned synthetic ruler rejected it for fabricated
 incidents on degraded scans.
 
 **What these numbers mean (honest limitations):** Tesseract is not reliable on cursive

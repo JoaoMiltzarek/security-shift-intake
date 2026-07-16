@@ -105,7 +105,7 @@ Com ocorrências: mesmo shape, `sem_alteracao: false`, 1..3 entradas
 ```
 data/synthetic/tier_c/            # gitignored (regenerável por seed)
   pdfs/tc-000000.pdf …            # 1 página por folha
-  pngs/tc-000000.png               # entrada canônica autenticada do eval
+  pngs/tc-000000.png               # entrada canônica com integridade validada
   gt/tc-000000.json               # gabarito (§2)
   manifests/{train,val,test}.jsonl
   meta.json
@@ -119,7 +119,7 @@ samples/sample_tc-000000.png …    # COMMITADO: 2–3 amostras (guard estendido
 
 - **Dois versionamentos independentes:** o conteúdo gerado permanece `tier_c/v1`; o contrato
   estrito do manifesto é `tier_c-manifest/v2`. Mudança de vocabulário/layout/degradação exige
-  novo dataset `tier_c/vN`; mudança do envelope/autenticação exige novo manifest schema. Nunca
+  novo dataset `tier_c/vN`; mudança do envelope/validação exige novo manifest schema. Nunca
   "ajustar hash na mão".
 - **Política de hash (manifest schema v2):** cada linha canônica contém exatamente
   `{"doc_id", "split", "image", "gt", "sha256_img", "sha256_gt"}`, em que
