@@ -33,7 +33,7 @@ OCR_DPI = 150
 MIN_DPI = 50
 MAX_DPI = 300
 MAX_SOURCE_BYTES = 50 * 1024 * 1024
-# The v1 cockpit and authenticated dataset are single-page. Reject extra pages instead
+# The v1 cockpit and schema/identity-validated release dataset are single-page. Reject extra pages
 # of presenting page-0 evidence for content extracted from a different page.
 MAX_PAGES = 1
 MAX_PIXELS_PER_PAGE = 25_000_000
