@@ -118,9 +118,7 @@ class IntakeWatcher:
         draft_text = result.get("email_draft") or ""
         draft_path.write_text(draft_text, encoding="utf-8")
 
-        watch_result = WatchResult(
-            path=pdf, sha256=sha, action="processed", draft_path=draft_path
-        )
+        watch_result = WatchResult(path=pdf, sha256=sha, action="processed", draft_path=draft_path)
         self._mark_processed(sha, watch_result)
         return watch_result
 

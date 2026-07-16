@@ -74,9 +74,7 @@ def test_build_and_store_creates_pending_draft(sample_pdf: Path, tmp_path: Path)
 def test_build_and_store_accepts_isolated_page_images_root(
     sample_pdf: Path, tmp_path: Path
 ) -> None:
-    engine = make_engine(
-        f"sqlite:///{tmp_path / 'isolated-demo.db'}", allow_test_path=True
-    )
+    engine = make_engine(f"sqlite:///{tmp_path / 'isolated-demo.db'}", allow_test_path=True)
     page_images_root = tmp_path / "page_images"
 
     draft_id = build_and_store(

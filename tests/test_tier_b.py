@@ -11,7 +11,6 @@ import json
 import random
 from pathlib import Path
 
-import pymupdf
 import pytest
 
 from data.generators.tier_b import (
@@ -19,6 +18,7 @@ from data.generators.tier_b import (
     build_tier_b,
     generate_document,
 )
+from src.pipeline.ingest import rasterize_pdf
 
 # ---------------------------------------------------------------------------
 # Single document
@@ -79,11 +79,9 @@ def test_pdf_round_trips_to_image(tmp_path: Path) -> None:
     build_tier_b(out_dir=out, seed=2, n=1, dpi=150)
     pdf_path = next((out / "pdfs").glob("*.pdf"))
 
-    doc = pymupdf.open(pdf_path)
-    assert doc.page_count == 1
-    pix = doc[0].get_pixmap(dpi=150)
-    assert pix.width > 100 and pix.height > 100
-    doc.close()
+    images = rasterize_pdf(pdf_path, dpi=150)
+    assert len(images) == 1
+    assert images[0].width > 100 and images[0].height > 100
 
 
 def test_samples_written_when_requested(tmp_path: Path) -> None:

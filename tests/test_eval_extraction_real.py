@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -329,7 +330,25 @@ def test_eval_marks_vlm_runtime_error_available_false(tmp_path: Path) -> None:
     out = run_sheet(_sheet_with_file(tmp_path), TABLE_CONFIG, vision=_RaisingVision())
     assert out["available"] is False
     assert out["ran"] is False
-    assert "VLM server" in str(out["reason"])
+    assert out["reason"] == "reader_error"
+    assert "VLM server" in str(out["_detail"]["reader_error"])
+
+
+def test_real_mode_rejects_source_outside_private_before_reader(tmp_path: Path) -> None:
+    class ForbiddenVision:
+        def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+            raise AssertionError("source confinement must run before the reader")
+
+    out = run_sheet(
+        _sheet_with_file(tmp_path),
+        TABLE_CONFIG,
+        vision=ForbiddenVision(),
+        require_private_source=True,
+    )
+
+    assert out["available"] is False
+    assert out["ran"] is False
+    assert out["reason"] == "source_outside_private"
 
 
 def test_eval_vlm_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
@@ -338,6 +357,17 @@ def test_eval_vlm_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
     assert out["ran"] is True
     assert out["ocr_quality"] == "failed"  # <30 chars -> failed, nunca inventa
     assert out["confidence_source"] == "mock"  # lido do schema, não inferido
+
+
+def test_eval_preserves_source_paths_with_spaces(tmp_path: Path) -> None:
+    spaced_root = tmp_path / "canonical dataset with spaces"
+    spaced_root.mkdir()
+    cur = _sheet_with_file(spaced_root)
+
+    out = run_sheet(cur, TABLE_CONFIG, vision=_EmptyVision())
+
+    assert out["available"] is True
+    assert out["ran"] is True
 
 
 def test_public_report_whitelist_drops_pii() -> None:
@@ -382,6 +412,51 @@ def test_public_report_whitelist_drops_pii() -> None:
     assert '"estimated_chars_to_type": 7' in text
 
 
+def test_public_report_replaces_untrusted_exception_text_with_safe_code() -> None:
+    secret = "PERSON-NAME in C:/private/real-sheet.png"
+    public = build_public_run(
+        {"reader": "local_ocr"},
+        [
+            {
+                "document_id": "secret-id",
+                "review_status": "verified_by_user",
+                "ran": False,
+                "available": False,
+                "status": f"reader_error: {secret}",
+                "reason": secret,
+            }
+        ],
+    )
+
+    rendered = json.dumps(public)
+    assert secret not in rendered
+    assert "private/real-sheet" not in rendered
+    assert public["per_sheet"][0]["reason"] == "unavailable"
+
+
+def test_public_report_whitelists_run_metadata() -> None:
+    public = build_public_run(
+        {
+            "reader": "local_ocr",
+            "model": "tesseract",
+            "dpi": 150,
+            "python_version": "3.11.15",
+            "uv_lock_sha256": "a" * 64,
+            "tesseract_version": "5.4.0",
+            "tesseract_language": "por",
+            "runtime_attested": True,
+            "secret_path": "C:/private/real-sheet.png",
+            "api_token": "must-not-leak",
+        },
+        [],
+    )
+
+    assert public["reader"] == "local_ocr"
+    assert public["runtime_attested"] is True
+    assert "secret_path" not in public
+    assert "api_token" not in public
+
+
 def test_invalid_dpi_rejected() -> None:
     with pytest.raises(SystemExit) as exc:
         main(["--dpi", "0"])
@@ -407,6 +482,124 @@ def test_real_eval_cli_accepts_paddle_reader(monkeypatch: pytest.MonkeyPatch) ->
 
     assert main(["--vision", "paddle_ocr", "--no-report"]) == 0
     assert selected == ["paddle_ocr"]
+
+
+def test_real_eval_paths_and_git_metadata_do_not_depend_on_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evals.eval_extraction_real as mod
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    monkeypatch.chdir(tmp_path)
+
+    assert mod.CURADORIA_DIR == PRIVATE_ROOT / "curadoria"
+    assert mod.AUDIT_DIR == PRIVATE_ROOT / "audit"
+    assert mod.CONFIG_PATH == REPO_ROOT / "configs" / "htmicron_security.yaml"
+    assert mod.TABLE_CONFIG_PATH == REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
+    assert mod.REPORT_PATH == PRIVATE_ROOT / "audit" / "AUDITORIA_FOLHAS_REAIS.md"
+    assert mod.SUMMARY_PATH == PRIVATE_ROOT / "audit" / "eval_real_summary.json"
+    assert load_config(mod.TABLE_CONFIG_PATH).report_type == "controle_ocorrencias"
+    assert mod._git_commit() != "unknown"
+
+
+def test_real_eval_summary_defaults_to_private_and_rejects_docs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import evals.eval_extraction_real as mod
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    assert mod.SUMMARY_PATH == PRIVATE_ROOT / "audit" / "eval_real_summary.json"
+    monkeypatch.setattr(mod, "_instrumented", lambda _args: 0)
+
+    with pytest.raises(SystemExit) as exc_info:
+        mod.main(
+            [
+                "--summary-output",
+                str(REPO_ROOT / "docs" / "replacement.json"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "publisher" in capsys.readouterr().err
+
+
+def test_legacy_real_report_defaults_to_private_and_rejects_docs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import evals.eval_extraction_real as mod
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    assert mod.REPORT_PATH == PRIVATE_ROOT / "audit" / "AUDITORIA_FOLHAS_REAIS.md"
+    monkeypatch.setattr(mod, "_legacy_compare", lambda _args: 0)
+
+    with pytest.raises(SystemExit) as exc_info:
+        mod.main(
+            [
+                "--legacy-compare",
+                "--legacy-report-output",
+                str(REPO_ROOT / "docs" / "replacement.md"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "publisher" in capsys.readouterr().err
+
+
+def test_real_eval_output_cannot_escape_private_through_symlink(tmp_path: Path) -> None:
+    import evals.eval_extraction_real as mod
+
+    private_root = tmp_path / "private"
+    private_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with pytest.raises(ValueError, match="private"):
+        mod._resolve_local_output(
+            outside / "summary.json",
+            option="--summary-output",
+            private_root=private_root,
+        )
+
+    redirected = private_root / "audit"
+    try:
+        redirected.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="private"):
+        mod._resolve_local_output(
+            redirected / "summary.json",
+            option="--summary-output",
+            private_root=private_root,
+        )
+
+
+def test_instrumented_real_eval_enforces_private_source_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evals.eval_extraction_real as mod
+
+    captured: list[bool] = []
+
+    def fake_run_sheet(*_args: object, **kwargs: object) -> dict[str, Any]:
+        captured.append(kwargs.get("require_private_source") is True)
+        return {
+            "document_id": "synthetic-id",
+            "review_status": "verified_by_user",
+            "ran": False,
+            "available": False,
+            "status": "pending_file",
+            "reason": "pending_file",
+        }
+
+    monkeypatch.setattr(mod, "load_curadoria", lambda: [_occ_sheet()])
+    monkeypatch.setattr(mod, "load_config", lambda _path: TABLE_CONFIG)
+    monkeypatch.setattr(mod, "get_vision_client", lambda _name: _EmptyVision())
+    monkeypatch.setattr(mod, "run_sheet", fake_run_sheet)
+    monkeypatch.setattr(mod, "AUDIT_DIR", tmp_path / "audit")
+
+    args = SimpleNamespace(n=0, vision="mock", dpi=150, no_report=True)
+    assert mod._instrumented(args) == 0
+    assert captured == [True]
 
 
 # --- comparação pareada + merge do resumo (EVAL_PROTOCOL §2.5/§6) -------------
@@ -481,6 +674,23 @@ def test_run_metadata_local_ocr_has_no_prompt_hash() -> None:
     assert meta["model"] == "tesseract"
     assert meta["prompt_sha256"] is None
     assert ":" not in meta["timestamp"]  # compacto p/ não colidir com o gate de PII
+
+
+def test_run_metadata_attests_exact_local_ocr_runtime() -> None:
+    class AttestedOCR:
+        def runtime_metadata(self) -> dict[str, str]:
+            return {
+                "tesseract_version": "5.4.0",
+                "tesseract_language": "por",
+            }
+
+    meta = run_metadata("local_ocr", 150, vision=AttestedOCR())
+
+    assert meta["python_version"] == "3.11.15"
+    assert len(meta["uv_lock_sha256"]) == 64
+    assert meta["tesseract_version"] == "5.4.0"
+    assert meta["tesseract_language"] == "por"
+    assert meta["runtime_attested"] is True
 
 
 def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(

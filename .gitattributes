@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+*.bmp binary
+*.db binary
+*.gif binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.otf binary
+*.pdf binary
+*.png binary
+*.sqlite binary
+*.sqlite3 binary
+*.ttf binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary

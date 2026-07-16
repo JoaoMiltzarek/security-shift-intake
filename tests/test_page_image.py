@@ -51,9 +51,9 @@ def test_endpoint_serves_png_at_valid_index(
     served: tuple[TestClient, list[str]],
 ) -> None:
     client, rel = served
-    draft_id = client.post(
-        "/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}
-    ).json()["id"]
+    draft_id = client.post("/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}).json()[
+        "id"
+    ]
     resp = client.get(f"/drafts/{draft_id}/page/0")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/png"
@@ -62,9 +62,9 @@ def test_endpoint_serves_png_at_valid_index(
 
 def test_endpoint_404_on_bad_index(served: tuple[TestClient, list[str]]) -> None:
     client, rel = served
-    draft_id = client.post(
-        "/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}
-    ).json()["id"]
+    draft_id = client.post("/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}).json()[
+        "id"
+    ]
     assert client.get(f"/drafts/{draft_id}/page/9").status_code == 404
 
 

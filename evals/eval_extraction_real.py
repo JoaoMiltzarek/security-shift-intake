@@ -12,10 +12,12 @@ Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates)
    leitor (ex.: Ollama offline) NUNCA derruba a rodada: a folha sai
    `available:false` com motivo (invariante EVAL_PROTOCOL §9).
    Saídas: detalhado (PII) -> private/audit/eval_real_detailed_{reader}_dpi{dpi}.json
-           público whitelist -> docs/eval_real_summary.json (gate de PII em 2ª camada)
+           resumo allowlisted -> private/audit/eval_real_summary.json (gate de PII em
+           2ª camada). Evidência histórica em docs/ nunca é sobrescrita pelo evaluator.
 
 2. **`--legacy-compare`** — o compare ANTES (escalar) × DEPOIS (tabela) original,
-   com a taxonomia R3, que gera docs/AUDITORIA_FOLHAS_REAIS.md. Inalterado.
+   com a taxonomia R3, gravado na área local de auditoria. O relatório histórico
+   versionado em docs/ não é atualizado automaticamente.
 
 `--compare A.json B.json` calcula a comparação PAREADA por campo entre duas rodadas
 detalhadas (baseline × VLM) — o formato que sustenta o gate G1 com n pequeno.
@@ -24,7 +26,7 @@ Quality gates: curadoria sem review_status válido é ignorada; só `verified_by
 conta como número oficial (senão PRELIMINAR/DIRECIONAL, EVAL_PROTOCOL §4); relatório
 público não é escrito se a varredura de PII achar algo.
 
-Uso: PYTHONPATH=. uv run python -m evals.eval_extraction_real --vision local_vlm --dpi 150
+Uso: uv run --locked python -m evals.eval_extraction_real --vision local_vlm --dpi 150
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 import subprocess
 import sys
 import time
@@ -45,7 +48,8 @@ import httpx
 
 from evals.metrics import cer, levenshtein
 from scripts.privacy_check import scan_text_for_pii
-from src.clients.base import VisionClient
+from src.api.gate import DraftNotReviewableError, assert_reviewable
+from src.clients.base import RuntimeMetadataProvider, VisionClient
 from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
@@ -53,20 +57,42 @@ from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
 from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MODEL
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
+from src.paths import PRIVATE_ROOT, REPO_ROOT, resolve_private_path
 from src.pipeline.ingest import OCR_DPI
+from src.pipeline.outputs import export_blockers
 from src.schema.config import ReportConfig
 from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import load_config
 from src.schema.state import ExtractedField
 
-CURADORIA_DIR = Path("private/curadoria")
-AUDIT_DIR = Path("private/audit")
-CONFIG_PATH = Path("configs/htmicron_security.yaml")  # ANTES (escalar, legado)
-TABLE_CONFIG_PATH = Path("configs/controle_ocorrencias.yaml")  # DEPOIS (tabela)
-REPORT_PATH = Path("docs/AUDITORIA_FOLHAS_REAIS.md")
-SUMMARY_PATH = Path("docs/eval_real_summary.json")
+CURADORIA_DIR = PRIVATE_ROOT / "curadoria"
+AUDIT_DIR = PRIVATE_ROOT / "audit"
+CONFIG_PATH = REPO_ROOT / "configs" / "htmicron_security.yaml"  # ANTES (escalar, legado)
+TABLE_CONFIG_PATH = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"  # DEPOIS (tabela)
+REPORT_PATH = AUDIT_DIR / "AUDITORIA_FOLHAS_REAIS.md"
+SUMMARY_PATH = AUDIT_DIR / "eval_real_summary.json"
 
 VALID_REVIEW_STATUS = {"draft_by_claude", "needs_review", "verified_by_user"}
+
+
+def _resolve_local_output(
+    requested: Path,
+    *,
+    option: str,
+    private_root: Path = PRIVATE_ROOT,
+) -> Path:
+    root_absolute = private_root.expanduser().absolute()
+    root_resolved = private_root.expanduser().resolve(strict=False)
+    if root_resolved != root_absolute:
+        raise ValueError(f"{option} deve ficar em private/; use um publisher para docs/")
+    candidate = requested.expanduser()
+    if not candidate.is_absolute():
+        candidate = REPO_ROOT / candidate
+    resolved = candidate.resolve(strict=False)
+    if not resolved.is_relative_to(root_resolved):
+        raise ValueError(f"{option} deve ficar em private/; use um publisher para docs/")
+    return resolved
+
 
 SEVERITY: dict[str, str] = {
     "FALSE_INCIDENT": "BLOCKER",
@@ -96,8 +122,11 @@ ROW_COUNT_TOLERANCE = 0
 # Mínimos de honestidade estatística (EVAL_PROTOCOL §4).
 MIN_VERIFIED_SHEETS = 10
 
-# Motivos de falha publicados são truncados (whitelist §7: sem valores, sem folhas).
-_REASON_MAX_CHARS = 160
+# Detalhe bruto fica somente no artefato privado e tem limite contra exceções enormes.
+_DETAIL_ERROR_MAX_CHARS = 2_000
+_PUBLIC_FAILURE_REASONS = frozenset(
+    {"pending_file", "reader_error", "source_outside_private", "unavailable"}
+)
 
 # Chaves por folha que entram no público — whitelist POR CONSTRUÇÃO (§7): o dict
 # público nasce só destas chaves; nunca é o detalhado com campos removidos.
@@ -116,6 +145,20 @@ _PUBLIC_SHEET_KEYS = (
     "ocr_quality",
     "confidence_source",
     "available",
+)
+_PUBLIC_RUN_META_KEYS = (
+    "reader",
+    "model",
+    "dpi",
+    "prompt_sha256",
+    "git_commit",
+    "timestamp",
+    "python_version",
+    "python_version_expected",
+    "uv_lock_sha256",
+    "tesseract_version",
+    "tesseract_language",
+    "runtime_attested",
 )
 
 
@@ -384,7 +427,9 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _git_commit() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, cwd=REPO_ROOT
+        ).strip()
     except Exception:  # noqa: BLE001 — forense best-effort, nunca derruba a rodada
         return "unknown"
 
@@ -419,13 +464,61 @@ def _model_tag(reader: str) -> str:
     return f"{model} unknown"
 
 
-def run_metadata(reader: str, dpi: int) -> dict[str, Any]:
+def _runtime_file_identity() -> tuple[str, str, str]:
+    """Return actual Python, declared Python and the locked dependency identity."""
+    actual_python = platform.python_version()
+    try:
+        expected_python = (REPO_ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    except OSError:
+        expected_python = "unavailable"
+    try:
+        lock_sha256 = hashlib.sha256((REPO_ROOT / "uv.lock").read_bytes()).hexdigest()
+    except OSError:
+        lock_sha256 = "unavailable"
+    return actual_python, expected_python, lock_sha256
+
+
+def run_metadata(
+    reader: str,
+    dpi: int,
+    *,
+    vision: VisionClient | RuntimeMetadataProvider | None = None,
+) -> dict[str, Any]:
     """Metadados que tornam a rodada re-executável (hash do prompt, modelo, commit)."""
     prompt_hash = (
         hashlib.sha256(_TRANSCRIPTION_PROMPT.encode("utf-8")).hexdigest()
         if reader == "local_vlm"
         else None
     )
+    actual_python, expected_python, lock_sha256 = _runtime_file_identity()
+    runtime: dict[str, Any] = {}
+    runtime_attested = (
+        actual_python == expected_python
+        and len(lock_sha256) == 64
+        and all(character in "0123456789abcdef" for character in lock_sha256)
+    )
+    if reader == "local_ocr":
+        provider = vision if vision is not None else LocalOCRVisionClient()
+        if isinstance(provider, RuntimeMetadataProvider):
+            try:
+                runtime = provider.runtime_metadata()
+            except Exception:  # noqa: BLE001 — o relatório público recebe só código seguro
+                runtime = {
+                    "tesseract_version": "unavailable",
+                    "tesseract_language": "unavailable",
+                }
+        else:
+            runtime = {
+                "tesseract_version": "unavailable",
+                "tesseract_language": "unavailable",
+            }
+        runtime_attested = runtime_attested and bool(runtime.get("tesseract_version"))
+        runtime_attested = runtime_attested and runtime.get("tesseract_version") not in {
+            "unavailable",
+            "unknown",
+        }
+        runtime_attested = runtime_attested and runtime.get("tesseract_language") == "por"
+
     return {
         "reader": reader,
         "model": _model_tag(reader),
@@ -434,6 +527,11 @@ def run_metadata(reader: str, dpi: int) -> dict[str, Any]:
         "git_commit": _git_commit(),
         # Compacto (sem ':') para não colidir com o padrão de hora do gate de PII.
         "timestamp": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
+        "python_version": actual_python,
+        "python_version_expected": expected_python,
+        "uv_lock_sha256": lock_sha256,
+        **runtime,
+        "runtime_attested": runtime_attested,
     }
 
 
@@ -464,6 +562,8 @@ def run_sheet(
     config: Any,
     vision: VisionClient | None = None,
     dpi: int = OCR_DPI,
+    *,
+    require_private_source: bool = False,
 ) -> dict[str, Any]:
     """Roda o pipeline numa folha; devolve o resultado detalhado (com PII).
 
@@ -485,7 +585,20 @@ def run_sheet(
         "n_occurrences_captured": 0,
         "ocr_confidence": 0.0,
     }
-    src = Path(str(cur.get("source_file", "")).split(" ")[0])
+    source_value = str(cur.get("source_file", "")).strip()
+    if not source_value:
+        base["status"] = "pending_file"
+        base["reason"] = "pending_file"
+        return base
+    src = Path(source_value)
+    if require_private_source:
+        candidate = src if src.is_absolute() else REPO_ROOT / src
+        try:
+            src = resolve_private_path(candidate)
+        except (OSError, ValueError):
+            base["status"] = "source_outside_private"
+            base["reason"] = "source_outside_private"
+            return base
     if not src.exists():
         base["status"] = "pending_file"
         base["reason"] = "pending_file"
@@ -495,10 +608,32 @@ def run_sheet(
     try:
         state = run_pipeline(src, reader, RuleBasedLLMClient(config), config, dpi=dpi)
     except RuntimeError as exc:  # leitor indisponível/falha — nunca mata a rodada
-        base["status"] = f"reader_error: {exc}"
-        base["reason"] = str(exc)[:_REASON_MAX_CHARS]
+        base["status"] = "reader_error"
+        base["reason"] = "reader_error"
+        base["_detail"] = {"reader_error": str(exc)[:_DETAIL_ERROR_MAX_CHARS]}
         return base
     elapsed = time.monotonic() - started
+
+    # Preserve the operational outcomes of the PipelineState that was actually
+    # executed. Safety evals must not infer these gates from disposition or replay
+    # a second pipeline, because either shortcut can hide a disconnected validator.
+    try:
+        assert_reviewable(state)
+    except DraftNotReviewableError:
+        operational_approvable = False
+    else:
+        operational_approvable = True
+    operational_export_blockers = export_blockers(state)
+    base.update(
+        {
+            "operational_approvable": operational_approvable,
+            "operational_exportable": not operational_export_blockers,
+            "operational_export_blocker_count": len(operational_export_blockers),
+            "normalized_disposition": (
+                state.normalized.disposition if state.normalized is not None else None
+            ),
+        }
+    )
 
     extracted = state.extracted_fields
     base["ran"] = True
@@ -507,13 +642,9 @@ def run_sheet(
     base["ocr_confidence"] = round(state.transcription_confidence or 0.0, 3)
     base["ocr_quality"] = state.ocr_quality
     base["confidence_source"] = state.transcription_confidence_source
-    base["field_statuses"] = {
-        ef.name: field_status(ef.value, ef.must_review) for ef in extracted
-    }
+    base["field_statuses"] = {ef.name: field_status(ef.value, ef.must_review) for ef in extracted}
     base["must_review_count"] = len(state.must_review_fields)
-    base["missing_count"] = sum(
-        1 for st in base["field_statuses"].values() if st == "missing"
-    )
+    base["missing_count"] = sum(1 for st in base["field_statuses"].values() if st == "missing")
     base["illegible_token_count"] = (state.transcription or "").count("[ilegível]")
     base["repairable_ratio"] = repairable_ratio(extracted)
     if state.normalized is not None:
@@ -568,7 +699,14 @@ def build_public_run(meta: dict[str, Any], per_sheet: list[dict[str, Any]]) -> d
         for key in _PUBLIC_SHEET_KEYS:
             entry[key] = s.get(key)
         if not s.get("available"):
-            entry["reason"] = str(s.get("reason") or s.get("status") or "")[:_REASON_MAX_CHARS]
+            reason = str(s.get("reason") or "")
+            status = str(s.get("status") or "")
+            if reason in _PUBLIC_FAILURE_REASONS:
+                entry["reason"] = reason
+            elif status in _PUBLIC_FAILURE_REASONS:
+                entry["reason"] = status
+            else:
+                entry["reason"] = "unavailable"
         pub_sheets.append(entry)
 
     ran = [s for s in ordered if s.get("ran")]
@@ -584,8 +722,9 @@ def build_public_run(meta: dict[str, Any], per_sheet: list[dict[str, Any]]) -> d
             rep_den += mr
     n_verified = sum(1 for s in per_sheet if s.get("review_status") == "verified_by_user")
     elapsed = [s["elapsed_sec"] for s in ran if s.get("elapsed_sec") is not None]
+    public_meta = {key: meta.get(key) for key in _PUBLIC_RUN_META_KEYS if key in meta}
     return {
-        **meta,
+        **public_meta,
         "n_sheets": len(per_sheet),
         "n_sheets_ran": len(ran),
         "n_verified_by_user": n_verified,
@@ -593,26 +732,18 @@ def build_public_run(meta: dict[str, Any], per_sheet: list[dict[str, Any]]) -> d
         # DIRECIONAL enquanto n_verified < 10 (EVAL_PROTOCOL §4) — impresso, não escondido.
         "directional": n_verified < MIN_VERIFIED_SHEETS,
         "aggregate": {
-            "parse_table_success_rate": (
-                round(success / len(with_pts), 3) if with_pts else None
-            ),
+            "parse_table_success_rate": (round(success / len(with_pts), 3) if with_pts else None),
             "parse_table_success_count": success,
             "estimated_chars_to_type_total": sum(
                 s.get("estimated_chars_to_type") or 0 for s in ran
             ),
-            "prefilled_but_wrong_total": sum(
-                s.get("prefilled_but_wrong_count") or 0 for s in ran
-            ),
+            "prefilled_but_wrong_total": sum(s.get("prefilled_but_wrong_count") or 0 for s in ran),
             "blank_field_total": sum(s.get("blank_field_count") or 0 for s in ran),
             "must_review_total": sum(s.get("must_review_count") or 0 for s in ran),
             "missing_total": sum(s.get("missing_count") or 0 for s in ran),
             "illegible_total": sum(s.get("illegible_token_count") or 0 for s in ran),
-            "mean_elapsed_sec": (
-                round(sum(elapsed) / len(elapsed), 2) if elapsed else None
-            ),
-            "repairable_ratio_overall": (
-                round(rep_num / rep_den, 3) if rep_den else None
-            ),
+            "mean_elapsed_sec": (round(sum(elapsed) / len(elapsed), 2) if elapsed else None),
+            "repairable_ratio_overall": (round(rep_num / rep_den, 3) if rep_den else None),
         },
         "per_sheet": pub_sheets,
     }
@@ -676,7 +807,7 @@ def render_summary(
     run: dict[str, Any] | None = None,
     paired: dict[str, Any] | None = None,
 ) -> tuple[str, list[str]]:
-    """Merge no docs/eval_real_summary.json: 1 entrada por (reader, dpi) + `paired`.
+    """Merge no resumo diagnóstico local: 1 entrada por (reader, dpi) + `paired`.
 
     Retorna (texto_json, hits_de_pii). O chamador só escreve se hits == [] —
     segunda camada de defesa; a primeira é a whitelist por construção.
@@ -833,25 +964,27 @@ def _legacy_compare(args: argparse.Namespace) -> int:
         return 2
 
     if not args.no_report:
-        REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        REPORT_PATH.write_text(report, encoding="utf-8")
-        print(f"Escrito {REPORT_PATH} e {AUDIT_DIR / 'metrics_real.json'}")
+        args.legacy_report_output.parent.mkdir(parents=True, exist_ok=True)
+        args.legacy_report_output.write_text(report, encoding="utf-8")
+        print("Relatório legado e métricas escritos na área local de auditoria.")
     print(json.dumps({"antes": antes_agg, "depois": depois_agg}, indent=2, ensure_ascii=False))
     return 0
 
 
 def _write_summary(
-    run: dict[str, Any] | None = None, paired: dict[str, Any] | None = None
+    path: Path,
+    run: dict[str, Any] | None = None,
+    paired: dict[str, Any] | None = None,
 ) -> int:
-    text, pii = render_summary(SUMMARY_PATH, run=run, paired=paired)
+    text, pii = render_summary(path, run=run, paired=paired)
     if pii:
         print("ABORTADO: PII detectada no resumo público:", file=sys.stderr)
         for h in pii:
             print(h, file=sys.stderr)
         return 2
-    SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SUMMARY_PATH.write_text(text, encoding="utf-8")
-    print(f"Escrito {SUMMARY_PATH}", file=sys.stderr)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    print("Resumo allowlisted escrito na área local de auditoria.", file=sys.stderr)
     return 0
 
 
@@ -866,8 +999,17 @@ def _instrumented(args: argparse.Namespace) -> int:
 
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_vision_client(args.vision)
-    meta = run_metadata(args.vision, args.dpi)
-    per_sheet = [run_sheet(cur, config, vision=vision, dpi=args.dpi) for cur in curadoria]
+    meta = run_metadata(args.vision, args.dpi, vision=vision)
+    per_sheet = [
+        run_sheet(
+            cur,
+            config,
+            vision=vision,
+            dpi=args.dpi,
+            require_private_source=True,
+        )
+        for cur in curadoria
+    ]
 
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
     detailed_path = AUDIT_DIR / f"eval_real_detailed_{args.vision}_dpi{args.dpi}.json"
@@ -879,7 +1021,7 @@ def _instrumented(args: argparse.Namespace) -> int:
 
     public = build_public_run(meta, per_sheet)
     if not args.no_report:
-        code = _write_summary(run=public)
+        code = _write_summary(args.summary_output, run=public)
         if code:
             return code
     print(json.dumps(public, indent=2, ensure_ascii=False))
@@ -893,7 +1035,7 @@ def _compare(args: argparse.Namespace) -> int:
         json.loads(other_path.read_text(encoding="utf-8")),
     )
     if not args.no_report:
-        code = _write_summary(paired=paired)
+        code = _write_summary(args.summary_output, paired=paired)
         if code:
             return code
     print(json.dumps(paired, indent=2, ensure_ascii=False))
@@ -921,10 +1063,30 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--legacy-compare",
         action="store_true",
-        help="modo legado ANTES×DEPOIS -> docs/AUDITORIA_FOLHAS_REAIS.md",
+        help="modo legado ANTES×DEPOIS -> área local de auditoria",
     )
-    parser.add_argument("--no-report", action="store_true", help="não escrever docs públicos")
+    parser.add_argument("--no-report", action="store_true", help="não escrever saídas locais")
+    parser.add_argument(
+        "--summary-output",
+        type=Path,
+        default=SUMMARY_PATH,
+        help="resumo allowlisted local (docs/ é reservado para publicação controlada)",
+    )
+    parser.add_argument(
+        "--legacy-report-output",
+        type=Path,
+        default=REPORT_PATH,
+        help="relatório legado local (docs/ é reservado para publicação controlada)",
+    )
     args = parser.parse_args(argv)
+
+    try:
+        args.summary_output = _resolve_local_output(args.summary_output, option="--summary-output")
+        args.legacy_report_output = _resolve_local_output(
+            args.legacy_report_output, option="--legacy-report-output"
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if args.dpi <= 0:
         parser.error("--dpi deve ser um inteiro positivo")

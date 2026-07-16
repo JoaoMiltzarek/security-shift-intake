@@ -23,7 +23,6 @@ def test_readme_showcase_is_current_and_evidence_backed() -> None:
         "RawDocumentExtraction",
         "NormalizedIncidentModel",
         "Tesseract is not reliable on cursive handwriting",
-        "756 passed, 3 skipped",
         "unknown_disposition_count",
     )
     assert all(value in readme for value in required)
@@ -107,3 +106,17 @@ def test_readme_reader_section_points_to_normative_contracts() -> None:
     assert all(value in readme for value in required_exact)
     assert _has_phrase(readme, "does not select the default reader")
     assert all(value not in readme for value in forbidden)
+
+
+def test_readme_uses_reproducible_runtime_without_ephemeral_test_counts() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    python_version = Path(".python-version").read_text(encoding="utf-8").strip()
+
+    assert f"python-{python_version}-blue" in readme
+    assert f"Python {python_version}" in readme
+    assert f"uv sync --locked --python {python_version}" in readme
+    assert "make check" in readme
+    assert re.search(r"\b\d+[\d,]* passed(?:, \d+ skipped)?\b", readme) is None
+    assert re.search(r"across \d+ source files", readme) is None
+    assert "The latest local Windows baseline" not in readme
+    assert "release v1.0.0" not in readme

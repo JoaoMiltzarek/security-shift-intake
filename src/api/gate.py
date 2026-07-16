@@ -8,23 +8,20 @@ effect did or did not happen.
 
 from __future__ import annotations
 
-import threading
 from typing import Protocol, runtime_checkable
 
 from sqlmodel import Session
 
 from src.api.models import DeliveryMode, Draft
-from src.api.repository import add_audit, get_draft, mark_sent, state_sha256
+from src.api.repository import (
+    _mark_sent_locked,
+    add_audit,
+    draft_operation_lock,
+    get_draft,
+    state_sha256,
+)
 from src.pipeline.ocr_quality import OCR_FAILED
 from src.schema.state import ApprovalStatus, PipelineState
-
-_SEND_LOCKS_GUARD = threading.Lock()
-_SEND_LOCKS: dict[int, threading.Lock] = {}
-
-def _draft_send_lock(draft_id: int) -> threading.Lock:
-    """Return the process-local lock for a draft (supported v1 is one Uvicorn process)."""
-    with _SEND_LOCKS_GUARD:
-        return _SEND_LOCKS.setdefault(draft_id, threading.Lock())
 
 
 class DraftNotApprovedError(RuntimeError):
@@ -47,6 +44,10 @@ def assert_reviewable(state: PipelineState) -> None:
     clears the failed state). Explicit so the block does not rely on the critic
     coincidentally leaving fields pending.
     """
+    if state.exceeds_v1_page_scope():
+        raise DraftNotReviewableError(
+            "Legacy multi-page state exceeds the supported single-page v1 contract."
+        )
     if state.ocr_quality == OCR_FAILED:
         raise DraftNotReviewableError(
             "OCR quality failed — manual transcription required before approval."
@@ -88,11 +89,9 @@ class MockSender:
         self.sent.append((recipients, body))
 
 
-def send_draft(
-    session: Session, draft_id: int, sender: Sender, actor: str = "reviewer"
-) -> Draft:
+def send_draft(session: Session, draft_id: int, sender: Sender, actor: str = "reviewer") -> Draft:
     """Serialize the irreversible side effect per draft in the supported local process."""
-    with _draft_send_lock(draft_id):
+    with draft_operation_lock(session, draft_id, wait=True):
         # A concurrent session may have committed sent_at while this caller waited.
         session.expire_all()
         return _send_draft_once(session, draft_id, sender, actor)
@@ -111,7 +110,10 @@ def _send_draft_once(
 
     if draft.status != ApprovalStatus.APPROVED:
         add_audit(
-            session, draft_id, actor=actor, action="send_blocked",
+            session,
+            draft_id,
+            actor=actor,
+            action="send_blocked",
             detail=f"status={draft.status}",
         )
         raise DraftNotApprovedError(
@@ -119,24 +121,21 @@ def _send_draft_once(
         )
 
     if draft.sent_at is not None:
-        add_audit(
-            session, draft_id, actor=actor, action="send_blocked", detail="already_sent"
-        )
+        add_audit(session, draft_id, actor=actor, action="send_blocked", detail="already_sent")
         raise DraftNotApprovedError(f"Draft {draft_id} was already sent — send blocked.")
 
     # A aprovação vale para UMA revisão/conteúdo (SSI-1006): revisão e hash estampados
     # no approve precisam bater com o estado corrente. Cobre aprovação legada
     # (approved_revision NULL) e escrita direta em state_json fora de update_state.
-    if (
-        draft.approved_revision != draft.revision
-        or draft.approved_state_sha256 != state_sha256(draft.state_json)
+    if draft.approved_revision != draft.revision or draft.approved_state_sha256 != state_sha256(
+        draft.state_json
     ):
         add_audit(
-            session, draft_id, actor=actor, action="send_blocked",
-            detail=(
-                f"stale_approval rev={draft.revision} "
-                f"approved_rev={draft.approved_revision}"
-            ),
+            session,
+            draft_id,
+            actor=actor,
+            action="send_blocked",
+            detail=(f"stale_approval rev={draft.revision} approved_rev={draft.approved_revision}"),
         )
         raise DraftNotApprovedError(
             f"Draft {draft_id} content is not the approved revision — send blocked; "
@@ -150,13 +149,11 @@ def _send_draft_once(
     try:
         assert_reviewable(state)
     except DraftNotReviewableError as exc:
-        add_audit(
-            session, draft_id, actor=actor, action="send_blocked", detail="not_reviewable"
-        )
+        add_audit(session, draft_id, actor=actor, action="send_blocked", detail="not_reviewable")
         raise DraftNotApprovedError(str(exc)) from exc
 
     sender.send(state.recipients, state.email_draft or "")
-    return mark_sent(
+    return _mark_sent_locked(
         session,
         draft_id,
         actor=actor,

@@ -108,8 +108,7 @@ def main(argv: list[str], *, private_dir: Path | None = None) -> int:
     if args.mode == "demo":
         removed = purge_selected(directory, _DEMO_TARGETS)
         scope = (
-            "artefatos temporários do demo "
-            "(DB + sidecars + audit/ + page_images/ + debug/ + tmp/)"
+            "artefatos temporários do demo (DB + sidecars + audit/ + page_images/ + debug/ + tmp/)"
         )
     elif args.mode == "real":
         removed = purge_selected(directory, _REAL_TARGETS)

@@ -8,8 +8,12 @@ DB outside private → warn; DB tracked outside private → blocker; no tesserac
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
+import scripts.preflight as preflight
 from scripts.preflight import classify_db, evaluate, scan_dbs
 
 
@@ -23,10 +27,16 @@ def _clean_report(**over: Any) -> dict[str, Any]:
         "dirty_tree": {"clean": True, "untracked": [], "modified": [], "dangerous": []},
         "tools": {"uv": "/uv", "python": "/py", "make": "/make"},
         "venv_ok": True,
+        "venv": {
+            "ok": True,
+            "executable": "/repo/.venv/bin/python",
+            "version": "3.11.15",
+            "expected_version": "3.11.15",
+        },
         "test_baseline": None,
         "dbs": [],
         "symlink_support": True,
-        "tesseract": {"present": True, "langs": ["eng"]},
+        "tesseract": {"present": True, "langs": ["eng", "por"]},
         "browser": {"chromium_present": True, "path": "/x"},
         "precommit_hook_active": True,
     }
@@ -88,3 +98,77 @@ def test_missing_tesseract_warns() -> None:
 def test_missing_make_blocks() -> None:
     severity, _ = evaluate(_clean_report(tools={"uv": "/uv", "python": "/py", "make": None}))
     assert severity == 2
+
+
+def test_missing_uv_blocks() -> None:
+    severity, actions = evaluate(
+        _clean_report(tools={"uv": None, "python": "/py", "make": "/make"})
+    )
+
+    assert severity == 2
+    assert any("uv" in action for action in actions)
+
+
+def test_invalid_venv_blocks() -> None:
+    severity, actions = evaluate(_clean_report(venv_ok=False))
+
+    assert severity == 2
+    assert any("3.11.15" in action for action in actions)
+
+
+def test_missing_portuguese_tesseract_language_warns() -> None:
+    severity, actions = evaluate(_clean_report(tesseract={"present": True, "langs": ["eng"]}))
+
+    assert severity == 1
+    assert any("por" in action for action in actions)
+
+
+def test_git_output_preserves_leading_porcelain_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = SimpleNamespace(returncode=0, stdout=" M scripts/preflight.py\n")
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/git")
+    monkeypatch.setattr(preflight.subprocess, "run", lambda *_args, **_kwargs: result)
+
+    output = preflight._run_git(tmp_path, "status", "--porcelain")
+
+    assert output == " M scripts/preflight.py"
+
+
+def test_untracked_webp_is_classified_as_dangerous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(preflight, "_run_git", lambda *_args: "?? leaked-page.webp")
+
+    dirty = preflight.git_dirty(tmp_path)
+
+    assert dirty["untracked"] == ["leaked-page.webp"]
+    assert dirty["dangerous"] == ["leaked-page.webp"]
+
+
+def test_test_baseline_is_locked_no_sync_and_cache_free(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        captured["command"] = command
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout="812 tests collected\n")
+
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/uv")
+    monkeypatch.setattr(preflight.subprocess, "run", run)
+
+    assert preflight.collect_test_baseline(tmp_path) == 812
+    assert captured["command"] == [
+        "uv",
+        "run",
+        "--locked",
+        "--no-sync",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+    ]
+    assert captured["env"]["PYTHONDONTWRITEBYTECODE"] == "1"

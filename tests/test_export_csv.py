@@ -73,19 +73,24 @@ def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> No
     resp = client.get(f"/drafts/{draft_id}/export.csv")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
+    assert f'filename="draft_{draft_id}_rev_2.csv"' in resp.headers["content-disposition"]
 
     rows = list(csv.reader(io.StringIO(resp.text)))
     assert rows[0] == ["DIA", "UNIDADE", "OBJETO", "DESCRICAO"]
 
-    state = client.get(f"/drafts/{draft_id}").json()["state"]
+    detail = client.get(f"/drafts/{draft_id}").json()
+    state = detail["state"]
     expected = [
-        [r["dia"], r["unidade"], r["objeto"], r["descricao"]]
-        for r in state["spreadsheet_rows"]
+        [r["dia"], r["unidade"], r["objeto"], r["descricao"]] for r in state["spreadsheet_rows"]
     ]
     assert rows[1:] == expected
     # Post-review value present (human entered "1"), raw "(revisar)" placeholder gone.
     assert any("1" in r for r in rows[1:])
     assert all("(revisar)" not in cell for row in rows[1:] for cell in row)
+
+    export_entry = [entry for entry in detail["audit"] if entry["action"] == "export_csv"][-1]
+    assert export_entry["revision"] == 2
+    assert len(export_entry["state_sha256"]) == 64
 
 
 def test_export_neutralizes_formula_injection(client: TestClient) -> None:
@@ -108,13 +113,19 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        "=cmd()", "+1", "-1", "@x",
-        "\t=cmd()", "\r=cmd()", "\n=cmd()",  # ASCII control / newline
-        "\x00", "\x1f",                        # C0 controls
-        "\x85=cmd()",                          # NEL (Cc)
-        "﻿=cmd()",                        # BOM (Cf)
-        "​=cmd()",                        # zero-width space (Cf)
-        " =cmd()",                             # leading whitespace
+        "=cmd()",
+        "+1",
+        "-1",
+        "@x",
+        "\t=cmd()",
+        "\r=cmd()",
+        "\n=cmd()",  # ASCII control / newline
+        "\x00",
+        "\x1f",  # C0 controls
+        "\x85=cmd()",  # NEL (Cc)
+        "﻿=cmd()",  # BOM (Cf)
+        "​=cmd()",  # zero-width space (Cf)
+        " =cmd()",  # leading whitespace
     ],
 )
 def test_csv_safe_neutralizes(payload: str) -> None:

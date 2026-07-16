@@ -12,6 +12,7 @@ from src.api.db import init_db, make_engine
 from src.api.models import Draft
 from src.api.repository import (
     DraftAlreadySentError,
+    DraftOperationConflictError,
     add_audit,
     create_draft,
     get_audit,
@@ -112,7 +113,8 @@ def test_every_revision_snapshot_is_preserved(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     update_state(
-        session, draft.id,
+        session,
+        draft.id,
         PipelineState(source_pdf=Path("report.pdf"), transcription="v2"),
         actor="reviewer",
     )
@@ -143,14 +145,40 @@ def test_approved_hash_matches_a_preserved_revision(session: Session) -> None:
 
     hashes = {
         r.state_sha256
-        for r in session.exec(
-            select(DraftRevision).where(DraftRevision.draft_id == draft.id)
-        )
+        for r in session.exec(select(DraftRevision).where(DraftRevision.draft_id == draft.id))
     }
     assert approved.approved_state_sha256 in hashes  # aprovação sempre prova o conteúdo
 
 
 # --- F3.B1 (SSI-1006): revisão do draft + migração de DB legado ---
+
+
+def test_database_rejects_duplicate_revision_numbers(session: Session) -> None:
+    from sqlalchemy.exc import IntegrityError
+    from sqlmodel import select
+
+    from src.api.models import DraftRevision
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    original = session.exec(
+        select(DraftRevision).where(
+            DraftRevision.draft_id == draft.id,
+            DraftRevision.revision == 1,
+        )
+    ).one()
+    session.add(
+        DraftRevision(
+            draft_id=draft.id,
+            revision=1,
+            state_sha256=original.state_sha256,
+            state_json=original.state_json,
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
 
 
 def test_new_draft_starts_at_revision_1_without_approval_stamp(session: Session) -> None:
@@ -184,6 +212,51 @@ def test_update_state_bumps_revision_and_audits_hash(session: Session) -> None:
     assert state_sha256(updated.state_json)[:12] in entry.detail
 
 
+def test_stale_editor_cannot_overwrite_a_newer_revision(tmp_path: Path) -> None:
+    from sqlmodel import select
+
+    from src.api.models import DraftRevision
+    from src.api.repository import update_state
+
+    engine = make_engine(
+        f"sqlite:///{(tmp_path / 'stale-editor.db').as_posix()}", allow_test_path=True
+    )
+    init_db(engine)
+    with Session(engine) as setup:
+        draft = create_draft(setup, _state())
+        assert draft.id is not None
+        draft_id = draft.id
+
+    with Session(engine) as first, Session(engine) as stale:
+        assert first.get(Draft, draft_id) is not None
+        assert stale.get(Draft, draft_id) is not None
+        update_state(
+            first,
+            draft_id,
+            PipelineState(source_pdf=Path("report.pdf"), transcription="first edit"),
+            actor="first",
+            expected_revision=1,
+        )
+        with pytest.raises(DraftOperationConflictError, match="reload"):
+            update_state(
+                stale,
+                draft_id,
+                PipelineState(source_pdf=Path("report.pdf"), transcription="stale edit"),
+                actor="stale",
+                expected_revision=1,
+            )
+
+    with Session(engine) as verify:
+        persisted = verify.get(Draft, draft_id)
+        assert persisted is not None
+        assert persisted.revision == 2
+        assert PipelineState.model_validate_json(persisted.state_json).transcription == "first edit"
+        revisions = list(
+            verify.exec(select(DraftRevision).where(DraftRevision.draft_id == draft_id))
+        )
+        assert [revision.revision for revision in revisions] == [1, 2]
+
+
 def test_approve_stamps_revision_and_hash(session: Session) -> None:
     from src.api.repository import state_sha256
 
@@ -193,6 +266,25 @@ def test_approve_stamps_revision_and_hash(session: Session) -> None:
 
     assert approved.approved_revision == approved.revision == 1
     assert approved.approved_state_sha256 == state_sha256(approved.state_json)
+
+
+def test_approval_and_send_audit_reference_the_full_snapshot(session: Session) -> None:
+    from src.api.repository import state_sha256
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.APPROVED, actor="reviewer")
+    mark_sent(session, draft.id, actor="reviewer", delivery_mode="simulated")
+
+    expected_hash = state_sha256(draft.state_json)
+    entries = {
+        entry.action: entry
+        for entry in get_audit(session, draft.id)
+        if entry.action in {"status:approved", "send_simulated"}
+    }
+    assert set(entries) == {"status:approved", "send_simulated"}
+    assert all(entry.revision == 1 for entry in entries.values())
+    assert all(entry.state_sha256 == expected_hash for entry in entries.values())
 
 
 def test_reject_clears_approval_stamp(session: Session) -> None:
@@ -237,9 +329,7 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
 
 
 @pytest.mark.parametrize("status", [ApprovalStatus.APPROVED, ApprovalStatus.REJECTED])
-def test_sent_draft_rejects_later_status_changes(
-    session: Session, status: ApprovalStatus
-) -> None:
+def test_sent_draft_rejects_later_status_changes(session: Session, status: ApprovalStatus) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
@@ -258,9 +348,7 @@ def test_sent_draft_rejects_later_status_changes(
 # --- SSI-1015: mutation + snapshot + audit are one transaction -----------------
 
 
-def _fail_audit_action(
-    monkeypatch: pytest.MonkeyPatch, action_to_fail: str
-) -> None:
+def _fail_audit_action(monkeypatch: pytest.MonkeyPatch, action_to_fail: str) -> None:
     import src.api.repository as repository
 
     original = repository._stage_audit
@@ -368,6 +456,10 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
     init_db(engine)  # segunda chamada não pode falhar nem duplicar colunas
 
     with Session(engine) as s:
+        from sqlmodel import select
+
+        from src.api.models import DraftRevision
+
         draft = s.get(Draft, 1)
         assert draft is not None
         assert draft.status == "approved"
@@ -375,3 +467,9 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
         assert draft.approved_revision is None
         assert draft.approved_state_sha256 is None
         assert draft.delivery_mode is None
+
+        reapproved = set_status(s, 1, ApprovalStatus.APPROVED, actor="legacy-reviewer")
+        snapshots = list(s.exec(select(DraftRevision).where(DraftRevision.draft_id == 1)))
+        assert len(snapshots) == 1
+        assert snapshots[0].revision == reapproved.revision == 1
+        assert snapshots[0].state_sha256 == reapproved.approved_state_sha256

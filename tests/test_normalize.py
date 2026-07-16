@@ -33,9 +33,7 @@ def test_empty_rows_without_sa_are_unknown() -> None:
 
 
 def test_single_occurrence_built() -> None:
-    raw = _raw(
-        [RawRow(item=_af("Crachá"), descricao=_af("Feito crachá."), resolvido=_af("sim"))]
-    )
+    raw = _raw([RawRow(item=_af("Crachá"), descricao=_af("Feito crachá."), resolvido=_af("sim"))])
     m = normalize(raw)
     assert m.no_occurrence is False
     assert len(m.occurrences) == 1

@@ -41,7 +41,7 @@ def test_private_reais_root_cannot_redirect_to_another_location(tmp_path: Path) 
 
 
 def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     private_root = tmp_path / "private" / "reais"
     private_root.mkdir(parents=True)
@@ -60,9 +60,12 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
     monkeypatch.setattr(demo_pipeline, "make_engine", lambda: object())
     monkeypatch.setenv("INTAKE_VISION", "anthropic")
 
-    assert demo_pipeline.main(["--file", str(source)]) == 0
+    config = Path("configs/htmicron_security.yaml")
+    assert demo_pipeline.main(["--file", str(source), "--config", str(config)]) == 0
     assert isinstance(captured["vision"], LocalOCRVisionClient)
     assert captured["file"] == source.resolve()
+    assert captured["config_path"] == config
+    assert f'INTAKE_CONFIG="{config.as_posix()}" make serve' in capsys.readouterr().out
 
 
 def test_real_entrypoint_rejects_outside_path_before_reader_selection(

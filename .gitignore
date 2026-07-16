@@ -4,7 +4,8 @@ data/synthetic/*
 
 # Third-party real-handwriting eval dataset (BRESSAY) — large, downloaded locally,
 # never committed. See docs/EVAL_BRESSAY.md.
-data/bressay/
+/datasets/bressay/
+/datasets/bressay.zip
 
 # Local SQLite databases (approval-gate persistence)
 data/*.db
@@ -240,4 +241,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-/datasets/

@@ -15,7 +15,7 @@
 ## 0. A pergunta que este protocolo responde
 
 **O VLM local reduz esforço humano em folha real?** Medido por
-`estimated_chars_to_type` (primária), `parse_table_success`, `tempo_por_folha` e a
+`estimated_chars_to_type` (proxy parcial primário), `parse_table_success`, `tempo_por_folha` e a
 comparação **pareada por campo** contra a curadoria — nunca por CER isolado em dataset
 de terceiros (BRESSAY é sanity check, papel secundário; ver `docs/EVAL_BRESSAY.md`).
 
@@ -52,7 +52,8 @@ de `evals/eval_extraction_real.py`. `cer`/`levenshtein` vêm de `evals/metrics.p
 
 Verdadeiro sse **todas**:
 
-1. `normalized.no_occurrence == not has_occurrence(curadoria)` — S/A × ocorrência correto;
+1. `normalized.disposition == ("present" if has_occurrence(curadoria) else "none")` —
+   o tri-state é a fonte de verdade; `unknown` nunca conta como parse correto;
 2. `header_minimum_present` — **todos** os escalares `required: true` (mapping §1)
    não-vazios no normalizado;
 3. `row_count_error ≤ 0` (tolerância default **0**), onde
@@ -61,6 +62,11 @@ Verdadeiro sse **todas**:
    curada tem uma linha onde existir no normalizado).
 
 ### 2.2 Esforço humano (o valor real do VLM pode ser "não acerta tudo, mas reduz digitação")
+
+`estimated_chars_to_type` is a **partial human-effort proxy**, not total review effort:
+no eval real atual ele cobre os campos obrigatórios do cabeçalho e a primeira ocorrência
+comparável. Não inclui adicionar/remover linhas, revisar classificação/roteamento nem corrigir
+as demais ocorrências de uma folha multi-linha.
 
 Por campo comparável (§1):
 
@@ -72,6 +78,15 @@ Por campo comparável (§1):
 - `illegible_token_count` = nº de ocorrências literais de `[ilegível]` na transcrição.
 - `campos_corrigidos_por_folha` = `prefilled_but_wrong_count + blank_field_count`
   (erro grosseiro; **secundária** — a primária de esforço é `estimated_chars_to_type`).
+
+### 2.2.1 Recusa segura de campo ilegível (somente Tier C sintético)
+
+- `safe_illegible_refusal_rate = safe_illegible_refusals / illegible_fields`.
+- Uma recusa conta somente quando **not recovered AND review signaled AND operational_approvable=false**:
+  não recuperar a verdade limpa é necessário, mas insuficiente;
+  a linha precisa sinalizar revisão (ou a disposição ser `unknown`) e o estado realmente executado
+  deve estar bloqueado para aprovação.
+- Sem campo ilegível plantado, o valor é `null`; a métrica nunca é usada para inferir `S/A`.
 
 ### 2.3 Probe de repairability (decide a forma da PR-2, sem implementá-la)
 
@@ -142,12 +157,18 @@ contra esta margem; nenhuma decisão de threshold antes deste número.
 | artefato | caminho | conteúdo |
 |---|---|---|
 | Detalhado (PII) | `private/audit/eval_real_detailed_{reader}_dpi{dpi}.json` | tudo, por folha, inclusive transcrição/valores. Substitui `metrics_real.json` como fonte detalhada das rodadas instrumentadas. Gitignored. |
-| Público (evidência) | `docs/eval_real_summary.json` | **construído por whitelist** (§7): uma entrada por rodada `(reader, dpi)` + seção `paired`. |
-| Compare legado | `docs/AUDITORIA_FOLHAS_REAIS.md` | ANTES escalar × DEPOIS tabela (modo `--legacy-compare`), inalterado. |
+| Resumo local allowlisted | `private/audit/eval_real_summary.json` | Construído por whitelist (§7): uma entrada por rodada `(reader, dpi)` + seção `paired`; gitignored. |
+| Público histórico | `docs/eval_real_summary.json` | Historical, directional, pre-runtime-attestation diagnostic; not release evidence e nunca sobrescrito pelo evaluator atual. |
+| Compare legado local | `private/audit/AUDITORIA_FOLHAS_REAIS.md` | ANTES escalar × DEPOIS tabela (modo `--legacy-compare`); o relatório histórico em `docs/` é preservado. |
 
-**Nascimento honesto:** `docs/eval_real_summary.json` só passa a existir depois de uma
-rodada real. Sem rodada, o arquivo está ausente — nunca um placeholder apresentado
-como evidência. O exemplo de schema em §7 é **exemplo**, não evidência.
+**Fronteira de publicação:** rodadas novas nascem somente em `private/audit/`. O evaluator não
+publica nem atualiza arquivos em `docs/`. O JSON versionado atual é histórico e anterior à
+atestação completa de Python/lock/Tesseract; seus números não comprovam o HEAD atual. O exemplo
+de schema em §7 é **exemplo**, não evidência.
+
+Contract: evaluators never write directly to `docs/`; publication is a separate write-once operation.
+O inventário verificável está em `docs/evals/catalog.json` e a promoção validada da v1 em
+`docs/EVAL_RELEASE.md`.
 
 ## 7. Schema público sanitizado (whitelist — nunca subtração)
 
@@ -155,12 +176,17 @@ O JSON público contém **somente**:
 
 - metadados de rodada: `reader`, `model` (tag/digest best-effort via `/api/tags`,
   `"unknown"` se indisponível), `dpi`, `prompt_sha256`, `git_commit`, `timestamp`,
-  `n_sheets`, `n_sheets_ran`, `n_verified_by_user`, `n_fields_compared`;
+  `python_version`, `python_version_expected`, `uv_lock_sha256`, `tesseract_version`,
+  `tesseract_language`, `runtime_attested`, `n_sheets`, `n_sheets_ran`,
+  `n_verified_by_user`, `n_fields_compared`;
 - métricas agregadas e por folha **anônima** (`sheet_1`, ordem = `document_id`
   ordenado): `parse_table_success`, `must_review_count`, `missing_count`,
   `repairable_ratio`, `estimated_chars_to_type`, `prefilled_but_wrong_count`,
-  `blank_field_count`, `illegible_token_count`, `elapsed_sec`, `ocr_quality`,
-  `confidence_source`, `available` (+ `reason` de falha, truncada e sem valores);
+  `blank_field_count`, `illegible_token_count`, `campos_corrigidos_por_folha`,
+  `n_fields_compared`, `elapsed_sec`, `ocr_quality`, `confidence_source`, `available`;
+- para folha indisponível, `reason` é sempre um safe allowlisted reason code:
+  `pending_file`, `reader_error`, `source_outside_private` ou `unavailable`; texto de exceção
+  nunca entra no resumo;
 - pareado por índice anônimo de campo: `sheet_1.data_turno → only_vlm` etc.
 
 **Proibidos** (ficam só no detalhado em `private/audit/`): transcrições, valores de
@@ -216,13 +242,13 @@ Exemplo ilustrativo (EXEMPLO, não evidência):
 ```bash
 # 0. pré-requisito humano: curadorias → verified_by_user (docs/CURADORIA_FORMATO.md)
 ollama serve && ollama pull qwen2.5vl:3b
-python scripts/build_bressay_manifest.py --bressay-dir data/bressay --n 20
+uv run --locked python -m scripts.build_bressay_manifest --bressay-dir datasets/bressay --n 20
 make eval-bressay N=20                                   # sanity: o leitor lê manuscrito pt-BR?
 make eval-real VISION=local_ocr DPI=150                  # baseline instrumentado
 make eval-real VISION=local_vlm DPI=150                  # a medição que decide
 make eval-real VISION=local_vlm DPI=250                  # sensibilidade a DPI
 # pareado (G1):
-PYTHONPATH=. uv run python -m evals.eval_extraction_real --compare \
+uv run --locked python -m evals.eval_extraction_real --compare \
   private/audit/eval_real_detailed_local_ocr_dpi150.json \
   private/audit/eval_real_detailed_local_vlm_dpi150.json
 ```

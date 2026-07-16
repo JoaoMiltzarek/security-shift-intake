@@ -58,6 +58,8 @@ class AuditEntry(SQLModel, table=True):
     actor: str
     action: str
     detail: str | None = Field(default=None)
+    revision: int | None = Field(default=None, index=True)
+    state_sha256: str | None = Field(default=None, min_length=64, max_length=64)
     timestamp: datetime = Field(default_factory=utcnow)
 
 

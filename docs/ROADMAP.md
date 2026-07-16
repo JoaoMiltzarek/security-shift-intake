@@ -9,7 +9,7 @@ with honest OCR, mandatory human review, and blocked unsafe automation. Everythi
 
 > **⚠️ Régua reposicionada:** as decisões de adoção de leitor passam a vir dos gates
 > **G-S0…G-S3 e G1-S** do dataset sintético `tier_c`
-> ([`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) §10) + BRESSAY — nunca mais de folha
+> ([`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) §10); BRESSAY é diagnóstico non-blocking — nunca mais de folha
 > real (G1–G3 abaixo = legado / avaliação local opcional). A fábrica `tier_c` entra
 > pelas PRs D0–D6 do contrato (D0 contrato ✅ → D1 fontes OFL → D2 gabarito →
 > D3 render → D4 degradação foto → D5 CLI/manifests → D6 eval sintético).
@@ -31,8 +31,8 @@ número dos gates G1–G3 (fórmulas exatas no protocolo; **hoje legado**):
 - **G3** (algum leitor com `confidence_source = logprobs`, lido do schema, nunca
   inferido; ≥ 50 campos comparados) → **PR-3: calibração + threshold**. Hoje seria
   histograma de placeholders — por isso não existe ainda.
-- **SLO pendente (decisão do usuário):** o alvo de `tempo_por_folha` precisa ser
-  declarado em `EVAL_PROTOCOL.md` §5 **antes** de avaliar G1 como "passou".
+- **SLO resolvido:** `tempo_por_folha ≤ 300 s` foi congelado antes da avaliação em
+  `EVAL_PROTOCOL.md` §5 e `configs/controle_ocorrencias.yaml`.
 - **Trilha de produto pós-prova** (independente dos gates): summary dia/noite (depende
   de `period`, hoje `None` em `normalize.py`) e export `.xlsx` (precisa replicar o
   guard de formula injection `_csv_safe`, CWE-1236).
@@ -43,9 +43,11 @@ número dos gates G1–G3 (fórmulas exatas no protocolo; **hoje legado**):
 > `parse_table_success_rate` 0.1111 < 0.30 congelado (números em
 > [eval_g1s_calibration.json](eval_g1s_calibration.json)); o VLM local já havia sido
 > rejeitado na calibração (9 falsos incidentes). Nenhum leitor custo-zero foi adotado
-> como transcritor automático. **Próximo candidato triado: PP-OCRv5** — pip nativo no
-> Windows, < 1 GB VRAM, line-level; critério de adoção declarado em
-> [READER_DECISION.md](READER_DECISION.md). Qualquer adoção exige novo ciclo
+> como transcritor automático. **PP-OCRv5 foi MEDIDO e NÃO PROMOVIDO**: o ambiente
+> congelado do produto não admite seu lock e o reconhecimento retornou 0/40 linhas no
+> bake-off. O adaptador `INTAKE_VISION=paddle_ocr` permanece experimental, is not installed
+> by uv sync, e exige an isolated environment com o stack Paddle. Evidência e decisão em
+> [READER_DECISION.md](READER_DECISION.md). Qualquer nova adoção exige novo ciclo
 > val → congela → test ([DATASET_CONTRACT.md](DATASET_CONTRACT.md) §10).
 
 Free local OCR (Tesseract) cannot read cursive handwriting — measured, not assumed
@@ -53,7 +55,8 @@ Free local OCR (Tesseract) cannot read cursive handwriting — measured, not ass
 Raising fidelity requires a better reader; all of these are deferred:
 - **Local open VLM** (e.g. Ollama `llama3.2-vision`, `qwen2-vl`) behind the existing
   `VisionClient` — offline, no paid API.
-- **PaddleOCR / TrOCR / handwriting-tuned HTR** as an alternative `VisionClient`.
+- **Novo candidato handwriting-tuned HTR**, somente após contrato de ambiente/licença e
+  comparação contra o baseline congelado; não repetir o mesmo bake-off Paddle sem hipótese nova.
 - **Table-structure models** (Table Transformer / PaddleOCR PP-Structure) for robust cell
   segmentation instead of the line-heuristic table reader.
 - **Cloud VLMs** (Anthropic/OpenAI/Google) — only with explicit opt-in; never default, never
@@ -65,7 +68,7 @@ Raising fidelity requires a better reader; all of these are deferred:
   `Vigilantes dia` / `Vigilantes noite`, like the operator's real daily summary.
 - **Spreadsheet export**: write Output 1 to `.xlsx`/Google Sheets (today it is structured
   rows + a copy-ready table).
-- **Richer occurrence-table editing in the UI** (add/remove rows, per-cell source/status).
+- **Richer per-cell provenance/status visualization** in the existing occurrence editor.
 - **Day/night shift split** modeled explicitly in `NormalizedShift`.
 
 ## Engineering

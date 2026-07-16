@@ -81,9 +81,7 @@ def test_justification_always_nonempty() -> None:
     ]
     for field, ocr, vlm in cases:
         r = reconcile_field(field, ocr, vlm)
-        assert r.justification, (
-            f"empty justification for field={field!r}, ocr={ocr!r}, vlm={vlm!r}"
-        )
+        assert r.justification, f"empty justification for field={field!r}, ocr={ocr!r}, vlm={vlm!r}"
 
 
 # ---------------------------------------------------------------------------

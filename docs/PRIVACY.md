@@ -19,8 +19,9 @@ the repository.
 - **Real data lives only in `private/`** — gitignored. It holds: input sheets (`private/reais/`),
   the SQLite DB with PII (`private/app.db`), detailed audit (`private/audit/`), and the curated
   ground-truth (`private/curadoria/`).
-- **Public artifacts are sanitized.** READMEs, docs and the committed audit report carry only
-  **aggregate metrics + synthetic examples** — no names, times, descriptions or OCR snippets.
+- **Public artifacts are sanitized.** Any allowlisted, value-free public evidence is limited to
+  run aggregates, pseudonymous per-sheet counters, paired outcome labels and synthetic examples.
+  It contains no source names, field values, descriptions, transcriptions, OCR snippets or paths.
 - **No fabricated metrics.** Every number comes from code that ran; model-dependent metrics are
   marked pending rather than invented.
 
@@ -44,10 +45,15 @@ the repository.
   directly under `samples/`; the sole GIF exception is `samples/cockpit_demo.gif`. Similar
   names, nested GIFs and files under `assets/` remain blocked.
 - **Retention / cleanup** (scoped, so curadoria isn't destroyed by accident):
-  - `make purge-demo-data` — wipes the demo's transient artifacts: the DB (+ `-journal/-wal/-shm`
-    sidecars), `audit/`, the OCR page images (`page_images/`) and `debug/`.
-  - `make purge-real-data CONFIRM=YES` — wipes the real input sheets.
-  - `make purge-all-private CONFIRM=YES` — wipes everything under `private/`.
+  - `make purge-demo-data` — removes the demo's active filesystem entries: the DB
+    (+ `-journal/-wal/-shm` sidecars), `audit/`, OCR page images (`page_images/`) and `debug/`.
+  - `make purge-real-data CONFIRM=YES` — removes the active real-input filesystem entries.
+  - `make purge-all-private CONFIRM=YES` — removes active entries under `private/`.
+
+  This cleanup is **not a secure erase**: it does not overwrite storage blocks or remove
+  backups, filesystem snapshots, synchronized copies or forensic remnants. When secure disposal
+  is required, follow the operating system and storage-provider sanitization policy as a separate
+  operation.
 
 ## Handling a real sheet (the safe procedure)
 1. Put the sheet in `private/reais/` (gitignored).

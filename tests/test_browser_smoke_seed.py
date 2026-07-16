@@ -24,6 +24,13 @@ def test_ci_redirects_smoke_screenshot_outside_the_checkout() -> None:
     assert "path: /tmp/browser_smoke.png" in workflow
 
 
+def test_smoke_clicks_the_rendered_simulation_button() -> None:
+    source = Path("scripts/browser_smoke.py").read_text(encoding="utf-8")
+
+    assert 'get_by_role("button", name="Simulate delivery", exact=True)' in source
+    assert 'get_by_role("button", name="Send", exact=True)' not in source
+
+
 def test_smoke_seed_uses_repository_instead_of_http_submission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

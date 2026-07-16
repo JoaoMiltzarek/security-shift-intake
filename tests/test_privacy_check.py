@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.check_real_data import _ALLOWED_SAMPLE_SHA256, _REPO_ROOT
 from scripts.privacy_check import (
     check_no_sensitive_outside_private,
     check_public_no_pii,
@@ -52,6 +53,27 @@ def test_scan_detects_extra_term() -> None:
     assert scan_text_for_pii("vigilante fulano da silva", extra_terms=terms)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "artifact at C:" + r"\Users\Example User\project\report.md",
+        "/" + "home/example-user/project/report.md",
+        "/" + "Users/example-user/project/report.md",
+    ],
+)
+def test_scan_detects_absolute_user_home_paths_without_echoing_them(text: str) -> None:
+    hits = scan_text_for_pii(
+        text,
+        extra_terms=[],
+        include_org=False,
+        include_times=False,
+    )
+
+    assert hits
+    assert "local-home-path" in "\n".join(hits)
+    assert text not in "\n".join(hits)
+
+
 def test_scan_findings_never_repeat_the_sensitive_value_or_pattern() -> None:
     import re
 
@@ -83,6 +105,11 @@ def test_pdf_outside_private_flagged(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path)
 
 
+def test_webp_outside_private_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "reais" / "folha.webp", "binary")
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
 def test_pdf_inside_private_ok(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "reais" / "folha.pdf", "%PDF")
     assert check_no_sensitive_outside_private(tmp_path) == []
@@ -94,14 +121,22 @@ def test_nested_private_directory_is_not_exempt(tmp_path: Path, prefix: str) -> 
     assert check_no_sensitive_outside_private(tmp_path)
 
 
-def test_sample_image_allowed(tmp_path: Path) -> None:
-    _write(tmp_path / "samples" / "sample_doc-00000.png", "png")
+@pytest.mark.parametrize("relative_path", sorted(_ALLOWED_SAMPLE_SHA256, key=str))
+def test_reviewed_sample_hash_allowed_in_repository_tree(
+    tmp_path: Path, relative_path: Path
+) -> None:
+    destination = tmp_path / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes((_REPO_ROOT / relative_path).read_bytes())
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
-def test_exact_cockpit_demo_gif_allowed(tmp_path: Path) -> None:
-    _write(tmp_path / "samples" / "cockpit_demo.gif", "gif")
-    assert check_no_sensitive_outside_private(tmp_path) == []
+@pytest.mark.parametrize("relative_path", sorted(_ALLOWED_SAMPLE_SHA256, key=str))
+def test_allowlisted_sample_path_with_wrong_hash_is_flagged(
+    tmp_path: Path, relative_path: Path
+) -> None:
+    _write(tmp_path / relative_path, "not-the-reviewed-synthetic-asset")
+    assert check_no_sensitive_outside_private(tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -147,11 +182,43 @@ def test_tracked_db_under_synthetic_flagged(monkeypatch) -> None:  # type: ignor
     assert pc.check_no_sensitive_tracked()
 
 
+def test_tracked_webp_is_flagged(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("reais/folha.webp")])
+    assert pc.check_no_sensitive_tracked()
+
+
 def test_tracked_source_files_ok(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     import scripts.privacy_check as pc
 
     monkeypatch.setattr(pc, "_tracked_files", lambda: [Path("src/api/app.py"), Path("README.md")])
     assert pc.check_no_sensitive_tracked() == []
+
+
+def test_default_privacy_scan_and_private_terms_are_repo_anchored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+    from src.paths import PRIVATE_ROOT, REPO_ROOT
+
+    observed_roots: list[Path] = []
+    monkeypatch.setattr(pc, "check_no_sensitive_tracked", lambda: [])
+    monkeypatch.setattr(
+        pc,
+        "check_no_sensitive_outside_private",
+        lambda root: observed_roots.append(root) or [],
+    )
+    monkeypatch.setattr(
+        pc,
+        "check_public_no_pii",
+        lambda root: observed_roots.append(root) or [],
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert pc.run_all() == []
+    assert observed_roots == [REPO_ROOT, REPO_ROOT]
+    assert pc._PII_TERMS_FILE == PRIVATE_ROOT / "pii_terms.txt"
 
 
 def test_tracked_showcase_gif_is_allowed_only_at_repo_root(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -216,6 +283,12 @@ def test_non_bressay_dataset_binary_still_flagged(tmp_path: Path) -> None:
     # The exemption is the known benchmark subtree only, not a blanket datasets/ pass.
     _write(tmp_path / "datasets" / "other" / "scan.pdf", "%PDF")
     assert len(check_no_sensitive_outside_private(tmp_path)) >= 1
+
+
+def test_nested_bressay_named_directory_is_not_privacy_exempt(tmp_path: Path) -> None:
+    _write(tmp_path / "archive" / "datasets" / "bressay" / "scan.pdf", "%PDF")
+
+    assert check_no_sensitive_outside_private(tmp_path)
 
 
 def test_bressay_ground_truth_text_exempt_from_pii_scan(tmp_path: Path) -> None:

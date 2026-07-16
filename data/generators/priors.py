@@ -105,14 +105,31 @@ P_SECTOR_GIVEN_TYPE: dict[str, Distribution] = {
 # ---------------------------------------------------------------------------
 
 GUARD_NAMES = [
-    "A. Souza", "B. Lima", "C. Pereira", "D. Oliveira", "E. Costa",
-    "F. Almeida", "G. Rocha", "H. Martins", "I. Barbosa", "J. Ferreira",
-    "K. Gomes", "L. Ribeiro", "M. Carvalho", "N. Teixeira", "O. Dias",
+    "A. Souza",
+    "B. Lima",
+    "C. Pereira",
+    "D. Oliveira",
+    "E. Costa",
+    "F. Almeida",
+    "G. Rocha",
+    "H. Martins",
+    "I. Barbosa",
+    "J. Ferreira",
+    "K. Gomes",
+    "L. Ribeiro",
+    "M. Carvalho",
+    "N. Teixeira",
+    "O. Dias",
 ]
 
 POSTS = [
-    "Portaria 1", "Portaria 2", "Guarita Norte", "Guarita Sul",
-    "Ronda Interna", "Doca de Carga", "Recepcao",
+    "Portaria 1",
+    "Portaria 2",
+    "Guarita Norte",
+    "Guarita Sul",
+    "Ronda Interna",
+    "Doca de Carga",
+    "Recepcao",
 ]
 
 
@@ -147,8 +164,16 @@ P_RESOLVIDO: Distribution = {"sim": 0.60, "nao": 0.25, "em_branco": 0.15}
 
 # Fictional units (mix of generic numbering and invented post names — contract §7).
 UNIDADES = [
-    "Unidade 01", "Unidade 02", "Unidade 03", "Unidade 05", "Unidade 07",
-    "Unidade 09", "Unidade 12", "Posto Delta", "Posto Horizonte", "Posto Mirante",
+    "Unidade 01",
+    "Unidade 02",
+    "Unidade 03",
+    "Unidade 05",
+    "Unidade 07",
+    "Unidade 09",
+    "Unidade 12",
+    "Posto Delta",
+    "Posto Horizonte",
+    "Posto Mirante",
 ]
 
 

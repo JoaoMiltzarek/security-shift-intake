@@ -8,9 +8,14 @@ vendored, so these tests never need it.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
-from evals.eval_htr_bressay import load_manifest, run
+from evals.eval_htr_bressay import DEFAULT_DATASET_DIR, load_manifest, run
+
+
+def test_default_dataset_path_matches_the_privacy_allowlist() -> None:
+    assert Path(os.environ.get("BRESSAY_DIR", "datasets/bressay")) == DEFAULT_DATASET_DIR
 
 
 def test_run_without_manifest_is_unavailable(tmp_path: Path) -> None:

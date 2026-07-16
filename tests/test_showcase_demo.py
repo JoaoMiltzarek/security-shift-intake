@@ -130,7 +130,7 @@ def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
 def test_server_config_is_fixed_to_loopback() -> None:
     demo = _showcase_demo()
     server = demo._build_server(8125)
-    assert server.config.app == "src.api.app:app"
+    assert server.config.app == "src.api.asgi:app"
     assert server.config.host == "127.0.0.1"
     assert server.config.port == 8125
 
@@ -319,9 +319,7 @@ def test_committed_showcase_fixture_persists_real_ocr_geometry(
     tmp_path: Path,
 ) -> None:
     demo = _showcase_demo()
-    engine = make_engine(
-        f"sqlite:///{tmp_path / 'showcase.db'}", allow_test_path=True
-    )
+    engine = make_engine(f"sqlite:///{tmp_path / 'showcase.db'}", allow_test_path=True)
     page_images_root = tmp_path / "page_images"
 
     draft_id = demo._seed_demo(
@@ -341,9 +339,7 @@ def test_committed_showcase_fixture_persists_real_ocr_geometry(
     assert state.words
     located_fields = [field for field in state.extracted_fields if field.bbox is not None]
     assert located_fields
-    assert all(
-        field.evidence_method in {"exact", "token_window"} for field in located_fields
-    )
+    assert all(field.evidence_method in {"exact", "token_window"} for field in located_fields)
     assert state.page_image_paths
     assert all((page_images_root / rel).is_file() for rel in state.page_image_paths)
     assert state.normalized is not None
@@ -360,22 +356,36 @@ def test_makefile_exposes_demo_target_with_passthrough_args() -> None:
 
 def test_ci_job_with_tesseract_runs_showcase_fixture_contract() -> None:
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-    assert "SSI_REQUIRE_TESSERACT: \"1\"" in workflow
+    assert 'SSI_REQUIRE_TESSERACT: "1"' in workflow
     assert (
-        "tests/test_showcase_demo.py::"
-        "test_committed_showcase_fixture_persists_real_ocr_geometry"
+        "tests/test_showcase_demo.py::test_committed_showcase_fixture_persists_real_ocr_geometry"
     ) in workflow
 
 
-def test_ci_eval_safety_generates_frozen_dataset_before_gate() -> None:
+def test_ci_browser_automation_uses_the_locked_playwright() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    lock = Path("uv.lock").read_text(encoding="utf-8")
+
+    assert "uv run --with playwright" not in workflow
+    assert "uv run --locked playwright install --with-deps chromium" in workflow
+    assert "uv run --locked python scripts/browser_smoke.py" in workflow
+    assert '"playwright>=1.61,<1.62"' in pyproject
+    assert 'name = "playwright"' in lock
+
+
+def test_ci_eval_safety_generates_canonical_dataset_before_gate() -> None:
     """A clean checkout has only ``data/synthetic/.gitkeep``.
 
     The blocking eval must therefore build the declared bench-balanced fixture before
     invoking the gate; local ignored datasets must never be an implicit CI dependency.
     """
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-    generate = "make gen-sheets DATASET=bench-balanced"
-    gate = "make eval-safety VISION=local_ocr DPI=150 OUT=/tmp/eval_safety"
+    freeze = "test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl"
+    generate = "make gen-safety-sheets"
+    gate = "make eval-safety DPI=150 OUT=/tmp/eval_safety"
 
+    assert freeze in workflow
     assert generate in workflow
+    assert workflow.index(freeze) < workflow.index(generate)
     assert workflow.index(generate) < workflow.index(gate)

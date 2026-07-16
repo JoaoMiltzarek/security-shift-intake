@@ -5,11 +5,13 @@ Named invariants:
   - a test run meeting every frozen threshold ⇒ APROVADO;
   - a non-test split is refused (the verdict judges only the sanctioned run);
   - an existing verdict is never overwritten (the test runs ONCE — §10);
-  - a missing BRESSAY column marks the verdict INCOMPLETO instead of inventing a pass.
+  - BRESSAY is a non-thresholded observation and never changes the verdict.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -39,7 +41,7 @@ def _summary(parse_rate: float = 0.5, split: str = "test") -> dict[str, Any]:
             "estimated_chars_to_type_total": 2000,
             "hora_acc": 0.0,
             "missed_incident_count": 0,
-            "correct_refusal_rate": 1.0,
+            "safe_illegible_refusal_rate": 1.0,
             "transcription_cer_vs_surface_mean": 1.0,
         },
     }
@@ -79,9 +81,37 @@ def test_existing_verdict_never_overwritten() -> None:
         compute_verdict(_summary(), calibration, _bressay())
 
 
-def test_missing_bressay_column_marks_incompleto() -> None:
+def test_missing_bressay_is_a_nonblocking_observation() -> None:
     result = compute_verdict(_summary(parse_rate=0.5), _calibration(), _bressay(False))
-    assert "INCOMPLETO" in result["verdict"]
+    assert result["verdict"] == "APROVADO"
+    observation = result["observations_not_thresholded"]["bressay"]
+    assert observation["available"] is False
+    assert observation["thresholded"] is False
+    assert observation["affects_verdict"] is False
+
+
+def test_bressay_cer_never_changes_or_enters_the_thresholded_verdict() -> None:
+    bressay = _bressay()
+    bressay["vlm"]["mean_cer"] = 999.0
+
+    result = compute_verdict(_summary(parse_rate=0.5), _calibration(), bressay)
+
+    assert result["verdict"] == "APROVADO"
+    assert all("bressay" not in criterion["metric"].lower() for criterion in result["criteria"])
+    assert all("bressay" not in metric.lower() for metric in result["failed_criteria"])
+    assert "bressay_criterion_4" not in result
+    assert result["observations_not_thresholded"]["bressay"]["thresholded"] is False
+
+
+def test_historical_artifact_labels_bressay_as_nonthresholded() -> None:
+    artifact = json.loads(Path("docs/eval_g1s_calibration.json").read_text(encoding="utf-8"))
+
+    assert artifact["test_result"]["verdict"] == "REPROVADO"
+    assert artifact["test_result"]["failed_criteria"] == ["parse_table_success_rate"]
+    assert "bressay_criterion_4" not in artifact["test_result"]
+    observation = artifact["test_result"]["observations_not_thresholded"]["bressay"]
+    assert observation["thresholded"] is False
+    assert observation["affects_verdict"] is False
 
 
 def test_numbers_are_copied_not_typed() -> None:

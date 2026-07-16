@@ -54,9 +54,7 @@ def make_engine(url: str | None = None, *, allow_test_path: bool = False) -> Eng
     url = _prepare_sqlite_url(url, allow_test_path=allow_test_path)
     connect_args = {"check_same_thread": False}
     if url in _IN_MEMORY_URLS:
-        return create_engine(
-            url, echo=False, connect_args=connect_args, poolclass=StaticPool
-        )
+        return create_engine(url, echo=False, connect_args=connect_args, poolclass=StaticPool)
     return create_engine(url, echo=False, connect_args=connect_args)
 
 
@@ -71,6 +69,11 @@ _DRAFT_MIGRATIONS = {
     "delivery_mode": "VARCHAR",
 }
 
+_AUDIT_MIGRATIONS = {
+    "revision": "INTEGER",
+    "state_sha256": "VARCHAR(64)",
+}
+
 
 def _ensure_draft_columns(engine: Engine) -> None:
     """Adiciona colunas novas à tabela `draft` de DBs antigos (idempotente)."""
@@ -82,7 +85,30 @@ def _ensure_draft_columns(engine: Engine) -> None:
         conn.commit()
 
 
+def _ensure_audit_columns(engine: Engine) -> None:
+    """Add structured snapshot references to audit rows created by older builds."""
+    with engine.connect() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(auditentry)")}
+        for column, ddl in _AUDIT_MIGRATIONS.items():
+            if column not in existing:
+                conn.exec_driver_sql(f"ALTER TABLE auditentry ADD COLUMN {column} {ddl}")
+        conn.commit()
+
+
+def _ensure_revision_uniqueness(engine: Engine) -> None:
+    """Prevent duplicate revision identities, including on databases created pre-v1."""
+    with engine.connect() as conn:
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "ux_draftrevision_draft_id_revision "
+            "ON draftrevision (draft_id, revision)"
+        )
+        conn.commit()
+
+
 def init_db(engine: Engine) -> None:
     """Create all tables if they don't exist, then apply in-place column migrations."""
     SQLModel.metadata.create_all(engine)
     _ensure_draft_columns(engine)
+    _ensure_audit_columns(engine)
+    _ensure_revision_uniqueness(engine)

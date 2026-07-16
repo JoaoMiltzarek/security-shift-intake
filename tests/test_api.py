@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from src.api import repository
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
@@ -154,6 +155,23 @@ def test_edit_sent_draft_is_rejected(
 
     r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
     assert r.status_code == 409  # o registro do que foi enviado não pode mudar
+
+
+def test_ui_edit_reports_concurrent_operation_as_conflict(
+    client_and_sender: tuple[TestClient, MockSender], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+
+    def conflict(*args: object, **kwargs: object) -> None:
+        raise repository.DraftOperationConflictError("operation in progress")
+
+    monkeypatch.setattr(repository, "update_state", conflict)
+    response = client.post(
+        f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "reviewed"}
+    )
+
+    assert response.status_code == 409
 
 
 @pytest.mark.parametrize("action", ["approve", "reject"])

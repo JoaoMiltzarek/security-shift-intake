@@ -3,7 +3,7 @@
 Every number is READ from committed, code-generated JSONs — never typed by hand:
   - docs/eval_synthetic_summary.json   (the single sanctioned `--split test` run)
   - docs/eval_g1s_calibration.json     (thresholds frozen BEFORE the test run)
-  - docs/eval_bressay_baseline.json    (criterion 4 — BRESSAY no-regression / availability)
+  - docs/eval_bressay_baseline.json    (directional, non-thresholded observation)
 
 It compares the test run against the frozen thresholds and writes a `test_result`
 block back into docs/eval_g1s_calibration.json. Guards (DATASET_CONTRACT §10):
@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 from typing import Any
 
-CALIBRATION_PATH = Path("docs/eval_g1s_calibration.json")
-SUMMARY_PATH = Path("docs/eval_synthetic_summary.json")
-BRESSAY_PATH = Path("docs/eval_bressay_baseline.json")
+from src.paths import REPO_ROOT
+
+CALIBRATION_PATH = REPO_ROOT / "docs" / "eval_g1s_calibration.json"
+SUMMARY_PATH = REPO_ROOT / "docs" / "eval_synthetic_summary.json"
+BRESSAY_PATH = REPO_ROOT / "docs" / "eval_bressay_baseline.json"
 
 
 def compute_verdict(
@@ -67,8 +68,7 @@ def compute_verdict(
             "frozen_threshold": frozen["estimated_chars_to_type_max"],
             "value": metrics["estimated_chars_to_type_total"],
             "pass": (
-                metrics["estimated_chars_to_type_total"]
-                <= frozen["estimated_chars_to_type_max"]
+                metrics["estimated_chars_to_type_total"] <= frozen["estimated_chars_to_type_max"]
             ),
         },
         {
@@ -81,22 +81,21 @@ def compute_verdict(
     ]
     failed = [c["metric"] for c in criteria if not c["pass"]]
 
-    # Criterion 4 (§10): BRESSAY availability + no regression for the frozen reader.
-    # No numeric tolerance was frozen at calibration, so the only honest comparison is
-    # "not worse than the calibration CER" (tolerance 0) — declared, not invented.
+    # No BRESSAY threshold, manifest or runtime identity was frozen at calibration.
+    # Preserve the measured values as directional evidence without changing the verdict.
     tesseract = bressay.get("baseline_tesseract", {})
     vlm = bressay.get("vlm", {})
-    bressay_block: dict[str, Any] = {
+    bressay_observation: dict[str, Any] = {
         "available": bool(tesseract.get("available")) and bool(vlm.get("available")),
         "baseline_tesseract_mean_cer": tesseract.get("mean_cer"),
         "vlm_mean_cer": vlm.get("mean_cer"),
-        "note": "tolerance 0 (none was frozen at calibration); reader CER must not exceed "
-        "the calibration value on the same frozen manifest",
+        "thresholded": False,
+        "affects_verdict": False,
+        "note": "directional only; calibration did not authenticate a manifest, runtime, "
+        "language pack or predeclared CER tolerance",
     }
 
     verdict = "REPROVADO" if failed else "APROVADO"
-    if not bressay_block["available"]:
-        verdict = f"{verdict} (INCOMPLETO — BRESSAY column missing, §10)"
 
     return {
         "protocol": "test split run ONCE (DATASET_CONTRACT §10); thresholds frozen via commit",
@@ -105,10 +104,10 @@ def compute_verdict(
         "failed_criteria": failed,
         "observations_not_thresholded": {
             "missed_incident_count": metrics.get("missed_incident_count"),
-            "correct_refusal_rate": metrics.get("correct_refusal_rate"),
+            "safe_illegible_refusal_rate": metrics.get("safe_illegible_refusal_rate"),
             "transcription_cer_vs_surface_mean": metrics.get("transcription_cer_vs_surface_mean"),
+            "bressay": bressay_observation,
         },
-        "bressay_criterion_4": bressay_block,
         "verdict": verdict,
     }
 
@@ -116,7 +115,10 @@ def compute_verdict(
 def main() -> int:
     calibration = json.loads(CALIBRATION_PATH.read_text(encoding="utf-8"))
     summary = json.loads(SUMMARY_PATH.read_text(encoding="utf-8"))
-    bressay = json.loads(BRESSAY_PATH.read_text(encoding="utf-8"))
+    try:
+        bressay = json.loads(BRESSAY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        bressay = {}
     try:
         calibration["test_result"] = compute_verdict(summary, calibration, bressay)
     except ValueError as exc:

@@ -197,8 +197,11 @@ def test_add_row_with_all_five_columns(client: TestClient) -> None:
         "occ__2__descricao": "Portao lateral aberto sem autorizacao",
         "occ__2__acao": "Fechado e registrado",
         "occ__2__resolvido": "nao",
-        "occ__3__item": "", "occ__3__hora": "", "occ__3__descricao": "",
-        "occ__3__acao": "", "occ__3__resolvido": "",
+        "occ__3__item": "",
+        "occ__3__hora": "",
+        "occ__3__descricao": "",
+        "occ__3__acao": "",
+        "occ__3__resolvido": "",
     }
     assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
 
@@ -256,8 +259,11 @@ def test_clearing_rows_with_sa_confirmation_removes_them(client: TestClient) -> 
     form = {
         **_headers_form(),
         "disposicao": "sem_alteracao",
-        "occ__1__item": "", "occ__1__hora": "", "occ__1__descricao": "",
-        "occ__1__acao": "", "occ__1__resolvido": "",
+        "occ__1__item": "",
+        "occ__1__hora": "",
+        "occ__1__descricao": "",
+        "occ__1__acao": "",
+        "occ__1__resolvido": "",
     }
     assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
 
@@ -353,12 +359,29 @@ _COCKPIT_BODY = {
     "source_pdf": "x.pdf",
     "page_image_paths": ["abc123/page_0.png"],
     "extracted_fields": [
-        {"name": "unidade", "value": "Portaria", "confidence": 1.0, "page": 0,
-         "bbox": [0.2, 0.3, 0.4, 0.32], "evidence_method": "exact", "evidence_text": "Portaria"},
-        {"name": "obs", "value": "ok", "confidence": 1.0,
-         "evidence_method": "none", "evidence_text": None},
-        {"name": "danger", "value": "x", "confidence": 1.0,
-         "evidence_method": "none", "evidence_text": _XSS},
+        {
+            "name": "unidade",
+            "value": "Portaria",
+            "confidence": 1.0,
+            "page": 0,
+            "bbox": [0.2, 0.3, 0.4, 0.32],
+            "evidence_method": "exact",
+            "evidence_text": "Portaria",
+        },
+        {
+            "name": "obs",
+            "value": "ok",
+            "confidence": 1.0,
+            "evidence_method": "none",
+            "evidence_text": None,
+        },
+        {
+            "name": "danger",
+            "value": "x",
+            "confidence": 1.0,
+            "evidence_method": "none",
+            "evidence_text": _XSS,
+        },
     ],
 }
 

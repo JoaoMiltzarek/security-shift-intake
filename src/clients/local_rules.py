@@ -59,7 +59,7 @@ class RuleBasedLLMClient:
             for line in lines:
                 idx = line.lower().find(needle)
                 if idx >= 0:
-                    value = line[idx + len(needle):].lstrip(" :\t").strip()
+                    value = line[idx + len(needle) :].lstrip(" :\t").strip()
                     if value:
                         return value
         return None

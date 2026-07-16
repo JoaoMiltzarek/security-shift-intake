@@ -33,21 +33,24 @@ _TIME = re.compile(r"\d{1,2}:\d{2}")
 # S/A e variações de OCR (barra lida como I/1/l/|, S como 5, etc.).
 _SA = re.compile(r"^[S5]\s*[/|1lI]\s*A$", re.IGNORECASE)
 # Linha de cabeçalho da tabela e marcador de rodapé (texto impresso, OCR confiável).
-_COLHDR = re.compile(r"item.*(?:descri|ocorr)", re.IGNORECASE)
-_FOOTER = re.compile(r"\bronda\b", re.IGNORECASE)
+_COLHDR = re.compile(r"^\s*[iIlL]tem\b.*\bhora\b.*(?:descri|ocorr)", re.IGNORECASE)
+_FOOTER = re.compile(r"^\s*ronda(?:\s*[:\-]?\s*(?:x|ok))?\s*$", re.IGNORECASE)
 
 
 def _is_sa(text: str) -> bool:
     return bool(_SA.match(text.strip()))
 
 
-def _found(value: str, evidence: str, confidence: float) -> AuditedField:
+def _found(
+    value: str, evidence: str, confidence: float, page: int | None = None
+) -> AuditedField:
     return AuditedField(
         value=value,
         confidence=confidence,
         source="rule",
         status="must_review",
         evidence=evidence,
+        page=page,
     )
 
 
@@ -59,25 +62,28 @@ class RuleBasedTableExtractor:
         self._header_fields = {f.name: f for f in config.fields if f.type != "table"}
         self._has_table = any(f.type == "table" for f in config.fields)
 
-    def _find_after_label(self, lines: list[str], aliases: list[str]) -> tuple[str, str] | None:
-        """Retorna (valor, linha-evidência) após o rótulo, ou None."""
+    def _find_after_label(
+        self, pages: list[list[str]], aliases: list[str]
+    ) -> tuple[str, str, int] | None:
+        """Retorna (valor, linha-evidência, página) após o rótulo, ou None."""
         for alias in aliases:
             needle = alias.rstrip(":").lower()
-            for line in lines:
-                idx = line.lower().find(needle)
-                if idx >= 0:
-                    value = line[idx + len(needle):].lstrip(" :\t").strip()
-                    if value:
-                        return value, line.strip()
+            for page, lines in enumerate(pages):
+                for line in lines:
+                    idx = line.lower().find(needle)
+                    if idx >= 0:
+                        value = line[idx + len(needle) :].lstrip(" :\t").strip()
+                        if value:
+                            return value, line.strip(), page
         return None
 
-    def _extract_header(self, lines: list[str]) -> RawHeader:
+    def _extract_header(self, pages: list[list[str]]) -> RawHeader:
         cells: dict[str, AuditedField] = {}
         for name, field in self._header_fields.items():
             aliases = field.ocr_aliases or [name]
-            hit = self._find_after_label(lines, aliases)
+            hit = self._find_after_label(pages, aliases)
             cells[name] = (
-                _found(hit[0], hit[1], HEADER_REVIEW_PLACEHOLDER_CONFIDENCE)
+                _found(hit[0], hit[1], HEADER_REVIEW_PLACEHOLDER_CONFIDENCE, page=hit[2])
                 if hit
                 else AuditedField()
             )
@@ -96,26 +102,26 @@ class RuleBasedTableExtractor:
         )
         return lines[start + 1 : end]
 
-    def _content_row(self, buffer: list[str]) -> RawRow:
+    def _content_row(self, buffer: list[str], page: int) -> RawRow:
         joined = " ".join(buffer).strip()
         times = _TIME.findall(joined)
         hora = (
-            _found(" ".join(times), joined, ROW_REVIEW_PLACEHOLDER_CONFIDENCE)
+            _found(" ".join(times), joined, ROW_REVIEW_PLACEHOLDER_CONFIDENCE, page=page)
             if times
             else AuditedField()
         )
         return RawRow(
-            descricao=_found(joined, joined, ROW_REVIEW_PLACEHOLDER_CONFIDENCE),
+            descricao=_found(joined, joined, ROW_REVIEW_PLACEHOLDER_CONFIDENCE, page=page),
             hora=hora,
         )
 
-    def _extract_rows(self, region: list[str]) -> list[RawRow]:
+    def _extract_rows(self, region: list[str], page: int = 0) -> list[RawRow]:
         rows: list[RawRow] = []
         buffer: list[str] = []
 
         def flush() -> None:
             if buffer:
-                rows.append(self._content_row(buffer))
+                rows.append(self._content_row(buffer, page))
                 buffer.clear()
 
         for line in region:
@@ -131,11 +137,22 @@ class RuleBasedTableExtractor:
         return rows
 
     def extract(self, transcription: str) -> RawDocumentExtraction:
-        lines = transcription.splitlines()
-        region = self._table_region(lines) if self._has_table else []
+        pages = [page.splitlines() for page in transcription.split("\f")]
+        if self._has_table:
+            regions = [self._table_region(lines) for lines in pages]
+            table_found = all(region is not None for region in regions)
+            rows = [
+                row
+                for page, region in enumerate(regions)
+                if region is not None
+                for row in self._extract_rows(region, page=page)
+            ]
+        else:
+            table_found = True
+            rows = []
         return RawDocumentExtraction(
             report_type=self._report_type,
-            header=self._extract_header(lines),
-            tabela_encontrada=region is not None,
-            rows=self._extract_rows(region or []),
+            header=self._extract_header(pages),
+            tabela_encontrada=table_found,
+            rows=rows,
         )

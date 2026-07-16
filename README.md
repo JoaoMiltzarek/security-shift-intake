@@ -1,7 +1,7 @@
 # Security Shift Intake — Local Document AI for Security Incident Logs
 
 [![CI](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoMiltzarek/security-shift-intake/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.11+-blue)
+![Python](https://img.shields.io/badge/python-3.11.15-blue)
 ![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
 Local, privacy-first triage for handwritten **security incident sheets** ("Controle de
@@ -16,9 +16,13 @@ spreadsheet and a copy-ready message without sending the document to a cloud ser
 ![Evidence cockpit on a synthetic sheet: real OCR bbox, then human edit invalidates the old evidence](samples/cockpit_demo.gif)
 
 ```console
-uv sync --locked
+uv sync --locked --python 3.11.15
 make demo
 ```
+
+Python 3.11.15 is the exact supported interpreter for the v1 environment; `uv.lock` and CI
+enforce that patch level. The showcase additionally requires the Tesseract executable and its
+Portuguese (`por`) language pack.
 
 `make demo` runs the committed synthetic sheet through real local Tesseract, starts the review
 UI on `127.0.0.1`, opens the draft, and sends nothing. Stop with `Ctrl+C`, then run
@@ -57,8 +61,8 @@ honestly: the sheets are **handwritten** (free OCR fails on cursive), the data i
 PII** (must not go to an external API), and automation **must not invent** information.
 
 ## The solution
-A staged, **config-driven** pipeline whose supported default path runs fully locally (no paid
-API, no cloud):
+A staged, **config-driven** pipeline within the supported schema families, whose default path
+runs fully locally (no paid API, no cloud):
 local OCR → best-effort extraction → an **OCR quality gate** → auditable per-field results →
 normalization → **human review** → blocked drafts when unsafe → an append-only audit trail
 with per-revision content snapshots. Approval records the revision and hashes the stored state
@@ -129,6 +133,12 @@ make purge-demo-data
 make check
 make privacy-check
 ```
+
+The v1 input contract accepts **exactly one page or image frame** per document. Supported
+formats are PDF, PNG, JPEG, TIFF, BMP and WebP. A multi-page PDF or multi-frame image is
+**rejected before OCR**; split it into single-page files. This is a product-scope boundary, not
+an OCR result.
+
 Process a **real** sheet locally (the Tesseract executable is required; the Portuguese language
 pack is recommended, with an `eng` fallback; the file stays in the gitignored `private/`
 folder, never committed):
@@ -136,7 +146,7 @@ folder, never committed):
 # Uses the v1 occurrence-table config (configs/controle_ocorrencias.yaml).
 make demo-pipeline FILE="private/reais/your-file.pdf"  # replace with your private file
 make serve SERVE_ARGS="--port 8000"
-make purge-demo-data           # wipe temporary demo artifacts when done
+make purge-demo-data           # remove active demo artifacts when done
 ```
 
 `make demo-pipeline-mock` remains available as a no-Tesseract UI fallback. It deliberately has
@@ -153,10 +163,14 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
   paths select exactly one reader.
 - `AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline. Anthropic Vision is a
   separate, paid external opt-in and is never selected by the default showcase.
+- PP-OCRv5 was measured and **not promoted**. The adapter remains an experimental opt-in via
+  `INTAKE_VISION=paddle_ocr`, is not installed by uv sync, and requires an isolated environment
+  with the Paddle stack; it is not part of `make demo` or the release gate.
 
 ### Evaluate a reader (the decision protocol)
-Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S) and BRESSAY,
-not private real sheets. The normative protocol is
+Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S), not private
+real sheets. BRESSAY is a secondary, non-blocking diagnostic and never changes a reader or
+release verdict by itself. The normative protocol is
 [docs/DATASET_CONTRACT.md](docs/DATASET_CONTRACT.md); hardware, release-safety and candidate
 promotion criteria are frozen in [docs/READER_DECISION.md](docs/READER_DECISION.md) before a
 new val run.
@@ -171,11 +185,15 @@ make eval-real VISION=local_vlm DPI=150      # explicit opt-in; requires Ollama
 make eval-real VISION=local_vlm DPI=250      # DPI sensitivity; lower to 100 after VRAM OOM
 uv run --locked python -m evals.eval_extraction_real --compare private/audit/eval_real_detailed_local_ocr_dpi150.json private/audit/eval_real_detailed_local_vlm_dpi150.json
 ```
-Detailed output (PII) stays in gitignored `private/audit/`; only the allowlisted aggregate summary
-may be published as `docs/eval_real_summary.json`. A secondary reader sanity check is available:
+Detailed output (PII) and the allowlisted local summary stay in gitignored `private/audit/`.
+The evaluator never overwrites `docs/eval_real_summary.json`; that file is a
+**historical, directional, pre-runtime-attestation diagnostic** and is not release evidence. If a separate
+authorized publication is needed, allowlisted, value-free public evidence may contain run
+aggregates, pseudonymous per-sheet counters and paired outcome labels, but never source values,
+transcriptions or paths. A secondary reader sanity check is available:
 
 ```console
-uv run --locked python -m scripts.build_bressay_manifest --bressay-dir data/bressay --n 20
+uv run --locked python -m scripts.build_bressay_manifest --bressay-dir datasets/bressay --n 20
 make eval-bressay N=20
 ```
 
@@ -208,14 +226,21 @@ simulation requires the approved revision and matching stored-state hash.
 Two decoupled models keep the domain stable as the sheet layout changes:
 - **`RawDocumentExtraction`** — what was read (header + table cells), each an **`AuditedField`**
   (value + confidence + source `ocr|rule|human` + status + evidence).
-- **`NormalizedIncidentModel`** — what the domain understands (shift + occurrences, or `S/A`).
+- **`NormalizedIncidentModel`** — what the domain understands, with disposition
+  `unknown | none | present`; explicit `S/A` evidence is the only OCR/rule path to `none`.
+
+The **0/1/N occurrence editor** can add or clear rows and edits all five cells:
+`item`, `time`, `description`, `action` and `resolved`. Saving rebuilds the row list, reruns
+classification/routing and revokes any approval tied to the previous revision.
 
 Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why this schema:
 [docs/ADR_controle_ocorrencias_schema.md](docs/ADR_controle_ocorrencias_schema.md).
 
 ## Privacy & security
 Real sheets are PII and stay **only in `private/`** (gitignored). No external API is used in
-the default flow. Public artifacts carry **aggregate metrics + synthetic examples only**.
+the default flow. Any allowlisted, value-free public evidence is limited to run aggregates,
+pseudonymous per-sheet counters, paired outcome labels and synthetic examples; it excludes source
+values, transcriptions, identifiers and paths.
 `make privacy-check` blocks known sensitive file classes and configured PII patterns; it is a
 documented heuristic, not a proof that every possible identifier is detected. Scoped `purge-*`
 targets clean up without destroying validated curadoria. See
@@ -233,18 +258,18 @@ targets clean up without destroying validated curadoria. See
   This proves those safety cases, not production-wide field accuracy. Numbers and methodology:
   [docs/AUDITORIA_FOLHAS_REAIS.md](docs/AUDITORIA_FOLHAS_REAIS.md).
 - **OCR fidelity is the honest ceiling.** Tesseract reads printed labels well but is **not
-  reliable on cursive handwriting** — the current real-handwriting baseline reads none of the
-  frozen BRESSAY slice. Uncertain/garbled values route to **human review** and cannot leave as a
+  reliable on cursive handwriting** — the historical BRESSAY diagnostic read none of its local
+  sample. That non-blocking result lacks the versioned manifest and attested runtime required of current
+  release evidence. Uncertain/garbled values route to **human review** and cannot leave as a
   clean approved output. Raising fidelity requires a reader that beats the frozen safety gate.
 - **Synthetic evals** (classification/routing) are reproducible via `make eval`
   ([EVAL_REPORT.md](EVAL_REPORT.md)); their caveats (templated labels are partly circular) are
   stated there. No number in this repo is hand-typed.
 
 ## What was tested
-The latest local Windows baseline (`3dabd588`, 2026-07-13, release v1.0.0) ran `make check`:
-Ruff passed, strict mypy passed across 87 source files, and pytest reported
-**756 passed, 3 skipped** offline at $0 (with local Tesseract on `PATH` the OCR-dependent
-tests activate: 758 passed, 1 skipped).
+`make check` is the canonical local verification target: it runs Ruff lint/format checks,
+strict mypy and the complete pytest suite under the locked environment. Current pass/skip counts
+belong to each immutable CI run and are intentionally not frozen in this README.
 Model/network boundaries are mock-first, while CI also exercises the committed fixture through
 real Tesseract and drives the cockpit in real Chromium. Coverage includes: OCR quality gate, the two-model
 schema, normalization, the table extractor, the critic, the human-approval gate (pending fields
@@ -258,8 +283,13 @@ live cockpit is proven by a **blocking browser-smoke gate** in CI (real Chromium
 
 ## Evaluation results (synthetic benchmark + real-handwriting check)
 
-Every number below is produced by committed code and read from a committed JSON — never
-hand-typed: [eval_g1s_calibration.json](docs/eval_g1s_calibration.json),
+**Validated v1 release evidence: PENDING.** The CI candidate for the final code commit must be
+promoted through the [write-once publication procedure](docs/EVAL_RELEASE.md). The
+[artifact catalog](docs/evals/catalog.json) currently contains historical/auxiliary results and
+the integrity-validated input freeze, but no `current_release` entry. No historical JSON is a substitute for that artifact.
+
+Every historical number below was produced by committed code and read from a committed JSON —
+never hand-typed: [eval_g1s_calibration.json](docs/eval_g1s_calibration.json),
 [eval_synthetic_summary.json](docs/eval_synthetic_summary.json),
 [eval_bressay_baseline.json](docs/eval_bressay_baseline.json). Protocol
 ([DATASET_CONTRACT.md](docs/DATASET_CONTRACT.md) §10): calibrate on `val`, freeze thresholds
@@ -273,7 +303,7 @@ in a commit, then run `test` exactly **once** — no target moves after seeing t
 | estimated_chars_to_type | 3264 | 4902 |
 | false_incident_count | **4** | 9 |
 | hora_acc | 0.0714 | 0.3929 |
-| correct_refusal_rate (planted illegible fields) | 1.0 | 1.0 |
+| safe_illegible_refusal_rate | not measured in this historical run | not measured |
 
 Current default: **Tesseract (local_ocr)** — fewer false incidents and fewer characters left
 for a human to type than the measured local VLM. The four val false incidents are still reader
@@ -298,10 +328,10 @@ perfect refusal. The current structural gate instead requires `unsafe_clean=0`,
 [scripts/g1s_verdict.py](scripts/g1s_verdict.py), which refuses to overwrite the recorded
 verdict; project governance, not the evaluator CLI, enforces the one-test-run rule.
 
-**v1.0.0 milestone re-measurement — `bench-balanced` test (45 sheets, 2026-07-13, one
-sanctioned re-run under the tri-state ruler):**
+**Historical tri-state re-measurement — `bench-balanced` test (45 sheets, 2026-07-13,
+pre-runtime-attestation):**
 
-| Metric (test) | Historical (2026-07-08) | v1.0.0 |
+| Metric (test) | Historical (2026-07-08) | Tri-state run (2026-07-13) |
 |---|---|---|
 | parse_table_success_rate | 0.1111 | 0.0222 |
 | false_incident_count | 1 | 1 |
@@ -310,28 +340,35 @@ sanctioned re-run under the tri-state ruler):**
 | unsafe_clean_count / false_incident_unreviewed_count | not measured | **0 / 0** |
 | safe_review_recall | not measured | **1.0** |
 
-The release plan reserved exactly one test re-measurement for this milestone. The tri-state
+The historical plan reserved exactly one test re-measurement for that milestone. The tri-state
 ruler is stricter by design: a sheet whose table region cannot be confirmed is published as
 `unknown` (43/45) and **blocks approval/export/delivery simulation** instead of silently counting
 as a parse — so the headline parse rate drops while nothing gets easier to ship. Reading remains honestly
-weak on the held-out split; the structural safety gates hold on it: zero incidents exit
-clean, zero invented incidents escape review, and every planted incident reaches a reviewer
-(`safe_review_recall=1.0`). Numbers read from
-[eval_synthetic_summary.json](docs/eval_synthetic_summary.json), produced by committed code.
+weak on the held-out split. That run reported zero unsafe clean outputs, zero unreviewed invented
+incidents and `safe_review_recall=1.0`, but it predates the current manifest/runtime attestation
+and is not the v1 release result. Numbers read from the historical
+[eval_synthetic_summary.json](docs/eval_synthetic_summary.json).
 
-**BRESSAY (real Brazilian-Portuguese handwriting, 20 word crops, frozen manifest):**
+Contract: evaluators never write directly to `docs/`; publication is a separate write-once operation.
+
+**BRESSAY (historical, non-blocking PT-BR handwriting diagnostic; 20 word crops):**
 
 | Reader | mean CER |
 |---|---|
 | Tesseract 5 | 1.0 (reads none of it) |
 | qwen2.5vl:3b | 4.30 (hallucinates long insertions — worse than typing nothing) |
 
-**Real curated sheets (human-verified ground truth, paired per field):** on the 2 real
-sheets with archived sources, the VLM reads **6 of 7 paired fields the Tesseract baseline
-cannot** (0 fields go the other way) and leaves 136 chars to type vs 318 — numbers in
-[eval_real_summary.json](docs/eval_real_summary.json). The tension is deliberate and
-measured: real sheets favour the VLM, but the synthetic bench shows it fabricates incidents
-on degraded scans — which is why it still is not trusted as an automatic transcriber.
+These directional numbers do not participate in G1-S or the v1 release gate. The historical
+harness did not validate a versioned BRESSAY manifest, effective OCR runtime/language pack,
+or a predeclared CER tolerance.
+
+**Real curated sheets (historical diagnostic):** on the 2 real sheets with archived sources,
+the VLM read **6 of 7 paired fields the Tesseract baseline could not** (0 fields went the other
+way) and left 136 chars to type vs 318. These numbers in
+[eval_real_summary.json](docs/eval_real_summary.json) are a
+**historical, directional, pre-runtime-attestation diagnostic** and are not release evidence or a default-reader gate. They
+show why the VLM was investigated; the versioned synthetic ruler rejected it for fabricated
+incidents on degraded scans.
 
 **What these numbers mean (honest limitations):** Tesseract is not reliable on cursive
 handwriting in the measured datasets;
@@ -344,7 +381,7 @@ decision-maker. Adopting a better reader (Roadmap) requires beating this same fr
 new val → freeze → test cycle.
 
 ## Roadmap
-A better reader (local VLM / PaddleOCR / table models), multi-sheet aggregation, `.xlsx` export,
+A newly measured reader or table-structure improvement, multi-sheet aggregation, `.xlsx` export,
 and authenticated/multi-user deployment are deferred to keep v1.0 focused.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 

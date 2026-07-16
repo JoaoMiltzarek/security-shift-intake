@@ -158,9 +158,7 @@ def test_normalized_rejects_invalid_disposition() -> None:
 
 
 def test_legacy_payload_upgrades_schema_version() -> None:
-    model = NormalizedIncidentModel.model_validate(
-        {"schema_version": "1.0", "occurrences": []}
-    )
+    model = NormalizedIncidentModel.model_validate({"schema_version": "1.0", "occurrences": []})
 
     assert model.schema_version == "1.1"
 

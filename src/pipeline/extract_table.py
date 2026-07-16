@@ -17,6 +17,4 @@ from src.schema.state import PipelineState
 def extract_table(state: PipelineState, config: ReportConfig) -> PipelineState:
     """Lê a tabela da transcrição; popula raw_extraction + normalized no estado."""
     raw = RuleBasedTableExtractor(config).extract(state.transcription or "")
-    return state.model_copy(
-        update={"raw_extraction": raw, "normalized": normalize(raw)}
-    )
+    return state.model_copy(update={"raw_extraction": raw, "normalized": normalize(raw)})

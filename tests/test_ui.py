@@ -22,8 +22,10 @@ _BODY = {
     "recipients": ["tech_security", "general_support"],
     "email_draft": "Subject: [HIGH] theft\n\nbody text",
     "classification": {
-        "incident_type": "theft", "urgency": "high",
-        "sector": "tech_security", "confidence": 0.9,
+        "incident_type": "theft",
+        "urgency": "high",
+        "sector": "tech_security",
+        "confidence": 0.9,
     },
     "extracted_fields": [
         {"name": "guard_name", "value": "A. Souza", "confidence": 0.95, "must_review": False},
@@ -64,11 +66,11 @@ def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockS
     r = client.get(f"/drafts/{draft_id}/review")
     assert r.status_code == 200
     text = r.text
-    assert "Furto no patio." in text          # transcription
-    assert "theft" in text                      # classification
+    assert "Furto no patio." in text  # transcription
+    assert "theft" in text  # classification
     assert "tech_security, general_support" in text  # recipients
-    assert "body text" in text                  # email draft
-    assert "MUST REVIEW" in text                # flagged field
+    assert "body text" in text  # email draft
+    assert "MUST REVIEW" in text  # flagged field
     assert "Approve" in text and "Reject" in text and "Simulate delivery" in text
 
 
@@ -112,9 +114,9 @@ def test_sent_status_panel_has_no_mutation_controls(
     assert "simulation completed" in panel
     assert "no external delivery" in panel
     assert "(sent " not in panel
-    assert f'/ui/drafts/{draft_id}/approve' not in panel
-    assert f'/ui/drafts/{draft_id}/reject' not in panel
-    assert f'/ui/drafts/{draft_id}/send' not in panel
+    assert f"/ui/drafts/{draft_id}/approve" not in panel
+    assert f"/ui/drafts/{draft_id}/reject" not in panel
+    assert f"/ui/drafts/{draft_id}/send" not in panel
 
 
 def test_review_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
@@ -128,9 +130,9 @@ def test_htmx_is_vendored_locally_not_cdn(
     client, _ = client_and_sender
     draft_id = _submit(client)
     page = client.get(f"/drafts/{draft_id}/review").text
-    assert "/static/htmx.min.js" in page          # vendored, not unpkg
+    assert "/static/htmx.min.js" in page  # vendored, not unpkg
     assert "unpkg.com" not in page
-    assert "integrity=" in page                     # SRI present
+    assert "integrity=" in page  # SRI present
     # The asset is actually served and looks like htmx.
     asset = client.get("/static/htmx.min.js")
     assert asset.status_code == 200
@@ -218,7 +220,7 @@ def test_security_headers_present(client_and_sender: tuple[TestClient, MockSende
     client, _ = client_and_sender
     csp = client.get("/health").headers.get("content-security-policy", "")
     assert "default-src 'self'" in csp
-    assert "script-src 'self'" in csp          # no 'unsafe-inline' for scripts
+    assert "script-src 'self'" in csp  # no 'unsafe-inline' for scripts
     assert "frame-ancestors 'none'" in csp
 
 

@@ -4,7 +4,7 @@ Every number in the report comes from `metrics` computed here — nothing is
 hand-typed (spec §8.7). Model-dependent metrics that need a live API are recorded
 as `pending` (mock-first), never fabricated.
 
-Usage: python -m evals.run_eval [--seed 42] [--out .]
+Usage: python -m evals.run_eval [--seed 42] [--out private/audit/component_eval]
 """
 
 from __future__ import annotations
@@ -29,6 +29,15 @@ TARGETS: dict[str, Any] = {
 
 # Metrics that require a live VLM/LLM API — pending until ANTHROPIC_API_KEY exists.
 _PENDING = {"status": "pending", "reason": "requires ANTHROPIC_API_KEY (mock-first)"}
+_DEFAULT_OUT = Path("private/audit/component_eval")
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PRIVATE_ROOT = (_PROJECT_ROOT / "private").resolve()
+
+
+def _output_path_is_safe(out_dir: Path) -> bool:
+    """Allow generated artifacts only under private/ or outside the repository."""
+    resolved = out_dir.resolve()
+    return not resolved.is_relative_to(_PROJECT_ROOT) or resolved.is_relative_to(_PRIVATE_ROOT)
 
 
 def build_metrics(
@@ -139,10 +148,18 @@ def write_artifacts(metrics: dict[str, Any], report: str, out_dir: Path) -> tupl
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Run the eval harness.")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--out", type=Path, default=Path("."))
+    parser.add_argument("--out", type=Path, default=_DEFAULT_OUT)
     parser.add_argument("--classification-n", type=int, default=2000)
     parser.add_argument("--transcription-n", type=int, default=5)
     args = parser.parse_args(argv)
+
+    if not _output_path_is_safe(args.out):
+        print(
+            "Refusing to write generated eval artifacts in a public repository path; "
+            "use private/ or a directory outside the repository.",
+            file=sys.stderr,
+        )
+        return 2
 
     metrics = build_metrics(
         seed=args.seed,

@@ -97,9 +97,7 @@ def get_vlm_base_url() -> str:
     uma env var de distância — um host fora de loopback só é aceito com o opt-in
     explícito INTAKE_VLM_ALLOW_REMOTE=1 (as imagens das folhas contêm PII).
     """
-    return validate_vlm_base_url(
-        os.environ.get("INTAKE_VLM_BASE_URL", DEFAULT_VLM_BASE_URL)
-    )
+    return validate_vlm_base_url(os.environ.get("INTAKE_VLM_BASE_URL", DEFAULT_VLM_BASE_URL))
 
 
 def get_vlm_model() -> str:

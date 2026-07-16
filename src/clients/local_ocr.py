@@ -175,9 +175,13 @@ class LocalOCRVisionClient:
         self._fallback_lang = fallback_lang
         self._temp_root = temp_root
         self._timeout = timeout
+        self._language_resolved = False
+        self._effective_lang: str | None = None
 
     def _resolve_lang(self) -> str | None:
         """Prefer the configured language; fall back if its data isn't installed."""
+        if self._language_resolved:
+            return self._effective_lang
         try:
             available = set(pytesseract.get_languages(config=""))
         except Exception as exc:  # noqa: BLE001 — binary missing / not callable
@@ -187,10 +191,22 @@ class LocalOCRVisionClient:
                 "Linux: apt-get install tesseract-ocr tesseract-ocr-por)."
             ) from exc
         if self._lang in available:
-            return self._lang
-        if self._fallback_lang in available:
-            return self._fallback_lang
-        return None  # let tesseract use its default
+            self._effective_lang = self._lang
+        elif self._fallback_lang in available:
+            self._effective_lang = self._fallback_lang
+        else:
+            self._effective_lang = None  # let tesseract use its default
+        self._language_resolved = True
+        return self._effective_lang
+
+    def runtime_metadata(self) -> dict[str, str]:
+        """Return the exact local OCR identity used by subsequent transcriptions."""
+        version = str(pytesseract.get_tesseract_version())
+        effective_lang = self._resolve_lang()
+        return {
+            "tesseract_version": version,
+            "tesseract_language": effective_lang or "default",
+        }
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
         lang = self._resolve_lang()

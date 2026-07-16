@@ -64,9 +64,7 @@ def build_and_store(
     init_db(engine)
     state = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
     # Persist the OCR page images (same downscale) so the cockpit overlay lines up.
-    page_paths = save_page_images(
-        load_source_images(file, dpi=OCR_DPI), root=page_images_root
-    )
+    page_paths = save_page_images(load_source_images(file, dpi=OCR_DPI), root=page_images_root)
     state = state.model_copy(update={"page_image_paths": page_paths})
     with Session(engine) as session:
         draft = create_draft(session, state, actor="demo")
@@ -106,7 +104,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     print(f"\nReview at: http://127.0.0.1:8000/drafts/{draft_id}/review")
-    print("Start the UI with:  uv run uvicorn src.api.app:app")
+    print(f'Start the UI with:  INTAKE_CONFIG="{args.config.as_posix()}" make serve')
     print("After the test, wipe real data with:  make purge-demo-data")
     return 0
 

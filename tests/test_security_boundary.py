@@ -123,12 +123,8 @@ def test_chunked_request_is_limited_through_the_real_app(client: TestClient) -> 
         {"Origin": "null"},
     ],
 )
-def test_cross_site_state_change_is_rejected(
-    client: TestClient, headers: dict[str, str]
-) -> None:
-    response = client.post(
-        "/drafts", json={"source_pdf": "synthetic.pdf"}, headers=headers
-    )
+def test_cross_site_state_change_is_rejected(client: TestClient, headers: dict[str, str]) -> None:
+    response = client.post("/drafts", json={"source_pdf": "synthetic.pdf"}, headers=headers)
     assert response.status_code == 403
 
 
@@ -149,9 +145,7 @@ def test_htmx_disables_dynamic_code_and_history_cache() -> None:
 
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
-def test_release_cockpit_does_not_expose_api_documentation(
-    client: TestClient, path: str
-) -> None:
+def test_release_cockpit_does_not_expose_api_documentation(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 404
 
 

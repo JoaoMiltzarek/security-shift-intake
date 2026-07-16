@@ -12,7 +12,7 @@ Three checks, all aborting with exit 1 on any violation:
 The report writers import `scan_text_for_pii` and abort before writing if it returns hits
 — a public artifact is never generated with PII in it (plan R4).
 
-Standalone: `python scripts/privacy_check.py` → exit 0 (clean) or 1 (violations).
+Standalone: `python -m scripts.privacy_check` → exit 0 (clean) or 1 (violations).
 """
 
 from __future__ import annotations
@@ -28,9 +28,10 @@ from scripts.check_real_data import (
     _DB_EXT,
     _SYNTHETIC_SUBPATH,
     _has_subpath,
-    _is_allowed_sample_image,
+    _is_allowed_sample_binary,
     _is_text_scan_exempt,
 )
+from src.paths import PRIVATE_ROOT, REPO_ROOT
 
 # Directories that never hold committable source and are skipped by the tree scan.
 _SKIP_DIRS = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
@@ -59,7 +60,7 @@ _PUBLIC_CODE_EXT = {".py", ".js", ".html", ".j2", ".json", ".jsonl", ".csv", ".t
 _SYNTHETIC_TREES = ("data", "tests")
 
 # Optional, gitignored file with real terms (names, units) to scan public outputs for.
-_PII_TERMS_FILE = Path(_PRIVATE_DIR) / "pii_terms.txt"
+_PII_TERMS_FILE = PRIVATE_ROOT / "pii_terms.txt"
 
 # Org sentinels — like check_real_data, only flagged where the org name is NOT a
 # legitimate mention (i.e. not in source/docs/config, which are about the org).
@@ -72,10 +73,22 @@ _ORG_PATTERNS: list[re.Pattern[str]] = [
 # seconds; ISO has HH:MM:SS and tz offsets) — always sensitive in a public output.
 _TIME_PATTERN = re.compile(r"(?<![\d:+-])\d{1,2}:\d{2}(?!:?\d)")
 
+# Local workstation paths disclose usernames and directory layout even when document
+# contents are sanitized. Findings report only a category and line number.
+_LOCAL_HOME_PATTERNS = (
+    re.compile(r"(?<![A-Za-z0-9])[A-Z]:[\\/]+Users[\\/]+[^\\/\r\n]+", re.IGNORECASE),
+    re.compile(r"/(?:home|Users)/[^/\r\n]+"),
+)
+
 
 def _is_root_directory(path: Path, name: str) -> bool:
     """True only when *name* is the first repository-relative path component."""
     return bool(path.parts) and path.parts[0] == name
+
+
+def _is_bressay_root(path: Path) -> bool:
+    """Allow only the repository-root datasets/bressay subtree, never nested aliases."""
+    return path.parts[: len(_BRESSAY_SUBPATH)] == _BRESSAY_SUBPATH
 
 
 def _load_extra_terms() -> list[re.Pattern[str]]:
@@ -102,6 +115,7 @@ def scan_text_for_pii(
         patterns.extend(("organization-sentinel", pattern) for pattern in _ORG_PATTERNS)
     if include_times:
         patterns.append(("clock-time", _TIME_PATTERN))
+    patterns.extend(("local-home-path", pattern) for pattern in _LOCAL_HOME_PATTERNS)
     patterns.extend(
         ("private-term", pattern)
         for pattern in (extra_terms if extra_terms is not None else _load_extra_terms())
@@ -116,7 +130,7 @@ def scan_text_for_pii(
 
 def _tracked_files() -> list[Path]:
     out = subprocess.run(
-        ["git", "ls-files"], capture_output=True, text=True, check=True
+        ["git", "ls-files"], capture_output=True, text=True, check=True, cwd=REPO_ROOT
     ).stdout
     return [Path(p) for p in out.splitlines() if p.strip()]
 
@@ -132,7 +146,7 @@ def check_no_sensitive_tracked() -> list[str]:
     for path in _tracked_files():
         if _DB_EXT.search(path.name):
             violations.append(f"  tracked database: {path}")
-        if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
+        if _BINARY_EXT.search(path.name) and not _is_allowed_sample_binary(path):
             violations.append(f"  tracked sensitive file: {path}")
     return violations
 
@@ -152,7 +166,7 @@ def _iter_tree(root: Path) -> list[Path]:
     return files
 
 
-def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
+def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
     """(2) No sensitive binary file sits outside private/.
 
     Allowed: synthetic sample images under samples/ and generated synthetic artifacts
@@ -163,16 +177,18 @@ def check_no_sensitive_outside_private(root: Path = Path(".")) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR) or _has_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
-        if _has_subpath(rel, _BRESSAY_SUBPATH):
+        if _is_bressay_root(rel):
             continue
         if _DB_EXT.search(p.name):
             violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
-        if _BINARY_EXT.search(p.name) and not _is_allowed_sample_image(rel):
+        if _BINARY_EXT.search(p.name) and not _is_allowed_sample_binary(
+            p, repository_relative_path=rel
+        ):
             violations.append(f"  sensitive file outside {_PRIVATE_DIR}/: {rel}")
     return violations
 
 
-def check_public_no_pii(root: Path = Path(".")) -> list[str]:
+def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
     """(3) No committable public text file contains obvious PII."""
     extra = _load_extra_terms()
     violations: list[str] = []
@@ -180,7 +196,7 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR):
             continue
-        if _has_subpath(rel, _BRESSAY_SUBPATH):
+        if _is_bressay_root(rel):
             continue
         suffix = p.suffix.lower()
         terms = extra
@@ -206,7 +222,7 @@ def check_public_no_pii(root: Path = Path(".")) -> list[str]:
     return violations
 
 
-def run_all(root: Path = Path(".")) -> list[str]:
+def run_all(root: Path = REPO_ROOT) -> list[str]:
     return (
         check_no_sensitive_tracked()
         + check_no_sensitive_outside_private(root)

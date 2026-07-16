@@ -29,10 +29,9 @@ def test_intake_host_env_is_also_refused(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_loopback_default_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, object]] = []
     monkeypatch.delenv("INTAKE_HOST", raising=False)
-    monkeypatch.setattr(
-        serve.uvicorn, "run", lambda app, **kw: calls.append({"app": app, **kw})
-    )
+    monkeypatch.setattr(serve.uvicorn, "run", lambda app, **kw: calls.append({"app": app, **kw}))
     assert serve.main([]) == 0
+    assert calls[0]["app"] == "src.api.asgi:app"
     assert calls and calls[0]["host"] == "127.0.0.1"
 
 

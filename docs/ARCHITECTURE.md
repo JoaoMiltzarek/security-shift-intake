@@ -32,7 +32,15 @@ so it is swappable and **mockable in tests** (the whole suite runs offline at $0
    [8] Human Gate ─────► revisão: corrige campos → regenera; aprovar só sem pendência
 ```
 
-Two report types coexist, selected by config (no code change):
+The v1 input boundary accepts **exactly one page or image frame**.
+Supported formats are PDF, PNG, JPEG, TIFF, BMP and WebP. Ingest treats a multi-page PDF or
+multi-frame image as unsupported v1 scope: it is **rejected before OCR**, so content from another
+page cannot be paired with the page-0 evidence cockpit. Defensive aggregation fields retained for
+legacy state are not a public multi-page contract; persisted multi-page state is not approvable or
+exportable.
+
+Two report types coexist; switching between the two implemented families is selected by config
+without a code change:
 - **`controle_ocorrencias`** (v1.0): the occurrence-table sheet → the path above.
 - **`htmicron_security`** (legacy): a single-incident scalar form → `extract`/`validate`/Jinja
   draft. Kept for non-regression.
@@ -45,7 +53,10 @@ The domain is deliberately decoupled from the sheet layout (the layout can chang
   each cell an **`AuditedField`** = `value` + `confidence` + `source` (`ocr`|`rule`|`human`) +
   `status` (`accepted`|`must_review`|`missing`|`ambiguous`) + `evidence`.
 - **`NormalizedIncidentModel`** — *what the domain understands* (stable): shift (date, guards,
-  unit) + a list of normalized occurrences, or `no_occurrence` for an `S/A` sheet.
+  unit) + a list of normalized occurrences and the `unknown | none | present` disposition.
+  `none` requires explicit S/A evidence (or an explicit human confirmation); an empty or
+  unreadable table is `unknown`. In schema_version 1.1, `no_occurrence` is a derived compatibility
+  field, never an independent source of truth.
 
 The `normalize` stage is the only boundary between them. Models live in
 [src/schema/extraction.py](../src/schema/extraction.py).
@@ -62,16 +73,21 @@ numeric signal alone, drives the human gate.
   mode — no auto-classification, no operational draft — routing to manual transcription.
 - **Never guess.** Low-confidence/ambiguous values go to the human (`must_review`); they are
   never silently trusted.
+- **Structural uncertainty fails closed.** `unknown blocks approval and export`; only explicit
+  evidence can turn it into `none` or `present`.
 - **Human gate.** A draft cannot be **approved** while any field is pending. The v1 has no external
   delivery adapter: its `MockSender` records a terminal simulation only, after explicit approval,
   and the audit/UI identify that mode without claiming receipt — enforced in
   [src/api/gate.py](../src/api/gate.py).
-- **Config-driven.** Fields, taxonomy, routing live in YAML
-  ([configs/](../configs/)); a new sheet type = a new config, not new code.
+- **Config-driven within a bounded surface.** Fields, taxonomy and routing within the implemented
+  schema families live in YAML ([configs/](../configs/)). A new table layout or domain can require extractor, normalizer and output code
+  plus contract/integration tests; configuration alone is
+  not claimed as a universal sheet-type plugin system.
 
 ## Stack
-Python 3.11 · Pydantic v2 (typed contracts) · PyMuPDF + Pillow (ingest) · Tesseract/pytesseract
-(local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) · SQLModel + SQLite (drafts,
+Python 3.11.15 · Pydantic v2 (typed contracts) · pypdfium2/PDFium + Pillow (ingest) ·
+Tesseract/pytesseract (local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) ·
+SQLModel + SQLite (drafts,
 audit) · pytest + ruff + mypy(strict) + GitHub Actions. Anthropic Vision is factory-selectable
 only through explicit external opt-in. The Anthropic LLM adapter is not wired into the v1
 executable path; offline fake-SDK tests cover request/response shape, not live integration.

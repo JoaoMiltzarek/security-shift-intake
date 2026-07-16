@@ -80,6 +80,27 @@ def test_footer_and_colheader_excluded() -> None:
     assert all(r.sem_alteracao for r in raw.rows)
 
 
+def test_occurrence_containing_ronda_is_not_mistaken_for_footer() -> None:
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+Item Hora Descricao da Ocorrencia Acao Resolvido (sim/nao)
+S/A
+
+14:00 Durante ronda foi localizado portao aberto
+
+Ronda x
+"""
+
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    normalized = normalize(raw)
+
+    assert normalized.disposition == "present"
+    assert len(normalized.occurrences) == 1
+    assert "Durante ronda" in (normalized.occurrences[0].description or "")
+
+
 def test_occurrence_sheet_captures_content_row() -> None:
     raw = RuleBasedTableExtractor(CONFIG).extract(_OCC_SHEET)
     content = [r for r in raw.rows if not r.sem_alteracao]
@@ -123,6 +144,42 @@ def test_missing_column_header_sets_tabela_nao_encontrada() -> None:
     raw = RuleBasedTableExtractor(CONFIG).extract(_HEADERLESS_SHEET)
     assert raw.tabela_encontrada is False
     assert raw.rows == []
+
+
+def test_occurrence_text_cannot_impersonate_the_column_header() -> None:
+    sheet = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+12:00 Item localizado, abrir ocorrencia de achados
+S/A
+Ronda x
+"""
+
+    raw = RuleBasedTableExtractor(CONFIG).extract(sheet)
+    normalized = normalize(raw)
+
+    assert raw.tabela_encontrada is False
+    assert normalized.disposition == "unknown"
+    assert normalized.no_occurrence is False
+
+
+def test_sa_on_one_page_cannot_hide_unparsed_later_page() -> None:
+    page_one = _SA_SHEET
+    page_two = """Controle de ocorrencias
+Data e Turno 23/06/26
+Vigilantes Ana
+Unidade Portaria
+15:10 Portao lateral aberto sem autorizacao
+Ronda x
+"""
+
+    raw = RuleBasedTableExtractor(CONFIG).extract(f"{page_one}\f{page_two}")
+    normalized = normalize(raw)
+
+    assert raw.tabela_encontrada is False
+    assert normalized.disposition == "unknown"
+    assert normalized.no_occurrence is False
 
 
 def test_found_but_empty_region_sets_tabela_encontrada() -> None:

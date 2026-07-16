@@ -21,6 +21,28 @@ def test_client_satisfies_protocol() -> None:
     assert isinstance(LocalOCRVisionClient(), VisionClient)
 
 
+def test_runtime_metadata_attests_version_and_caches_effective_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    language_calls = 0
+
+    def available_languages(config: str = "") -> list[str]:
+        nonlocal language_calls
+        language_calls += 1
+        return ["eng", "por"]
+
+    monkeypatch.setattr(pytesseract, "get_languages", available_languages)
+    monkeypatch.setattr(pytesseract, "get_tesseract_version", lambda: "5.4.0")
+    client = LocalOCRVisionClient()
+
+    assert client.runtime_metadata() == {
+        "tesseract_version": "5.4.0",
+        "tesseract_language": "por",
+    }
+    assert client._resolve_lang() == "por"
+    assert language_calls == 1
+
+
 # --- line reconstruction (no binary needed) ---
 
 
@@ -39,8 +61,13 @@ def test_reconstruct_preserves_lines_and_confidence() -> None:
 
 
 def test_reconstruct_empty_is_zero_confidence() -> None:
-    data = {"text": ["", " "], "conf": [-1, -1], "block_num": [1, 1],
-            "par_num": [1, 1], "line_num": [1, 2]}
+    data = {
+        "text": ["", " "],
+        "conf": [-1, -1],
+        "block_num": [1, 1],
+        "par_num": [1, 1],
+        "line_num": [1, 2],
+    }
     text, confidence = _reconstruct(data)
     assert text == ""
     assert confidence == 0.0
@@ -199,11 +226,16 @@ def test_collect_words_debug_never_prints_ocr_text(
     data = {
         "text": ["SEGREDO"],
         "conf": [95],
-        "left": [9999], "top": [0], "width": [50], "height": [10],
-        "block_num": [1], "par_num": [1], "line_num": [1],
+        "left": [9999],
+        "top": [0],
+        "width": [50],
+        "height": [10],
+        "block_num": [1],
+        "par_num": [1],
+        "line_num": [1],
     }
     words = _collect_words(data, width=200, height=60)
     out = capsys.readouterr().out
-    assert words == []                     # absurd box discarded
-    assert "dropped a word box" in out     # debug fired
-    assert "SEGREDO" not in out            # OCR text never reaches stdout
+    assert words == []  # absurd box discarded
+    assert "dropped a word box" in out  # debug fired
+    assert "SEGREDO" not in out  # OCR text never reaches stdout

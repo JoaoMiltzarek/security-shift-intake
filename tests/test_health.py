@@ -8,8 +8,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from src import __version__
-from src.api.app import app
+from src.api.app import create_app
+from src.api.db import make_engine
 
+app = create_app(engine=make_engine("sqlite://"))
 client = TestClient(app)
 
 

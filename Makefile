@@ -9,6 +9,9 @@
 # override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
 CONFIG ?= configs/controle_ocorrencias.yaml
 
+# External Anthropic demo stays disabled unless the operator gives literal consent.
+ALLOW_EXTERNAL ?= NO
+
 # Optional arguments for the one-command synthetic showcase (e.g. --no-open).
 DEMO_ARGS ?=
 
@@ -21,6 +24,9 @@ VISION ?= local_ocr
 DPI ?= 150
 REAL_N ?= 0
 
+# Generated component-eval diagnostics stay outside the versioned evidence root.
+EVAL_OUT ?= private/audit/component_eval
+
 # Tier C canonical dataset name (docs/DATASET_CONTRACT.md par.4). Override:
 # `make gen-sheets DATASET=bench-balanced`.
 DATASET ?= smoke
@@ -28,11 +34,16 @@ DATASET ?= smoke
 # Tier C synthetic eval split (contract par.5: val=default anti-tuning; test=milestone).
 SPLIT ?= val
 
+# Release-safety identity is intentionally not overridable from the command line.
+override SAFETY_DATASET := bench-balanced
+override SAFETY_SPLIT := val
+override SAFETY_VISION := local_ocr
+
 # Watch-dir for make watch (override: make watch WATCH_DIR=private/inbox).
 WATCH_DIR ?= private/inbox
 
-.PHONY: help install lint format format-check typecheck test check \
-        validate-config gen-data gen-pdfs gen-sheets demo-transcribe demo-pipeline \
+.PHONY: help install lint format format-check typecheck test check audit-deps \
+        validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-transcribe demo-pipeline \
         demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
@@ -44,20 +55,22 @@ help:
 	@echo   make format-check    - ruff format (check only)
 	@echo   make typecheck       - mypy on src/data/scripts/evals
 	@echo   make test            - pytest
-	@echo   make check           - lint + typecheck + test (the M0 DoD)
+	@echo   make check           - format-check + lint + typecheck + test
+	@echo   make audit-deps      - fail on known vulnerabilities in the locked environment
 	@echo   make validate-config - [M1] validate configs against the schema
 	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
-	@echo   make demo-transcribe - [M4] run the real VLM on one PDF (needs API key)
+	@echo   make gen-safety-sheets - generate the exact bench-balanced/val release corpus
+	@echo   make demo-transcribe - external Anthropic call; requires FILE=... ALLOW_EXTERNAL=YES
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
-	@echo   make purge-demo-data - wipe temp demo artifacts (DB+sidecars, audit/, page_images/, debug/)
-	@echo   make purge-real-data - wipe real sheets (private/reais/), needs CONFIRM=YES
-	@echo   make purge-all-private - wipe ALL of private/ (incl. curadoria), needs CONFIRM=YES
+	@echo   make purge-demo-data - remove active demo artifacts (DB+sidecars, audit/, page_images/, debug/)
+	@echo   make purge-real-data - remove real-sheet entries (private/reais/), needs CONFIRM=YES
+	@echo   make purge-all-private - remove active entries under private/, needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
-	@echo   make eval            - [M8] produce metrics.json + EVAL_REPORT.md
+	@echo   make eval            - [M8] produce component diagnostics under private/audit/component_eval
 	@echo   make eval-bressay    - [v2] real BR-PT handwriting eval (BRESSAY); see docs/EVAL_BRESSAY.md
 	@echo   make eval-real       - instrumented real-sheet eval, VISION=local_ocr/local_vlm/mock DPI=150; see docs/EVAL_PROTOCOL.md
 	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
@@ -84,7 +97,10 @@ test:
 	uv run --locked pytest
 
 # Convenience aggregate matching the M0 Definition of Done.
-check: lint typecheck test
+check: format-check lint typecheck test
+
+audit-deps:
+	uv run --locked pip-audit --local --strict --progress-spinner off
 
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
@@ -100,8 +116,11 @@ gen-pdfs:
 gen-sheets:
 	uv run --locked python -m scripts.gen_sheets --dataset $(DATASET)
 
+gen-safety-sheets:
+	uv run --locked python -m scripts.gen_sheets --dataset $(SAFETY_DATASET)
+
 demo-transcribe:
-	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)"
+	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)" $(if $(filter YES,$(ALLOW_EXTERNAL)),--allow-external,)
 
 demo-pipeline:
 	uv run --locked python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"
@@ -130,7 +149,7 @@ privacy-check:
 	uv run --locked python -m scripts.privacy_check
 
 eval:
-	uv run --locked python -m evals.run_eval
+	uv run --locked python -m evals.run_eval --out "$(EVAL_OUT)"
 
 # Real-handwriting eval (BRESSAY). Kept out of the default `eval`/CI: it needs the
 # third-party dataset and (for the VLM column) a local server. Fails loudly /
@@ -138,14 +157,14 @@ eval:
 eval-bressay:
 	uv run --locked python -m evals.eval_htr_bressay --n $(N)
 
-# Instrumented eval on the real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
-# Detailed (PII) JSON -> private/audit/; whitelisted public summary -> docs/.
+# Instrumented eval on real curated sheets (EVAL_PROTOCOL): one run = (reader, dpi).
+# Detailed and allowlisted outputs stay in private/audit/; docs/ history is write-protected.
 eval-real:
 	uv run --locked python -m evals.eval_extraction_real --vision $(VISION) --dpi $(DPI) --n $(REAL_N)
 
 # Tier C synthetic eval (DATASET_CONTRACT): same protocol formulas, generated truth.
 eval-synthetic:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --split $(SPLIT)
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --dataset $(DATASET) --split $(SPLIT)
 
 # Structural-safety gate (SSI-1010): proves the core promise on val — nothing wrong
 # EXITS unnoticed. Binary gates: exit 1 on unsafe_clean>0, safe_review_recall<1.0 or
@@ -154,7 +173,7 @@ eval-synthetic:
 # the repo's frozen docs/ artifacts (OUT default lives under gitignored private/).
 OUT ?= private/audit/eval_safety
 eval-safety:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --split $(SPLIT) --output-dir $(OUT) --require-safety-gates
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(SAFETY_VISION) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates
 
 # Intake Watch — experimental standalone watcher; process-local duplicate suppression.
 # Writes detached text drafts, NEVER sends email. Override: make watch WATCH_DIR=private/inbox.

@@ -20,10 +20,13 @@ from __future__ import annotations
 
 import re
 import sys
+from hashlib import sha256
 from pathlib import Path
 
 # Binary / attachment extensions that should never be committed (real scans etc.).
-_BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
+_BINARY_EXT = re.compile(
+    r"\.(pdf|jpe?g|png|webp|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE
+)
 
 # SQLite databases (the approval-gate store) can accrue real PII — allowed only in
 # private/ (gitignored). Blocked as an extension wherever this guard inspects a file.
@@ -41,11 +44,24 @@ _TEXT_SENTINELS: list[re.Pattern[str]] = [
 # Extensions exempt from the TEXT scan (they may mention the org name legitimately).
 # The binary-extension block above still applies to everything.
 _SOURCE_DOC_EXT = {
-    ".py", ".md", ".rst",
-    ".yaml", ".yml", ".toml", ".cfg", ".ini",
-    ".j2", ".jinja", ".jinja2",
-    ".html", ".htm", ".css", ".js", ".ts",
-    ".gitignore", ".gitkeep",
+    ".py",
+    ".md",
+    ".rst",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".cfg",
+    ".ini",
+    ".j2",
+    ".jinja",
+    ".jinja2",
+    ".html",
+    ".htm",
+    ".css",
+    ".js",
+    ".ts",
+    ".gitignore",
+    ".gitkeep",
 }
 
 # Path components under which content is synthetic by construction (text-scan exempt).
@@ -53,17 +69,27 @@ _SYNTHETIC_SUBPATH = ("data", "synthetic")
 
 # Directory holding committed SYNTHETIC sample media for eyeballing (Tier B output).
 # Known files here are allowed despite the global binary block — they are generated
-# by our code from synthetic data, never real scans.
+# by our code from synthetic data, never real scans. Paths alone are not evidence of
+# provenance: every exception is pinned to the SHA-256 of the reviewed public asset.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SAMPLES_DIR = Path("samples")
-_ALLOWED_SHOWCASE_GIF = _SAMPLES_DIR / "cockpit_demo.gif"
-# Only these known generated names are allowed — a stray real image/GIF must still be
-# blocked, not silently waved through by a blanket extension or directory rule.
-_ALLOWED_SAMPLE_NAMES = re.compile(
-    r"^(sample_doc-\d+|sample_tc-\d+)"
-    r"\.(png|jpe?g)$",
-    re.IGNORECASE,
-)
+_ALLOWED_SAMPLE_SHA256: dict[Path, str] = {
+    _SAMPLES_DIR / "cockpit_demo.gif": (
+        "1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151"
+    ),
+    _SAMPLES_DIR / "sample_doc-00000.png": (
+        "b171955288e063106856e9442e0c91166b51a1dac9494452eb54fde321811d57"
+    ),
+    _SAMPLES_DIR / "sample_doc-00001.png": (
+        "d399d50a25b252f39e3c1e663edbf7fa8d3230dafaf9cc273e98e1e90b6d3d9b"
+    ),
+    _SAMPLES_DIR / "sample_tc-000000.png": (
+        "b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084"
+    ),
+    _SAMPLES_DIR / "sample_tc-000001.png": (
+        "29e4505c8316a7c80b47437867f8f3c9e36b56f8802d62175720329e9627510e"
+    ),
+}
 
 
 def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
@@ -73,18 +99,39 @@ def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
     return any(p[i : i + n] == parts for i in range(len(p) - n + 1))
 
 
-def _is_allowed_sample_image(path: Path) -> bool:
-    """True only for known generated media at the repo-root ``samples/`` path."""
-    if path.is_absolute():
+def _file_sha256(path: Path) -> str | None:
+    """Return a file digest, or ``None`` when the candidate cannot be read."""
+    digest = sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def _is_allowed_sample_binary(path: Path, *, repository_relative_path: Path | None = None) -> bool:
+    """Match a reviewed sample by exact repository path and SHA-256.
+
+    ``repository_relative_path`` lets a caller scanning an injected repository root
+    provide the logical path separately from the physical file being hashed. The
+    production pre-commit path does not need it: relative arguments are repository
+    paths and absolute arguments must resolve inside this checkout.
+    """
+    physical = path if path.is_absolute() else path.resolve()
+    if repository_relative_path is not None:
+        relative = repository_relative_path
+    elif path.is_absolute():
         try:
-            rel = path.resolve().relative_to(_REPO_ROOT)
+            relative = physical.relative_to(_REPO_ROOT)
         except ValueError:
             return False
     else:
-        rel = path
-    return rel == _ALLOWED_SHOWCASE_GIF or (
-        rel.parent == _SAMPLES_DIR and bool(_ALLOWED_SAMPLE_NAMES.fullmatch(rel.name))
-    )
+        relative = path
+
+    expected = _ALLOWED_SAMPLE_SHA256.get(relative)
+    return expected is not None and _file_sha256(physical) == expected
 
 
 def _is_text_scan_exempt(path: Path) -> bool:
@@ -101,7 +148,7 @@ def check_file(path: Path) -> list[str]:
 
     # (1) Binary/attachment extensions — blocked everywhere, EXCEPT synthetic sample
     # images explicitly committed under samples/.
-    if _BINARY_EXT.search(path.name) and not _is_allowed_sample_image(path):
+    if _BINARY_EXT.search(path.name) and not _is_allowed_sample_binary(path):
         violations.append(f"  {path}: binary/attachment extension not allowed in repo")
         return violations  # no need to read content
 
@@ -123,9 +170,7 @@ def check_file(path: Path) -> list[str]:
     for pat in _TEXT_SENTINELS:
         for lineno, line in enumerate(text.splitlines(), 1):
             if pat.search(line):
-                violations.append(
-                    f"  {path}:{lineno}: matched real-data sentinel"
-                )
+                violations.append(f"  {path}:{lineno}: matched real-data sentinel")
 
     return violations
 

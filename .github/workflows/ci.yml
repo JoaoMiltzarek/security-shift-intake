@@ -3,31 +3,63 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+  TZ: UTC
 
 jobs:
   quality:
-    name: lint - typecheck - test
-    runs-on: ubuntu-latest
+    name: format - lint - typecheck - test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
 
-      - name: Preflight (non-blocking env probe)
-        continue-on-error: true
-        run: python3 scripts/preflight.py --json | tee preflight.json
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
+
+      - name: Audit locked dependencies
+        run: make audit-deps
+
+      - name: Preflight (warnings reported, blockers enforced)
+        run: |
+          set +e
+          uv run --locked python scripts/preflight.py --json | tee /tmp/preflight.json
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ge 2 ]; then
+            exit "$status"
+          fi
+
+      - name: Format check (ruff)
+        run: make format-check
 
       - name: Lint (ruff)
         run: make lint
@@ -36,63 +68,73 @@ jobs:
         run: make typecheck
 
       - name: Test (pytest)
-        run: set -o pipefail; make test 2>&1 | tee pytest.log
+        run: set -o pipefail; make test 2>&1 | tee /tmp/pytest.log
 
       - name: Validate configs (schema-for-the-schema)
         run: make validate-config
 
       - name: Privacy check (no real data / PII)
         id: privacy
-        run: set -o pipefail; make privacy-check 2>&1 | tee privacy.log
+        run: set -o pipefail; make privacy-check 2>&1 | tee /tmp/privacy.log
 
       - name: Evidence report (authoritative collector — uploaded, not committed)
         if: ${{ success() && steps.privacy.outcome == 'success' }}
         run: >
-          uv run python scripts/evidence_report.py
-          --preflight preflight.json --pytest-log pytest.log --privacy-log privacy.log
-          --authoritative-sha ${{ github.sha }} --out SSI-1002_EVIDENCE.md
+          uv run --locked python scripts/evidence_report.py
+          --preflight /tmp/preflight.json --pytest-log /tmp/pytest.log
+          --privacy-log /tmp/privacy.log --authoritative-sha ${{ github.sha }}
+          --out /tmp/SSI-1002_EVIDENCE.md
 
       - name: Upload evidence report
         if: ${{ success() && steps.privacy.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ssi-1002-evidence
-          path: SSI-1002_EVIDENCE.md
+          path: /tmp/SSI-1002_EVIDENCE.md
+          if-no-files-found: error
 
   smoke-eval:
     name: smoke-eval (metrics + report)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install tesseract (OCR baseline)
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Run eval on a tiny fixture
-        run: PYTHONPATH=. uv run python -m evals.run_eval --classification-n 400 --transcription-n 2
+        run: uv run --locked python -m evals.run_eval --out /tmp/component_eval --classification-n 400 --transcription-n 2
 
       - name: Show generated report
-        run: cat EVAL_REPORT.md
+        run: cat /tmp/component_eval/EVAL_REPORT.md
 
       - name: Upload eval artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: eval-artifacts
           path: |
-            metrics.json
-            EVAL_REPORT.md
+            /tmp/component_eval/metrics.json
+            /tmp/component_eval/EVAL_REPORT.md
+          if-no-files-found: error
 
   # SSI-1010: mede a promessa CENTRAL do produto (falha estrutural de parse nunca vira
   # "sem alteração" aceito) com Tesseract real sobre o split val congelado. Gates
@@ -100,27 +142,44 @@ jobs:
   # BLOQUEANTE (false_incident_count é reportado como ruído do reader, não gate).
   eval-safety:
     name: eval-safety (structural gates — BLOCKING)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install tesseract (+ Portuguese pack)
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-por
 
+      - name: Verify Tesseract runtime
+        run: |
+          set -euo pipefail
+          tesseract --version
+          tesseract --list-langs | tee /tmp/tesseract-langs.txt
+          grep -qx por /tmp/tesseract-langs.txt
+
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
 
-      - name: Generate frozen synthetic safety dataset
-        run: make gen-sheets DATASET=bench-balanced
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
+
+      - name: Verify the release manifest freeze is versioned
+        run: test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl
+
+      - name: Generate canonical synthetic safety dataset
+        run: make gen-safety-sheets
 
       - name: Run committed showcase fixture through real Tesseract
         env:
@@ -130,51 +189,131 @@ jobs:
           tests/test_showcase_demo.py::test_committed_showcase_fixture_persists_real_ocr_geometry
 
       - name: Run structural-safety gates (val split, Tesseract)
-        run: make eval-safety VISION=local_ocr DPI=150 OUT=/tmp/eval_safety
+        run: make eval-safety DPI=150 OUT=/tmp/eval_safety
 
-      - name: Upload safety-eval artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Validate release-candidate summary
+        run: >-
+          uv run --locked python -m scripts.publish_eval_evidence
+          --source /tmp/eval_safety/eval_synthetic_summary.json
+          --expected-commit "$(git rev-parse HEAD)"
+
+      - name: Upload validated intermediate summary
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: eval-safety-artifacts
+          name: eval-safety-intermediate-${{ github.sha }}
+          path: /tmp/eval_safety/eval_synthetic_summary.json
+          if-no-files-found: error
+
+      - name: Upload safety-eval diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: eval-safety-diagnostics-${{ github.sha }}
           path: /tmp/eval_safety/
+          if-no-files-found: error
 
   browser-smoke:
     name: browser-smoke (cockpit UI gate — BLOCKING)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
+          version: "0.11.23"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
 
       - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
       - name: Install Playwright Chromium
-        run: uv run --with playwright playwright install --with-deps chromium
-
-      - name: Start the cockpit (controle_ocorrencias config)
-        run: |
-          mkdir -p private
-          INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
-            uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8000 &
-          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
+        run: uv run --locked playwright install --with-deps chromium
 
       - name: Browser-smoke (bbox / overlay / save / CSP violations)
         env:
           BROWSER_SMOKE_SCREENSHOT: /tmp/browser_smoke.png
-        run: uv run --with playwright python scripts/browser_smoke.py
+        run: |
+          mkdir -p private
+          INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
+            uv run --locked uvicorn src.api.asgi:app --host 127.0.0.1 --port 8000 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          uv run --locked python scripts/browser_smoke.py
 
       - name: Upload cockpit screenshot (real page capture)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cockpit-screenshot
           path: /tmp/browser_smoke.png
+          if-no-files-found: error
+
+  # O JSON só se torna candidato promovível depois que TODOS os gates bloqueantes
+  # deste mesmo commit passam. O artifact do job eval-safety é intermediário.
+  release-evidence-candidate:
+    name: release-evidence candidate (all gates passed)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [quality, smoke-eval, eval-safety, browser-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+          version: "0.11.23"
+
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
+
+      - name: Sync dependencies (from uv.lock)
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify Python runtime
+        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
+
+      - name: Download validated intermediate summary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: eval-safety-intermediate-${{ github.sha }}
+          path: /tmp/release_candidate
+
+      - name: Revalidate release-candidate summary
+        run: >-
+          uv run --locked python -m scripts.publish_eval_evidence
+          --source /tmp/release_candidate/eval_synthetic_summary.json
+          --expected-commit "$(git rev-parse HEAD)"
+
+      - name: Upload promotable release-candidate summary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: eval-safety-release-candidate-${{ github.sha }}
+          path: /tmp/release_candidate/eval_synthetic_summary.json
+          if-no-files-found: error

@@ -1,8 +1,8 @@
 """FastAPI application for the approval gate.
 
 `create_app(engine, sender)` builds the app with injectable persistence and sender
-so tests run against an in-memory DB and a mock sender. The module-level `app` is
-the default instance for `uvicorn`.
+so tests run against an in-memory DB and a mock sender. ``src.api.asgi:app`` is the
+intentional production entry point for Uvicorn.
 
 Endpoints expose the state machine: submit -> review -> approve/reject -> send.
 Sending always goes through the gate (M7.b) — never auto-sent.
@@ -47,6 +47,7 @@ from src.api.models import Draft
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
 from src.clients.base import LLMClient
 from src.clients.local_rules import RuleBasedLLMClient
+from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
 from src.pipeline.draft import draft as draft_stage
 from src.pipeline.normalize import parse_resolved, parse_times
@@ -142,11 +143,7 @@ async def _bounded_review_form(request: Request) -> Any:
     if len(items) > MAX_FORM_FIELDS:
         raise HTTPException(status_code=422, detail="Review form has too many fields.")
     for key, value in items:
-        if (
-            not isinstance(value, str)
-            or len(str(key)) > 128
-            or len(value) > MAX_FORM_VALUE_CHARS
-        ):
+        if not isinstance(value, str) or len(str(key)) > 128 or len(value) > MAX_FORM_VALUE_CHARS:
             raise HTTPException(status_code=422, detail="Review form field is too large.")
     return form
 
@@ -183,10 +180,7 @@ def _same_origin(request: Request, origin: str) -> bool:
 def _assert_config_compatible(state: PipelineState, config: ReportConfig) -> None:
     """Reject drafts produced under another or unknown report configuration."""
     expected_fingerprint = config_fingerprint(config)
-    if (
-        state.report_type != config.report_type
-        or state.config_sha256 != expected_fingerprint
-    ):
+    if state.report_type != config.report_type or state.config_sha256 != expected_fingerprint:
         raise HTTPException(
             status_code=409,
             detail=(
@@ -319,7 +313,9 @@ def _edit_table(
         flagged = value is None  # required header field still blank
         fields.append(
             ExtractedField(
-                name=name, value=value, confidence=0.0 if flagged else 1.0,
+                name=name,
+                value=value,
+                confidence=0.0 if flagged else 1.0,
                 must_review=flagged,
                 source=None if flagged else "human",
                 status="missing" if flagged else "accepted",
@@ -331,10 +327,17 @@ def _edit_table(
     if norm.disposition == "none":
         # "(sem alteração)" humano SÓ nasce da confirmação explícita via radio — nunca
         # da mera ausência de linhas (fecha a lavagem de falha de parse, SSI-1007).
-        fields.append(ExtractedField(name="ocorrencias", value="(sem alteração)",
-                                     confidence=1.0, must_review=False,
-                                     source="human", status="accepted",
-                                     evidence_method="human_edit"))
+        fields.append(
+            ExtractedField(
+                name="ocorrencias",
+                value="(sem alteração)",
+                confidence=1.0,
+                must_review=False,
+                source="human",
+                status="accepted",
+                evidence_method="human_edit",
+            )
+        )
     elif norm.disposition == "unknown":
         # Disposição segue não confirmada: a pendência estrutural continua bloqueando.
         reason = (
@@ -342,11 +345,19 @@ def _edit_table(
             if state.raw_extraction is not None and not state.raw_extraction.tabela_encontrada
             else "(nenhuma linha legível)"
         )
-        fields.append(ExtractedField(name="ocorrencias", value=reason, confidence=0.0,
-                                     must_review=True, source="rule",
-                                     status="must_review"))
+        fields.append(
+            ExtractedField(
+                name="ocorrencias",
+                value=reason,
+                confidence=0.0,
+                must_review=True,
+                source="rule",
+                status="must_review",
+            )
+        )
         must_review.append("ocorrencias")
     else:
+
         def add_reviewed_cell(
             index: int,
             suffix: str,
@@ -372,15 +383,11 @@ def _edit_table(
                 must_review.append(name)
 
         for i, occ in enumerate(norm.occurrences, start=1):
-            time_value = " ".join(
-                value for value in (occ.entry_time, occ.exit_time) if value
-            ) or None
-            resolved_value = (
-                None if occ.resolved is None else ("sim" if occ.resolved else "nao")
+            time_value = (
+                " ".join(value for value in (occ.entry_time, occ.exit_time) if value) or None
             )
-            add_reviewed_cell(
-                i, "objeto", occ.category, required=True, missing_value="(revisar)"
-            )
+            resolved_value = None if occ.resolved is None else ("sim" if occ.resolved else "nao")
+            add_reviewed_cell(i, "objeto", occ.category, required=True, missing_value="(revisar)")
             add_reviewed_cell(i, "hora", time_value)
             add_reviewed_cell(
                 i,
@@ -393,7 +400,9 @@ def _edit_table(
             add_reviewed_cell(i, "resolvido", resolved_value)
 
     updates: dict[str, Any] = {
-        "normalized": norm, "extracted_fields": fields, "must_review_fields": must_review,
+        "normalized": norm,
+        "extracted_fields": fields,
+        "must_review_fields": must_review,
     }
     # Human transcription clears the OCR-failed block (the data is now confirmed).
     if state.ocr_quality == "failed":
@@ -405,20 +414,24 @@ def _edit_table(
     # humana (F-03); a reaprovação obrigatória é a confirmação do novo destino.
     if norm.disposition != "unknown":
         new_state = classify(
-            new_state, llm, config,
+            new_state,
+            llm,
+            config,
             text=_revised_content(norm),
             reason="reclassificado a partir da revisão humana",
         )
         new_state = route(new_state, config)
     return build_outputs(new_state, config)
 
-_templates = Jinja2Templates(directory="ui/templates")
-_DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
+
+_templates = Jinja2Templates(directory=REPO_ROOT / "ui" / "templates")
+_DEFAULT_CONFIG = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
 
 
 def _default_config_path() -> Path:
     """Config the app serves; overridable via INTAKE_CONFIG (e.g. controle_ocorrencias)."""
-    return Path(os.environ.get("INTAKE_CONFIG", str(_DEFAULT_CONFIG)))
+    configured = Path(os.environ.get("INTAKE_CONFIG", str(_DEFAULT_CONFIG))).expanduser()
+    return configured if configured.is_absolute() else REPO_ROOT / configured
 
 
 def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLResponse:
@@ -540,12 +553,10 @@ def create_app(
     )
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
-    app.mount("/static", StaticFiles(directory="ui/static"), name="static")
+    app.mount("/static", StaticFiles(directory=REPO_ROOT / "ui" / "static"), name="static")
 
     @app.middleware("http")
-    async def _security_headers(
-        request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def _security_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Lock the local cockpit down and keep document data out of browser caches.
 
         The overlay JS is vendored under /static (script-src 'self'); templates carry
@@ -593,9 +604,7 @@ def create_app(
     if enable_test_state_submission:
 
         @app.post("/drafts", status_code=201)
-        def submit(
-            state: PipelineState, session: Session = Depends(get_session)
-        ) -> dict[str, Any]:
+        def submit(state: PipelineState, session: Session = Depends(get_session)) -> dict[str, Any]:
             # Even the opt-in test harness cannot forge the config identity used by
             # subsequent cockpit operations.
             state = state.model_copy(
@@ -619,16 +628,20 @@ def create_app(
         summary = _draft_summary(draft)
         summary["state"] = json.loads(draft.state_json)
         summary["audit"] = [
-            {"actor": a.actor, "action": a.action, "detail": a.detail,
-             "timestamp": a.timestamp.isoformat()}
+            {
+                "actor": a.actor,
+                "action": a.action,
+                "detail": a.detail,
+                "revision": a.revision,
+                "state_sha256": a.state_sha256,
+                "timestamp": a.timestamp.isoformat(),
+            }
             for a in repository.get_audit(session, draft_id)
         ]
         return summary
 
     @app.post("/drafts/{draft_id}/approve")
-    def approve(
-        draft_id: int, session: Session = Depends(get_session)
-    ) -> dict[str, Any]:
+    def approve(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
         draft = repository.get_draft(session, draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
@@ -640,15 +653,11 @@ def create_app(
         return _set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/reject")
-    def reject(
-        draft_id: int, session: Session = Depends(get_session)
-    ) -> dict[str, Any]:
+    def reject(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
         return _set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/send")
-    def send(
-        draft_id: int, session: Session = Depends(get_session)
-    ) -> dict[str, Any]:
+    def send(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
         try:
             draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
         except KeyError as exc:
@@ -665,7 +674,10 @@ def create_app(
             draft = repository.set_status(session, draft_id, status, actor)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except repository.DraftAlreadySentError as exc:
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _draft_summary(draft)
 
@@ -709,9 +721,7 @@ def create_app(
         return _render(request, "review.html", ctx)
 
     @app.get("/drafts/{draft_id}/page/{n}")
-    def page_image(
-        draft_id: int, n: int, session: Session = Depends(get_session)
-    ) -> FileResponse:
+    def page_image(draft_id: int, n: int, session: Session = Depends(get_session)) -> FileResponse:
         """Serve the persisted OCR page image the cockpit overlay draws on (path-safe)."""
         draft = _require_draft(session, draft_id)
         state = PipelineState.model_validate_json(draft.state_json)
@@ -743,13 +753,31 @@ def create_app(
         writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
         for row in state.spreadsheet_rows:
             writer.writerow(
-                [_csv_safe(row.dia), _csv_safe(row.unidade),
-                 _csv_safe(row.objeto), _csv_safe(row.descricao)]
+                [
+                    _csv_safe(row.dia),
+                    _csv_safe(row.unidade),
+                    _csv_safe(row.objeto),
+                    _csv_safe(row.descricao),
+                ]
             )
+        snapshot_sha256 = repository.state_sha256(draft.state_json)
+        repository.add_audit(
+            session,
+            draft_id,
+            actor=_LOCAL_ACTOR,
+            action="export_csv",
+            detail=f"rev={draft.revision} sha256={snapshot_sha256[:12]}",
+            revision=draft.revision,
+            snapshot_sha256=snapshot_sha256,
+        )
         return Response(
             content=buffer.getvalue(),
             media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="draft_{draft_id}.csv"'},
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="draft_{draft_id}_rev_{draft.revision}.csv"'
+                )
+            },
         )
 
     @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
@@ -763,10 +791,11 @@ def create_app(
         except DraftNotReviewableError as exc:
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
         try:
-            draft = repository.set_status(
-                session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR
-            )
-        except repository.DraftAlreadySentError as exc:
+            draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
@@ -775,10 +804,11 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         try:
-            draft = repository.set_status(
-                session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR
-            )
-        except repository.DraftAlreadySentError as exc:
+            draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
@@ -815,6 +845,18 @@ def create_app(
         state = PipelineState.model_validate_json(draft.state_json)
         _assert_config_compatible(state, active_config)
         form = await _bounded_review_form(request)
+        raw_expected_revision = form.get("expected_revision")
+        expected_revision = draft.revision
+        if raw_expected_revision is not None:
+            if (
+                not isinstance(raw_expected_revision, str)
+                or not raw_expected_revision.isascii()
+                or not raw_expected_revision.isdigit()
+            ):
+                raise HTTPException(status_code=422, detail="Invalid expected revision.")
+            expected_revision = int(raw_expected_revision)
+            if expected_revision < 1:
+                raise HTTPException(status_code=422, detail="Invalid expected revision.")
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
@@ -838,7 +880,9 @@ def create_app(
                 value = raw.strip() if isinstance(raw, str) and raw.strip() else None
                 new_fields.append(
                     ExtractedField(
-                        name=field.name, value=value, confidence=1.0 if value else 0.0,
+                        name=field.name,
+                        value=value,
+                        confidence=1.0 if value else 0.0,
                         source="human" if value else None,
                         # Human value drops any OCR bbox (invariant 4); the locator
                         # skips source="human" so no box is re-attached on re-validate.
@@ -846,13 +890,21 @@ def create_app(
                     )
                 )
             state = state.model_copy(update={"extracted_fields": new_fields})
-            state = validate(state, active_config)   # recompute MUST_REVIEW flags
+            state = validate(state, active_config)  # recompute MUST_REVIEW flags
             state = draft_stage(state, active_config)  # re-render the email draft
         try:
             repository.update_state(
-                session, draft_id, state, actor=_LOCAL_ACTOR, action="edited"
+                session,
+                draft_id,
+                state,
+                actor=_LOCAL_ACTOR,
+                action="edited",
+                expected_revision=expected_revision,
             )
-        except repository.DraftAlreadySentError as exc:
+        except (
+            repository.DraftAlreadySentError,
+            repository.DraftOperationConflictError,
+        ) as exc:
             # Backstop: update_state protege TODOS os callers; aqui vira HTTP 409.
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -867,6 +919,3 @@ def create_app(
         return _render(request, "_review_body.html", ctx)
 
     return app
-
-
-app = create_app()

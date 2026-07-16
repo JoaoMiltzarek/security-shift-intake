@@ -89,3 +89,11 @@ def test_message_incomplete_when_pending() -> None:
 
 def test_blockers_include_failed_ocr() -> None:
     assert "OCR insuficiente" in export_blockers(_state(no_review=True, ocr="failed"))
+
+
+def test_legacy_multi_page_state_blocks_clean_export() -> None:
+    state = _state(no_review=True).model_copy(
+        update={"page_image_paths": ["page-1.png", "page-2.png"]}
+    )
+
+    assert "documento multipÃ¡gina incompatÃ­vel com v1" in export_blockers(state)

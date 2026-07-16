@@ -23,12 +23,12 @@ from pydantic import BaseModel
 from data.generators.records import SyntheticRecord
 
 # --- Documented messiness rates (per applicable field, per record) ---
-P_ABBREVIATE = 0.30          # use an abbreviation where one exists
-P_MISSPELL = 0.20            # introduce a hurried misspelling in the description
-P_AMBIGUOUS_CHAR = 0.15      # swap an ambiguous character (0/O, 1/l)
+P_ABBREVIATE = 0.30  # use an abbreviation where one exists
+P_MISSPELL = 0.20  # introduce a hurried misspelling in the description
+P_AMBIGUOUS_CHAR = 0.15  # swap an ambiguous character (0/O, 1/l)
 P_PARTIAL_DESCRIPTION = 0.10  # only part of the description was written
-P_BLANK_OPTIONAL = 0.08      # optional field left blank despite an incident
-P_CROSSOUT = 0.07            # a crossed-out / corrected word
+P_BLANK_OPTIONAL = 0.08  # optional field left blank despite an incident
+P_CROSSOUT = 0.07  # a crossed-out / corrected word
 
 # Abbreviation dictionary (full form -> handwritten abbreviation).
 _ABBREVIATIONS: dict[str, str] = {

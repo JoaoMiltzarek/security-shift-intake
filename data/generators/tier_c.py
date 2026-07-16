@@ -42,6 +42,7 @@ from data.generators.templates.controle_ocorrencias import (
 )
 
 DATASET_VERSION = "tier_c/v1"
+MANIFEST_SCHEMA: Literal["tier_c-manifest/v2"] = "tier_c-manifest/v2"
 DEFAULT_SPLIT_SEED = 0
 _SPLIT_RATIOS = (0.70, 0.15, 0.15)  # mesmo default de tier_a.split_dataset
 _PDF_DPI = 150
@@ -78,6 +79,7 @@ CANONICAL_DATASETS: dict[str, CanonicalSpec] = {
 class TierCMeta(BaseModel):
     """Reprodutibilidade (contrato §3): tudo que uma regeneração precisa saber."""
 
+    manifest_schema: Literal["tier_c-manifest/v2"]
     version: str
     dataset: str
     seed: int
@@ -146,10 +148,10 @@ def _canonical_gt_bytes(gt: dict[str, object]) -> bytes:
 
 
 def check_or_write_frozen(frozen_path: Path, test_rows: list[dict[str, object]]) -> str:
-    """Grava o manifesto congelado na 1ª geração; depois, valida contra ele.
+    """Legacy v1 maintenance helper; normal dataset generation never calls it.
 
-    Divergência ⇒ RuntimeError (drift de toolchain ou mudança de gerador —
-    bump `tier_c/vN`; NUNCA ajustar o manifesto na mão). Retorna "written"|"verified".
+    The historical test freezes are preserved as evidence.  New v2 freezes are
+    explicit, read-only release inputs handled by ``data.tier_c_contract``.
     """
     lines = [json.dumps(r, sort_keys=True, ensure_ascii=False) for r in test_rows]
     content = "\n".join(lines) + "\n"
@@ -176,10 +178,9 @@ def build_tier_c(
     samples_dir: Path | None = None,
 ) -> TierCMeta:
     """Gera o dataset (PDF+PNG+gt+manifests+meta). `dataset` resolve da tabela §4."""
-    frozen_manifest: str | None = None
     if dataset is not None:
         spec = CANONICAL_DATASETS[dataset]
-        n, seed, profile, frozen_manifest = spec.n, spec.seed, spec.profile, spec.frozen_manifest
+        n, seed, profile = spec.n, spec.seed, spec.profile
     if n <= 0:
         raise ValueError("n must be positive")
 
@@ -247,8 +248,8 @@ def build_tier_c(
             {
                 "doc_id": doc_id,
                 "split": split,
-                "pdf": pdf_path.as_posix(),
-                "gt": gt_path.as_posix(),
+                "image": f"pngs/{doc_id}.png",
+                "gt": f"gt/{doc_id}.json",
                 "sha256_img": hashlib.sha256(png_path.read_bytes()).hexdigest(),
                 "sha256_gt": hashlib.sha256(_canonical_gt_bytes(gt)).hexdigest(),
             }
@@ -261,10 +262,8 @@ def build_tier_c(
                 fh.write(json.dumps(row, sort_keys=True, ensure_ascii=False))
                 fh.write("\n")
 
-    if frozen_manifest is not None:
-        check_or_write_frozen(Path(frozen_manifest), manifest_rows["test"])
-
     meta = TierCMeta(
+        manifest_schema=MANIFEST_SCHEMA,
         version=DATASET_VERSION,
         dataset=dataset or "custom",
         seed=seed,

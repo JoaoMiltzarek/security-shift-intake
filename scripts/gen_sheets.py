@@ -1,13 +1,15 @@
 """CLI de `make gen-sheets` — folhas sintéticas Tier C ("Controle de ocorrências").
 
 Usage:
-    python scripts/gen_sheets.py --dataset smoke                 # tabela canônica §4
-    python scripts/gen_sheets.py --seed 42 --n 12 --profile balanced   # experimento avulso
-    python scripts/gen_sheets.py --dataset smoke --n-samples 2   # + PNGs p/ samples/
+    uv run --locked python -m scripts.gen_sheets --dataset smoke
+    uv run --locked python -m scripts.gen_sheets --seed 42 --n 12 --profile balanced
+    uv run --locked python -m scripts.gen_sheets --dataset smoke --n-samples 2
 
 Escreve PDFs + PNGs + gt/*.json + manifests {train,val,test}.jsonl + meta.json em
---out (gitignored). Datasets canônicos com manifesto congelado validam/gravam
-`data/manifests/...` automaticamente (docs/DATASET_CONTRACT.md §3–§4).
+--out (gitignored). Generation never creates or updates the committed release freeze.
+After independent verification, the explicit write-once maintainer action is
+`uv run --locked python -m scripts.freeze_tier_c_manifest ... --write`
+(docs/DATASET_CONTRACT.md §3–§4).
 """
 
 from __future__ import annotations

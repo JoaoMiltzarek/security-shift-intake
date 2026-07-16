@@ -38,7 +38,7 @@ from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.pipeline.ingest import image_to_base64_png
 
-DEFAULT_DATASET_DIR = Path(os.environ.get("BRESSAY_DIR", "data/bressay"))
+DEFAULT_DATASET_DIR = Path(os.environ.get("BRESSAY_DIR", "datasets/bressay"))
 MANIFEST_NAME = "manifest.jsonl"
 
 
