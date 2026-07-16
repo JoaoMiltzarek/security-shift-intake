@@ -545,6 +545,34 @@ def test_legacy_real_report_defaults_to_private_and_rejects_docs(
     assert "publisher" in capsys.readouterr().err
 
 
+def test_real_eval_output_cannot_escape_private_through_symlink(tmp_path: Path) -> None:
+    import evals.eval_extraction_real as mod
+
+    private_root = tmp_path / "private"
+    private_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with pytest.raises(ValueError, match="private"):
+        mod._resolve_local_output(
+            outside / "summary.json",
+            option="--summary-output",
+            private_root=private_root,
+        )
+
+    redirected = private_root / "audit"
+    try:
+        redirected.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="private"):
+        mod._resolve_local_output(
+            redirected / "summary.json",
+            option="--summary-output",
+            private_root=private_root,
+        )
+
+
 def test_instrumented_real_eval_enforces_private_source_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
