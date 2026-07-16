@@ -75,11 +75,22 @@ SUMMARY_PATH = AUDIT_DIR / "eval_real_summary.json"
 VALID_REVIEW_STATUS = {"draft_by_claude", "needs_review", "verified_by_user"}
 
 
-def _resolve_local_output(requested: Path, *, option: str) -> Path:
-    resolved = requested.expanduser().resolve(strict=False)
-    public_docs = (REPO_ROOT / "docs").resolve(strict=True)
-    if resolved == public_docs or resolved.is_relative_to(public_docs):
-        raise ValueError(f"{option} não pode apontar para docs/; use um publisher")
+def _resolve_local_output(
+    requested: Path,
+    *,
+    option: str,
+    private_root: Path = PRIVATE_ROOT,
+) -> Path:
+    root_absolute = private_root.expanduser().absolute()
+    root_resolved = private_root.expanduser().resolve(strict=False)
+    if root_resolved != root_absolute:
+        raise ValueError(f"{option} deve ficar em private/; use um publisher para docs/")
+    candidate = requested.expanduser()
+    if not candidate.is_absolute():
+        candidate = REPO_ROOT / candidate
+    resolved = candidate.resolve(strict=False)
+    if not resolved.is_relative_to(root_resolved):
+        raise ValueError(f"{option} deve ficar em private/; use um publisher para docs/")
     return resolved
 
 
