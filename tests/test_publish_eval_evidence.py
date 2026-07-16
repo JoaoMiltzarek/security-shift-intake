@@ -1,4 +1,4 @@
-"""Fail-closed contracts for publishing authenticated release-eval evidence."""
+"""Fail-closed contracts for publishing schema/identity-validated release evidence."""
 
 from __future__ import annotations
 
@@ -157,7 +157,7 @@ def test_strict_json_error_never_echoes_source_content() -> None:
     assert sensitive_marker not in str(exc_info.value)
 
 
-def test_release_evidence_accepts_exact_authenticated_contract() -> None:
+def test_release_evidence_accepts_exact_validated_contract() -> None:
     publisher.validate_release_evidence(valid_release_payload(), expected_commit=EXPECTED_COMMIT)
 
 

@@ -1,4 +1,4 @@
-"""Validate and publish one authenticated v1 release-eval artifact.
+"""Validate and publish one schema/identity-validated v1 release-eval artifact.
 
 The evaluator writes diagnostics only.  This module is the separate, fail-closed
 boundary for promoting one aggregate result into version-controlled evidence.
@@ -313,7 +313,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _authenticated_manifest_identity() -> tuple[str, int]:
+def _validated_manifest_identity() -> tuple[str, int]:
     split = cast(Split, RELEASE_SAFETY_SPLIT)
     path = default_frozen_manifest_path(RELEASE_SAFETY_DATASET, split)
     if path is None:
@@ -351,7 +351,7 @@ def validate_release_evidence(payload: dict[str, Any], *, expected_commit: str) 
     run = _mapping(payload["run"])
     _expect_exact_keys(run, _RUN_KEYS)
     expected_python = (REPO_ROOT / ".python-version").read_text(encoding="utf-8").strip()
-    expected_manifest_sha, expected_count = _authenticated_manifest_identity()
+    expected_manifest_sha, expected_count = _validated_manifest_identity()
     expected_identity = {
         "reader": RELEASE_SAFETY_READER,
         "model": "tesseract",
@@ -569,7 +569,7 @@ def _validate_catalog_payload(payload: dict[str, Any], *, root: Path) -> dict[st
 def load_and_validate_catalog(
     catalog_path: Path = CATALOG_PATH, *, root: Path = REPO_ROOT
 ) -> dict[str, Any]:
-    """Load a strict catalog and authenticate every referenced worktree artifact."""
+    """Load a strict catalog and validate every referenced worktree artifact."""
     try:
         content = catalog_path.read_bytes()
     except OSError as exc:
@@ -687,7 +687,9 @@ def assert_write_context(*, expected_commit: str) -> None:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Validate or explicitly publish authenticated v1 release-eval evidence."
+        description=(
+            "Validate or explicitly publish schema/identity-validated v1 release-eval evidence."
+        )
     )
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--expected-commit", required=True)
