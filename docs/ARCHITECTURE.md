@@ -32,6 +32,13 @@ so it is swappable and **mockable in tests** (the whole suite runs offline at $0
    [8] Human Gate ─────► revisão: corrige campos → regenera; aprovar só sem pendência
 ```
 
+The v1 input boundary accepts **exactly one page or image frame**.
+Supported formats are PDF, PNG, JPEG, TIFF, BMP and WebP. Ingest treats a multi-page PDF or
+multi-frame image as unsupported v1 scope: it is **rejected before OCR**, so content from another
+page cannot be paired with the page-0 evidence cockpit. Defensive aggregation fields retained for
+legacy state are not a public multi-page contract; persisted multi-page state is not approvable or
+exportable.
+
 Two report types coexist; switching between the two implemented families is selected by config
 without a code change:
 - **`controle_ocorrencias`** (v1.0): the occurrence-table sheet → the path above.

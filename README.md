@@ -133,6 +133,12 @@ make purge-demo-data
 make check
 make privacy-check
 ```
+
+The v1 input contract accepts **exactly one page or image frame** per document. Supported
+formats are PDF, PNG, JPEG, TIFF, BMP and WebP. A multi-page PDF or multi-frame image is
+**rejected before OCR**; split it into single-page files. This is a product-scope boundary, not
+an OCR result.
+
 Process a **real** sheet locally (the Tesseract executable is required; the Portuguese language
 pack is recommended, with an `eng` fallback; the file stays in the gitignored `private/`
 folder, never committed):
