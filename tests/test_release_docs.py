@@ -231,8 +231,9 @@ def test_readme_release_evidence_state_matches_the_catalog() -> None:
 
     assert "docs/evals/catalog.json" in readme
     if not current:
-        assert "Authenticated v1 release evidence: PENDING" in readme
+        assert "Validated v1 release evidence: PENDING" in readme
         assert "No historical JSON is a substitute for that artifact" in readme
+    assert "Authenticated v1 release evidence" not in readme
     assert "v1.0.0 milestone re-measurement" not in readme
 
 
@@ -250,6 +251,8 @@ def test_release_eval_publication_workflow_is_executable_and_fail_closed() -> No
         "mock and `eng` results are never publishable",
         "docs/evals/catalog.json",
         "write-once",
+        "schema/identity-validated",
+        "quality`, `smoke-eval`, `eval-safety` and `browser-smoke",
     )
     assert all(value in guide for value in required)
     assert "copy the historical numbers" not in guide.lower()
