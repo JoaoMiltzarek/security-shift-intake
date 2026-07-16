@@ -464,6 +464,8 @@ def persist_once(destination: Path, content: bytes) -> Literal["created", "verif
         destination.parent.mkdir(parents=True, exist_ok=True)
         with destination.open("xb") as handle:
             handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
     except FileExistsError:
         existing = _existing_bytes(destination)
         if existing != content:
