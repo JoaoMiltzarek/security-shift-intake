@@ -379,6 +379,18 @@ def test_persist_once_creates_exact_bytes_and_accepts_identical_retry(tmp_path: 
     assert destination.read_bytes() == content
 
 
+def test_persist_once_flushes_new_bytes_before_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "release" / "evidence.json"
+    fsync_calls: list[int] = []
+    monkeypatch.setattr(publisher.os, "fsync", lambda fd: fsync_calls.append(fd))
+
+    assert publisher.persist_once(destination, valid_release_bytes()) == "created"
+
+    assert len(fsync_calls) == 1
+
+
 def test_persist_once_refuses_divergent_existing_bytes_without_overwrite(
     tmp_path: Path,
 ) -> None:
