@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, NoReturn, cast
 
@@ -27,6 +28,7 @@ from data.tier_c_contract import (
     parse_manifest,
 )
 from evals.eval_extraction_synthetic import (
+    PARSER_CEILING_NOTE,
     PUBLIC_SUMMARY_SCHEMA,
     RELEASE_SAFETY_DATASET,
     RELEASE_SAFETY_READER,
@@ -369,11 +371,22 @@ def validate_release_evidence(payload: dict[str, Any], *, expected_commit: str) 
         "input_artifact": "canonical_png",
         "expected_split_count": expected_count,
     }
+    if (
+        type(run["dpi"]) is not int
+        or type(run["expected_split_count"]) is not int
+        or type(run["runtime_attested"]) is not bool
+    ):
+        raise EvidenceValidationError("tipo do metadado de runtime inválido")
     if any(run.get(key) != value for key, value in expected_identity.items()):
         raise EvidenceValidationError("identidade da evidência diverge do candidato")
+    timestamp = run["timestamp"]
+    try:
+        parsed_timestamp = datetime.strptime(timestamp, "%Y%m%dT%H%M%SZ")
+    except (TypeError, ValueError) as exc:
+        raise EvidenceValidationError("metadado de runtime da evidência inválido") from exc
     if (
-        type(run["timestamp"]) is not str
-        or re.fullmatch(r"\d{8}T\d{6}Z", run["timestamp"]) is None
+        type(timestamp) is not str
+        or parsed_timestamp.strftime("%Y%m%dT%H%M%SZ") != timestamp
         or type(run["tesseract_version"]) is not str
         or not 1 <= len(run["tesseract_version"]) <= 128
         or not run["tesseract_version"].isprintable()
@@ -398,8 +411,7 @@ def validate_release_evidence(payload: dict[str, Any], *, expected_commit: str) 
 
     parser_ceiling = _mapping(payload["parser_ceiling"])
     _expect_exact_keys(parser_ceiling, _PARSER_CEILING_KEYS)
-    note = parser_ceiling["note"]
-    if type(note) is not str or not note or len(note) > 300 or not note.isprintable():
+    if parser_ceiling["note"] != PARSER_CEILING_NOTE:
         raise EvidenceValidationError("nota do parser ceiling inválida")
     for key in _PARSER_CEILING_KEYS - {"note"}:
         _nonnegative_int(parser_ceiling[key])

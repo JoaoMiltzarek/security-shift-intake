@@ -71,7 +71,7 @@ def valid_release_payload() -> dict[str, Any]:
         "n_sheets_ran": 45,
         "reader_metrics": _metrics(45),
         "parser_ceiling": {
-            "note": "teto estrutural do parser line-based",
+            "note": publisher.PARSER_CEILING_NOTE,
             "item_present": 0,
             "acao_present": 0,
             "resolvido_present": 0,

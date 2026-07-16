@@ -63,6 +63,10 @@ RELEASE_SAFETY_DATASET = "bench-balanced"
 RELEASE_SAFETY_SPLIT = "val"
 RELEASE_SAFETY_READER = "local_ocr"
 PUBLIC_SUMMARY_SCHEMA = "ssi-tier-c-eval-summary/v1"
+PARSER_CEILING_NOTE = (
+    "item/acao/resolvido saem missing POR CONSTRUCAO do extractor "
+    "line-based; teto estrutural, fora da comparacao de leitores (§12)"
+)
 
 # Campos de linha por família (contrato §12).
 _PARSER_CEILING_FIELDS = ("item", "acao", "resolvido")
@@ -408,10 +412,7 @@ def aggregate(per_sheet: list[dict[str, Any]]) -> dict[str, Any]:
         "n_sheets_ran": len(ran),
         "reader_metrics": _bucket(ran),
         "parser_ceiling": {
-            "note": (
-                "item/acao/resolvido saem missing POR CONSTRUCAO do extractor "
-                "line-based; teto estrutural, fora da comparacao de leitores (§12)"
-            ),
+            "note": PARSER_CEILING_NOTE,
             "item_present": _sum("ceiling_item_present", ran),
             "acao_present": _sum("ceiling_acao_present", ran),
             "resolvido_present": _sum("ceiling_resolvido_present", ran),
