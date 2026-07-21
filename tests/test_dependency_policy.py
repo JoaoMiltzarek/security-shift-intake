@@ -18,15 +18,20 @@ def test_runtime_pdf_backend_excludes_pymupdf_and_uses_pdfium() -> None:
     assert "pypdfium2" in locked_names
 
 
-def test_testclient_uses_httpx2_and_blocks_deprecated_fallback() -> None:
+def test_testclient_uses_native_httpx_and_blocks_deprecated_fallback() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+    runtime_dependencies = [
+        dependency.lower() for dependency in pyproject["project"]["dependencies"]
+    ]
     dev_dependencies = [dependency.lower() for dependency in pyproject["dependency-groups"]["dev"]]
     locked_names = {package["name"].lower() for package in lock["package"]}
     warnings = pyproject["tool"]["pytest"]["ini_options"].get("filterwarnings", [])
 
-    assert any(dependency.startswith("httpx2") for dependency in dev_dependencies)
-    assert "httpx2" in locked_names
+    assert any(dependency.startswith("httpx") for dependency in runtime_dependencies)
+    assert not any(dependency.startswith("httpx2") for dependency in dev_dependencies)
+    assert "httpx" in locked_names
+    assert "httpx2" not in locked_names
     assert "error::starlette.exceptions.StarletteDeprecationWarning" in warnings
 
 
