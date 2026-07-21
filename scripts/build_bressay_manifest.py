@@ -81,10 +81,7 @@ def main(argv: list[str]) -> int:
         "--bressay-dir",
         type=Path,
         default=_DEFAULT_BRESSAY_DIR,
-        help=(
-            "pasta da release (contém sets/ e data/); "
-            "default: $BRESSAY_DIR ou datasets/bressay"
-        ),
+        help=("pasta da release (contém sets/ e data/); default: $BRESSAY_DIR ou datasets/bressay"),
     )
     parser.add_argument(
         "--level",

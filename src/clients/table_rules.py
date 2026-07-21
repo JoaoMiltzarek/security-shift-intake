@@ -41,9 +41,7 @@ def _is_sa(text: str) -> bool:
     return bool(_SA.match(text.strip()))
 
 
-def _found(
-    value: str, evidence: str, confidence: float, page: int | None = None
-) -> AuditedField:
+def _found(value: str, evidence: str, confidence: float, page: int | None = None) -> AuditedField:
     return AuditedField(
         value=value,
         confidence=confidence,

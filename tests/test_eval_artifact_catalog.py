@@ -21,10 +21,7 @@ EXPECTED_ARTIFACTS = {
     "docs/eval_real_summary.json",
     "docs/eval_synthetic_summary.json",
 }
-RELEASE_PATH = (
-    "docs/evals/releases/v1.0.0/"
-    "eval-safety.bench-balanced.val.local_ocr.dpi150.json"
-)
+RELEASE_PATH = "docs/evals/releases/v1.0.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
 
 
 def _catalog() -> dict[str, object]:
@@ -121,7 +118,8 @@ def test_catalog_metadata_uses_closed_values() -> None:
 
 
 def test_catalog_contract_accepts_the_future_published_state(
-    tmp_path: Path, monkeypatch,
+    tmp_path: Path,
+    monkeypatch,
 ) -> None:
     catalog = _catalog()
     artifacts = catalog["artifacts"]

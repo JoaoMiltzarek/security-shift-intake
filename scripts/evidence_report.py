@@ -93,9 +93,7 @@ def _preflight_summary(raw: str | None) -> str | None:
         else {}
     )
     browser = (
-        cast(dict[str, Any], payload.get("browser"))
-        if type(payload.get("browser")) is dict
-        else {}
+        cast(dict[str, Any], payload.get("browser")) if type(payload.get("browser")) is dict else {}
     )
     dirty = (
         cast(dict[str, Any], payload.get("dirty_tree"))

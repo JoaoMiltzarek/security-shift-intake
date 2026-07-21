@@ -82,9 +82,7 @@ def rasterize_pdf(path: Path, dpi: int = DEFAULT_DPI) -> list[Image.Image]:
         try:
             page_count = len(document)
             if page_count != MAX_PAGES:
-                raise IngestLimitError(
-                    "PDF page budget is exactly 1 (single-page v1 document)."
-                )
+                raise IngestLimitError("PDF page budget is exactly 1 (single-page v1 document).")
 
             expected_sizes: list[tuple[int, int]] = []
             total_pixels = 0

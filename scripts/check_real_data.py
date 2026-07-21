@@ -24,9 +24,7 @@ from hashlib import sha256
 from pathlib import Path
 
 # Binary / attachment extensions that should never be committed (real scans etc.).
-_BINARY_EXT = re.compile(
-    r"\.(pdf|jpe?g|png|webp|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE
-)
+_BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|webp|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
 
 # SQLite databases (the approval-gate store) can accrue real PII — allowed only in
 # private/ (gitignored). Blocked as an extension wherever this guard inspects a file.

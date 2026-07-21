@@ -167,9 +167,7 @@ def test_ui_edit_reports_concurrent_operation_as_conflict(
         raise repository.DraftOperationConflictError("operation in progress")
 
     monkeypatch.setattr(repository, "update_state", conflict)
-    response = client.post(
-        f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "reviewed"}
-    )
+    response = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "reviewed"})
 
     assert response.status_code == 409
 

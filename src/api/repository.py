@@ -35,9 +35,7 @@ _DRAFT_LOCKS: dict[tuple[int, int], threading.Lock] = {}
 
 
 @contextmanager
-def draft_operation_lock(
-    session: Session, draft_id: int, *, wait: bool
-) -> Iterator[None]:
+def draft_operation_lock(session: Session, draft_id: int, *, wait: bool) -> Iterator[None]:
     """Serialize one draft inside the supported single-process v1 runtime."""
     key = (id(session.get_bind()), draft_id)
     with _DRAFT_LOCKS_GUARD:

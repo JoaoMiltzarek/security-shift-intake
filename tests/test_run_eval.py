@@ -70,9 +70,7 @@ def test_main_defaults_to_private_diagnostics(monkeypatch) -> None:
     monkeypatch.setattr(run_eval, "build_metrics", lambda **_kwargs: {})
     monkeypatch.setattr(run_eval, "render_report", lambda _metrics: "")
 
-    def capture_output(
-        _metrics: dict, _report: str, out_dir: Path
-    ) -> tuple[Path, Path]:
+    def capture_output(_metrics: dict, _report: str, out_dir: Path) -> tuple[Path, Path]:
         observed["out_dir"] = out_dir
         return out_dir / "metrics.json", out_dir / "EVAL_REPORT.md"
 
@@ -83,9 +81,7 @@ def test_main_defaults_to_private_diagnostics(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("out_dir", [Path("."), Path("docs"), Path("data")])
-def test_main_refuses_generated_artifacts_in_public_repo_paths(
-    monkeypatch, out_dir: Path
-) -> None:
+def test_main_refuses_generated_artifacts_in_public_repo_paths(monkeypatch, out_dir: Path) -> None:
     def fail_if_called(**_kwargs):
         raise AssertionError("metrics must not run for an unsafe output path")
 
