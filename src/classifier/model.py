@@ -19,15 +19,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
-# Keyword -> type rules for the rule baseline (Portuguese surface terms).
-# Order matters: more specific terms first (e.g. theft before equipment).
-_KEYWORD_RULES: list[tuple[tuple[str, ...], str]] = [
-    (("furto", "subtracao"), "theft"),
-    (("acesso", "cracha"), "access_violation"),
-    (("incendio", "alarme", "vazamento", "risco"), "safety"),
-    (("equip", "camera", "portao", "monit"), "equipment"),
-    (("diversa", "atipica", "complementar"), "other"),
-]
+from src.classifier.rules import keyword_predict as keyword_predict
 
 
 def build_pipeline() -> Pipeline:
@@ -54,20 +46,3 @@ def predict(pipeline: Pipeline, texts: list[str]) -> list[str]:
 def majority_label(labels: list[str]) -> str:
     """Most frequent label in *labels* (the majority-class baseline)."""
     return Counter(labels).most_common(1)[0][0]
-
-
-def keyword_predict(texts: list[str]) -> list[str]:
-    """Rule baseline: map by keyword; empty -> routine; no match -> other."""
-    out: list[str] = []
-    for text in texts:
-        lowered = text.lower()
-        if not lowered.strip():
-            out.append("routine")
-            continue
-        label = "other"
-        for keywords, mapped in _KEYWORD_RULES:
-            if any(k in lowered for k in keywords):
-                label = mapped
-                break
-        out.append(label)
-    return out

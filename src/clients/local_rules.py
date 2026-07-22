@@ -14,7 +14,7 @@ as missing. Pre-fill to save typing, but the human confirms — like ExpenseIt.
 
 from __future__ import annotations
 
-from src.classifier.model import keyword_predict
+from src.classifier.rules import keyword_predict
 from src.clients.base import ClassificationResult, ExtractedFieldRaw
 from src.schema.config import FieldSchema, ReportConfig
 
