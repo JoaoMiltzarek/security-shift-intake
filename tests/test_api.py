@@ -16,12 +16,14 @@ from src.api import repository
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 
 # Estes corpos usam o formulário ESCALAR legado — config explícita, não o default tabular.
-_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
+_TABLE_CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 _SUBMIT_BODY = {
+    "report_type": _TABLE_CONFIG.report_type,
+    "config_sha256": config_fingerprint(_TABLE_CONFIG),
     "source_pdf": "report.pdf",
     "transcription": "Vigilante: A. Souza ...",
     "recipients": ["tech_security", "general_support"],
@@ -33,8 +35,20 @@ _SUBMIT_BODY = {
         "confidence": 0.9,
     },
     "extracted_fields": [
-        {"name": "guard_name", "value": "A. Souza", "confidence": 0.95, "must_review": False}
+        {"name": "data_turno", "value": "15/01/2026", "confidence": 1.0},
+        {"name": "vigilantes", "value": "A. Souza", "confidence": 1.0},
+        {"name": "unidade", "value": "Portaria 1", "confidence": 1.0},
+        {"name": "ocorrencias", "value": "Furto", "confidence": 1.0},
     ],
+    "normalized": {
+        "shift": {
+            "date": "15/01/2026",
+            "guards": ["A. Souza"],
+            "unit": "Portaria 1",
+        },
+        "disposition": "present",
+        "occurrences": [{"category": "Furto", "description": "Material subtraÃ­do"}],
+    },
 }
 
 
@@ -44,7 +58,7 @@ def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     app = create_app(
         engine=make_engine("sqlite://"),
         sender=sender,
-        config=_SCALAR_CONFIG,
+        config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as client:
@@ -62,7 +76,14 @@ def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
 def _edit(client: TestClient, draft_id: int, **fields: str):
     return client.post(
         f"/ui/drafts/{draft_id}/edit",
-        data={**_snapshot(client, draft_id), **fields},
+        data={
+            **_snapshot(client, draft_id),
+            "field__data_turno": "16/01/2026",
+            "field__vigilantes": "A. Souza",
+            "field__unidade": "Portaria 1",
+            "disposicao": "sem_alteracao",
+            **fields,
+        },
     )
 
 

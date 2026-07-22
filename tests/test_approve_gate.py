@@ -15,14 +15,19 @@ from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import DraftNotReviewableError, MockSender, assert_reviewable
 from src.schema.extraction import NormalizedIncidentModel
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 from src.schema.state import PipelineState
 
 # Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
-_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
+_TABLE_CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
+_IDENTITY = {
+    "report_type": _TABLE_CONFIG.report_type,
+    "config_sha256": config_fingerprint(_TABLE_CONFIG),
+}
 
 # Body whose critic output still has a pending field (must_review_fields non-empty).
 _PENDING_BODY = {
+    **_IDENTITY,
     "source_pdf": "report.pdf",
     "transcription": "x",
     "recipients": ["general_support"],
@@ -34,18 +39,18 @@ _PENDING_BODY = {
         "confidence": 0.6,
     },
     "extracted_fields": [
-        {"name": "guard_name", "value": None, "confidence": 0.0, "must_review": True}
+        {"name": "data_turno", "value": None, "confidence": 0.0, "must_review": True}
     ],
-    "must_review_fields": ["guard_name"],
+    "must_review_fields": ["data_turno"],
+    "normalized": {"disposition": "unknown"},
 }
 
 # Body whose fields are all resolved (must_review_fields empty) — approvable.
 _CLEAN_BODY = {
     **_PENDING_BODY,
-    "extracted_fields": [
-        {"name": "guard_name", "value": "A. Souza", "confidence": 1.0, "must_review": False}
-    ],
+    "extracted_fields": [{"name": "data_turno", "value": "15/01/2026", "confidence": 1.0}],
     "must_review_fields": [],
+    "normalized": {"disposition": "none"},
 }
 
 # Body where OCR failed but the critic left no pending field — must still be blocked.
@@ -61,7 +66,7 @@ def client() -> Iterator[TestClient]:
     app = create_app(
         engine=make_engine("sqlite://"),
         sender=MockSender(),
-        config=_SCALAR_CONFIG,
+        config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as c:

@@ -11,12 +11,14 @@ from fastapi.testclient import TestClient
 from src.api.app import MAX_FORM_VALUE_CHARS, MAX_REQUEST_BODY_BYTES, create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
-from src.schema.loader import load_config
+from src.schema.loader import config_fingerprint, load_config
 
 # Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
-_SCALAR_CONFIG = load_config(Path("configs/htmicron_security.yaml"))
+_TABLE_CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 _BODY = {
+    "report_type": _TABLE_CONFIG.report_type,
+    "config_sha256": config_fingerprint(_TABLE_CONFIG),
     "source_pdf": "report.pdf",
     "transcription": "Vigilante: A. Souza. Furto no patio.",
     "recipients": ["tech_security", "general_support"],
@@ -28,9 +30,16 @@ _BODY = {
         "confidence": 0.9,
     },
     "extracted_fields": [
-        {"name": "guard_name", "value": "A. Souza", "confidence": 0.95, "must_review": False},
-        {"name": "shift_date", "value": None, "confidence": 0.2, "must_review": True},
+        {"name": "data_turno", "value": None, "confidence": 0.2, "must_review": True},
+        {"name": "vigilantes", "value": "A. Souza", "confidence": 0.95},
+        {"name": "unidade", "value": "Portaria 1", "confidence": 0.95},
+        {"name": "ocorrencias", "value": "Furto", "confidence": 0.95},
     ],
+    "normalized": {
+        "shift": {"guards": ["A. Souza"], "unit": "Portaria 1"},
+        "disposition": "present",
+        "occurrences": [{"category": "Furto", "description": "Material subtraÃ­do"}],
+    },
 }
 
 
@@ -40,7 +49,7 @@ def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
     app = create_app(
         engine=make_engine("sqlite://"),
         sender=sender,
-        config=_SCALAR_CONFIG,
+        config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as client:
@@ -200,7 +209,7 @@ def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
     app = create_app(
         engine=engine,
         sender=MockSender(),
-        config=_SCALAR_CONFIG,
+        config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as client:
@@ -224,7 +233,7 @@ def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
     app = create_app(
         engine=engine,
         sender=MockSender(),
-        config=_SCALAR_CONFIG,
+        config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as client:
@@ -295,15 +304,14 @@ def test_every_mutation_rejects_draft_from_a_different_config() -> None:
     from sqlmodel import Session
 
     from src.api.repository import create_draft
-    from src.schema.loader import config_fingerprint
     from src.schema.state import PipelineState
 
     engine = make_engine("sqlite://")
     app = create_app(engine=engine)  # release default: controle_ocorrencias
     foreign = PipelineState(
         source_pdf=Path("legacy-scalar.pdf"),
-        report_type=_SCALAR_CONFIG.report_type,
-        config_sha256=config_fingerprint(_SCALAR_CONFIG),
+        report_type="legacy_scalar",
+        config_sha256="0" * 64,
     )
     with Session(engine) as session:
         draft = create_draft(session, foreign)
@@ -315,7 +323,7 @@ def test_every_mutation_rejects_draft_from_a_different_config() -> None:
         responses = [
             client.post(
                 f"/ui/drafts/{draft_id}/edit",
-                data={**snapshot, "field__guard_name": "revisado"},
+                data={**snapshot, "field__data_turno": "revisado"},
             ),
             client.post(f"/drafts/{draft_id}/approve", params=snapshot),
             client.post(f"/drafts/{draft_id}/reject", params=snapshot),
