@@ -29,10 +29,10 @@ from typing import Literal, NamedTuple
 from PIL import Image, ImageDraw, ImageFont
 
 from data.generators.fonts import Font, discover_handwriting_fonts
-from data.generators.messiness import CROSSOUT_CLOSE, CROSSOUT_OPEN
 from data.generators.messiness_table import SheetSurface
 from data.generators.occurrences import SheetRecord
 from data.generators.render import RENDER_HEIGHT, RENDER_WIDTH, _draw_handwritten, _wrap
+from data.generators.surface_ops import CROSSOUT_CLOSE, CROSSOUT_OPEN
 
 Variant = Literal["controle_A", "controle_B", "controle_C"]
 VARIANTS: tuple[Variant, ...] = ("controle_A", "controle_B", "controle_C")

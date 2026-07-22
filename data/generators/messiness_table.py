@@ -21,20 +21,20 @@ import random
 
 from pydantic import BaseModel
 
-from data.generators.messiness import (
+from data.generators.occurrences import SheetRecord
+from data.generators.surface_ops import (
     P_ABBREVIATE,
     P_AMBIGUOUS_CHAR,
     P_BLANK_OPTIONAL,
     P_CROSSOUT,
     P_MISSPELL,
     P_PARTIAL_DESCRIPTION,
-    _abbreviate,
-    _ambiguous_swap,
-    _crossout,
-    _misspell,
-    _partial,
+    abbreviate,
+    ambiguous_swap,
+    crossout,
+    misspell,
+    partial,
 )
-from data.generators.occurrences import SheetRecord
 
 # Campo desenhado deliberadamente ilegível (rabisco) — avaliado por RECUSA correta,
 # nunca por acerto do valor (contrato §2.2). Taxa baixa: rabisco total é raro.
@@ -73,23 +73,23 @@ def _hora_cell(entrada: str | None, saida: str | None) -> str | None:
 def _messy_descricao(rng: random.Random, text: str, path: str, applied: list[str]) -> str:
     """Aplica a suíte de ops da descrição (mesma ordem/taxas de messiness.py)."""
     if rng.random() < P_ABBREVIATE:
-        text, changed = _abbreviate(text)
+        text, changed = abbreviate(text)
         if changed:
             applied.append(f"abbreviate:{path}")
     if rng.random() < P_MISSPELL:
-        text, changed = _misspell(rng, text)
+        text, changed = misspell(rng, text)
         if changed:
             applied.append(f"misspell:{path}")
     if rng.random() < P_CROSSOUT:
-        text, changed = _crossout(rng, text)
+        text, changed = crossout(rng, text)
         if changed:
             applied.append(f"crossout:{path}")
     if rng.random() < P_PARTIAL_DESCRIPTION:
-        text, changed = _partial(rng, text)
+        text, changed = partial(rng, text)
         if changed:
             applied.append(f"partial:{path}")
     if rng.random() < P_AMBIGUOUS_CHAR:
-        text, changed = _ambiguous_swap(rng, text)
+        text, changed = ambiguous_swap(rng, text)
         if changed:
             applied.append(f"ambiguous:{path}")
     return text
@@ -102,7 +102,7 @@ def build_surface(rng: random.Random, record: SheetRecord) -> SheetSurface:
 
     unidade_text = record.unidade
     if rng.random() < P_ABBREVIATE:
-        unidade_text, changed = _abbreviate(unidade_text)
+        unidade_text, changed = abbreviate(unidade_text)
         if changed:
             applied.append("abbreviate:cabecalho.unidade")
 
@@ -112,7 +112,7 @@ def build_surface(rng: random.Random, record: SheetRecord) -> SheetSurface:
 
         hora = _hora_cell(occ.hora_entrada, occ.hora_saida)
         if hora is not None and rng.random() < P_AMBIGUOUS_CHAR:
-            hora, changed = _ambiguous_swap(rng, hora)
+            hora, changed = ambiguous_swap(rng, hora)
             if changed:
                 applied.append(f"ambiguous:{path}.hora")
 
