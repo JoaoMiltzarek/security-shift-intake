@@ -24,6 +24,7 @@ from src.api.repository import (
     list_drafts,
     set_status,
 )
+from src.schema.extraction import NormalizedIncidentModel
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -36,7 +37,11 @@ def session() -> Iterator[Session]:
 
 
 def _state() -> PipelineState:
-    return PipelineState(source_pdf=Path("report.pdf"), transcription="hello")
+    return PipelineState(
+        source_pdf=Path("report.pdf"),
+        transcription="hello",
+        normalized=NormalizedIncidentModel(disposition="none"),
+    )
 
 
 def test_create_draft_is_pending_and_audited(session: Session) -> None:
