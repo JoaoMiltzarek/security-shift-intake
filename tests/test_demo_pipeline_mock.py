@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from scripts.demo_pipeline_mock import CONFIG, OCR_INCIDENT, OCR_NO_CHANGE, SAMPLE
-from src.clients.local_rules import RuleBasedLLMClient
+from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
 from src.schema.loader import load_config
@@ -12,7 +12,9 @@ _CFG = load_config(CONFIG)
 
 
 def _run(text: str) -> object:
-    return run_pipeline(SAMPLE, MockVisionClient(text=text), RuleBasedLLMClient(_CFG), _CFG).state
+    return run_pipeline(
+        SAMPLE, MockVisionClient(text=text), RuleBasedIncidentClassifier(), _CFG
+    ).state
 
 
 def test_sample_image_exists() -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.demo_pipeline_mock import SAMPLE
-from src.clients.local_rules import RuleBasedLLMClient
+from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ocr_quality import OCR_FAILED, OCR_GOOD, OCR_LOW, assess_ocr_quality
@@ -77,7 +77,7 @@ Ronda x
 
 def test_pipeline_blocks_on_failed_ocr() -> None:
     state = run_pipeline(
-        SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedLLMClient(CFG), CFG
+        SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedIncidentClassifier(), CFG
     ).state
     assert state.ocr_quality == OCR_FAILED
     assert state.classification is not None
@@ -90,7 +90,7 @@ def test_pipeline_blocks_on_failed_ocr() -> None:
 def test_pipeline_does_not_emit_spurious_classification() -> None:
     # The whole point: garbage OCR must NOT yield e.g. access_violation/0.60.
     state = run_pipeline(
-        SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedLLMClient(CFG), CFG
+        SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedIncidentClassifier(), CFG
     ).state
     assert state.classification is not None
     assert state.classification.incident_type not in {"access_violation", "theft", "routine"}

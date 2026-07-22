@@ -18,7 +18,7 @@ from scripts.demo_pipeline_mock import OCR_INCIDENT, SAMPLE
 from src.api.app import _csv_safe, create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
-from src.clients.local_rules import RuleBasedLLMClient
+from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
 from src.schema.loader import load_config
@@ -52,7 +52,7 @@ def client() -> Iterator[TestClient]:
 
 def _submit_table_draft(client: TestClient) -> int:
     state = run_pipeline(
-        SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedLLMClient(CFG), CFG
+        SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedIncidentClassifier(), CFG
     ).state
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 

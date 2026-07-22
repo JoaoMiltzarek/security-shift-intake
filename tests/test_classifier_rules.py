@@ -26,7 +26,7 @@ def test_runtime_rule_import_does_not_load_sklearn() -> None:
         [
             sys.executable,
             "-c",
-            "import sys; import src.clients.local_rules; print('sklearn' in sys.modules)",
+            "import sys; import src.classifier.rules; print('sklearn' in sys.modules)",
         ],
         check=True,
         capture_output=True,
