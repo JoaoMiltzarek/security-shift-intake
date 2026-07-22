@@ -39,6 +39,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from src import __version__
 from src.api import repository
 from src.api.db import init_db, make_engine
+from src.api.forms import ReviewFormError, parse_occurrence_rows
 from src.api.gate import (
     DraftNotApprovedError,
     DraftNotReviewableError,
@@ -54,13 +55,11 @@ from src.clients.local_rules import RuleBasedLLMClient
 from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
 from src.pipeline.draft import draft as draft_stage
-from src.pipeline.normalize import parse_resolved, parse_times
 from src.pipeline.outputs import build_outputs, export_blockers
 from src.pipeline.route import route
 from src.pipeline.validate import validate
 from src.schema.config import ReportConfig
 from src.schema.extraction import (
-    AuditedField,
     Disposition,
     NormalizedIncidentModel,
     NormalizedOccurrence,
@@ -71,9 +70,6 @@ from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
 
 _GUARD_SPLIT = re.compile(r"[;,]| e ")
 
-# Linhas do editor 0/1/N: occ__<índice>__<coluna> — índices são POSICIONAIS
-# (full-replace a cada save; nunca patch por índice na lista antiga).
-_OCC_KEY = re.compile(r"^occ__(\d+)__(item|hora|descricao|acao|resolvido)$")
 _UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _LOCAL_ACTOR = "local_operator"
 MAX_REQUEST_BODY_BYTES = 256 * 1024
@@ -198,36 +194,6 @@ class DispositionConflictError(ValueError):
     """O input humano se contradiz (radio vs linhas) — nada é persistido."""
 
 
-def _parse_occurrence_rows(form: Any) -> list[NormalizedOccurrence]:
-    """Reconstrói a lista COMPLETA de ocorrências do form (linhas todas em branco caem)."""
-    grouped: dict[int, dict[str, str]] = {}
-    for key in form:
-        match = _OCC_KEY.match(str(key))
-        if not match:
-            continue
-        raw = form.get(key)
-        text = raw.strip() if isinstance(raw, str) else ""
-        if text:
-            grouped.setdefault(int(match.group(1)), {})[match.group(2)] = text
-    rows: list[NormalizedOccurrence] = []
-    for idx in sorted(grouped):
-        cells = grouped[idx]
-        entry, exit_ = parse_times(AuditedField(value=cells.get("hora")))
-        rows.append(
-            NormalizedOccurrence(
-                category=cells.get("item"),
-                entry_time=entry,
-                exit_time=exit_,
-                description=cells.get("descricao"),
-                action=cells.get("acao"),
-                resolved=parse_resolved(AuditedField(value=cells.get("resolvido"))),
-                # Linha confirmada pelo humano quando as colunas essenciais existem.
-                needs_review=not (cells.get("item") and cells.get("descricao")),
-            )
-        )
-    return rows
-
-
 def _resolve_disposition(
     form: Any, current: NormalizedIncidentModel, rows: list[NormalizedOccurrence]
 ) -> tuple[Disposition, list[NormalizedOccurrence]]:
@@ -288,7 +254,7 @@ def _edit_table(
         raw = form.get(f"field__{name}")
         return raw.strip() if isinstance(raw, str) and raw.strip() else None
 
-    rows = _parse_occurrence_rows(form)
+    rows = parse_occurrence_rows(form)
     disposition, occurrences = _resolve_disposition(form, current, rows)
     guards_text = fval("vigilantes")
     norm = NormalizedIncidentModel(
@@ -1111,7 +1077,7 @@ def create_app(
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
             try:
                 state = _edit_table(state, form, active_config, active_llm)
-            except DispositionConflictError as exc:
+            except (DispositionConflictError, ReviewFormError) as exc:
                 # Contradição no input: NADA persiste; re-renderiza com o erro visível.
                 ctx_err: dict[str, Any] = {
                     "audit": repository.get_audit(session, draft_id),

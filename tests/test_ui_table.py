@@ -337,6 +337,35 @@ def test_rows_without_disposition_radio_are_rejected(client: TestClient) -> None
     assert _state_of(client, draft_id) == before
 
 
+@pytest.mark.parametrize(
+    "invalid_cells",
+    [
+        {"occ__1__item": "Alarme", "occ__1__hora": "99:99", "occ__1__descricao": "Teste"},
+        {
+            "occ__1__item": "Alarme",
+            "occ__1__descricao": "Teste",
+            "occ__1__resolvido": "talvez",
+        },
+        {"occ__1__item": "Alarme"},
+        {"occ__11__item": "Excesso", "occ__11__descricao": "Décima primeira"},
+    ],
+)
+def test_invalid_occurrence_edit_is_rejected_without_persisting(
+    client: TestClient, invalid_cells: dict[str, str]
+) -> None:
+    draft_id = _submit_table_draft(client)
+    before = client.get(f"/drafts/{draft_id}").json()
+    form = {**_headers_form(), "disposicao": "com_ocorrencias", **invalid_cells}
+
+    response = _edit(client, draft_id, form)
+    after = client.get(f"/drafts/{draft_id}").json()
+
+    assert response.status_code == 200
+    assert "edit-error" in response.text
+    assert after["state"] == before["state"]
+    assert after["audit"] == before["audit"]
+
+
 def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
     """Mudar o conteúdo revisado muda classificação e destinatários (F-03): o texto
     canônico revisado é reclassificado e o routing recalculado no mesmo save."""
