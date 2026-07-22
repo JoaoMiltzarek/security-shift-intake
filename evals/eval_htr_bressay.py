@@ -30,8 +30,8 @@ from pathlib import Path
 from typing import Any
 
 from evals.metrics import cer, wer
+from evals.readers.factory import get_evaluation_reader
 from src.clients.base import DocumentReader
-from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient, tesseract_available
 from src.pipeline.ingest import Deadline, load_page_artifacts
 
@@ -117,7 +117,7 @@ def run(
 
     # VLM column — graceful if no local server is reachable (no fabricated number).
     try:
-        client = get_vision_client(vision_name)
+        client = get_evaluation_reader(vision_name)
         result["vlm"] = {"model": vision_name, **_score_client(client, pairs)}
     except RuntimeError as exc:
         result["vlm"] = {"model": vision_name, "available": False, "reason": str(exc)}
@@ -129,7 +129,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="BRESSAY HTR eval: Tesseract vs local VLM.")
     parser.add_argument("--dataset-dir", type=Path, default=DEFAULT_DATASET_DIR)
     parser.add_argument("--n", type=int, default=50, help="max samples to score")
-    parser.add_argument("--vision", default="local_vlm", help="INTAKE_VISION client for the VLM")
+    parser.add_argument("--vision", default="local_vlm", help="evaluation reader for the VLM")
     args = parser.parse_args(argv)
 
     result = run(dataset_dir=args.dataset_dir, n=args.n, vision_name=args.vision)

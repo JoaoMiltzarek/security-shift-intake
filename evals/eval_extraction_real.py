@@ -46,13 +46,13 @@ from typing import Any
 import httpx
 
 from evals.metrics import cer, levenshtein
+from evals.readers.factory import get_evaluation_reader
 from evals.readers.local_vlm import _TRANSCRIPTION_PROMPT
 from evals.readers.settings import get_vlm_base_url, get_vlm_model
 from scripts.privacy_check import scan_text_for_pii
 from src.api.gate import DraftNotReviewableError, assert_reviewable
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.base import DocumentReader, RuntimeMetadataProvider
-from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.orchestrator import run_pipeline
 from src.paths import PRIVATE_ROOT, REPO_ROOT, resolve_private_path
@@ -985,7 +985,7 @@ def _instrumented(args: argparse.Namespace) -> int:
         curadoria = curadoria[: args.n]
 
     config = load_config(TABLE_CONFIG_PATH)
-    vision = get_vision_client(args.vision)
+    vision = get_evaluation_reader(args.vision)
     meta = run_metadata(args.vision, args.dpi, vision=vision)
     per_sheet = [
         run_sheet(

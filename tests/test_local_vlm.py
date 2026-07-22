@@ -14,6 +14,7 @@ import httpx
 import pytest
 from PIL import Image
 
+from evals.readers.factory import get_evaluation_reader
 from evals.readers.local_vlm import (
     LocalVLMVisionClient,
     _build_payload,
@@ -22,7 +23,6 @@ from evals.readers.local_vlm import (
     _parse_text,
 )
 from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
-from src.clients.factory import get_vision_client
 from src.pipeline.ingest import Deadline, PageArtifact
 
 
@@ -155,31 +155,30 @@ def test_parse_text_requires_content() -> None:
         _parse_text(_ChatResponse.model_validate({"choices": []}))
 
 
-# --- factory: selection by env var ---
+# --- evaluation-only reader factory ---
 
 
-def test_factory_default_is_local_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_product_factory_default_is_local_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.clients.factory import get_vision_client
     from src.clients.local_ocr import LocalOCRVisionClient
 
-    monkeypatch.delenv("INTAKE_VISION", raising=False)
+    monkeypatch.setenv("INTAKE_VISION", "local_vlm")
     assert isinstance(get_vision_client(), LocalOCRVisionClient)
 
 
-def test_factory_selects_local_vlm(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INTAKE_VISION", "local_vlm")
-    assert isinstance(get_vision_client(), LocalVLMVisionClient)
+def test_evaluation_factory_selects_local_vlm() -> None:
+    assert isinstance(get_evaluation_reader("local_vlm"), LocalVLMVisionClient)
 
 
-def test_factory_explicit_arg_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INTAKE_VISION", "local_vlm")
+def test_evaluation_factory_selects_mock() -> None:
     from src.clients.mock import MockVisionClient
 
-    assert isinstance(get_vision_client("mock"), MockVisionClient)
+    assert isinstance(get_evaluation_reader("mock"), MockVisionClient)
 
 
-def test_factory_unknown_name_raises() -> None:
-    with pytest.raises(ValueError, match="Unknown INTAKE_VISION"):
-        get_vision_client("does-not-exist")
+def test_evaluation_factory_unknown_name_raises() -> None:
+    with pytest.raises(ValueError, match="Unknown evaluation reader"):
+        get_evaluation_reader("does-not-exist")
 
 
 def test_default_transport_never_inherits_proxy_environment(

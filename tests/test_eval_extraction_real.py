@@ -585,7 +585,7 @@ def test_instrumented_real_eval_enforces_private_source_boundary(
 
     monkeypatch.setattr(mod, "load_curadoria", lambda: [_occ_sheet()])
     monkeypatch.setattr(mod, "load_config", lambda _path: TABLE_CONFIG)
-    monkeypatch.setattr(mod, "get_vision_client", lambda _name: _EmptyVision())
+    monkeypatch.setattr(mod, "get_evaluation_reader", lambda _name: _EmptyVision())
     monkeypatch.setattr(mod, "run_sheet", fake_run_sheet)
     monkeypatch.setattr(mod, "AUDIT_DIR", tmp_path / "audit")
 

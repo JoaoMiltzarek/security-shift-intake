@@ -17,8 +17,8 @@ from data.tier_c_contract import TierCContractError
 from evals import eval_extraction_real as real_ev
 from evals import eval_extraction_synthetic as ev
 from evals.eval_extraction_real import TABLE_CONFIG_PATH, load_curadoria
+from evals.readers.factory import get_evaluation_reader
 from scripts.privacy_check import scan_text_for_pii
-from src.clients.factory import get_vision_client
 from src.schema.extraction import NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config
 
@@ -52,7 +52,7 @@ def test_smoke_50_mock_no_false_incident(smoke_dir: Path) -> None:
     gts = load_curadoria(smoke_dir / "gt", valid_status={"synthetic_ground_truth"})
     assert len(gts) == 50
     config = load_config(TABLE_CONFIG_PATH)
-    vision = get_vision_client("mock")
+    vision = get_evaluation_reader("mock")
     results = [ev.evaluate_sheet(cur, config, vision, dpi=150) for cur in gts]
     assert all(r["available"] and r["ran"] for r in results)  # sem crash, 50/50
     assert sum(1 for r in results if r.get("false_incident")) == 0
@@ -201,7 +201,7 @@ def test_output_dir_inside_docs_is_rejected_before_reader_construction(
     def unexpected_reader(_name: str) -> object:
         raise AssertionError("o reader não pode ser criado para um destino proibido")
 
-    monkeypatch.setattr(ev, "get_vision_client", unexpected_reader)
+    monkeypatch.setattr(ev, "get_evaluation_reader", unexpected_reader)
 
     with pytest.raises(SystemExit) as exc_info:
         ev.main(
@@ -294,7 +294,7 @@ def test_safety_rejects_disconnected_operational_gates_even_when_old_proxy_is_sa
     monkeypatch.setattr(real_ev, "assert_reviewable", lambda _state: None)
     monkeypatch.setattr(real_ev, "export_blockers", lambda _state: [])
 
-    result = ev.evaluate_sheet(cur, config, get_vision_client("mock"), dpi=150)
+    result = ev.evaluate_sheet(cur, config, get_evaluation_reader("mock"), dpi=150)
     reader = ev.aggregate([result])["reader_metrics"]
 
     assert result["parse_table_success"] is False
@@ -403,7 +403,7 @@ def test_release_gate_rejects_mock_before_reader_factory(
     def forbidden_reader(_name: str) -> object:
         raise AssertionError("mock must be rejected before reader construction")
 
-    monkeypatch.setattr(ev, "get_vision_client", forbidden_reader)
+    monkeypatch.setattr(ev, "get_evaluation_reader", forbidden_reader)
     out = tmp_path / "mock-release"
     rc = ev.main(
         [
@@ -452,7 +452,7 @@ def test_release_gate_rejects_incomplete_runtime_before_evaluation(
         raise AssertionError("sheets must not run under an unattested runtime")
 
     monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
-    monkeypatch.setattr(ev, "get_vision_client", lambda _name: EnglishOnlyOCR())
+    monkeypatch.setattr(ev, "get_evaluation_reader", lambda _name: EnglishOnlyOCR())
     monkeypatch.setattr(ev, "evaluate_sheet", forbidden_evaluation)
     out = tmp_path / "unattested"
     rc = ev.main(
@@ -485,7 +485,7 @@ def test_require_safety_gates_rejects_noncanonical_smoke_before_reader(
     def forbidden_reader(_name: str) -> object:
         raise AssertionError("reader must not be constructed for an invalid release request")
 
-    monkeypatch.setattr(ev, "get_vision_client", forbidden_reader)
+    monkeypatch.setattr(ev, "get_evaluation_reader", forbidden_reader)
     out = tmp_path / "noncanonical"
     rc = ev.main(
         [
@@ -519,7 +519,7 @@ def test_require_safety_gates_fails_before_reader_when_contract_is_invalid(
         raise AssertionError("reader must not be constructed before contract verification")
 
     monkeypatch.setattr(ev, "load_verified_canonical_split", invalid_contract)
-    monkeypatch.setattr(ev, "get_vision_client", forbidden_reader)
+    monkeypatch.setattr(ev, "get_evaluation_reader", forbidden_reader)
     out = tmp_path / "invalid-contract"
     rc = ev.main(
         [
@@ -571,7 +571,7 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
             }
 
     monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
-    monkeypatch.setattr(ev, "get_vision_client", lambda _name: AttestedOCR())
+    monkeypatch.setattr(ev, "get_evaluation_reader", lambda _name: AttestedOCR())
     monkeypatch.setattr(ev, "evaluate_sheet", unavailable_reader)
     out = tmp_path / "unavailable"
     rc = ev.main(

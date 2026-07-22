@@ -49,8 +49,8 @@ from evals.eval_extraction_real import (
     run_sheet,
 )
 from evals.metrics import cer
+from evals.readers.factory import get_evaluation_reader
 from scripts.privacy_check import scan_text_for_pii
-from src.clients.factory import get_vision_client
 from src.clients.table_rules import RuleBasedTableExtractor
 from src.paths import REPO_ROOT
 from src.pipeline.normalize import normalize
@@ -521,7 +521,7 @@ def main(argv: list[str]) -> int:
             dataset = meta.get("dataset", "unknown")
 
     config = load_config(TABLE_CONFIG_PATH)
-    vision = get_vision_client(args.vision)
+    vision = get_evaluation_reader(args.vision)
     runtime_meta = run_metadata(reader=args.vision, dpi=args.dpi, vision=vision)
     if args.require_safety_gates:
         runtime_failures = _runtime_attestation_failures(runtime_meta)
