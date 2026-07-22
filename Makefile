@@ -33,7 +33,7 @@ override SAFETY_SPLIT := val
 override SAFETY_VISION := local_ocr
 
 .PHONY: help install lint format format-check typecheck test check audit-deps \
-        validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-pipeline \
+        validate-config gen-pdfs gen-sheets gen-safety-sheets demo-pipeline \
         demo demo-pipeline-mock serve eval-bressay eval-real eval-synthetic eval-safety \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
@@ -48,7 +48,6 @@ help:
 	@echo   make check           - format-check + lint + typecheck + test
 	@echo   make audit-deps      - fail on known vulnerabilities in the locked environment
 	@echo   make validate-config - [M1] validate configs against the schema
-	@echo   make gen-data        - [M2] generate Tier A synthetic records
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make gen-safety-sheets - generate the exact bench-balanced/val release corpus
@@ -93,9 +92,6 @@ audit-deps:
 
 validate-config:
 	uv run --locked python -m scripts.validate_config configs/controle_ocorrencias.yaml
-
-gen-data:
-	uv run --locked python -m scripts.gen_data
 
 gen-pdfs:
 	uv run --locked python -m scripts.gen_pdfs
