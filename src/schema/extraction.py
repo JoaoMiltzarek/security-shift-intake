@@ -17,6 +17,8 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+from src.schema.evidence import BBox
+
 # De onde veio o valor de um campo e em que estado de confiança ele está (plano R2).
 FieldSource = Literal["ocr", "rule", "human"]
 FieldStatus = Literal["accepted", "must_review", "missing", "ambiguous"]
@@ -35,7 +37,7 @@ class AuditedField(BaseModel):
     # Trecho de OCR usado para este valor (quando disponível). Pode conter PII → só em private/.
     evidence: str | None = None
     # Evidência visual (PR2): região provável na imagem (frações 0..1), nunca prova.
-    bbox: tuple[float, float, float, float] | None = None
+    bbox: BBox | None = None
     page: int | None = None
     evidence_method: str | None = None  # exact | token_window | none | human_edit
     evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)

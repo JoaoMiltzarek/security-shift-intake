@@ -24,6 +24,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.clients.base import WordBox
+from src.schema.evidence import BBox
 from src.schema.extraction import (
     NormalizedIncidentModel,
     RawDocumentExtraction,
@@ -57,7 +58,7 @@ class ExtractedField(BaseModel):
     # Evidence (PR2): where on the page this value most likely came from. bbox is a
     # *probable* region (fractions 0..1), never proof. None when the locator found no
     # match, the reader emitted no geometry, or a human edited the value.
-    bbox: tuple[float, float, float, float] | None = None
+    bbox: BBox | None = None
     page: int | None = None
     evidence_text: str | None = None
     evidence_method: str | None = None  # exact | token_window | none | human_edit

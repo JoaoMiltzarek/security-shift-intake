@@ -24,11 +24,10 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from src.clients.base import WordBox
+from src.schema.evidence import BBox
 
 if TYPE_CHECKING:
     from src.schema.state import ExtractedField
-
-Bbox = tuple[float, float, float, float]
 
 
 def _norm(text: str) -> str:
@@ -43,7 +42,7 @@ def _tokens(text: str) -> list[str]:
     return [t for t in (_norm(w) for w in str(text).split()) if t]
 
 
-def _union(boxes: list[Bbox]) -> Bbox:
+def _union(boxes: list[BBox]) -> BBox:
     """Smallest box covering all of *boxes* (assumes non-empty)."""
     x0 = min(b[0] for b in boxes)
     y0 = min(b[1] for b in boxes)
@@ -55,7 +54,7 @@ def _union(boxes: list[Bbox]) -> Bbox:
 class EvidenceMatch(BaseModel):
     """Where a field value most likely sits on the page (probable, not proof)."""
 
-    bbox: Bbox | None = None
+    bbox: BBox | None = None
     method: str = "none"  # exact | token_window | none
     score: float = 0.0
     evidence_text: str | None = None

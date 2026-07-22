@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from src.schema.evidence import BBox
+
 if TYPE_CHECKING:
     from src.pipeline.ingest import Deadline, PageArtifact
 
@@ -27,7 +29,7 @@ class WordBox(BaseModel):
 
     text: str
     # (x0, y0, x1, y1) as fractions 0..1 of the source image (top-left origin).
-    bbox: tuple[float, float, float, float]
+    bbox: BBox
     conf: float = Field(ge=0.0, le=1.0)
     # block:par:line from Tesseract — distinguishes lines that share a line_num across
     # different blocks/paragraphs, so the token-window locator never merges them.
