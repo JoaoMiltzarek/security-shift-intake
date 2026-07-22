@@ -1,7 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Review draft #{{ draft.id }}{% endblock %}
+{% block title %}Revisão #{{ draft.id }} · Security Shift Intake{% endblock %}
 {% block content %}
-<h2>Review draft #{{ draft.id }}</h2>
+<nav class="breadcrumb" aria-label="Navegação estrutural">
+  <a href="/">Fila de revisão</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Documento #{{ draft.id }}</span>
+</nav>
+
+<header class="page-heading review-heading">
+  <div>
+    <p class="eyebrow">Cadeia de custódia</p>
+    <h1>Revisão <span class="mono">#{{ draft.id }}</span></h1>
+    <p>Compare o registro estruturado com a folha original. Dúvidas permanecem pendentes.</p>
+  </div>
+  <a class="button button-quiet" href="/">Voltar à fila</a>
+</header>
 
 {% include "_status_panel.html" %}
 {% include "_review_body.html" %}
