@@ -28,10 +28,15 @@ from typing import Literal, NamedTuple
 
 from PIL import Image, ImageDraw, ImageFont
 
+from data.generators.canvas import (
+    RENDER_HEIGHT,
+    RENDER_WIDTH,
+    draw_handwritten,
+    wrap_handwritten,
+)
 from data.generators.fonts import Font, discover_handwriting_fonts
 from data.generators.messiness_table import SheetSurface
 from data.generators.occurrences import SheetRecord
-from data.generators.render import RENDER_HEIGHT, RENDER_WIDTH, _draw_handwritten, _wrap
 from data.generators.surface_ops import CROSSOUT_CLOSE, CROSSOUT_OPEN
 
 Variant = Literal["controle_A", "controle_B", "controle_C"]
@@ -118,7 +123,7 @@ def _draw_value(
     """Valor manuscrito; segmentos [risc:…] ganham strikethrough real."""
     x, y = xy
     for seg, struck in _split_crossout(text):
-        _draw_handwritten(draw, (x, y), seg, font, rng)
+        draw_handwritten(draw, (x, y), seg, font, rng)
         width = int(font.getlength(seg))
         if struck:
             draw.line([(x, y + 12), (x + width, y + 14)], fill=_INK, width=2)
@@ -205,7 +210,11 @@ def render_sheet(
         for i, row in enumerate(surface.rows):
             yy = row_y + i * _ROW_HEIGHT
             illegible = surface.legibility.get(f"ocorrencias[{i}].descricao") == "illegible"
-            desc_lines = [] if illegible else _wrap(row.descricao or "", value_font, desc_width)[:3]
+            desc_lines = (
+                []
+                if illegible
+                else wrap_handwritten(row.descricao or "", value_font, desc_width)[:3]
+            )
             if illegible:
                 _scribble(draw, (col_edges[2] + 8, yy), desc_width, rng)
             cells = [
