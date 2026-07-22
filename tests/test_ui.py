@@ -295,9 +295,7 @@ def test_every_mutation_rejects_draft_from_a_different_config() -> None:
 
     with TestClient(app) as client:
         responses = [
-            client.post(
-                f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}
-            ),
+            client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}),
             client.post(f"/drafts/{draft_id}/approve"),
             client.post(f"/drafts/{draft_id}/reject"),
             client.post(f"/drafts/{draft_id}/send"),
@@ -311,6 +309,5 @@ def test_every_mutation_rejects_draft_from_a_different_config() -> None:
     assert review.status_code == 200
     assert all(response.status_code == 409 for response in responses)
     assert all(
-        "different report configuration" in response.json()["detail"]
-        for response in responses
+        "different report configuration" in response.json()["detail"] for response in responses
     )
