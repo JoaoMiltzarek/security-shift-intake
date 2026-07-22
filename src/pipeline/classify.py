@@ -1,9 +1,4 @@
-"""Stage 4 — Classify: report -> incident type / urgency / responsible sector.
-
-LLM with structured output is the production path (spec §2): the taxonomy is small
-and zero/few-shot is strong without labeled volume. A trained sklearn classifier is
-the documented evolution path (M8), not this stage. Mockable via LLMClient.
-"""
+"""Classify normalized incidents through the injected deterministic contract."""
 
 from __future__ import annotations
 

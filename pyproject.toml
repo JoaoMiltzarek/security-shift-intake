@@ -56,7 +56,7 @@ warn_redundant_casts = true
 # Third-party libs without bundled type stubs: don't fail typecheck on them.
 # Native/OCR/browser libraries do not all publish complete typing metadata.
 [[tool.mypy.overrides]]
-module = ["uvicorn.*", "pypdfium2", "pypdfium2.*", "sklearn.*", "pytesseract", "playwright.*"]
+module = ["uvicorn.*", "pypdfium2", "pypdfium2.*", "pytesseract", "playwright.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
