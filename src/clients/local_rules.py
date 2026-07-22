@@ -14,38 +14,19 @@ as missing. Pre-fill to save typing, but the human confirms — like ExpenseIt.
 
 from __future__ import annotations
 
-from src.classifier.rules import keyword_predict
-from src.clients.base import ClassificationResult, ExtractedFieldRaw
+from src.classifier.rules import RuleBasedIncidentClassifier
+from src.clients.base import ExtractedFieldRaw
 from src.schema.config import FieldSchema, ReportConfig
 
 # Found-but-OCR'd values sit just below the critic threshold (0.70) so they are
 # always surfaced for human verification rather than trusted blindly.
 FOUND_CONFIDENCE = 0.65
-CLASSIFY_CONFIDENCE = 0.60
 
 # Portuguese surface terms → canonical enum values.
 _ENUM_NORMALISE: dict[str, str] = {"dia": "day", "noite": "night", "day": "day", "night": "night"}
 
-# Deterministic, auditable maps (independent of the synthetic generator).
-_SECTOR_BY_TYPE: dict[str, str] = {
-    "routine": "general_support",
-    "access_violation": "tech_security",
-    "equipment": "facilities",
-    "safety": "facilities",
-    "theft": "tech_security",
-    "other": "general_support",
-}
-_URGENCY_BY_TYPE: dict[str, str] = {
-    "routine": "low",
-    "equipment": "medium",
-    "access_violation": "medium",
-    "safety": "high",
-    "theft": "high",
-    "other": "medium",
-}
 
-
-class RuleBasedLLMClient:
+class RuleBasedLLMClient(RuleBasedIncidentClassifier):
     """LLMClient with deterministic, offline extraction and classification."""
 
     def __init__(self, config: ReportConfig) -> None:
@@ -85,18 +66,3 @@ class RuleBasedLLMClient:
                     ExtractedFieldRaw(name=name, value=normalised, confidence=FOUND_CONFIDENCE)
                 )
         return results
-
-    def classify(
-        self,
-        transcription: str,
-        types: list[str],
-        urgencies: list[str],
-        sectors: list[str],
-    ) -> ClassificationResult:
-        incident_type = keyword_predict([transcription])[0]
-        return ClassificationResult(
-            incident_type=incident_type,
-            urgency=_URGENCY_BY_TYPE.get(incident_type, "medium"),
-            sector=_SECTOR_BY_TYPE.get(incident_type, "general_support"),
-            confidence=CLASSIFY_CONFIDENCE,
-        )

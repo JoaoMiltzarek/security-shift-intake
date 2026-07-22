@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from src.classifier.contracts import ClassificationResult, IncidentClassifier
 from src.schema.evidence import BBox
 
 if TYPE_CHECKING:
@@ -112,17 +113,8 @@ class ExtractionResponse(BaseModel):
     fields: list[ExtractedFieldRaw]
 
 
-class ClassificationResult(BaseModel):
-    """Structured classification output: type / urgency / sector + confidence."""
-
-    incident_type: str
-    urgency: str
-    sector: str
-    confidence: float = Field(ge=0.0, le=1.0)
-
-
 @runtime_checkable
-class LLMClient(Protocol):
+class LLMClient(IncidentClassifier, Protocol):
     """Extracts structured fields and classifies a transcription.
 
     Implementations include MockLLMClient (tests, $0) and the external experimental

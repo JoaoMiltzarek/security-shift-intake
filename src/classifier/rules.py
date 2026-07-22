@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from src.classifier.contracts import ClassificationResult
+
+CLASSIFY_CONFIDENCE = 0.60
+
 # Order is deliberate: more specific operational signals win first.
 _KEYWORD_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("furto", "subtracao", "subtração"), "theft"),
@@ -10,6 +14,23 @@ _KEYWORD_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("equip", "camera", "câmera", "portao", "portão", "monit"), "equipment"),
     (("diversa", "atipica", "atípica", "complementar"), "other"),
 )
+
+_SECTOR_BY_TYPE: dict[str, str] = {
+    "routine": "general_support",
+    "access_violation": "tech_security",
+    "equipment": "facilities",
+    "safety": "facilities",
+    "theft": "tech_security",
+    "other": "general_support",
+}
+_URGENCY_BY_TYPE: dict[str, str] = {
+    "routine": "low",
+    "equipment": "medium",
+    "access_violation": "medium",
+    "safety": "high",
+    "theft": "high",
+    "other": "medium",
+}
 
 
 def keyword_predict(texts: list[str]) -> list[str]:
@@ -27,3 +48,22 @@ def keyword_predict(texts: list[str]) -> list[str]:
                 break
         predictions.append(label)
     return predictions
+
+
+class RuleBasedIncidentClassifier:
+    """Offline classifier with explicit, auditable keyword and routing maps."""
+
+    def classify(
+        self,
+        text: str,
+        types: list[str],
+        urgencies: list[str],
+        sectors: list[str],
+    ) -> ClassificationResult:
+        incident_type = keyword_predict([text])[0]
+        return ClassificationResult(
+            incident_type=incident_type,
+            urgency=_URGENCY_BY_TYPE.get(incident_type, "medium"),
+            sector=_SECTOR_BY_TYPE.get(incident_type, "general_support"),
+            confidence=CLASSIFY_CONFIDENCE,
+        )

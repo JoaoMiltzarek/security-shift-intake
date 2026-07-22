@@ -7,14 +7,14 @@ the documented evolution path (M8), not this stage. Mockable via LLMClient.
 
 from __future__ import annotations
 
-from src.clients.base import LLMClient
+from src.classifier.contracts import IncidentClassifier
 from src.schema.config import ReportConfig
 from src.schema.state import Classification, PipelineState
 
 
 def classify(
     state: PipelineState,
-    client: LLMClient,
+    client: IncidentClassifier,
     config: ReportConfig,
     text: str | None = None,
     reason: str | None = None,
