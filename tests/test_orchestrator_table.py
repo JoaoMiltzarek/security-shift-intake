@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from data.generators.tier_b import build_tier_b
+from data.generators.tier_c import build_tier_c
 from src.clients.base import ClassificationResult, TranscriptionResult
 from src.clients.mock import MockLLMClient, MockVisionClient
 from src.orchestrator import run_pipeline
@@ -36,8 +36,8 @@ Ronda x
 
 @pytest.fixture(scope="module")
 def sample_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    out = tmp_path_factory.mktemp("tier_b_tbl")
-    build_tier_b(out_dir=out, seed=5, n=1, dpi=150)
+    out = tmp_path_factory.mktemp("tier_c_table")
+    build_tier_c(out_dir=out, seed=5, n=1)
     return next((out / "pdfs").glob("*.pdf"))
 
 

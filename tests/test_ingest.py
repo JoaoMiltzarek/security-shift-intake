@@ -1,6 +1,6 @@
-"""M4.a: tests for PDF rasterization and base64 encoding.
+"""Tests for PDF rasterization and immutable page artifacts.
 
-Uses a real Tier B PDF built into tmp_path so the round-trip (render -> PDF ->
+Uses a canonical Tier C PDF built into tmp_path so the round-trip (render -> PDF ->
 rasterize) is exercised exactly as the production path will run it.
 """
 
@@ -17,7 +17,7 @@ import pypdfium2 as pdfium
 import pytest
 from PIL import Image
 
-from data.generators.tier_b import build_tier_b
+from data.generators.tier_c import build_tier_c
 from src.pipeline import ingest
 from src.pipeline.ingest import (
     DEFAULT_DPI,
@@ -36,8 +36,8 @@ from src.pipeline.ingest import (
 
 @pytest.fixture(scope="module")
 def sample_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    out = tmp_path_factory.mktemp("tier_b")
-    build_tier_b(out_dir=out, seed=1, n=1, dpi=150)
+    out = tmp_path_factory.mktemp("tier_c")
+    build_tier_c(out_dir=out, seed=1, n=1)
     return next((out / "pdfs").glob("*.pdf"))
 
 

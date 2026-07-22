@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from data.generators.tier_b import build_tier_b
+from data.generators.tier_c import build_tier_c
 from src.clients.base import TranscriptionResult
 from src.clients.mock import MockVisionClient
 from src.pipeline.ingest import Deadline, PageArtifact
@@ -17,8 +17,8 @@ from src.schema.state import PipelineState
 
 @pytest.fixture(scope="module")
 def sample_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    out = tmp_path_factory.mktemp("tier_b")
-    build_tier_b(out_dir=out, seed=2, n=1, dpi=150)
+    out = tmp_path_factory.mktemp("tier_c")
+    build_tier_c(out_dir=out, seed=2, n=1)
     return next((out / "pdfs").glob("*.pdf"))
 
 
