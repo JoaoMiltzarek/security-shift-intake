@@ -54,11 +54,33 @@ def _submit(client: TestClient) -> int:
     return int(client.post("/drafts", json=_BODY).json()["id"])
 
 
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+    detail = client.get(f"/drafts/{draft_id}").json()
+    return {
+        "expected_revision": detail["revision"],
+        "expected_state_sha256": detail["state_sha256"],
+    }
+
+
+def _edit(
+    client: TestClient,
+    draft_id: int,
+    form: dict[str, str],
+    *,
+    snapshot: dict[str, str | int] | None = None,
+):
+    return client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={**(snapshot or _snapshot(client, draft_id)), **form},
+    )
+
+
 def test_review_shows_edit_form(client: TestClient) -> None:
     draft_id = _submit(client)
     html = client.get(f"/drafts/{draft_id}/review").text
     assert 'name="field__guard_name"' in html
     assert 'name="expected_revision" value="1"' in html
+    assert 'name="expected_state_sha256"' in html
     assert "Salvar revisão" in html
 
 
@@ -73,7 +95,7 @@ def test_edit_corrects_field_and_clears_review_flag(client: TestClient) -> None:
         "field__incident_occurred": "nao",
         "field__incident_description": "",
     }
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    r = _edit(client, draft_id, form)
     assert r.status_code == 200
     # Corrected, high-confidence, valid fields are no longer flagged.
     assert "MUST REVIEW" not in r.text
@@ -90,7 +112,6 @@ def test_edit_corrects_field_and_clears_review_flag(client: TestClient) -> None:
 def test_stale_review_form_cannot_overwrite_a_newer_edit(client: TestClient) -> None:
     draft_id = _submit(client)
     first_form = {
-        "expected_revision": "1",
         "field__guard_name": "Primeira revisÃ£o",
         "field__shift_date": "2026-01-15",
         "field__post": "Portaria 1",
@@ -98,10 +119,11 @@ def test_stale_review_form_cannot_overwrite_a_newer_edit(client: TestClient) -> 
         "field__incident_occurred": "nao",
         "field__incident_description": "",
     }
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=first_form).status_code == 200
+    first_snapshot = _snapshot(client, draft_id)
+    assert _edit(client, draft_id, first_form, snapshot=first_snapshot).status_code == 200
 
     stale_form = {**first_form, "field__guard_name": "Sobrescrita obsoleta"}
-    response = client.post(f"/ui/drafts/{draft_id}/edit", data=stale_form)
+    response = _edit(client, draft_id, stale_form, snapshot=first_snapshot)
 
     assert response.status_code == 409
     detail = client.get(f"/drafts/{draft_id}").json()
@@ -121,7 +143,7 @@ def test_invalid_edit_stays_flagged(client: TestClient) -> None:
         "field__incident_occurred": "nao",
         "field__incident_description": "",
     }
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    r = _edit(client, draft_id, form)
     assert "MUST REVIEW" in r.text  # invalid date still flagged
 
 
@@ -140,21 +162,27 @@ def test_edit_response_refreshes_status_panel_oob(client: TestClient) -> None:
         "field__incident_occurred": "nao",
         "field__incident_description": "",
     }
-    client.post(f"/ui/drafts/{draft_id}/edit", data=form)  # limpa pendências
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+    _edit(client, draft_id, form)  # limpa pendências
+    assert (
+        client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
+        == 200
+    )
 
     form["field__guard_name"] = "Outro Nome"
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    r = _edit(client, draft_id, form)
     assert r.status_code == 200
     assert 'hx-swap-oob="true"' in r.text  # painel vem junto na resposta do edit
-    assert "badge pending" in r.text  # e reflete a revogação da aprovação
+    assert "status-pending" in r.text  # e reflete a revogação da aprovação
 
 
 def test_edit_keeps_gate_send_still_blocked_until_approved(client: TestClient) -> None:
     draft_id = _submit(client)
-    client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
+    _edit(client, draft_id, {"field__guard_name": "X"})
     # Editing does not approve — send is still blocked.
-    assert client.post(f"/drafts/{draft_id}/send").status_code == 409
+    assert (
+        client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id)).status_code
+        == 409
+    )
 
 
 def test_human_edit_drops_ocr_bbox(client: TestClient) -> None:
@@ -168,7 +196,7 @@ def test_human_edit_drops_ocr_bbox(client: TestClient) -> None:
         "field__incident_occurred": "nao",
         "field__incident_description": "",
     }
-    client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    _edit(client, draft_id, form)
     state = client.get(f"/drafts/{draft_id}").json()["state"]
     gn = next(f for f in state["extracted_fields"] if f["name"] == "guard_name")
     assert gn["source"] == "human"

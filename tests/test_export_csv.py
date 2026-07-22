@@ -57,22 +57,44 @@ def _submit_table_draft(client: TestClient) -> int:
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+    detail = client.get(f"/drafts/{draft_id}").json()
+    return {
+        "expected_revision": detail["revision"],
+        "expected_state_sha256": detail["state_sha256"],
+    }
+
+
+def _edit(client: TestClient, draft_id: int, form: dict[str, str]) -> None:
+    response = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={**_snapshot(client, draft_id), **form},
+    )
+    assert response.status_code == 200
+
+
 def test_export_blocked_while_pending(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
-    assert client.get(f"/drafts/{draft_id}/export.csv").status_code == 409
+    assert (
+        client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)).status_code
+        == 409
+    )
 
 
 def test_scalar_path_has_nothing_to_export(client: TestClient) -> None:
     # A draft with no spreadsheet rows (scalar path shape) → 404, not an empty CSV.
     draft_id = int(client.post("/drafts", json={"source_pdf": "x.pdf"}).json()["id"])
-    assert client.get(f"/drafts/{draft_id}/export.csv").status_code == 404
+    assert (
+        client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)).status_code
+        == 404
+    )
 
 
 def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
-    client.post(f"/ui/drafts/{draft_id}/edit", data=_CLEAN_FORM)
+    _edit(client, draft_id, _CLEAN_FORM)
 
-    resp = client.get(f"/drafts/{draft_id}/export.csv")
+    resp = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
     assert f'filename="draft_{draft_id}_rev_2.csv"' in resp.headers["content-disposition"]
@@ -101,9 +123,9 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     form = dict(_CLEAN_FORM)
     form["occ__1__item"] = "=cmd()"
-    client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    _edit(client, draft_id, form)
 
-    resp = client.get(f"/drafts/{draft_id}/export.csv")
+    resp = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
     assert resp.status_code == 200
     rows = list(csv.reader(io.StringIO(resp.text)))
     assert any("'=cmd()" in cell for row in rows[1:] for cell in row)

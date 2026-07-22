@@ -152,8 +152,19 @@ def test_release_cockpit_does_not_expose_api_documentation(client: TestClient, p
 def test_query_parameter_cannot_spoof_audit_actor(client: TestClient) -> None:
     created = client.post("/drafts", json={"source_pdf": "synthetic.pdf"})
     draft_id = created.json()["id"]
+    detail = client.get(f"/drafts/{draft_id}").json()
 
-    assert client.post(f"/drafts/{draft_id}/reject?actor=forged-admin").status_code == 200
+    assert (
+        client.post(
+            f"/drafts/{draft_id}/reject",
+            params={
+                "actor": "forged-admin",
+                "expected_revision": detail["revision"],
+                "expected_state_sha256": detail["state_sha256"],
+            },
+        ).status_code
+        == 200
+    )
     audit = client.get(f"/drafts/{draft_id}").json()["audit"]
 
     assert audit[-1]["actor"] == "local_operator"

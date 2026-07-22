@@ -68,6 +68,14 @@ def client() -> Iterator[TestClient]:
         yield c
 
 
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+    detail = client.get(f"/drafts/{draft_id}").json()
+    return {
+        "expected_revision": detail["revision"],
+        "expected_state_sha256": detail["state_sha256"],
+    }
+
+
 def test_assert_reviewable_raises_when_pending() -> None:
     state = PipelineState(source_pdf=Path("x.pdf"), must_review_fields=["guard_name"])
     with pytest.raises(DraftNotReviewableError):
@@ -111,21 +119,21 @@ def test_assert_reviewable_blocks_legacy_multi_page_state(state: PipelineState) 
 
 def test_api_approve_blocked_when_pending(client: TestClient) -> None:
     draft_id = client.post("/drafts", json=_PENDING_BODY).json()["id"]
-    r = client.post(f"/drafts/{draft_id}/approve")
+    r = client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     assert r.status_code == 409
     assert "need review" in r.json()["detail"]
 
 
 def test_api_approve_ok_when_clean(client: TestClient) -> None:
     draft_id = client.post("/drafts", json=_CLEAN_BODY).json()["id"]
-    r = client.post(f"/drafts/{draft_id}/approve")
+    r = client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["status"] == "approved"
 
 
 def test_ui_approve_blocked_when_pending(client: TestClient) -> None:
     draft_id = client.post("/drafts", json=_PENDING_BODY).json()["id"]
-    r = client.post(f"/ui/drafts/{draft_id}/approve")
+    r = client.post(f"/ui/drafts/{draft_id}/approve", data=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert "Blocked" in r.text
 
@@ -133,12 +141,24 @@ def test_ui_approve_blocked_when_pending(client: TestClient) -> None:
 def test_pending_draft_cannot_be_sent_via_unreviewed_approve(client: TestClient) -> None:
     # Full chain: pending fields -> approve blocked -> send still blocked.
     draft_id = client.post("/drafts", json=_PENDING_BODY).json()["id"]
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
-    assert client.post(f"/drafts/{draft_id}/send").status_code == 409
+    assert (
+        client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
+        == 409
+    )
+    assert (
+        client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id)).status_code
+        == 409
+    )
 
 
 def test_failed_ocr_draft_cannot_be_approved_or_sent(client: TestClient) -> None:
     # OCR failed, no pending fields: approve blocked (409) and send still blocked (409).
     draft_id = client.post("/drafts", json=_OCR_FAILED_BODY).json()["id"]
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
-    assert client.post(f"/drafts/{draft_id}/send").status_code == 409
+    assert (
+        client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
+        == 409
+    )
+    assert (
+        client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id)).status_code
+        == 409
+    )

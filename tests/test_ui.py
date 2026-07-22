@@ -51,6 +51,21 @@ def _submit(client: TestClient) -> int:
     return int(client.post("/drafts", json=_BODY).json()["id"])
 
 
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+    detail = client.get(f"/drafts/{draft_id}").json()
+    return {
+        "expected_revision": detail["revision"],
+        "expected_state_sha256": detail["state_sha256"],
+    }
+
+
+def _ui_action(client: TestClient, draft_id: int, action: str):
+    return client.post(
+        f"/ui/drafts/{draft_id}/{action}",
+        data=_snapshot(client, draft_id),
+    )
+
+
 def test_index_lists_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
@@ -79,33 +94,32 @@ def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockS
     assert "tech_security, general_support" in text  # recipients
     assert "body text" in text  # email draft
     assert "MUST REVIEW" in text  # flagged field
-    assert "Approve" in text and "Reject" in text and "Simulate delivery" in text
+    assert "Aprovar revisão" in text and "Rejeitar" in text and "Simular entrega" in text
 
 
-def test_ui_send_blocked_before_approval(
+def test_ui_simulation_blocked_before_approval(
     client_and_sender: tuple[TestClient, MockSender],
 ) -> None:
     client, sender = client_and_sender
     draft_id = _submit(client)
-    r = client.post(f"/ui/drafts/{draft_id}/send")
+    r = _ui_action(client, draft_id, "simulate")
     assert r.status_code == 200
     assert "Blocked" in r.text
     assert sender.call_count == 0
 
 
-def test_ui_approve_then_send(client_and_sender: tuple[TestClient, MockSender]) -> None:
+def test_ui_approve_then_simulate(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client, sender = client_and_sender
     draft_id = _submit(client)
 
-    r = client.post(f"/ui/drafts/{draft_id}/approve")
+    r = _ui_action(client, draft_id, "approve")
     assert r.status_code == 200
-    assert "approved" in r.text
+    assert "Aprovado" in r.text
 
-    r = client.post(f"/ui/drafts/{draft_id}/send")
+    r = _ui_action(client, draft_id, "simulate")
     assert r.status_code == 200
-    assert "Simulation completed" in r.text
-    assert "nothing was delivered externally" in r.text
-    assert "Sent." not in r.text
+    assert "Simulação concluída" in r.text
+    assert "nada foi entregue externamente" in r.text
     assert sender.call_count == 1
 
 
@@ -114,17 +128,16 @@ def test_sent_status_panel_has_no_mutation_controls(
 ) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
-    client.post(f"/drafts/{draft_id}/approve")
-    client.post(f"/drafts/{draft_id}/send")
+    client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
+    client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
 
     panel = client.get(f"/drafts/{draft_id}/review").text
 
-    assert "simulation completed" in panel
-    assert "no external delivery" in panel
-    assert "(sent " not in panel
+    assert "Simulação registrada" in panel
+    assert "Nenhuma entrega externa" in panel
     assert f"/ui/drafts/{draft_id}/approve" not in panel
     assert f"/ui/drafts/{draft_id}/reject" not in panel
-    assert f"/ui/drafts/{draft_id}/send" not in panel
+    assert f"/ui/drafts/{draft_id}/simulate" not in panel
 
 
 def test_review_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
@@ -167,10 +180,12 @@ def test_status_panel_shows_revision_and_approved_revision(
     """O painel expõe a revisão corrente e qual revisão foi aprovada (SSI-1007)."""
     client, _ = client_and_sender
     draft_id = _submit(client)
-    assert "Revisão 1" in client.get(f"/drafts/{draft_id}/review").text
+    initial = client.get(f"/drafts/{draft_id}/review").text
+    assert "Revisão" in initial
+    assert '<strong class="mono">1</strong>' in initial
 
-    client.post(f"/drafts/{draft_id}/approve")
-    assert "aprovada: rev 1" in client.get(f"/drafts/{draft_id}/review").text
+    client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
+    assert "Aprovação vinculada à revisão" in client.get(f"/drafts/{draft_id}/review").text
 
 
 def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
@@ -197,7 +212,7 @@ def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
             s.add(draft)
             s.commit()
         html = client.get(f"/drafts/{draft_id}/review").text
-        assert "reaprove" in html
+        assert "reaprove" in html.lower()
 
 
 def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
@@ -224,9 +239,8 @@ def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
 
         html = client.get(f"/drafts/{draft_id}/review").text
 
-    assert "legacy terminal state" in html
-    assert "delivery mode not recorded" in html
-    assert "(sent " not in html
+    assert "Registro terminal legado" in html
+    assert "modo de entrega não foi comprovado" in html
 
 
 def test_security_headers_present(client_and_sender: tuple[TestClient, MockSender]) -> None:
@@ -294,19 +308,25 @@ def test_every_mutation_rejects_draft_from_a_different_config() -> None:
         draft_id = draft.id
 
     with TestClient(app) as client:
+        snapshot = _snapshot(client, draft_id)
         responses = [
-            client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}),
-            client.post(f"/drafts/{draft_id}/approve"),
-            client.post(f"/drafts/{draft_id}/reject"),
-            client.post(f"/drafts/{draft_id}/send"),
-            client.get(f"/drafts/{draft_id}/export.csv"),
-            client.post(f"/ui/drafts/{draft_id}/approve"),
-            client.post(f"/ui/drafts/{draft_id}/reject"),
-            client.post(f"/ui/drafts/{draft_id}/send"),
+            client.post(
+                f"/ui/drafts/{draft_id}/edit",
+                data={**snapshot, "field__guard_name": "revisado"},
+            ),
+            client.post(f"/drafts/{draft_id}/approve", params=snapshot),
+            client.post(f"/drafts/{draft_id}/reject", params=snapshot),
+            client.post(f"/drafts/{draft_id}/simulate", params=snapshot),
+            client.post(f"/drafts/{draft_id}/export.csv", data=snapshot),
+            client.post(f"/ui/drafts/{draft_id}/approve", data=snapshot),
+            client.post(f"/ui/drafts/{draft_id}/reject", data=snapshot),
+            client.post(f"/ui/drafts/{draft_id}/simulate", data=snapshot),
         ]
         review = client.get(f"/drafts/{draft_id}/review")
 
     assert review.status_code == 200
+    assert "Ações bloqueadas" in review.text
+    assert "different report configuration" in review.text
     assert all(response.status_code == 409 for response in responses)
     assert all(
         "different report configuration" in response.json()["detail"] for response in responses

@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import binascii
 import csv
+import hmac
 import io
 import ipaddress
 import json
@@ -22,10 +23,10 @@ import unicodedata
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -474,6 +475,7 @@ def _review_context(draft: Draft) -> dict[str, Any]:
             )
     return {
         "draft": draft,
+        "state_sha256": repository.state_sha256(draft.state_json),
         # Editor 0/1/N (SSI-1007): grid de ocorrências + disposição pré-marcada.
         "table_mode": normalized is not None,
         "disposicao": normalized.disposition if normalized is not None else None,
@@ -517,6 +519,7 @@ def _draft_summary(draft: Draft | repository.DraftSummary) -> dict[str, Any]:
     return {
         "id": draft.id,
         "status": draft.status,
+        "revision": draft.revision,
         "created_at": draft.created_at.isoformat(),
         "updated_at": draft.updated_at.isoformat(),
         "delivery_mode": draft.delivery_mode,
@@ -665,6 +668,54 @@ def create_app(
             return str(exc.detail)
         return None
 
+    def _approval_blocker(draft: Draft) -> str | None:
+        config_error = _config_blocker(draft)
+        if config_error is not None:
+            return config_error
+        state = PipelineState.model_validate_json(draft.state_json)
+        try:
+            assert_reviewable(state)
+        except DraftNotReviewableError as exc:
+            return str(exc)
+        return None
+
+    def _assert_expected_snapshot(
+        draft: Draft,
+        *,
+        expected_revision: int,
+        expected_state_sha256: str,
+    ) -> None:
+        if expected_revision < 1 or re.fullmatch(r"[0-9a-f]{64}", expected_state_sha256) is None:
+            raise HTTPException(status_code=422, detail="Invalid review snapshot identity.")
+        current_sha256 = repository.state_sha256(draft.state_json)
+        if draft.revision != expected_revision or not hmac.compare_digest(
+            current_sha256, expected_state_sha256
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Draft changed after this review page was loaded. Reload before continuing."
+                ),
+            )
+
+    def _expected_form_snapshot(form: Any, draft: Draft) -> tuple[int, str]:
+        raw_revision = form.get("expected_revision")
+        raw_sha256 = form.get("expected_state_sha256")
+        if (
+            not isinstance(raw_revision, str)
+            or not raw_revision.isascii()
+            or not raw_revision.isdigit()
+            or not isinstance(raw_sha256, str)
+        ):
+            raise HTTPException(status_code=422, detail="Invalid review snapshot identity.")
+        expected_revision = int(raw_revision)
+        _assert_expected_snapshot(
+            draft,
+            expected_revision=expected_revision,
+            expected_state_sha256=raw_sha256,
+        )
+        return expected_revision, raw_sha256
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -706,6 +757,7 @@ def create_app(
         if draft is None:
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
         summary = _draft_summary(draft)
+        summary["state_sha256"] = repository.state_sha256(draft.state_json)
         summary["state"] = json.loads(draft.state_json)
         summary["audit"] = [
             {
@@ -721,30 +773,72 @@ def create_app(
         return summary
 
     @app.post("/drafts/{draft_id}/approve")
-    def approve(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+    def approve(
+        draft_id: int,
+        expected_revision: int,
+        expected_state_sha256: str,
+        session: Session = Depends(get_session),
+    ) -> dict[str, Any]:
         draft = repository.get_draft(session, draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        _assert_expected_snapshot(
+            draft,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         state = _compatible_state(draft)
         try:
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
+        return _set_status(
+            session,
+            draft_id,
+            ApprovalStatus.APPROVED,
+            _LOCAL_ACTOR,
+            expected_revision=expected_revision,
+        )
 
     @app.post("/drafts/{draft_id}/reject")
-    def reject(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+    def reject(
+        draft_id: int,
+        expected_revision: int,
+        expected_state_sha256: str,
+        session: Session = Depends(get_session),
+    ) -> dict[str, Any]:
         draft = repository.get_draft(session, draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        _assert_expected_snapshot(
+            draft,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         _compatible_state(draft)
-        return _set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
+        return _set_status(
+            session,
+            draft_id,
+            ApprovalStatus.REJECTED,
+            _LOCAL_ACTOR,
+            expected_revision=expected_revision,
+        )
 
-    @app.post("/drafts/{draft_id}/send")
-    def send(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+    @app.post("/drafts/{draft_id}/simulate")
+    def simulate(
+        draft_id: int,
+        expected_revision: int,
+        expected_state_sha256: str,
+        session: Session = Depends(get_session),
+    ) -> dict[str, Any]:
         draft = repository.get_draft(session, draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        _assert_expected_snapshot(
+            draft,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         _compatible_state(draft)
         try:
             draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
@@ -756,10 +850,21 @@ def create_app(
         return _draft_summary(draft)
 
     def _set_status(
-        session: Session, draft_id: int, status: ApprovalStatus, actor: str
+        session: Session,
+        draft_id: int,
+        status: ApprovalStatus,
+        actor: str,
+        *,
+        expected_revision: int,
     ) -> dict[str, Any]:
         try:
-            draft = repository.set_status(session, draft_id, status, actor)
+            draft = repository.set_status(
+                session,
+                draft_id,
+                status,
+                actor,
+                expected_revision=expected_revision,
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (
@@ -789,6 +894,8 @@ def create_app(
                 "message": message,
                 "active_delivery_mode": active_sender.delivery_mode,
                 "config_blocker": _config_blocker(draft),
+                "approval_blocker": _approval_blocker(draft),
+                "state_sha256": repository.state_sha256(draft.state_json),
             },
         )
 
@@ -820,6 +927,7 @@ def create_app(
             "audit": repository.get_audit(session, draft_id),
             "active_delivery_mode": active_sender.delivery_mode,
             "config_blocker": _config_blocker(draft),
+            "approval_blocker": _approval_blocker(draft),
         }
         ctx.update(_review_context(draft))
         return _render(request, "review.html", ctx)
@@ -835,8 +943,13 @@ def create_app(
             raise HTTPException(status_code=404, detail="page image not found") from exc
         return FileResponse(path, media_type="image/png")
 
-    @app.get("/drafts/{draft_id}/export.csv")
-    def export_csv(draft_id: int, session: Session = Depends(get_session)) -> Response:
+    @app.post("/drafts/{draft_id}/export.csv")
+    def export_csv(
+        draft_id: int,
+        expected_revision: Annotated[int, Form()],
+        expected_state_sha256: Annotated[str, Form()],
+        session: Session = Depends(get_session),
+    ) -> Response:
         """Export the standardized spreadsheet as CSV — only when nothing is pending.
 
         Uses the post-review values in `state.spreadsheet_rows` (invariant 8) and refuses
@@ -844,6 +957,11 @@ def create_app(
         produces a clean operational artifact (invariant 2). Scalar path has no rows → 404.
         """
         draft = _require_draft(session, draft_id)
+        _assert_expected_snapshot(
+            draft,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         state = _compatible_state(draft)
         if not state.spreadsheet_rows:
             raise HTTPException(status_code=404, detail="no spreadsheet to export")
@@ -886,16 +1004,31 @@ def create_app(
 
     @app.post("/ui/drafts/{draft_id}/approve", response_class=HTMLResponse)
     def ui_approve(
-        request: Request, draft_id: int, session: Session = Depends(get_session)
+        request: Request,
+        draft_id: int,
+        expected_revision: Annotated[int, Form()],
+        expected_state_sha256: Annotated[str, Form()],
+        session: Session = Depends(get_session),
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
+        _assert_expected_snapshot(
+            draft,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         state = _compatible_state(draft)
         try:
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
             return _status_panel(request, draft, session, message=f"Blocked: {exc}")
         try:
-            draft = repository.set_status(session, draft_id, ApprovalStatus.APPROVED, _LOCAL_ACTOR)
+            draft = repository.set_status(
+                session,
+                draft_id,
+                ApprovalStatus.APPROVED,
+                _LOCAL_ACTOR,
+                expected_revision=expected_revision,
+            )
         except (
             repository.DraftAlreadySentError,
             repository.DraftOperationConflictError,
@@ -905,12 +1038,27 @@ def create_app(
 
     @app.post("/ui/drafts/{draft_id}/reject", response_class=HTMLResponse)
     def ui_reject(
-        request: Request, draft_id: int, session: Session = Depends(get_session)
+        request: Request,
+        draft_id: int,
+        expected_revision: Annotated[int, Form()],
+        expected_state_sha256: Annotated[str, Form()],
+        session: Session = Depends(get_session),
     ) -> HTMLResponse:
         current = _require_draft(session, draft_id)
+        _assert_expected_snapshot(
+            current,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         _compatible_state(current)
         try:
-            draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
+            draft = repository.set_status(
+                session,
+                draft_id,
+                ApprovalStatus.REJECTED,
+                _LOCAL_ACTOR,
+                expected_revision=expected_revision,
+            )
         except (
             repository.DraftAlreadySentError,
             repository.DraftOperationConflictError,
@@ -918,11 +1066,20 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _status_panel(request, draft, session)
 
-    @app.post("/ui/drafts/{draft_id}/send", response_class=HTMLResponse)
-    def ui_send(
-        request: Request, draft_id: int, session: Session = Depends(get_session)
+    @app.post("/ui/drafts/{draft_id}/simulate", response_class=HTMLResponse)
+    def ui_simulate(
+        request: Request,
+        draft_id: int,
+        expected_revision: Annotated[int, Form()],
+        expected_state_sha256: Annotated[str, Form()],
+        session: Session = Depends(get_session),
     ) -> HTMLResponse:
         current = _require_draft(session, draft_id)
+        _assert_expected_snapshot(
+            current,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
+        )
         _compatible_state(current)
         try:
             draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
@@ -930,11 +1087,7 @@ def create_app(
                 request,
                 draft,
                 session,
-                message=(
-                    "Simulation completed — nothing was delivered externally."
-                    if draft.delivery_mode == "simulated"
-                    else "External dispatch adapter completed; receipt is not confirmed."
-                ),
+                message="Simulação concluída — nada foi entregue externamente.",
             )
         except DraftNotApprovedError as exc:
             draft = _require_draft(session, draft_id)
@@ -953,18 +1106,7 @@ def create_app(
         state = PipelineState.model_validate_json(draft.state_json)
         _assert_config_compatible(state, active_config)
         form = await _bounded_review_form(request)
-        raw_expected_revision = form.get("expected_revision")
-        expected_revision = draft.revision
-        if raw_expected_revision is not None:
-            if (
-                not isinstance(raw_expected_revision, str)
-                or not raw_expected_revision.isascii()
-                or not raw_expected_revision.isdigit()
-            ):
-                raise HTTPException(status_code=422, detail="Invalid expected revision.")
-            expected_revision = int(raw_expected_revision)
-            if expected_revision < 1:
-                raise HTTPException(status_code=422, detail="Invalid expected revision.")
+        expected_revision, _ = _expected_form_snapshot(form, draft)
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.

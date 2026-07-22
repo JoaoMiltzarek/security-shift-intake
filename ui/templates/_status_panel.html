@@ -1,35 +1,101 @@
-{# status_oob: quando o painel pega carona na resposta do edit (out-of-band), para o
-   badge refletir na hora uma aprovação revogada pela edição (SSI-1006). #}
-<div id="status-panel"{% if status_oob %} hx-swap-oob="true"{% endif %}>
-  <p>
-    Status: <span class="badge {{ draft.status }}">{{ draft.status }}</span>
-    · Revisão {{ draft.revision }}{% if draft.approved_revision is not none %} · aprovada: rev {{ draft.approved_revision }}{% endif %}
-    {% if draft.sent_at and draft.delivery_mode == 'simulated' %}
-      <em>(simulation completed {{ draft.sent_at.isoformat() }} — no external delivery)</em>
-    {% elif draft.sent_at and draft.delivery_mode == 'external' %}
-      <em>(external adapter completed {{ draft.sent_at.isoformat() }} — receipt not confirmed)</em>
-    {% elif draft.sent_at %}
-      <em>(legacy terminal state {{ draft.sent_at.isoformat() }} — delivery mode not recorded)</em>
+<section id="status-panel"
+         class="status-panel{{ ' terminal-lock' if draft.sent_at else '' }}"
+         {% if status_oob %}hx-swap-oob="true"{% endif %}
+         aria-labelledby="status-title">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Estado operacional</p>
+      <h2 id="status-title">
+        {% if draft.sent_at and draft.delivery_mode == 'simulated' %}Simulação registrada
+        {% elif draft.sent_at %}Registro terminal legado
+        {% elif draft.status == 'approved' %}Aprovado para simulação
+        {% elif draft.status == 'rejected' %}Revisão rejeitada
+        {% else %}Revisão em andamento{% endif %}
+      </h2>
+    </div>
+    <span class="status-chip {% if draft.sent_at %}status-simulated{% else %}status-{{ draft.status }}{% endif %}">
+      {% if draft.sent_at and draft.delivery_mode == 'simulated' %}Simulado
+      {% elif draft.sent_at %}Terminal legado
+      {% elif draft.status == 'approved' %}Aprovado
+      {% elif draft.status == 'rejected' %}Rejeitado
+      {% else %}Em revisão{% endif %}
+    </span>
+  </div>
+
+  <ol class="status-strip" aria-label="Progresso do documento">
+    <li class="status-step is-complete">Recebido</li>
+    <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.sent_at else 'is-current' }}">Revisão</li>
+    <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.sent_at else '' }}">Aprovado</li>
+    <li class="status-step {{ 'is-complete' if draft.sent_at else '' }}">Simulado</li>
+  </ol>
+
+  <p class="field-meta">
+    <span>Revisão <strong class="mono">{{ draft.revision }}</strong></span>
+    <span>Hash <strong class="mono">{{ state_sha256[:12] }}</strong></span>
+    {% if draft.approved_revision is not none %}
+    <span>Aprovação vinculada à revisão <strong class="mono">{{ draft.approved_revision }}</strong></span>
     {% endif %}
   </p>
-  {% if draft.status == 'approved' and draft.approved_revision is none %}
-  <p><strong>⚠ aprovação anterior ao vínculo por revisão — reaprove antes de enviar.</strong></p>
+
+  {% if draft.sent_at and draft.delivery_mode == 'simulated' %}
+  <p class="success-banner">
+    A simulação foi concluída em
+    <time datetime="{{ draft.sent_at.isoformat() }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
+    Nenhuma entrega externa foi realizada.
+  </p>
+  {% elif draft.sent_at %}
+  <p class="blocker-banner">
+    Registro terminal legado em
+    <time datetime="{{ draft.sent_at.isoformat() }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
+    O modo de entrega não foi comprovado; nenhuma afirmação de entrega é feita.
+  </p>
+  {% elif draft.status == 'approved' and draft.approved_revision is none %}
+  <p class="blocker-banner">Esta aprovação é anterior ao vínculo por revisão. Reaprove o documento antes de simular.</p>
   {% endif %}
-  {% if message %}<p><strong>{{ message }}</strong></p>{% endif %}
 
-  {% if not draft.sent_at %}<div>
-    <button hx-post="/ui/drafts/{{ draft.id }}/approve" hx-target="#status-panel"
-            hx-swap="outerHTML">Approve</button>
-    <button hx-post="/ui/drafts/{{ draft.id }}/reject" hx-target="#status-panel"
-            hx-swap="outerHTML">Reject</button>
-    <button hx-post="/ui/drafts/{{ draft.id }}/send" hx-target="#status-panel"
-            hx-swap="outerHTML">{% if active_delivery_mode == 'simulated' %}Simulate delivery{% else %}Dispatch externally{% endif %}</button>
-  </div>{% endif %}
+  {% if config_blocker %}
+  <p class="blocker-banner"><strong>Ações bloqueadas.</strong> {{ config_blocker }}</p>
+  {% elif message %}
+  <p class="success-banner" role="status">{{ message }}</p>
+  {% endif %}
 
-  <h3>Audit log</h3>
-  <ul>
-    {% for a in audit %}
-    <li>{{ a.timestamp.isoformat() }} — {{ a.actor }}: {{ a.action }}{% if a.detail %} ({{ a.detail }}){% endif %}</li>
-    {% endfor %}
-  </ul>
-</div>
+  {% if not draft.sent_at and not config_blocker %}
+  <div class="status-actions" aria-label="Ações da revisão">
+    <form hx-post="/ui/drafts/{{ draft.id }}/approve" hx-target="#status-panel" hx-swap="outerHTML">
+      <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
+      <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
+      <button type="submit"{% if approval_blocker %} disabled aria-describedby="approval-blocker"{% endif %}>Aprovar revisão</button>
+    </form>
+    <form hx-post="/ui/drafts/{{ draft.id }}/reject" hx-target="#status-panel" hx-swap="outerHTML">
+      <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
+      <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
+      <button class="button-danger" type="submit">Rejeitar</button>
+    </form>
+    <form hx-post="/ui/drafts/{{ draft.id }}/simulate" hx-target="#status-panel" hx-swap="outerHTML">
+      <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
+      <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
+      <button class="button-secondary" type="submit"{% if draft.status != 'approved' %} disabled aria-describedby="simulation-blocker"{% endif %}>Simular entrega</button>
+    </form>
+  </div>
+  {% if approval_blocker %}<p id="approval-blocker" class="blocked-reason">Aprovação bloqueada: {{ approval_blocker }}</p>{% endif %}
+  {% if draft.status != 'approved' %}<p id="simulation-blocker" class="blocked-reason">A simulação exige a aprovação da revisão e do hash atuais.</p>{% endif %}
+  {% endif %}
+
+  <details class="audit-details">
+    <summary>Trilha de auditoria · {{ audit | length }} eventos recentes</summary>
+    {% if audit %}
+    <ol class="timeline">
+      {% for entry in audit %}
+      <li>
+        <strong>{{ entry.action }}</strong>
+        <small>{{ entry.actor }}</small><br>
+        <time datetime="{{ entry.timestamp.isoformat() }}">{{ entry.timestamp.strftime('%d/%m/%Y · %H:%M:%S') }}</time>
+        {% if entry.detail %}<p class="mono">{{ entry.detail }}</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="form-help">Nenhum evento registrado.</p>
+    {% endif %}
+  </details>
+</section>

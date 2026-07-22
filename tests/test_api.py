@@ -51,6 +51,21 @@ def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
         yield client, sender
 
 
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+    detail = client.get(f"/drafts/{draft_id}").json()
+    return {
+        "expected_revision": detail["revision"],
+        "expected_state_sha256": detail["state_sha256"],
+    }
+
+
+def _edit(client: TestClient, draft_id: int, **fields: str):
+    return client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={**_snapshot(client, draft_id), **fields},
+    )
+
+
 def test_submit_review_approve_send_flow(
     client_and_sender: tuple[TestClient, MockSender],
 ) -> None:
@@ -70,17 +85,17 @@ def test_submit_review_approve_send_flow(
     assert "submitted" in [a["action"] for a in body["audit"]]
 
     # send before approval -> BLOCKED (409), sender not called
-    r = client.post(f"/drafts/{draft_id}/send")
+    r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 409
     assert sender.call_count == 0
 
     # approve
-    r = client.post(f"/drafts/{draft_id}/approve", params={"actor": "reviewer@x"})
+    r = client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["status"] == "approved"
 
     # send after approval -> ok, sender called once
-    r = client.post(f"/drafts/{draft_id}/send")
+    r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["sent_at"] is not None
     assert r.json()["delivery_mode"] == "simulated"
@@ -101,8 +116,8 @@ def test_rejected_draft_send_is_blocked(
     client, sender = client_and_sender
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
 
-    client.post(f"/drafts/{draft_id}/reject")
-    r = client.post(f"/drafts/{draft_id}/send")
+    client.post(f"/drafts/{draft_id}/reject", params=_snapshot(client, draft_id))
+    r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 409
     assert sender.call_count == 0
 
@@ -114,7 +129,13 @@ def test_get_missing_draft_404(client_and_sender: tuple[TestClient, MockSender])
 
 def test_approve_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client, _ = client_and_sender
-    assert client.post("/drafts/999/approve").status_code == 404
+    assert (
+        client.post(
+            "/drafts/999/approve",
+            params={"expected_revision": 1, "expected_state_sha256": "0" * 64},
+        ).status_code
+        == 404
+    )
 
 
 def test_list_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
@@ -129,6 +150,42 @@ def test_list_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
     assert payload["status"] == "all"
 
 
+def test_consequential_actions_require_the_reviewed_snapshot(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+    reviewed = _snapshot(client, draft_id)
+
+    assert client.post(f"/drafts/{draft_id}/approve").status_code == 422
+    assert client.get(f"/drafts/{draft_id}/export.csv").status_code == 405
+    assert client.post(f"/drafts/{draft_id}/send", params=reviewed).status_code == 404
+
+    assert _edit(client, draft_id, field__guard_name="new value").status_code == 200
+    stale = client.post(f"/drafts/{draft_id}/approve", params=reviewed)
+    assert stale.status_code == 409
+    assert "changed after this review page" in stale.json()["detail"]
+
+
+def test_edit_requires_revision_and_hash_identity(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+
+    missing = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={"field__guard_name": "unbound edit"},
+    )
+    malformed = client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={"expected_revision": "1", "expected_state_sha256": "not-a-hash"},
+    )
+
+    assert missing.status_code == 422
+    assert malformed.status_code == 422
+
+
 # --- Contratos F1 (SSI-1005/F3): aprovação vinculada à revisão do conteúdo ---
 
 
@@ -137,13 +194,16 @@ def test_approve_edit_send_is_blocked(
 ) -> None:
     client, sender = client_and_sender
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+    assert (
+        client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
+        == 200
+    )
 
     # Edita DEPOIS de aprovado: o conteúdo enviado não seria o conteúdo aprovado.
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "Outro Nome"})
+    r = _edit(client, draft_id, field__guard_name="Outro Nome")
     assert r.status_code == 200
 
-    r = client.post(f"/drafts/{draft_id}/send")
+    r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 409  # aprovação antiga não vale para conteúdo novo
     assert sender.call_count == 0
 
@@ -153,10 +213,13 @@ def test_edit_sent_draft_is_rejected(
 ) -> None:
     client, _ = client_and_sender
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
-    client.post(f"/drafts/{draft_id}/approve")
-    assert client.post(f"/drafts/{draft_id}/send").status_code == 200
+    client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
+    assert (
+        client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id)).status_code
+        == 200
+    )
 
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "X"})
+    r = _edit(client, draft_id, field__guard_name="X")
     assert r.status_code == 409  # o registro do que foi enviado não pode mudar
 
 
@@ -170,7 +233,7 @@ def test_ui_edit_reports_concurrent_operation_as_conflict(
         raise repository.DraftOperationConflictError("operation in progress")
 
     monkeypatch.setattr(repository, "update_state", conflict)
-    response = client.post(f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "reviewed"})
+    response = _edit(client, draft_id, field__guard_name="reviewed")
 
     assert response.status_code == 409
 
@@ -181,10 +244,16 @@ def test_sent_draft_is_terminal_at_http_boundary(
 ) -> None:
     client, _ = client_and_sender
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
-    assert client.post(f"/drafts/{draft_id}/send").status_code == 200
+    assert (
+        client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
+        == 200
+    )
+    assert (
+        client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id)).status_code
+        == 200
+    )
 
-    response = client.post(f"/drafts/{draft_id}/{action}")
+    response = client.post(f"/drafts/{draft_id}/{action}", params=_snapshot(client, draft_id))
 
     assert response.status_code == 409
     assert client.get(f"/drafts/{draft_id}").json()["status"] == "approved"

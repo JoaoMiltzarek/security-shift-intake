@@ -58,6 +58,35 @@ def _submit_unknown_without_derived_pending(client: TestClient) -> int:
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+    detail = client.get(f"/drafts/{draft_id}").json()
+    return {
+        "expected_revision": detail["revision"],
+        "expected_state_sha256": detail["state_sha256"],
+    }
+
+
+def _edit(client: TestClient, draft_id: int, form: dict[str, str]):
+    return client.post(
+        f"/ui/drafts/{draft_id}/edit",
+        data={**_snapshot(client, draft_id), **form},
+    )
+
+
+def _approve(client: TestClient, draft_id: int):
+    return client.post(
+        f"/drafts/{draft_id}/approve",
+        params=_snapshot(client, draft_id),
+    )
+
+
+def _ui_approve(client: TestClient, draft_id: int):
+    return client.post(
+        f"/ui/drafts/{draft_id}/approve",
+        data=_snapshot(client, draft_id),
+    )
+
+
 def test_review_shows_table_outputs(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     html = client.get(f"/drafts/{draft_id}/review").text
@@ -82,7 +111,7 @@ def test_edit_regenerates_clean_message(client: TestClient) -> None:
         "occ__1__acao": "Verificado",
         "occ__1__resolvido": "sim",
     }
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    r = _edit(client, draft_id, form)
     assert r.status_code == 200
     assert "MUST REVIEW" not in r.text
     assert "RASCUNHO INCOMPLETO" not in r.text
@@ -102,7 +131,7 @@ def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
         "occ__1__acao": "Verificado",
         "occ__1__resolvido": "sim",
     }
-    client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    _edit(client, draft_id, form)
     state = client.get(f"/drafts/{draft_id}").json()["state"]
     unidade = next(f for f in state["extracted_fields"] if f["name"] == "unidade")
     assert unidade["source"] == "human"
@@ -115,7 +144,7 @@ def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
 def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     # Pending fields -> approval blocked (R4).
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
+    assert _approve(client, draft_id).status_code == 409
 
 
 def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
@@ -127,7 +156,7 @@ def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
     assert "ocorrências não confirmadas" in html
     assert "Pronto para gerar/aprovar" not in html
 
-    response = client.post(f"/ui/drafts/{draft_id}/approve")
+    response = _ui_approve(client, draft_id)
     assert "Blocked" in response.text
     assert "disposition is unknown" in response.text
     assert client.get(f"/drafts/{draft_id}").json()["status"] == "pending"
@@ -159,14 +188,14 @@ def test_unknown_stays_unknown_without_explicit_disposition(client: TestClient) 
     """Editar só o cabeçalho não resolve a disposição: unknown continua unknown e
     a aprovação continua bloqueada — nada de 'sem alteração' implícito (a lavagem)."""
     draft_id = _submit_unknown_draft(client)
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=_headers_form())  # sem radio
+    r = _edit(client, draft_id, _headers_form())  # sem radio
     assert r.status_code == 200
 
     state = _state_of(client, draft_id)
     assert state["normalized"]["disposition"] == "unknown"
     occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
     assert occ["value"] != "(sem alteração)"
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 409
+    assert _approve(client, draft_id).status_code == 409
 
 
 def test_human_confirms_sem_alteracao(client: TestClient) -> None:
@@ -174,14 +203,14 @@ def test_human_confirms_sem_alteracao(client: TestClient) -> None:
     campo humano aceito, e o draft fica aprovável."""
     draft_id = _submit_unknown_draft(client)
     form = {**_headers_form(), "disposicao": "sem_alteracao"}
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    assert _edit(client, draft_id, form).status_code == 200
 
     state = _state_of(client, draft_id)
     assert state["normalized"]["disposition"] == "none"
     occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
     assert occ["value"] == "(sem alteração)"
     assert occ["source"] == "human"
-    assert client.post(f"/drafts/{draft_id}/approve").status_code == 200
+    assert _approve(client, draft_id).status_code == 200
 
 
 def test_add_row_with_all_five_columns(client: TestClient) -> None:
@@ -207,7 +236,7 @@ def test_add_row_with_all_five_columns(client: TestClient) -> None:
         "occ__3__acao": "",
         "occ__3__resolvido": "",
     }
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    assert _edit(client, draft_id, form).status_code == 200
 
     norm = _state_of(client, draft_id)["normalized"]
     assert norm["disposition"] == "present"
@@ -232,7 +261,7 @@ def test_human_edit_audits_all_five_occurrence_cells(client: TestClient) -> None
         "occ__1__resolvido": "nao",
     }
 
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    assert _edit(client, draft_id, form).status_code == 200
     state = _state_of(client, draft_id)
     cells = {
         field["name"]: field
@@ -269,7 +298,7 @@ def test_clearing_rows_with_sa_confirmation_removes_them(client: TestClient) -> 
         "occ__1__acao": "",
         "occ__1__resolvido": "",
     }
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    assert _edit(client, draft_id, form).status_code == 200
 
     norm = _state_of(client, draft_id)["normalized"]
     assert norm["disposition"] == "none"
@@ -289,7 +318,7 @@ def test_contradictory_disposition_is_rejected_without_persisting(
         "disposicao": "sem_alteracao",
         "occ__1__descricao": "Ainda tem ocorrencia aqui",
     }
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    r = _edit(client, draft_id, form)
     assert r.status_code == 200
     assert "edit-error" in r.text  # banner de erro renderizado
 
@@ -302,7 +331,7 @@ def test_rows_without_disposition_radio_are_rejected(client: TestClient) -> None
     before = _state_of(client, draft_id)
 
     form = {**_headers_form(), "occ__1__descricao": "Ocorrencia sem radio"}
-    r = client.post(f"/ui/drafts/{draft_id}/edit", data=form)
+    r = _edit(client, draft_id, form)
     assert r.status_code == 200
     assert "edit-error" in r.text
     assert _state_of(client, draft_id) == before
@@ -321,7 +350,7 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
         "occ__1__acao": "Acionada a policia",
         "occ__1__resolvido": "nao",
     }
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    assert _edit(client, draft_id, form).status_code == 200
 
     state = _state_of(client, draft_id)
     assert state["classification"]["incident_type"] == "theft"
@@ -343,7 +372,7 @@ def test_human_edit_preserves_raw_ocr_snapshot(client: TestClient) -> None:
         "occ__1__resolvido": "sim",
     }
 
-    assert client.post(f"/ui/drafts/{draft_id}/edit", data=form).status_code == 200
+    assert _edit(client, draft_id, form).status_code == 200
     state = _state_of(client, draft_id)
 
     assert state["raw_extraction"] == before_raw

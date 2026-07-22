@@ -41,6 +41,7 @@
       <h3>Extracted fields — verify / correct, then Save</h3>
       <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
         <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
+        <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
         <table>
           <tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th><th>Evidência</th></tr>
           {% for f in fields %}
@@ -135,7 +136,11 @@
         <button type="button" disabled>Exportar CSV</button>
         <span class="evidence-note">Bloqueado até revisar: {{ export_blockers | join(", ") }}</span>
         {% else %}
-        <a href="/drafts/{{ draft.id }}/export.csv"><button type="button">Exportar CSV</button></a>
+        <form method="post" action="/drafts/{{ draft.id }}/export.csv">
+          <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
+          <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
+          <button type="submit">Exportar CSV</button>
+        </form>
         {% endif %}
       </p>
       {% endif %}
