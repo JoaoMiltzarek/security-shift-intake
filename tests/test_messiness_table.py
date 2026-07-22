@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import random
 
-from data.generators.messiness import CROSSOUT_OPEN
 from data.generators.messiness_table import P_ILLEGIBLE, build_surface
 from data.generators.occurrences import SheetRecord, generate_sheet, vocab_for_split
+from data.generators.surface_ops import CROSSOUT_OPEN
 
 
 def _rng(seed: int = 0) -> random.Random:
