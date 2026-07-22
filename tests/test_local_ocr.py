@@ -11,9 +11,13 @@ import pytesseract
 import pytest
 from PIL import Image
 
-from evals.eval_transcription import tesseract_available
 from src.clients.base import DocumentReader, TranscriptionResult
-from src.clients.local_ocr import LocalOCRVisionClient, _collect_words, _reconstruct
+from src.clients.local_ocr import (
+    LocalOCRVisionClient,
+    _collect_words,
+    _reconstruct,
+    tesseract_available,
+)
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 
 

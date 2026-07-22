@@ -17,10 +17,9 @@ from typing import Any
 import pytest
 from sqlmodel import Session
 
-from evals.eval_transcription import tesseract_available
 from src.api.db import make_engine
 from src.api.repository import get_draft
-from src.clients.local_ocr import LocalOCRVisionClient
+from src.clients.local_ocr import LocalOCRVisionClient, tesseract_available
 from src.paths import REPO_ROOT
 from src.schema.state import ApprovalStatus, PipelineState
 

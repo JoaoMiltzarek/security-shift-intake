@@ -29,11 +29,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from evals.eval_transcription import tesseract_available
 from evals.metrics import cer, wer
 from src.clients.base import DocumentReader
 from src.clients.factory import get_vision_client
-from src.clients.local_ocr import LocalOCRVisionClient
+from src.clients.local_ocr import LocalOCRVisionClient, tesseract_available
 from src.pipeline.ingest import Deadline, load_page_artifacts
 
 DEFAULT_DATASET_DIR = Path(os.environ.get("BRESSAY_DIR", "datasets/bressay"))

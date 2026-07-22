@@ -49,6 +49,15 @@ TESSERACT_TEMP_ROOT = PRIVATE_ROOT / "tmp" / "tesseract"
 _TESSERACT_TEMP_LOCK = threading.Lock()
 
 
+def tesseract_available() -> bool:
+    """Return whether the local Tesseract executable is callable."""
+    try:
+        pytesseract.get_tesseract_version()
+        return True
+    except Exception:  # noqa: BLE001 - every discovery failure means unavailable
+        return False
+
+
 @contextmanager
 def _tesseract_private_temp(root: Path) -> Iterator[None]:
     """Route pytesseract and its subprocess temp files to a private, purgable root."""
