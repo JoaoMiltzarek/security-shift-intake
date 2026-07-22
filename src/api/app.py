@@ -10,6 +10,8 @@ Sending always goes through the gate (M7.b) — never auto-sent.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import csv
 import io
 import ipaddress
@@ -18,6 +20,7 @@ import os
 import re
 import unicodedata
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -510,7 +513,7 @@ def _csv_safe(value: str) -> str:
     return value
 
 
-def _draft_summary(draft: Draft) -> dict[str, Any]:
+def _draft_summary(draft: Draft | repository.DraftSummary) -> dict[str, Any]:
     return {
         "id": draft.id,
         "status": draft.status,
@@ -519,6 +522,60 @@ def _draft_summary(draft: Draft) -> dict[str, Any]:
         "delivery_mode": draft.delivery_mode,
         "sent_at": draft.sent_at.isoformat() if draft.sent_at else None,
     }
+
+
+def _encode_draft_cursor(cursor: repository.DraftPageCursor | None) -> str | None:
+    if cursor is None:
+        return None
+    payload = json.dumps(
+        [cursor.created_at.isoformat(timespec="microseconds"), cursor.draft_id],
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+
+def _decode_draft_cursor(raw: str | None) -> repository.DraftPageCursor | None:
+    if raw is None:
+        return None
+    if not raw or len(raw) > 256 or not raw.isascii():
+        raise HTTPException(status_code=422, detail="Invalid queue cursor.")
+    try:
+        padded = raw + "=" * (-len(raw) % 4)
+        payload = json.loads(base64.b64decode(padded, altchars=b"-_", validate=True))
+        if (
+            not isinstance(payload, list)
+            or len(payload) != 2
+            or not isinstance(payload[0], str)
+            or not isinstance(payload[1], int)
+            or isinstance(payload[1], bool)
+            or payload[1] < 1
+        ):
+            raise ValueError
+        created_at = datetime.fromisoformat(payload[0])
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid queue cursor.") from exc
+    return repository.DraftPageCursor(created_at=created_at, draft_id=payload[1])
+
+
+def _queue_page(
+    session: Session,
+    *,
+    status: str,
+    cursor: str | None,
+) -> tuple[repository.DraftPage, str]:
+    active_status = status.strip().lower()
+    if active_status == "all":
+        repository_status = None
+    elif active_status in repository.QUEUE_STATUSES:
+        repository_status = active_status
+    else:
+        raise HTTPException(status_code=422, detail="Invalid queue status.")
+    page = repository.list_draft_page(
+        session,
+        cursor=_decode_draft_cursor(cursor),
+        status=repository_status,
+    )
+    return page, active_status
 
 
 def create_app(
@@ -617,8 +674,17 @@ def create_app(
             return _draft_summary(draft)
 
     @app.get("/drafts")
-    def list_drafts(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
-        return [_draft_summary(d) for d in repository.list_drafts(session)]
+    def list_drafts(
+        status: str = "all",
+        cursor: str | None = None,
+        session: Session = Depends(get_session),
+    ) -> dict[str, Any]:
+        page, active_status = _queue_page(session, status=status, cursor=cursor)
+        return {
+            "items": [_draft_summary(draft) for draft in page.items],
+            "next_cursor": _encode_draft_cursor(page.next_cursor),
+            "status": active_status,
+        }
 
     @app.get("/drafts/{draft_id}")
     def get_draft(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
@@ -704,8 +770,22 @@ def create_app(
         )
 
     @app.get("/", response_class=HTMLResponse)
-    def index(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
-        return _render(request, "list.html", {"drafts": repository.list_drafts(session)})
+    def index(
+        request: Request,
+        status: str = "all",
+        cursor: str | None = None,
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        page, active_status = _queue_page(session, status=status, cursor=cursor)
+        return _render(
+            request,
+            "list.html",
+            {
+                "drafts": page.items,
+                "next_cursor": _encode_draft_cursor(page.next_cursor),
+                "active_status": active_status,
+            },
+        )
 
     @app.get("/drafts/{draft_id}/review", response_class=HTMLResponse)
     def review(

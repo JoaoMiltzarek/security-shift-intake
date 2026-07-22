@@ -56,8 +56,16 @@ def test_index_lists_drafts(client_and_sender: tuple[TestClient, MockSender]) ->
     draft_id = _submit(client)
     r = client.get("/")
     assert r.status_code == 200
-    assert "Drafts pending review" in r.text
+    assert "Documentos para revisão" in r.text
     assert f"/drafts/{draft_id}/review" in r.text
+
+
+def test_index_rejects_invalid_filter_and_cursor(
+    client_and_sender: tuple[TestClient, MockSender],
+) -> None:
+    client, _ = client_and_sender
+    assert client.get("/?status=deleted").status_code == 422
+    assert client.get("/?cursor=not-a-cursor").status_code == 422
 
 
 def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockSender]) -> None:

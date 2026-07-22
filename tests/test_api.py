@@ -123,7 +123,10 @@ def test_list_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
     client.post("/drafts", json=_SUBMIT_BODY)
     r = client.get("/drafts")
     assert r.status_code == 200
-    assert len(r.json()) == 2
+    payload = r.json()
+    assert len(payload["items"]) == 2
+    assert payload["next_cursor"] is None
+    assert payload["status"] == "all"
 
 
 # --- Contratos F1 (SSI-1005/F3): aprovação vinculada à revisão do conteúdo ---
