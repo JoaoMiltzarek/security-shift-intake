@@ -1,16 +1,16 @@
-"""Stage 1 — Transcribe: VLM reads the page image(s) into verbatim text.
+"""Stage 1 — read immutable page artifacts into verbatim text.
 
 Kept as a separate stage from extraction (spec §2) for auditability and a
-separable HTR eval. Loads the source (PDF or image, stage 0), transcribes each
-page through the provider-agnostic VisionClient, and writes the combined text + a
-conservative confidence into the pipeline state. The input state is never mutated
-— a new state is returned.
+separable HTR eval. Ingestion already created the canonical PNG bytes, so this
+stage only invokes the provider-agnostic DocumentReader and aggregates results.
 """
 
 from __future__ import annotations
 
-from src.clients.base import VisionClient, WordBox
-from src.pipeline.ingest import DEFAULT_DPI, image_to_base64_png, load_source_images
+from collections.abc import Sequence
+
+from src.clients.base import DocumentReader, WordBox
+from src.pipeline.ingest import DEFAULT_DPI, Deadline, PageArtifact, load_page_artifacts
 from src.schema.state import PipelineState
 
 # Standard form-feed keeps page boundaries explicit for downstream table parsing.
@@ -19,16 +19,23 @@ _PAGE_SEP = "\n\f\n"
 
 def transcribe(
     state: PipelineState,
-    client: VisionClient,
+    reader: DocumentReader,
+    pages: Sequence[PageArtifact] | None = None,
+    deadline: Deadline | None = None,
+    *,
     dpi: int = DEFAULT_DPI,
 ) -> PipelineState:
-    """Load + transcribe the source (PDF or image); return an updated PipelineState."""
-    images = load_source_images(state.source_pdf, dpi=dpi)
-    try:
-        results = [client.transcribe(image_to_base64_png(img)) for img in images]
-    finally:
-        for image in images:
-            image.close()
+    """Read canonical pages and return an updated state without mutating the input."""
+    active_deadline = deadline or Deadline.after(300.0)
+    active_pages = (
+        pages
+        if pages is not None
+        else load_page_artifacts(state.source_pdf, dpi=dpi, deadline=active_deadline)
+    )
+    results = []
+    for page in active_pages:
+        active_deadline.remaining_seconds(stage="document reading")
+        results.append(reader.read(page, active_deadline))
 
     text = _PAGE_SEP.join(r.text for r in results)
     # Conservative aggregate: the least-confident page drives review (surfaces

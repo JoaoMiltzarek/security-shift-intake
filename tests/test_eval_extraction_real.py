@@ -33,6 +33,7 @@ from evals.eval_extraction_real import (
     run_sheet,
 )
 from src.clients.base import TranscriptionResult
+from src.pipeline.ingest import Deadline, PageArtifact
 from src.schema.extraction import (
     NormalizedIncidentModel,
     NormalizedOccurrence,
@@ -307,14 +308,14 @@ def test_repairable_ratio_counts_geometry() -> None:
 class _RaisingVision:
     """Simula Ollama offline / modelo não baixado: transcribe levanta RuntimeError."""
 
-    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
         raise RuntimeError("Could not reach a local VLM server at http://localhost:11434/v1")
 
 
 class _EmptyVision:
     """Simula VLM devolvendo string vazia válida (resposta sem conteúdo útil)."""
 
-    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
         return TranscriptionResult(text="", confidence=0.5, confidence_source="mock")
 
 
@@ -336,7 +337,7 @@ def test_eval_marks_vlm_runtime_error_available_false(tmp_path: Path) -> None:
 
 def test_real_mode_rejects_source_outside_private_before_reader(tmp_path: Path) -> None:
     class ForbiddenVision:
-        def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+        def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
             raise AssertionError("source confinement must run before the reader")
 
     out = run_sheet(

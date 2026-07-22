@@ -22,7 +22,7 @@ from sqlmodel import Session
 from src.api.db import init_db, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT, save_page_images
 from src.api.repository import create_draft
-from src.clients.base import LLMClient, VisionClient
+from src.clients.base import DocumentReader, LLMClient
 from src.clients.factory import get_vision_client
 from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
@@ -52,7 +52,7 @@ def _private_real_file(path: Path, root: Path = PRIVATE_REAL_ROOT) -> Path:
 
 def build_and_store(
     file: Path,
-    vision: VisionClient,
+    vision: DocumentReader,
     llm: LLMClient,
     config_path: Path,
     engine: Engine,

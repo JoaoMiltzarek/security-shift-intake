@@ -48,7 +48,7 @@ import httpx
 from evals.metrics import cer, levenshtein
 from scripts.privacy_check import scan_text_for_pii
 from src.api.gate import DraftNotReviewableError, assert_reviewable
-from src.clients.base import RuntimeMetadataProvider, VisionClient
+from src.clients.base import DocumentReader, RuntimeMetadataProvider
 from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
@@ -469,7 +469,7 @@ def run_metadata(
     reader: str,
     dpi: int,
     *,
-    vision: VisionClient | RuntimeMetadataProvider | None = None,
+    vision: DocumentReader | RuntimeMetadataProvider | None = None,
 ) -> dict[str, Any]:
     """Metadados que tornam a rodada re-executável (hash do prompt, modelo, commit)."""
     prompt_hash = (
@@ -547,7 +547,7 @@ def load_curadoria(
 def run_sheet(
     cur: dict[str, Any],
     config: Any,
-    vision: VisionClient | None = None,
+    vision: DocumentReader | None = None,
     dpi: int = OCR_DPI,
     *,
     require_private_source: bool = False,

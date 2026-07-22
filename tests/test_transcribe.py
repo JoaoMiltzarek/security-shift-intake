@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from data.generators.tier_b import build_tier_b
 from src.clients.base import TranscriptionResult
 from src.clients.mock import MockVisionClient
+from src.pipeline.ingest import Deadline, PageArtifact
 from src.pipeline.transcribe import transcribe
 from src.schema.state import PipelineState
 
@@ -38,23 +40,32 @@ def test_transcribe_does_not_mutate_input(sample_pdf: Path) -> None:
     assert state.transcription_confidence is None
 
 
-def test_transcribe_closes_loaded_page_images(
+def _page(index: int = 0) -> PageArtifact:
+    with Image.new("RGB", (10, 10), "white") as image:
+        return PageArtifact.from_image(image, page_index=index)
+
+
+def test_transcribe_uses_supplied_artifact_without_reingest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from PIL import Image
-
     import src.pipeline.transcribe as mod
 
-    image = Image.new("RGB", (10, 10), "white")
-    monkeypatch.setattr(mod, "load_source_images", lambda path, dpi=250: [image])
+    monkeypatch.setattr(
+        mod,
+        "load_page_artifacts",
+        lambda *args, **kwargs: pytest.fail("supplied artifacts must be reused"),
+    )
+    reader = MockVisionClient(text="synthetic")
+    page = _page()
 
     transcribe(
         PipelineState(source_pdf=Path("synthetic.pdf")),
-        MockVisionClient(text="synthetic"),
+        reader,
+        pages=(page,),
+        deadline=Deadline.after(5.0),
     )
 
-    with pytest.raises(ValueError):
-        image.getpixel((0, 0))
+    assert reader.last_page_sha256 == page.sha256
 
 
 class _MultiPageFake:
@@ -64,7 +75,7 @@ class _MultiPageFake:
         self._results = results
         self._i = 0
 
-    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
         r = self._results[self._i % len(self._results)]
         self._i += 1
         return r
@@ -78,32 +89,19 @@ def test_confidence_is_minimum_across_pages() -> None:
             TranscriptionResult(text="page two", confidence=0.4),
         ]
     )
-    # Patch the loader to return two dummy images without needing a 2-page PDF.
-    from PIL import Image
-
-    import src.pipeline.transcribe as mod
-
-    original = mod.load_source_images
-    mod.load_source_images = lambda path, dpi=250: [  # type: ignore[assignment]
-        Image.new("RGB", (10, 10), "white"),
-        Image.new("RGB", (10, 10), "white"),
-    ]
-    try:
-        state = PipelineState(source_pdf=Path("ignored.pdf"))
-        result = transcribe(state, fake)
-    finally:
-        mod.load_source_images = original  # type: ignore[assignment]
+    state = PipelineState(source_pdf=Path("ignored.pdf"))
+    result = transcribe(
+        state,
+        fake,
+        pages=(_page(0), _page(1)),
+        deadline=Deadline.after(5.0),
+    )
 
     assert result.transcription == "page one\n\f\npage two"
     assert result.transcription_confidence == 0.4
 
 
-def test_multipage_occurrence_after_sa_is_not_lost(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from PIL import Image
-
-    import src.pipeline.transcribe as mod
+def test_multipage_occurrence_after_sa_is_not_lost() -> None:
     from src.clients.table_rules import RuleBasedTableExtractor
     from src.pipeline.normalize import normalize
     from src.schema.loader import load_config
@@ -130,16 +128,12 @@ Ronda x
             TranscriptionResult(text=page_two, confidence=0.8),
         ]
     )
-    monkeypatch.setattr(
-        mod,
-        "load_source_images",
-        lambda path, dpi=250: [
-            Image.new("RGB", (10, 10), "white"),
-            Image.new("RGB", (10, 10), "white"),
-        ],
+    state = transcribe(
+        PipelineState(source_pdf=Path("synthetic.pdf")),
+        client,
+        pages=(_page(0), _page(1)),
+        deadline=Deadline.after(5.0),
     )
-
-    state = transcribe(PipelineState(source_pdf=Path("synthetic.pdf")), client)
     config = load_config(Path("configs/controle_ocorrencias.yaml"))
     raw = RuleBasedTableExtractor(config).extract(state.transcription or "")
     normalized = normalize(raw)

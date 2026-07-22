@@ -8,14 +8,13 @@ second rasterization or a base64 round trip.
 
 from __future__ import annotations
 
-import base64
 import contextlib
 import hashlib
 import io
 import math
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -160,7 +159,7 @@ def _validate_source_bytes(path: Path) -> None:
 
 
 @contextlib.contextmanager
-def _pdfium_guard(deadline: Deadline | None):
+def _pdfium_guard(deadline: Deadline | None) -> Iterator[None]:
     """Serialize PDFium access without allowing lock contention to bypass the SLO."""
     if deadline is None:
         acquired = _PDFIUM_LOCK.acquire()
@@ -312,13 +311,6 @@ def load_source_images(
         f"Unsupported source type '{path.suffix}'. Use a PDF or an image "
         f"({', '.join(sorted(_IMAGE_SUFFIXES))})."
     )
-
-
-def image_to_base64_png(image: Image.Image) -> str:
-    """Compatibility encoder for legacy evaluation adapters during migration."""
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return base64.standard_b64encode(buffer.getvalue()).decode("utf-8")
 
 
 def downscale_page_image(

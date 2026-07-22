@@ -13,6 +13,7 @@ from PIL import Image
 
 from src.clients.base import TranscriptionResult, WordBox
 from src.clients.local_ocr import _collect_words
+from src.pipeline.ingest import Deadline, PageArtifact
 from src.pipeline.transcribe import transcribe
 from src.schema.state import PipelineState
 
@@ -84,7 +85,7 @@ class _FakeReader:
     def __init__(self, words: list[WordBox] | None) -> None:
         self._words = words
 
-    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
         return TranscriptionResult(text="Torre I", confidence=0.9, words=self._words)
 
 

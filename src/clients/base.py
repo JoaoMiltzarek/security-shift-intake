@@ -7,9 +7,12 @@ swappable and, crucially, **mockable in tests** (spec §2 provider abstraction,
 
 from __future__ import annotations
 
-from typing import Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from src.pipeline.ingest import Deadline, PageArtifact
 
 
 class WordBox(BaseModel):
@@ -58,10 +61,21 @@ class TranscriptionResult(BaseModel):
 
 
 @runtime_checkable
-class VisionClient(Protocol):
-    """Reads a page image and returns a faithful transcription.
+class DocumentReader(Protocol):
+    """Read one canonical page within the intake's global monotonic deadline."""
 
-    Implementations: MockVisionClient (tests, $0) and AnthropicVisionClient (real).
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
+        """Return faithful page transcription and evidence geometry."""
+        ...
+
+
+@runtime_checkable
+class VisionClient(Protocol):
+    """Legacy base64 reader contract retained for isolated evaluation adapters.
+
+    Supported product orchestration consumes :class:`DocumentReader` instead.  This
+    protocol remains only while historical/experimental adapters are moved out of
+    the runtime package; core ingestion must not encode pages as base64.
     """
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:

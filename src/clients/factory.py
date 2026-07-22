@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import os
 
-from src.clients.base import VisionClient
+from src.clients.base import DocumentReader
 
 _DEFAULT_VISION = "local_ocr"
 
 
-def get_vision_client(name: str | None = None) -> VisionClient:
-    """Return the configured VisionClient (arg > INTAKE_VISION env > local_ocr default).
+def get_vision_client(name: str | None = None) -> DocumentReader:
+    """Return the configured reader (arg > INTAKE_VISION env > local_ocr default).
 
     Clients are imported lazily so selecting the local path never imports the paid
     SDK, and selecting the VLM path never requires Tesseract to be installed.

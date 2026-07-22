@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.clients.base import TranscriptionResult, VisionClient
+from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
 from src.clients.mock import MockVisionClient
 
 # ---------------------------------------------------------------------------
@@ -41,6 +41,7 @@ def test_transcription_result_accepts_paddleocr_confidence_source() -> None:
 
 def test_mock_satisfies_protocol() -> None:
     assert isinstance(MockVisionClient(), VisionClient)
+    assert isinstance(MockVisionClient(), DocumentReader)
 
 
 def test_mock_returns_configured_result() -> None:

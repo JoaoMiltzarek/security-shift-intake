@@ -6,7 +6,6 @@ rasterize) is exercised exactly as the production path will run it.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import threading
 import time
@@ -29,7 +28,6 @@ from src.pipeline.ingest import (
     IngestLimitError,
     PageArtifact,
     ProcessingDeadlineExceeded,
-    image_to_base64_png,
     load_page_artifacts,
     load_source_images,
     rasterize_pdf,
@@ -99,13 +97,6 @@ def test_default_dpi_is_250() -> None:
 def test_missing_pdf_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         rasterize_pdf(tmp_path / "nope.pdf")
-
-
-def test_base64_png_round_trips(sample_pdf: Path) -> None:
-    img = rasterize_pdf(sample_pdf, dpi=100)[0]
-    b64 = image_to_base64_png(img)
-    raw = base64.standard_b64decode(b64)
-    assert raw[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
 
 
 def test_page_artifact_freezes_exact_reader_png(tmp_path: Path) -> None:

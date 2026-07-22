@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.clients.base import LLMClient, VisionClient
+from src.clients.base import DocumentReader, LLMClient
 from src.pipeline.classify import classify
 from src.pipeline.draft import blocked_draft_message, draft
 from src.pipeline.extract import extract
@@ -34,7 +34,7 @@ def _has_table(config: ReportConfig) -> bool:
 
 def run_pipeline(
     source: Path,
-    vision: VisionClient,
+    vision: DocumentReader,
     llm: LLMClient,
     config: ReportConfig,
     dpi: int = DEFAULT_DPI,

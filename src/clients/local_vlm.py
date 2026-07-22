@@ -23,6 +23,7 @@ path runs only when you point it at a real local server.
 
 from __future__ import annotations
 
+import base64
 import math
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -38,6 +39,7 @@ from src.clients.settings import (
     get_vlm_timeout,
     validate_vlm_base_url,
 )
+from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 
 _TRANSCRIPTION_PROMPT = (
     "You are transcribing a scanned, handwritten security shift-report form "
@@ -138,7 +140,7 @@ def _confidence_from_logprobs(
 
 
 class LocalVLMVisionClient:
-    """VisionClient backed by a local open VLM (OpenAI-compatible). No key, no cloud."""
+    """Evaluation reader backed by a local OpenAI-compatible VLM server."""
 
     def __init__(
         self,
@@ -157,9 +159,14 @@ class LocalVLMVisionClient:
         self._default_confidence = (
             default_confidence if default_confidence is not None else get_vlm_confidence()
         )
-        self._transport: Transport = transport or self._http_transport
+        self._transport = transport
 
-    def _http_transport(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _http_transport(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
         """Default transport: POST to the local server, with a clear setup error."""
         url = f"{self._base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {self._api_key}"}
@@ -168,7 +175,7 @@ class LocalVLMVisionClient:
                 url,
                 json=payload,
                 headers=headers,
-                timeout=self._timeout,
+                timeout=self._timeout if timeout is None else timeout,
                 trust_env=False,
             )
             response.raise_for_status()
@@ -184,10 +191,31 @@ class LocalVLMVisionClient:
             raise RuntimeError("Local VLM returned invalid JSON.") from None
         return data
 
-    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+    def _request(
+        self,
+        payload: dict[str, Any],
+        *,
+        deadline: Deadline | None,
+    ) -> dict[str, Any]:
+        if self._transport is not None:
+            return self._transport(payload)
+        timeout = (
+            self._timeout
+            if deadline is None
+            else deadline.bounded_timeout(self._timeout, stage="local VLM request")
+        )
+        return self._http_transport(payload, timeout=timeout)
+
+    def _transcribe(
+        self,
+        image_b64: str,
+        media_type: str,
+        *,
+        deadline: Deadline | None,
+    ) -> TranscriptionResult:
         payload = _build_payload(image_b64, media_type, self._model)
         try:
-            raw = self._transport(payload)
+            raw = self._request(payload, deadline=deadline)
         except RuntimeError as exc:
             # Medido (2026-07): Ollama 0.31.1 devolve HTTP 500 quando `logprobs: true`
             # acompanha um payload de visão; sem logprobs funciona. logprobs é fonte de
@@ -197,7 +225,10 @@ class LocalVLMVisionClient:
             cause = exc.__cause__
             if not isinstance(cause, httpx.HTTPStatusError) or cause.response.status_code != 500:
                 raise
-            raw = self._transport({k: v for k, v in payload.items() if k != "logprobs"})
+            raw = self._request(
+                {k: v for k, v in payload.items() if k != "logprobs"},
+                deadline=deadline,
+            )
         try:
             response = _ChatResponse.model_validate(raw)
         except ValidationError:
@@ -205,3 +236,21 @@ class LocalVLMVisionClient:
         text = _parse_text(response)
         confidence, source = _confidence_from_logprobs(response, self._default_confidence)
         return TranscriptionResult(text=text, confidence=confidence, confidence_source=source)
+
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
+        """Convert canonical bytes to base64 only inside this evaluation adapter."""
+        encoded = base64.standard_b64encode(page.png_bytes).decode("ascii")
+        try:
+            result = self._transcribe(encoded, "image/png", deadline=deadline)
+        except RuntimeError as exc:
+            if isinstance(exc.__cause__, httpx.TimeoutException):
+                raise ProcessingDeadlineExceeded(
+                    "Local VLM timed out; manual review is required."
+                ) from None
+            raise
+        deadline.remaining_seconds(stage="local VLM response")
+        return result
+
+    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+        """Legacy evaluation helper; product orchestration calls :meth:`read`."""
+        return self._transcribe(image_b64, media_type, deadline=None)

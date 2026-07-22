@@ -1,9 +1,8 @@
-"""LocalOCRVisionClient — zero-cost, offline transcription via Tesseract OCR.
+"""TesseractReader — zero-cost, offline document reading.
 
-Implements VisionClient using the local Tesseract binary (no API, no network, no
-cost). Returns the OCR text with **line structure preserved** (so the rule-based
-extractor can anchor on labels) plus a confidence aggregated from Tesseract's
-per-word scores.
+Consumes the canonical immutable PNG page directly (no base64 encode/decode) and
+returns line-preserving text plus Tesseract word geometry.  The subprocess timeout
+is bounded by the intake's global monotonic deadline.
 
 HONEST LIMITATION (§4): Tesseract reads printed text well but is weak on cursive
 handwriting. Low-confidence/garbled output is expected on handwritten values — the
@@ -14,7 +13,6 @@ OCR".
 
 from __future__ import annotations
 
-import base64
 import io
 import os
 import tempfile
@@ -29,6 +27,12 @@ from PIL import Image
 
 from src.clients.base import TranscriptionResult, WordBox
 from src.paths import PRIVATE_ROOT, resolve_private_path
+from src.pipeline.ingest import (
+    Deadline,
+    PageArtifact,
+    ProcessingDeadlineExceeded,
+    downscale_page_image,
+)
 
 # Real office scans are low-resolution; rasterizing them at high DPI upscales the
 # noise and *hurts* Tesseract. Empirically (real folhas) OCR peaks near ~150 DPI for
@@ -73,17 +77,8 @@ def _tesseract_private_temp(root: Path) -> Iterator[None]:
 
 
 def downscale_for_ocr(image: Image.Image) -> Image.Image:
-    """Downscale oversized scans so Tesseract reads them better; leave small ones as-is.
-
-    Public because the cockpit persists *this exact image* (same transform) so the
-    normalized word boxes line up pixel-for-pixel with what the reviewer sees.
-    """
-    longest = max(image.width, image.height)
-    if longest <= _MAX_OCR_LONG_SIDE:
-        return image
-    scale = _MAX_OCR_LONG_SIDE / longest
-    new_size = (round(image.width * scale), round(image.height * scale))
-    return image.resize(new_size, Image.Resampling.LANCZOS)
+    """Compatibility alias for the canonical artifact preparation transform."""
+    return downscale_page_image(image, max_long_side=_MAX_OCR_LONG_SIDE)
 
 
 def _norm_coord(value: float, *, name: str) -> float | None:
@@ -119,6 +114,8 @@ def _collect_words(data: dict[str, Any], width: int, height: int) -> list[WordBo
         x1 = _norm_coord((left + w) / width, name="x1")
         y1 = _norm_coord((top + h) / height, name="y1")
         if x0 is None or y0 is None or x1 is None or y1 is None:
+            continue
+        if x0 >= x1 or y0 >= y1:
             continue
         line_key = (
             f"{int(data['block_num'][i])}:{int(data['par_num'][i])}:{int(data['line_num'][i])}"
@@ -158,8 +155,8 @@ def _reconstruct(data: dict[str, Any]) -> tuple[str, float]:
     return text, confidence
 
 
-class LocalOCRVisionClient:
-    """VisionClient backed by local Tesseract OCR. No API key, no network."""
+class TesseractReader:
+    """DocumentReader backed by local Tesseract OCR. No API key, no network."""
 
     def __init__(
         self,
@@ -208,31 +205,40 @@ class LocalOCRVisionClient:
             "tesseract_language": effective_lang or "default",
         }
 
-    def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
+        """Read the exact PNG artifact while respecting the sheet-wide deadline."""
         lang = self._resolve_lang()
-        image = Image.open(io.BytesIO(base64.standard_b64decode(image_b64)))
-        ocr_image = downscale_for_ocr(image)
+        timeout = deadline.bounded_timeout(self._timeout, stage="Tesseract OCR")
         try:
-            with _tesseract_private_temp(self._temp_root):
-                data = pytesseract.image_to_data(
-                    ocr_image,
-                    lang=lang,
-                    output_type=pytesseract.Output.DICT,
-                    timeout=self._timeout,
-                )
+            with Image.open(io.BytesIO(page.png_bytes)) as ocr_image:
+                ocr_image.load()
+                if (ocr_image.width, ocr_image.height) != (page.width, page.height):
+                    raise RuntimeError("Page artifact dimensions are inconsistent.")
+                with _tesseract_private_temp(self._temp_root):
+                    data = pytesseract.image_to_data(
+                        ocr_image,
+                        lang=lang,
+                        output_type=pytesseract.Output.DICT,
+                        timeout=timeout,
+                    )
         except RuntimeError as exc:
             if str(exc) == "Tesseract process timeout":
-                raise RuntimeError(
-                    "Tesseract OCR timed out while processing one page; review the input."
+                raise ProcessingDeadlineExceeded(
+                    "Tesseract OCR timed out; manual review is required."
                 ) from None
             raise
+        deadline.remaining_seconds(stage="Tesseract OCR")
         text, confidence = _reconstruct(data)
-        words = _collect_words(data, ocr_image.width, ocr_image.height)
+        words = _collect_words(data, page.width, page.height)
         return TranscriptionResult(
             text=text,
             confidence=confidence,
             confidence_source="tesseract",
             words=words,
-            image_width=ocr_image.width,
-            image_height=ocr_image.height,
+            image_width=page.width,
+            image_height=page.height,
         )
+
+
+# Preserve the public import while callers migrate to the capability-based name.
+LocalOCRVisionClient = TesseractReader

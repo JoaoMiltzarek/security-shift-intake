@@ -12,8 +12,9 @@ from typing import Any
 
 import httpx
 import pytest
+from PIL import Image
 
-from src.clients.base import TranscriptionResult, VisionClient
+from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
 from src.clients.factory import get_vision_client
 from src.clients.local_vlm import (
     LocalVLMVisionClient,
@@ -22,6 +23,7 @@ from src.clients.local_vlm import (
     _confidence_from_logprobs,
     _parse_text,
 )
+from src.pipeline.ingest import Deadline, PageArtifact
 
 
 def _response(text: str | None, logprobs: list[float] | None = None) -> dict[str, Any]:
@@ -52,6 +54,12 @@ class FakeTransport:
 def test_client_satisfies_protocol() -> None:
     client = LocalVLMVisionClient(transport=FakeTransport(_response("hi")))
     assert isinstance(client, VisionClient)
+    assert isinstance(client, DocumentReader)
+
+
+def _page() -> PageArtifact:
+    with Image.new("RGB", (10, 10), "white") as image:
+        return PageArtifact.from_image(image, page_index=0)
 
 
 # --- transcribe end to end (mocked transport) ---
@@ -74,6 +82,19 @@ def test_transcribe_builds_data_url_with_media_type() -> None:
     content = transport.last_payload["messages"][0]["content"]
     image_parts = [p for p in content if p["type"] == "image_url"]
     assert image_parts[0]["image_url"]["url"] == "data:image/jpeg;base64,QUJD"
+
+
+def test_read_encodes_page_bytes_inside_the_adapter() -> None:
+    transport = FakeTransport(_response("x"))
+    client = LocalVLMVisionClient(transport=transport)
+    page = _page()
+
+    client.read(page, Deadline.after(5.0))
+
+    assert transport.last_payload is not None
+    content = transport.last_payload["messages"][0]["content"]
+    data_url = next(part["image_url"]["url"] for part in content if part["type"] == "image_url")
+    assert data_url.startswith("data:image/png;base64,")
 
 
 # --- confidence is honest: real from logprobs, conservative default otherwise ---
@@ -178,6 +199,24 @@ def test_default_transport_never_inherits_proxy_environment(
     client = LocalVLMVisionClient(base_url="http://127.0.0.1:11434/v1")
     assert client.transcribe("ZmFrZQ==").text == "texto local"
     assert captured["trust_env"] is False
+
+
+def test_page_deadline_clamps_local_vlm_http_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        captured.update(url=url, **kwargs)
+        request = httpx.Request("POST", url)
+        return httpx.Response(200, request=request, json=_response("texto local"))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    deadline = Deadline.after(1.5, clock=lambda: 10.0)
+
+    LocalVLMVisionClient(base_url="http://127.0.0.1:11434/v1").read(_page(), deadline)
+
+    assert captured["timeout"] == 1.5
 
 
 # --- retry sem logprobs (medido: Ollama 0.31.1 -> 500 com logprobs+visão) ------

@@ -8,6 +8,7 @@ it as working transcription functionality.
 from __future__ import annotations
 
 from src.clients.base import ClassificationResult, ExtractedFieldRaw, TranscriptionResult
+from src.pipeline.ingest import Deadline, PageArtifact
 
 
 class MockVisionClient:
@@ -18,8 +19,19 @@ class MockVisionClient:
         self._confidence = confidence
         self.call_count = 0
         self.last_image_b64: str | None = None
+        self.last_page_sha256: str | None = None
+
+    def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
+        """Return canned text while exercising the production page/deadline contract."""
+        deadline.remaining_seconds(stage="mock document reading")
+        self.call_count += 1
+        self.last_page_sha256 = page.sha256
+        return TranscriptionResult(
+            text=self._text, confidence=self._confidence, confidence_source="mock"
+        )
 
     def transcribe(self, image_b64: str, media_type: str = "image/png") -> TranscriptionResult:
+        """Legacy helper for historical adapter unit tests outside product orchestration."""
         self.call_count += 1
         self.last_image_b64 = image_b64
         return TranscriptionResult(

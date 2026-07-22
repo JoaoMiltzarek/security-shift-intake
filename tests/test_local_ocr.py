@@ -12,13 +12,13 @@ import pytest
 from PIL import Image
 
 from evals.eval_transcription import tesseract_available
-from src.clients.base import TranscriptionResult, VisionClient
+from src.clients.base import DocumentReader, TranscriptionResult
 from src.clients.local_ocr import LocalOCRVisionClient, _collect_words, _reconstruct
-from src.pipeline.ingest import image_to_base64_png
+from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 
 
 def test_client_satisfies_protocol() -> None:
-    assert isinstance(LocalOCRVisionClient(), VisionClient)
+    assert isinstance(LocalOCRVisionClient(), DocumentReader)
 
 
 def test_runtime_metadata_attests_version_and_caches_effective_language(
@@ -77,19 +77,22 @@ def test_reconstruct_empty_is_zero_confidence() -> None:
 #     clear error path (no fabricated behaviour either way) ---
 
 
-def _png_b64() -> str:
-    return image_to_base64_png(Image.new("RGB", (200, 60), "white"))
+def _page(image: Image.Image | None = None) -> PageArtifact:
+    if image is not None:
+        return PageArtifact.from_image(image, page_index=0)
+    with Image.new("RGB", (200, 60), "white") as generated:
+        return PageArtifact.from_image(generated, page_index=0)
 
 
 def test_transcribe_real_or_clear_error() -> None:
     client = LocalOCRVisionClient()
     if tesseract_available():
-        result = client.transcribe(_png_b64())
+        result = client.read(_page(), Deadline.after(10.0))
         assert isinstance(result, TranscriptionResult)
         assert 0.0 <= result.confidence <= 1.0
     else:
         with pytest.raises(RuntimeError, match="Tesseract OCR binary not found"):
-            client.transcribe(_png_b64())
+            client.read(_page(), Deadline.after(10.0))
 
 
 def _empty_tesseract_data() -> dict[str, list[Any]]:
@@ -124,7 +127,7 @@ def test_tesseract_temp_and_subprocess_environment_stay_in_private_root(
 
     monkeypatch.setattr(pytesseract, "image_to_data", fake_image_to_data)
 
-    LocalOCRVisionClient(temp_root=temp_root).transcribe(_png_b64())
+    LocalOCRVisionClient(temp_root=temp_root).read(_page(), Deadline.after(130.0))
 
     assert captured["tempdir"] == temp_root.resolve()
     assert set(captured["env"].values()) == {str(temp_root.resolve())}
@@ -146,10 +149,28 @@ def test_tesseract_timeout_is_finite_and_sanitized(
     monkeypatch.setattr(pytesseract, "image_to_data", timeout)
     client = LocalOCRVisionClient(temp_root=tmp_path / "tesseract", timeout=3.5)
 
-    with pytest.raises(RuntimeError, match="timed out") as exc_info:
-        client.transcribe(_png_b64())
+    with pytest.raises(ProcessingDeadlineExceeded, match="timed out") as exc_info:
+        client.read(_page(), Deadline.after(10.0))
     assert captured["timeout"] == 3.5
     assert "process timeout" not in str(exc_info.value)
+
+
+def test_sheet_deadline_clamps_tesseract_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(pytesseract, "get_languages", lambda config="": ["por"])
+
+    def record_timeout(image: Image.Image, **kwargs: Any) -> dict[str, list[Any]]:
+        captured.update(kwargs)
+        return _empty_tesseract_data()
+
+    monkeypatch.setattr(pytesseract, "image_to_data", record_timeout)
+    deadline = Deadline.after(1.25, clock=lambda: 10.0)
+
+    LocalOCRVisionClient(temp_root=tmp_path / "tesseract", timeout=120.0).read(_page(), deadline)
+
+    assert captured["timeout"] == 1.25
 
 
 def test_default_tesseract_temp_creates_validated_nested_directory(
@@ -170,7 +191,7 @@ def test_default_tesseract_temp_creates_validated_nested_directory(
         lambda image, **kwargs: _empty_tesseract_data(),
     )
 
-    LocalOCRVisionClient().transcribe(_png_b64())
+    LocalOCRVisionClient().read(_page(), Deadline.after(130.0))
 
     assert isolated.is_dir()
 
@@ -207,7 +228,7 @@ def test_real_ocr_multi_occurrence_sheet_never_claims_none() -> None:
     )
     result = render_sheet(random.Random(7), record, build_surface(rng, record))
 
-    transcription = LocalOCRVisionClient().transcribe(image_to_base64_png(result.image))
+    transcription = LocalOCRVisionClient().read(_page(result.image), Deadline.after(130.0))
     normalized = normalize(RuleBasedTableExtractor(config).extract(transcription.text))
 
     assert normalized.disposition != "none"  # nunca afirma ausência numa folha com ocorrências

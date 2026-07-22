@@ -29,14 +29,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
-
 from evals.eval_transcription import tesseract_available
 from evals.metrics import cer, wer
-from src.clients.base import VisionClient
+from src.clients.base import DocumentReader
 from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
-from src.pipeline.ingest import image_to_base64_png
+from src.pipeline.ingest import Deadline, load_page_artifacts
 
 DEFAULT_DATASET_DIR = Path(os.environ.get("BRESSAY_DIR", "datasets/bressay"))
 MANIFEST_NAME = "manifest.jsonl"
@@ -62,14 +60,14 @@ def load_manifest(dataset_dir: Path) -> list[tuple[Path, str]]:
     return pairs
 
 
-def _score_client(client: VisionClient, pairs: list[tuple[Path, str]]) -> dict[str, Any]:
-    """Run a VisionClient over the pairs and return mean CER/WER (or a clear error)."""
+def _score_client(client: DocumentReader, pairs: list[tuple[Path, str]]) -> dict[str, Any]:
+    """Run a document reader over the pairs and return mean CER/WER."""
     cers: list[float] = []
     wers: list[float] = []
     for image_path, reference in pairs:
-        with Image.open(image_path) as img:
-            image_b64 = image_to_base64_png(img.convert("RGB"))
-        hypothesis = client.transcribe(image_b64).text
+        deadline = Deadline.after(300.0)
+        (page,) = load_page_artifacts(image_path, deadline=deadline)
+        hypothesis = client.read(page, deadline).text
         cers.append(cer(reference, hypothesis))
         wers.append(wer(reference, hypothesis))
     return {
