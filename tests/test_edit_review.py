@@ -98,7 +98,7 @@ def test_edit_corrects_field_and_clears_review_flag(client: TestClient) -> None:
     r = _edit(client, draft_id, form)
     assert r.status_code == 200
     # Corrected, high-confidence, valid fields are no longer flagged.
-    assert "MUST REVIEW" not in r.text
+    assert "REVISÃO OBRIGATÓRIA" not in r.text
     assert "2026-01-15" in r.text
 
     # Persisted: the detail endpoint reflects the edit + audit row.
@@ -144,7 +144,7 @@ def test_invalid_edit_stays_flagged(client: TestClient) -> None:
         "field__incident_description": "",
     }
     r = _edit(client, draft_id, form)
-    assert "MUST REVIEW" in r.text  # invalid date still flagged
+    assert "REVISÃO OBRIGATÓRIA" in r.text  # invalid date still flagged
 
 
 def test_edit_response_refreshes_status_panel_oob(client: TestClient) -> None:

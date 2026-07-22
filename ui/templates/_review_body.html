@@ -2,159 +2,282 @@
 <div id="review-body">
   <div class="cockpit{{ ' has-page' if has_image else '' }}">
     {% if has_image %}
-    {# Left pane: the *OCR* page image (same downscale as the boxes) + overlay.
-       ponytail: page 0 only — folhas are single-page; multi-page can switch src by
-       data-page later. #}
-    <div class="page-pane">
+    <aside class="page-pane" aria-labelledby="source-sheet-title">
+      <div class="page-pane-header">
+        <div>
+          <p class="eyebrow">Fonte imutável</p>
+          <h2 id="source-sheet-title">Folha original</h2>
+        </div>
+        <span class="status-chip status-pending">Página 1</span>
+      </div>
       <div class="page-stage">
-        <img id="page-img" src="/drafts/{{ draft.id }}/page/0" alt="Folha (imagem de OCR)">
-        <div id="bbox-highlight" class="bbox-highlight" hidden></div>
+        <img id="page-img" src="/drafts/{{ draft.id }}/page/0" alt="Folha original usada pelo leitor local">
+        <svg class="evidence-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"
+             role="img" aria-labelledby="evidence-overlay-title">
+          <title id="evidence-overlay-title">Região provável da evidência selecionada</title>
+          <rect id="bbox-highlight" x="0" y="0" width="0" height="0" hidden></rect>
+        </svg>
       </div>
       <p id="evidence-note" class="evidence-note" aria-live="polite">
-        Clique num campo para destacar a região provável de origem na folha.
-        A caixa é uma <strong>evidência provável</strong>, não prova.
+        Selecione “Ver origem” em um campo para localizar sua região provável. A marcação auxilia a revisão; não constitui prova.
       </p>
-    </div>
+    </aside>
     {% endif %}
 
     <div class="review-pane">
-      {% if ocr_quality %}
-      <h3>Qualidade do OCR</h3>
-      <p><span class="badge ocr-{{ ocr_quality }}">{{ ocr_quality | upper }}</span>
-         {{ ocr_quality_reason or "" }}</p>
-      {% endif %}
-
-      <p><strong>Status do documento:</strong> {{ document_status }}</p>
-
-      <h3>Classification</h3>
-      {% if classification %}
-      <p>{{ classification.incident_type }} / urgency <strong>{{ classification.urgency }}</strong>
-         / sector {{ classification.sector }} (confidence {{ "%.2f"|format(classification.confidence) }})
-         {% if classification.reason %}<br><em>{{ classification.reason }}</em>{% endif %}</p>
-      {% else %}
-      <p><em>not classified</em></p>
-      {% endif %}
-
-      <h3>Recipients</h3>
-      <p>{{ recipients | join(", ") if recipients else "(none)" }}</p>
-
-      <h3>Extracted fields — verify / correct, then Save</h3>
-      <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
-        <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
-        <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
-        <table>
-          <tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th><th>Evidência</th></tr>
-          {% for f in fields %}
-          {% set status = f.status or ("missing" if (f.value is none or f.value == "") else ("must_review" if f.must_review else "accepted")) %}
-          {% set source = f.source or "—" %}
-          {# Data carried to JS via tojson (HTML-safe: escapes < > & ' as \uXXXX), read with
-             JSON.parse + textContent in app.js — never innerHTML — so OCR/human text can't inject. #}
-          <tr class="field-row {{ 'must-review' if f.must_review else '' }}"
-              data-field="{{ f.name }}"
-              data-page="{{ f.page if f.page is not none else 0 }}"
-              data-bbox='{{ f.bbox | tojson }}'
-              data-method='{{ f.evidence_method | tojson }}'
-              data-evidence='{{ f.evidence_text | tojson }}'>
-            <td><label for="field__{{ f.name }}">{{ f.name }}</label></td>
-            <td>{% if table_mode and f.name.startswith('ocorrencia') %}
-                {# Ocorrências são editadas no grid 0/1/N abaixo — aqui é só evidência. #}
-                {{ f.value if f.value is not none else '' }}
-              {% else %}<input id="field__{{ f.name }}" name="field__{{ f.name }}"
-                       value="{{ f.value if f.value is not none else '' }}" style="width: 100%">{% endif %}</td>
-            <td>{{ source }}</td>
-            <td>{{ status }}{{ "  MUST REVIEW" if f.must_review else "" }}</td>
-            <td class="evidence-cell">
-              {% if f.evidence_method == "human_edit" %}revisado
-              {% elif f.bbox %}<span class="evidence-link">📍 {{ f.evidence_method }}</span>
-              {% else %}texto apenas{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </table>
-        {% if table_mode %}
-        <h3>Ocorrências (0/1/N)</h3>
-        {% if edit_error %}<p id="edit-error"><strong>⚠ {{ edit_error }}</strong></p>{% endif %}
-        <p>
-          Disposição:
-          <label><input type="radio" name="disposicao" value="sem_alteracao"
-                 {{ 'checked' if disposicao == 'none' else '' }}> sem alteração (S/A)</label>
-          <label><input type="radio" name="disposicao" value="com_ocorrencias"
-                 {{ 'checked' if disposicao == 'present' else '' }}> com ocorrências</label>
-          {% if disposicao == 'unknown' %}
-          <strong>Estado indefinido — confirme S/A ou preencha as ocorrências.</strong>
+      <section class="review-section" aria-labelledby="document-signal-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Leitura local</p>
+            <h2 id="document-signal-title">Sinais do documento</h2>
+          </div>
+          {% if ocr_quality %}
+          <span class="badge ocr-{{ ocr_quality }}">
+            OCR {% if ocr_quality == 'good' %}bom{% elif ocr_quality == 'low' %}baixo{% else %}falhou{% endif %}
+          </span>
           {% endif %}
-        </p>
-        <table>
-          <tr><th>Item</th><th>Hora</th><th>Descrição</th><th>Ação</th><th>Resolvido</th><th></th></tr>
-          {% for row in occurrence_rows %}
-          {% set i = loop.index %}
-          <tr class="occ-row">
-            <td><input name="occ__{{ i }}__item" value="{{ row.item }}"></td>
-            <td><input name="occ__{{ i }}__hora" value="{{ row.hora }}"></td>
-            <td><input name="occ__{{ i }}__descricao" value="{{ row.descricao }}" style="width: 100%"></td>
-            <td><input name="occ__{{ i }}__acao" value="{{ row.acao }}"></td>
-            <td><select name="occ__{{ i }}__resolvido">
-                <option value="" {{ 'selected' if row.resolvido == '' else '' }}>—</option>
-                <option value="sim" {{ 'selected' if row.resolvido == 'sim' else '' }}>sim</option>
-                <option value="nao" {{ 'selected' if row.resolvido == 'nao' else '' }}>não</option>
-            </select></td>
-            <td><button type="button" data-clear-row>Limpar linha</button></td>
-          </tr>
-          {% endfor %}
-          {# Linha sobressalente: preencher = adicionar; em branco = descartada no servidor. #}
-          {% set spare = occurrence_rows | length + 1 %}
-          <tr class="occ-row occ-spare">
-            <td><input name="occ__{{ spare }}__item" placeholder="nova linha"></td>
-            <td><input name="occ__{{ spare }}__hora"></td>
-            <td><input name="occ__{{ spare }}__descricao" style="width: 100%"></td>
-            <td><input name="occ__{{ spare }}__acao"></td>
-            <td><select name="occ__{{ spare }}__resolvido">
-                <option value="" selected>—</option>
-                <option value="sim">sim</option>
-                <option value="nao">não</option>
-            </select></td>
-            <td></td>
-          </tr>
-        </table>
-        {% endif %}
-        <p>
-          <button type="submit">Salvar revisão</button>
-          <small>Salvar revisão não aprova o documento.</small>
-        </p>
-      </form>
+        </div>
+        <p><strong>{{ document_status }}</strong></p>
+        {% if ocr_quality_reason %}<p class="form-help">{{ ocr_quality_reason }}</p>{% endif %}
+        <dl class="context-grid">
+          <div>
+            <dt>Classificação</dt>
+            <dd>
+              {% if classification %}
+              <span class="mono">{{ classification.incident_type }}</span> ·
+              urgência {% if classification.urgency == 'high' %}alta{% elif classification.urgency == 'medium' %}média{% else %}baixa{% endif %} ·
+              confiança {{ "%.0f%%"|format(classification.confidence * 100) }}
+              {% else %}Não classificado{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>Roteamento previsto</dt>
+            <dd>{{ recipients | join(", ") if recipients else "Nenhum destinatário derivado" }}</dd>
+          </div>
+          {% if classification and classification.reason %}
+          <div class="context-wide">
+            <dt>Justificativa</dt>
+            <dd>{{ classification.reason }}</dd>
+          </div>
+          {% endif %}
+        </dl>
+      </section>
 
-      {% if spreadsheet_rows %}
-      <h3>Planilha padronizada (Output 1)</h3>
-      <table>
-        <tr><th>DIA</th><th>UNIDADE</th><th>OBJETO</th><th>DESCRIÇÃO</th></tr>
-        {% for r in spreadsheet_rows %}
-        <tr><td>{{ r.dia }}</td><td>{{ r.unidade }}</td><td>{{ r.objeto }}</td><td>{{ r.descricao }}</td></tr>
-        {% endfor %}
-      </table>
-      <p>
-        {% if export_blockers %}
-        <button type="button" disabled>Exportar CSV</button>
-        <span class="evidence-note">Bloqueado até revisar: {{ export_blockers | join(", ") }}</span>
-        {% else %}
-        <form method="post" action="/drafts/{{ draft.id }}/export.csv">
+      <section class="review-section" aria-labelledby="field-ledger-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Registro estruturado</p>
+            <h2 id="field-ledger-title">Ledger de revisão</h2>
+            <p>Valores corrigidos por uma pessoa perdem a bbox antiga e recebem proveniência humana.</p>
+          </div>
+        </div>
+
+        {% if edit_error %}
+        <p id="edit-error" class="error-banner" role="alert" tabindex="-1"><strong>Não foi possível salvar.</strong> {{ edit_error }}</p>
+        {% endif %}
+
+        {% if draft.sent_at %}<div aria-label="Campos revisados — somente leitura">{% else %}
+        <form hx-post="/ui/drafts/{{ draft.id }}/edit" hx-target="#review-body" hx-swap="outerHTML">
           <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
           <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
-          <button type="submit">Exportar CSV</button>
+        {% endif %}
+
+          <div class="field-ledger">
+            {% for field in fields %}
+            {% set field_status = field.status or ("missing" if (field.value is none or field.value == "") else ("must_review" if field.must_review else "accepted")) %}
+            {% set field_source = field.source or "não identificado" %}
+            <article class="field-card{{ ' must-review' if field.must_review else '' }}" id="field-card-{{ loop.index }}">
+              <div>
+                {% if (table_mode and field.name.startswith('ocorrencia')) or draft.sent_at %}
+                <span class="field-name">{{ field.name | replace('_', ' ') }}</span>
+                {% else %}
+                <label class="field-name" for="field__{{ field.name }}">{{ field.name | replace('_', ' ') }}</label>
+                {% endif %}
+                <span class="field-meta">
+                  <span>origem: {{ field_source }}</span>
+                  <span>{% if field.must_review %}REVISÃO OBRIGATÓRIA{% elif field_status == 'accepted' %}confirmado{% else %}{{ field_status }}{% endif %}</span>
+                </span>
+              </div>
+              <div>
+                {% if table_mode and field.name.startswith('ocorrencia') %}
+                <span class="read-only-value">{{ field.value if field.value is not none else "—" }}</span>
+                {% elif draft.sent_at %}
+                <span id="field__{{ field.name }}" class="read-only-value">{{ field.value if field.value is not none and field.value != "" else "—" }}</span>
+                {% else %}
+                <input id="field__{{ field.name }}" name="field__{{ field.name }}"
+                       value="{{ field.value if field.value is not none else '' }}"
+                       aria-invalid="{{ 'true' if field.must_review else 'false' }}">
+                {% endif %}
+              </div>
+              <div>
+                {% if field.evidence_method == 'human_edit' %}
+                <span class="field-meta">Revisado por pessoa</span>
+                {% else %}
+                <button class="evidence-trigger" type="button"
+                        data-field="{{ field.name }}"
+                        data-card="field-card-{{ loop.index }}"
+                        data-page="{{ field.page if field.page is not none else 0 }}"
+                        data-bbox='{{ field.bbox | tojson }}'
+                        data-method='{{ field.evidence_method | tojson }}'
+                        data-evidence='{{ field.evidence_text | tojson }}'
+                        aria-pressed="false">
+                  {% if field.bbox %}Ver origem{% else %}Ver evidência{% endif %}
+                </button>
+                {% endif %}
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+
+          {% if table_mode %}
+          <fieldset class="occurrence-editor">
+            <legend>Cardinalidade de ocorrências</legend>
+            <p class="form-help">Confirme explicitamente zero ocorrências ou informe de uma a dez linhas.</p>
+            <div class="choice-list">
+              <label class="choice-card">
+                <input type="radio" name="disposicao" value="sem_alteracao" {{ 'checked' if disposicao == 'none' else '' }}{% if draft.sent_at %} disabled{% endif %}>
+                Sem alteração (0)
+              </label>
+              <label class="choice-card">
+                <input type="radio" name="disposicao" value="com_ocorrencias" {{ 'checked' if disposicao == 'present' else '' }}{% if draft.sent_at %} disabled{% endif %}>
+                Com ocorrências (1–10)
+              </label>
+            </div>
+            {% if disposicao == 'unknown' %}
+            <p class="blocker-banner">A cardinalidade continua indefinida. Confirme uma das opções antes de aprovar.</p>
+            {% endif %}
+
+            <div class="occurrence-list">
+              {% for row in occurrence_rows %}
+              {% set row_index = loop.index %}
+              <fieldset class="occurrence-card">
+                <legend>Ocorrência {{ row_index }}</legend>
+                <div class="occurrence-grid">
+                  <div class="form-field">
+                    <label for="occ__{{ row_index }}__item">Item</label>
+                    <input id="occ__{{ row_index }}__item" name="occ__{{ row_index }}__item" value="{{ row.item }}"{% if draft.sent_at %} disabled{% endif %}>
+                  </div>
+                  <div class="form-field">
+                    <label for="occ__{{ row_index }}__hora">Hora ou intervalo</label>
+                    <input id="occ__{{ row_index }}__hora" name="occ__{{ row_index }}__hora" value="{{ row.hora }}" placeholder="14:30 ou 14:30–15:10"{% if draft.sent_at %} disabled{% endif %}>
+                  </div>
+                  <div class="form-field wide">
+                    <label for="occ__{{ row_index }}__descricao">Descrição</label>
+                    <input id="occ__{{ row_index }}__descricao" name="occ__{{ row_index }}__descricao" value="{{ row.descricao }}"{% if draft.sent_at %} disabled{% endif %}>
+                  </div>
+                  <div class="form-field wide">
+                    <label for="occ__{{ row_index }}__acao">Ação adotada</label>
+                    <input id="occ__{{ row_index }}__acao" name="occ__{{ row_index }}__acao" value="{{ row.acao }}"{% if draft.sent_at %} disabled{% endif %}>
+                  </div>
+                  <div class="form-field">
+                    <label for="occ__{{ row_index }}__resolvido">Resolvido</label>
+                    <select id="occ__{{ row_index }}__resolvido" name="occ__{{ row_index }}__resolvido"{% if draft.sent_at %} disabled{% endif %}>
+                      <option value="" {{ 'selected' if row.resolvido == '' else '' }}>Não informado</option>
+                      <option value="sim" {{ 'selected' if row.resolvido == 'sim' else '' }}>Sim</option>
+                      <option value="nao" {{ 'selected' if row.resolvido == 'nao' else '' }}>Não</option>
+                    </select>
+                  </div>
+                </div>
+                {% if not draft.sent_at %}<button class="button-quiet button-compact" type="button" data-clear-row>Limpar ocorrência</button>{% endif %}
+              </fieldset>
+              {% endfor %}
+
+              {% if not draft.sent_at and occurrence_rows | length < 10 %}
+              {% set spare = occurrence_rows | length + 1 %}
+              <fieldset class="occurrence-card occurrence-spare">
+                <legend>Adicionar ocorrência {{ spare }}</legend>
+                <div class="occurrence-grid">
+                  <div class="form-field">
+                    <label for="occ__{{ spare }}__item">Item</label>
+                    <input id="occ__{{ spare }}__item" name="occ__{{ spare }}__item">
+                  </div>
+                  <div class="form-field">
+                    <label for="occ__{{ spare }}__hora">Hora ou intervalo</label>
+                    <input id="occ__{{ spare }}__hora" name="occ__{{ spare }}__hora" placeholder="14:30 ou 14:30–15:10">
+                  </div>
+                  <div class="form-field wide">
+                    <label for="occ__{{ spare }}__descricao">Descrição</label>
+                    <input id="occ__{{ spare }}__descricao" name="occ__{{ spare }}__descricao">
+                  </div>
+                  <div class="form-field wide">
+                    <label for="occ__{{ spare }}__acao">Ação adotada</label>
+                    <input id="occ__{{ spare }}__acao" name="occ__{{ spare }}__acao">
+                  </div>
+                  <div class="form-field">
+                    <label for="occ__{{ spare }}__resolvido">Resolvido</label>
+                    <select id="occ__{{ spare }}__resolvido" name="occ__{{ spare }}__resolvido">
+                      <option value="" selected>Não informado</option>
+                      <option value="sim">Sim</option>
+                      <option value="nao">Não</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+              {% endif %}
+            </div>
+          </fieldset>
+          {% endif %}
+
+        {% if draft.sent_at %}</div>{% else %}
+          <div class="form-actions">
+            <button type="submit">Salvar revisão</button>
+            <span class="form-help">Salvar altera a revisão e revoga qualquer aprovação anterior.</span>
+          </div>
         </form>
         {% endif %}
-      </p>
+      </section>
+
+      {% if spreadsheet_rows %}
+      <section class="review-section" aria-labelledby="spreadsheet-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Saída operacional 1</p>
+            <h2 id="spreadsheet-title">Planilha padronizada</h2>
+          </div>
+        </div>
+        <div class="data-table-wrap">
+          <table>
+            <caption>Prévia das linhas que serão exportadas após a revisão.</caption>
+            <thead><tr><th scope="col">Dia</th><th scope="col">Unidade</th><th scope="col">Objeto</th><th scope="col">Descrição</th></tr></thead>
+            <tbody>
+              {% for row in spreadsheet_rows %}
+              <tr><td>{{ row.dia }}</td><td>{{ row.unidade }}</td><td>{{ row.objeto }}</td><td>{{ row.descricao }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="output-actions">
+          {% if export_blockers %}
+          <button type="button" disabled aria-describedby="export-blocker">Exportar CSV</button>
+          <span id="export-blocker" class="blocked-reason">Revise antes de exportar: {{ export_blockers | join(", ") }}</span>
+          {% else %}
+          <form method="post" action="/drafts/{{ draft.id }}/export.csv">
+            <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
+            <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
+            <button type="submit">Exportar CSV</button>
+          </form>
+          {% endif %}
+        </div>
+      </section>
       {% endif %}
 
-      <h3>{% if spreadsheet_rows %}Mensagem pronta para copiar (Output 2){% else %}Email draft{% endif %}</h3>
-      <pre id="copy-message">{{ email_draft if email_draft else "(not drafted)" }}</pre>
-      {% if email_draft %}
-      <button type="button" data-copy-target="copy-message">
-        Copiar mensagem
-      </button>
-      {% endif %}
+      <section class="review-section" aria-labelledby="message-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Saída operacional 2</p>
+            <h2 id="message-title">Mensagem pronta para copiar</h2>
+          </div>
+        </div>
+        <pre id="copy-message" class="output-preview">{{ email_draft if email_draft else "Nenhuma mensagem gerada." }}</pre>
+        {% if email_draft %}
+        <div class="output-actions"><button type="button" data-copy-target="copy-message">Copiar mensagem</button></div>
+        {% endif %}
+      </section>
 
-      <h3>Transcription (OCR — read-only)</h3>
-      <pre>{{ transcription if transcription else "(none)" }}</pre>
+      <details class="review-section source-details">
+        <summary>Transcrição OCR · somente leitura</summary>
+        <pre>{{ transcription if transcription else "Nenhuma transcrição disponível." }}</pre>
+      </details>
     </div>
   </div>
 </div>

@@ -1,71 +1,137 @@
-// Small same-origin helpers (no inline handlers, CSP-friendly).
-// Copy-to-clipboard via event delegation so it keeps working after HTMX swaps
-// replace the review body.
-document.addEventListener("click", function (event) {
-  const btn = event.target.closest("[data-copy-target]");
-  if (!btn) return;
-  const target = document.getElementById(btn.dataset.copyTarget);
-  if (target) {
-    navigator.clipboard.writeText(target.innerText);
-  }
-});
+"use strict";
 
-// Editor 0/1/N: "Limpar linha" esvazia os inputs da linha; o servidor descarta linhas
-// todas em branco no save (full-replace). Delegação para sobreviver aos swaps HTMX.
-document.addEventListener("click", function (event) {
-  const btn = event.target.closest("[data-clear-row]");
-  if (!btn) return;
-  btn.closest("tr").querySelectorAll("input, select").forEach(function (el) {
-    el.value = "";
-  });
-});
-
-// Cockpit evidence overlay: click a field row -> highlight its probable region on the
-// page image. Field data arrives as HTML-safe JSON in data-* attrs; we JSON.parse it and
-// write only via textContent (never innerHTML), so OCR/human text can never inject markup.
 function safeParse(raw) {
   try {
     return JSON.parse(raw);
-  } catch (e) {
+  } catch (_error) {
     return null;
   }
 }
 
-document.addEventListener("click", function (event) {
-  const row = event.target.closest("tr[data-field]");
-  if (!row) return;
+function showNotice(message, options) {
+  const notice = document.getElementById("app-notice");
+  const text = document.getElementById("app-notice-message");
+  const reload = document.getElementById("app-notice-reload");
+  if (!notice || !text || !reload) return;
 
-  document
-    .querySelectorAll("tr[data-field].active")
-    .forEach((r) => r.classList.remove("active"));
-  row.classList.add("active");
+  text.textContent = message;
+  reload.hidden = !(options && options.reload);
+  notice.hidden = false;
+  notice.focus({ preventScroll: true });
+}
 
-  const bbox = safeParse(row.dataset.bbox);
-  const method = safeParse(row.dataset.method);
-  const evidence = safeParse(row.dataset.evidence);
-  const hl = document.getElementById("bbox-highlight");
-  const note = document.getElementById("evidence-note");
+function reviewedBBox(raw) {
+  const bbox = safeParse(raw);
+  if (!Array.isArray(bbox) || bbox.length !== 4) return null;
+  const values = bbox.map(Number);
+  if (!values.every(Number.isFinite)) return null;
+  const [x0, y0, x1, y1] = values;
+  if (x0 < 0 || y0 < 0 || x1 > 1 || y1 > 1 || x0 >= x1 || y0 >= y1) return null;
+  return values;
+}
 
-  if (bbox && hl) {
-    const [x0, y0, x1, y1] = bbox;
-    hl.style.left = x0 * 100 + "%";
-    hl.style.top = y0 * 100 + "%";
-    hl.style.width = (x1 - x0) * 100 + "%";
-    hl.style.height = (y1 - y0) * 100 + "%";
-    hl.hidden = false;
-    if (note) note.textContent = "Região provável destacada (método: " + (method || "?") + ").";
+function clearEvidenceSelection() {
+  document.querySelectorAll(".field-card.is-active").forEach(function (card) {
+    card.classList.remove("is-active");
+  });
+  document.querySelectorAll(".evidence-trigger[aria-pressed='true']").forEach(function (button) {
+    button.setAttribute("aria-pressed", "false");
+  });
+}
+
+document.addEventListener("click", async function (event) {
+  if (!(event.target instanceof Element)) return;
+  const copyButton = event.target.closest("[data-copy-target]");
+  if (copyButton) {
+    const target = document.getElementById(copyButton.dataset.copyTarget);
+    if (!target) return;
+    try {
+      await navigator.clipboard.writeText(target.innerText);
+      showNotice("Mensagem copiada para a área de transferência.");
+    } catch (_error) {
+      showNotice("Não foi possível copiar automaticamente. Selecione o texto manualmente.");
+    }
     return;
   }
 
-  if (hl) hl.hidden = true;
-  if (note) {
-    if (method === "human_edit") {
-      note.textContent = "Revisado manualmente — evidência de OCR anterior descartada.";
-    } else {
-      note.textContent =
-        "Sem região visual encontrada. Evidência textual: «" +
-        (evidence || "—") +
-        "». Método: " + (method || "none") + ".";
-    }
+  const clearButton = event.target.closest("[data-clear-row]");
+  if (clearButton) {
+    const occurrence = clearButton.closest(".occurrence-card");
+    if (!occurrence) return;
+    occurrence.querySelectorAll("input, select, textarea").forEach(function (control) {
+      if (control instanceof HTMLInputElement && control.type === "radio") {
+        control.checked = false;
+      } else {
+        control.value = "";
+      }
+    });
+    occurrence.querySelector("input")?.focus();
+    return;
   }
+
+  const evidenceButton = event.target.closest(".evidence-trigger[data-field]");
+  if (!evidenceButton) return;
+
+  clearEvidenceSelection();
+  evidenceButton.setAttribute("aria-pressed", "true");
+  const card = document.getElementById(evidenceButton.dataset.card || "");
+  card?.classList.add("is-active");
+
+  const bbox = reviewedBBox(evidenceButton.dataset.bbox);
+  const method = safeParse(evidenceButton.dataset.method);
+  const evidence = safeParse(evidenceButton.dataset.evidence);
+  const highlight = document.getElementById("bbox-highlight");
+  const note = document.getElementById("evidence-note");
+
+  if (bbox && highlight) {
+    const [x0, y0, x1, y1] = bbox;
+    highlight.setAttribute("x", String(x0 * 1000));
+    highlight.setAttribute("y", String(y0 * 1000));
+    highlight.setAttribute("width", String((x1 - x0) * 1000));
+    highlight.setAttribute("height", String((y1 - y0) * 1000));
+    highlight.removeAttribute("hidden");
+    if (note) {
+      note.textContent =
+        "Região provável destacada. Método de localização: " + (method || "não informado") + ".";
+    }
+    return;
+  }
+
+  if (highlight) highlight.setAttribute("hidden", "");
+  if (note) {
+    note.textContent = evidence
+      ? "Sem região visual. Evidência textual: “" + evidence + "”."
+      : "Este campo não possui região visual ou evidência textual localizada.";
+  }
+});
+
+document.getElementById("app-notice-reload")?.addEventListener("click", function () {
+  window.location.reload();
+});
+
+document.body.addEventListener("htmx:beforeRequest", function (event) {
+  const source = event.detail.elt;
+  const container = source instanceof HTMLFormElement ? source : source.closest("form");
+  container?.setAttribute("aria-busy", "true");
+});
+
+document.body.addEventListener("htmx:afterRequest", function (event) {
+  const source = event.detail.elt;
+  const container = source instanceof HTMLFormElement ? source : source.closest("form");
+  container?.removeAttribute("aria-busy");
+
+  if (event.detail.successful) return;
+  const status = event.detail.xhr.status;
+  if (status === 409) {
+    showNotice("O documento mudou ou a ação conflita com o estado atual.", { reload: true });
+  } else if (status === 422) {
+    showNotice("Há valores inválidos. Revise os campos destacados e tente novamente.");
+  } else {
+    showNotice("A ação não foi concluída. O conteúdo digitado foi preservado.");
+  }
+});
+
+document.body.addEventListener("htmx:afterSwap", function () {
+  const error = document.getElementById("edit-error");
+  if (error) error.focus({ preventScroll: false });
 });

@@ -179,7 +179,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         page.goto(review_url, wait_until="networkidle")
 
         # (2) click the bbox field -> overlay visible.
-        page.click(f'tr[data-field="{_BBOX_FIELD}"]')
+        page.click(f'.evidence-trigger[data-field="{_BBOX_FIELD}"]')
         if page.locator("#bbox-highlight").is_hidden():
             raise SmokeError("bbox highlight did not become visible after clicking the field")
 
@@ -187,13 +187,11 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         for handle in page.locator('input[name^="field__"]').all():
             if not (handle.input_value() or "").strip():
                 handle.fill("revisado")
-        page.click('button[type="submit"]')
-        page.wait_for_selector(
-            f'tr[data-field="{_BBOX_FIELD}"][data-method="\\"human_edit\\""]', timeout=5000
-        )
-        edited = page.locator(f'tr[data-field="{_BBOX_FIELD}"]')
-        if edited.get_attribute("data-bbox") not in (None, "null"):
-            raise SmokeError("edited field still carries a bbox (human_edit must drop it)")
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        edited = page.locator(".field-card", has_text=_BBOX_FIELD)
+        edited.get_by_text("Revisado por pessoa").wait_for(timeout=5000)
+        if edited.locator(".evidence-trigger").count() != 0:
+            raise SmokeError("edited field still exposes stale OCR evidence")
 
         # (6) screenshot the real evidence page before navigating to the safety scenario.
         screenshot.parent.mkdir(parents=True, exist_ok=True)
@@ -210,36 +208,33 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         export_button = page.get_by_role("button", name="Exportar CSV")
         if not export_button.is_disabled():
             raise SmokeError("unknown draft exposes an enabled CSV export")
-        page.get_by_role("button", name="Approve", exact=True).click()
-        page.wait_for_selector("#status-panel strong", timeout=5000)
+        approve_button = page.get_by_role("button", name="Aprovar revisão", exact=True)
+        if not approve_button.is_disabled():
+            raise SmokeError("unknown draft exposes an enabled approval action")
         status_panel = page.locator("#status-panel").inner_text()
-        if "Blocked:" not in status_panel or "disposition is unknown" not in status_panel:
-            raise SmokeError("unknown draft approval was not explicitly blocked")
-        if page.locator("#status-panel .badge").inner_text().strip() != "pending":
-            raise SmokeError("unknown draft left pending state after blocked approval")
+        if "Aprovação bloqueada" not in status_panel or "unknown" not in status_panel:
+            raise SmokeError("unknown draft approval blocker is not visible")
 
         # (5) approve → edit → send: a aprovação é da REVISÃO, não do draft (SSI-1006).
         page.goto(review_url, wait_until="networkidle")
-        page.get_by_role("button", name="Approve", exact=True).click()
-        page.wait_for_selector("#status-panel .badge.approved", timeout=5000)
+        page.get_by_role("button", name="Aprovar revisão", exact=True).click()
+        page.wait_for_selector("#status-panel .status-approved", timeout=5000)
 
         page.locator('input[name^="field__"]').first.fill("editado depois da aprovação")
-        page.click('button[type="submit"]')
-        page.wait_for_selector("#status-panel .badge.pending", timeout=5000)
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        page.wait_for_selector("#status-panel .status-pending", timeout=5000)
 
-        page.get_by_role("button", name="Simulate delivery", exact=True).click()
-        page.wait_for_selector("#status-panel strong", timeout=5000)
-        panel = page.locator("#status-panel").inner_text()
-        if "Blocked:" not in panel:
-            raise SmokeError("send after post-approval edit was not blocked")
-        if page.locator("#status-panel .badge").inner_text().strip() != "pending":
-            raise SmokeError("draft did not stay pending after the blocked send")
+        simulation = page.get_by_role("button", name="Simular entrega", exact=True)
+        if not simulation.is_disabled():
+            raise SmokeError("post-approval edit left simulation enabled")
+        if "A simulação exige a aprovação" not in page.locator("#status-panel").inner_text():
+            raise SmokeError("post-approval simulation blocker is not visible")
 
         # (6) row editor 0/1/N: contradiction -> visible error, nothing persisted;
         # spare row adds; "Limpar linha" + save removes (full-replace).
         page.goto(review_url, wait_until="networkidle")
         page.check('input[name="disposicao"][value="sem_alteracao"]')  # contradiz a linha 1
-        page.click('button[type="submit"]')
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
         page.wait_for_selector("#edit-error", timeout=5000)
 
         page.goto(review_url, wait_until="networkidle")  # estado intacto pós-erro
@@ -250,11 +245,13 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         page.fill('input[name="occ__2__hora"]', "15:10")
         page.fill('input[name="occ__2__descricao"]', "Portao lateral aberto sem autorizacao")
         page.fill('input[name="occ__2__acao"]', "Fechado e registrado")
-        page.click('button[type="submit"]')
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
         page.wait_for_selector('input[name="occ__3__descricao"]', timeout=5000)  # 2 linhas + spare
 
-        page.locator("tr.occ-row").first.get_by_role("button", name="Limpar linha").click()
-        page.click('button[type="submit"]')
+        page.locator(".occurrence-card").first.get_by_role(
+            "button", name="Limpar ocorrência"
+        ).click()
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
         # a linha 3 (spare antiga) some do DOM quando volta a haver 1 linha + spare 2
         page.wait_for_selector('input[name="occ__3__descricao"]', state="detached", timeout=5000)
         remaining = page.locator('input[name="occ__1__descricao"]').input_value()

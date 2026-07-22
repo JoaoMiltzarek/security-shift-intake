@@ -93,7 +93,7 @@ def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockS
     assert "theft" in text  # classification
     assert "tech_security, general_support" in text  # recipients
     assert "body text" in text  # email draft
-    assert "MUST REVIEW" in text  # flagged field
+    assert "REVISÃO OBRIGATÓRIA" in text  # flagged field
     assert "Aprovar revisão" in text and "Rejeitar" in text and "Simular entrega" in text
 
 
