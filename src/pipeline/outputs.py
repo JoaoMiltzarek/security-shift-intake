@@ -16,6 +16,18 @@ from src.schema.extraction import NormalizedIncidentModel, SpreadsheetRow
 from src.schema.state import PipelineState
 
 _PENDING = "(revisar)"
+
+
+def blocked_draft_message(reason: str) -> str:
+    """Render the only safe output when reading did not produce reviewable evidence."""
+    return (
+        "RASCUNHO BLOQUEADO — qualidade do OCR insuficiente.\n"
+        f"Motivo: {reason}\n"
+        "Faça a transcrição/correção manual dos campos obrigatórios na revisão; "
+        "o rascunho operacional só é gerado quando os dados estiverem confirmados."
+    )
+
+
 _UNKNOWN_OCCURRENCES = "(ocorrências não confirmadas)"
 
 
