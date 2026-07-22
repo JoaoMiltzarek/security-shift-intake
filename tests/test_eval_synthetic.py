@@ -102,9 +102,9 @@ def test_invalid_split_rejected() -> None:
         ev.main(["--split", "train"])
 
 
-def test_synthetic_eval_cli_accepts_paddle_reader(tmp_path: Path) -> None:
-    # Dataset ausente deve produzir o rc normal 1, não erro de parsing (SystemExit 2).
-    assert ev.main(["--vision", "paddle_ocr", "--dir", str(tmp_path)]) == 1
+def test_retired_paddle_reader_is_rejected() -> None:
+    with pytest.raises(SystemExit):
+        ev.main(["--vision", "paddle_ocr"])
 
 
 def test_missing_dataset_exits_1(tmp_path: Path) -> None:

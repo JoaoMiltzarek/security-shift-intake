@@ -45,8 +45,8 @@ número dos gates G1–G3 (fórmulas exatas no protocolo; **hoje legado**):
 > rejeitado na calibração (9 falsos incidentes). Nenhum leitor custo-zero foi adotado
 > como transcritor automático. **PP-OCRv5 foi MEDIDO e NÃO PROMOVIDO**: o ambiente
 > congelado do produto não admite seu lock e o reconhecimento retornou 0/40 linhas no
-> bake-off. O adaptador `INTAKE_VISION=paddle_ocr` permanece experimental, is not installed
-> by uv sync, e exige an isolated environment com o stack Paddle. Evidência e decisão em
+> bake-off. O adaptador executável foi removido do runtime; o JSON congelado permanece somente
+> como evidência histórica. Evidência e decisão em
 > [READER_DECISION.md](READER_DECISION.md). Qualquer nova adoção exige novo ciclo
 > val → congela → test ([DATASET_CONTRACT.md](DATASET_CONTRACT.md) §10).
 

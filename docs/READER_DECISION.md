@@ -114,9 +114,8 @@ candidato admissível superar sua carga de correção.
 - **Decisão: NÃO PROMOVIDO.** Bloqueios: (a) conflito de dependências com o lockfile
   do app (numpy) — sem caminho de co-instalação limpo hoje; (b) incompatibilidade
   estrutural com o extrator line-based — adoção exigiria reagrupamento geométrico de
-  células em linhas (`rec_boxes`/`rec_polys`), fora do timebox F10. O adaptador
-  `INTAKE_VISION=paddle_ocr` permanece como leitor EXPERIMENTAL opt-in, funcional
-  apenas em ambiente próprio com o stack Paddle instalado.
+  células em linhas (`rec_boxes`/`rec_polys`), fora do timebox F10. O adaptador executável
+  foi removido; os resultados congelados permanecem somente como evidência histórica.
 
 ### minicpm-v (via Ollama) — NÃO AVALIADO
 - Tamanho: MiniCPM-V 2.5 (~3B) pode caber; MiniCPM-V 2.6 (8B) não cabe.

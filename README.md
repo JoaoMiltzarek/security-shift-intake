@@ -156,9 +156,8 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
 
 ### Experimental / outside v1
 
-- PP-OCRv5 was measured and **not promoted**. The adapter remains an experimental opt-in via
-  `INTAKE_VISION=paddle_ocr`, is not installed by uv sync, and requires an isolated environment
-  with the Paddle stack; it is not part of `make demo` or the release gate.
+- PP-OCRv5 was measured and **not promoted**. Its executable adapter was removed; the frozen
+  bake-off JSON remains historical evidence and is not release evidence.
 
 ### Evaluate a reader (the decision protocol)
 Reader adoption follows the frozen synthetic `tier_c` gates (G-S0…G-S3 + G1-S), not private

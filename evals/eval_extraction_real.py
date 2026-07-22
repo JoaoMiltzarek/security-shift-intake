@@ -3,7 +3,7 @@
 Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates):
 
 1. **Instrumentado (default)** — roda o pipeline (config de TABELA) com o leitor
-   escolhido (`--vision local_ocr|paddle_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
+   escolhido (`--vision local_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
    com curadoria em `private/curadoria/`, e registra por folha as métricas do
    protocolo: `parse_table_success`, esforço humano (`estimated_chars_to_type`,
    `prefilled_but_wrong_count`, `blank_field_count`, `illegible_token_count`),
@@ -40,7 +40,6 @@ import sys
 import time
 import unicodedata
 from datetime import UTC, datetime
-from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +53,6 @@ from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
 from src.clients.local_rules import RuleBasedLLMClient
 from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
-from src.clients.paddle_ocr import PADDLE_DETECTION_MODEL, PADDLE_RECOGNITION_MODEL
 from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
 from src.paths import PRIVATE_ROOT, REPO_ROOT, resolve_private_path
@@ -440,17 +438,6 @@ def _model_tag(reader: str) -> str:
         return "tesseract"
     if reader == "mock":
         return "mock"
-    if reader == "paddle_ocr":
-        versions: dict[str, str] = {}
-        for package in ("paddleocr", "paddlepaddle"):
-            try:
-                versions[package] = importlib_metadata.version(package)
-            except importlib_metadata.PackageNotFoundError:
-                versions[package] = "not-installed"
-        return (
-            f"{PADDLE_DETECTION_MODEL} + {PADDLE_RECOGNITION_MODEL}; device=cpu; "
-            f"paddleocr={versions['paddleocr']}; paddlepaddle={versions['paddlepaddle']}"
-        )
     model = get_vlm_model()
     root = get_vlm_base_url().split("/v1")[0]
     try:
@@ -1048,7 +1035,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--vision",
-        choices=["local_ocr", "paddle_ocr", "local_vlm", "mock"],
+        choices=["local_ocr", "local_vlm", "mock"],
         default="local_ocr",
         help="leitor da rodada instrumentada (resolvido via factory)",
     )

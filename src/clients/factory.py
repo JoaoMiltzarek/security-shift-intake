@@ -3,7 +3,6 @@
 `INTAKE_VISION` picks the reader without touching code (spec §4 config-driven):
 
     local_ocr   Tesseract, zero-cost, offline      (default — unchanged behaviour)
-    paddle_ocr  PP-OCRv5 mobile, local experimental (optional CPU dependencies)
     local_vlm   local open VLM, zero-cost, offline  (Phase 2 reader; needs a server)
     mock        canned output for demos/tests       ($0, deterministic)
 
@@ -36,14 +35,8 @@ def get_vision_client(name: str | None = None) -> VisionClient:
         from src.clients.local_vlm import LocalVLMVisionClient
 
         return LocalVLMVisionClient()
-    if name == "paddle_ocr":
-        from src.clients.paddle_ocr import PaddleOCRVisionClient
-
-        return PaddleOCRVisionClient()
     if name == "mock":
         from src.clients.mock import MockVisionClient
 
         return MockVisionClient()
-    raise ValueError(
-        f"Unknown INTAKE_VISION={name!r}. Use one of: local_ocr, paddle_ocr, local_vlm, mock."
-    )
+    raise ValueError(f"Unknown INTAKE_VISION={name!r}. Use one of: local_ocr, local_vlm, mock.")

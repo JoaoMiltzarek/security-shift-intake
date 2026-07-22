@@ -190,9 +190,8 @@ def test_reader_roadmap_records_the_measured_paddle_outcome() -> None:
     required = (
         "MEDIDO",
         "NÃO PROMOVIDO",
-        "INTAKE_VISION=paddle_ocr",
-        "not installed by uv sync",
-        "isolated environment",
+        "evidência histórica",
+        "adaptador executável foi removido",
     )
     assert all(value in combined for value in required)
     assert "Próximo candidato triado: PP-OCRv5" not in roadmap
