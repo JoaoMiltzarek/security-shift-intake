@@ -1,5 +1,5 @@
 """Contrato VLM→tabela CONGELADO (PR-1): a transcrição que o prompt do VLM promete
-(src/clients/local_vlm.py:_TRANSCRIPTION_PROMPT — rótulos impressos preservados,
+(evals/readers/local_vlm.py:_TRANSCRIPTION_PROMPT — rótulos impressos preservados,
 quebras de linha preservadas, S/A preservado, `[ilegível]` por token ilegível)
 atravessa extract_table → validate_table → assess_ocr_quality sem quebrar.
 

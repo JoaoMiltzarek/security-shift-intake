@@ -30,8 +30,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from src.clients.base import TranscriptionResult
-from src.clients.settings import (
+from evals.readers.settings import (
     get_vlm_api_key,
     get_vlm_base_url,
     get_vlm_confidence,
@@ -39,6 +38,7 @@ from src.clients.settings import (
     get_vlm_timeout,
     validate_vlm_base_url,
 )
+from src.clients.base import TranscriptionResult
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 
 _TRANSCRIPTION_PROMPT = (

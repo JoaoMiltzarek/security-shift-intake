@@ -14,15 +14,15 @@ import httpx
 import pytest
 from PIL import Image
 
-from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
-from src.clients.factory import get_vision_client
-from src.clients.local_vlm import (
+from evals.readers.local_vlm import (
     LocalVLMVisionClient,
     _build_payload,
     _ChatResponse,
     _confidence_from_logprobs,
     _parse_text,
 )
+from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
+from src.clients.factory import get_vision_client
 from src.pipeline.ingest import Deadline, PageArtifact
 
 

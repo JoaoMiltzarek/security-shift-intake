@@ -46,14 +46,14 @@ from typing import Any
 import httpx
 
 from evals.metrics import cer, levenshtein
+from evals.readers.local_vlm import _TRANSCRIPTION_PROMPT
+from evals.readers.settings import get_vlm_base_url, get_vlm_model
 from scripts.privacy_check import scan_text_for_pii
 from src.api.gate import DraftNotReviewableError, assert_reviewable
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.base import DocumentReader, RuntimeMetadataProvider
 from src.clients.factory import get_vision_client
 from src.clients.local_ocr import LocalOCRVisionClient
-from src.clients.local_vlm import _TRANSCRIPTION_PROMPT
-from src.clients.settings import get_vlm_base_url, get_vlm_model
 from src.orchestrator import run_pipeline
 from src.paths import PRIVATE_ROOT, REPO_ROOT, resolve_private_path
 from src.pipeline.ingest import OCR_DPI

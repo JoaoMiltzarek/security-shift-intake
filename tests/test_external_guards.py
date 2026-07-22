@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.clients.local_vlm import LocalVLMVisionClient
-from src.clients.settings import get_vlm_base_url
+from evals.readers.local_vlm import LocalVLMVisionClient
+from evals.readers.settings import get_vlm_base_url
 
 
 def test_vlm_base_url_loopback_default_ok(monkeypatch: pytest.MonkeyPatch) -> None:

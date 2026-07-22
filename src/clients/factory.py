@@ -32,7 +32,7 @@ def get_vision_client(name: str | None = None) -> DocumentReader:
 
         return LocalOCRVisionClient()
     if name == "local_vlm":
-        from src.clients.local_vlm import LocalVLMVisionClient
+        from evals.readers.local_vlm import LocalVLMVisionClient
 
         return LocalVLMVisionClient()
     if name == "mock":
