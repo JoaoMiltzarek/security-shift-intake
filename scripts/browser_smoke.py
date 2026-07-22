@@ -98,7 +98,7 @@ def _persist_draft(state: PipelineState) -> int:
 def _seed_draft() -> int:
     """Build a synthetic table draft with one bbox field and persist it; return the id."""
     if not SAMPLE.exists():
-        raise EnvUnavailable(f"synthetic sample missing: {SAMPLE} (run `make gen-pdfs`)")
+        raise EnvUnavailable(f"synthetic sample missing: {SAMPLE} (run `make gen-sheets`)")
     config = load_config(CONFIG)
     vision = MockVisionClient(text=_OCR_INCIDENT, confidence=0.95)
     classifier = RuleBasedIncidentClassifier()

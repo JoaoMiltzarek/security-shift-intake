@@ -51,7 +51,7 @@ SCENARIOS = [("incidente (Alarme)", OCR_INCIDENT), ("sem alteração (S/A)", OCR
 
 def main(argv: list[str]) -> int:
     if not SAMPLE.exists():
-        print(f"Sample sintético ausente: {SAMPLE} (rode `make gen-pdfs`).", file=sys.stderr)
+        print(f"Sample sintético ausente: {SAMPLE} (rode `make gen-sheets`).", file=sys.stderr)
         return 2
 
     engine = make_engine()
