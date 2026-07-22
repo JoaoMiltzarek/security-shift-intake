@@ -10,13 +10,15 @@ can never read an arbitrary file.
 
 from __future__ import annotations
 
+import os
+import shutil
+import tempfile
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 
-from PIL import Image
-
-from src.clients.local_ocr import downscale_for_ocr
 from src.paths import PRIVATE_ROOT, resolve_private_path
+from src.pipeline.ingest import PageArtifact
 
 # Default root for persisted page images — inside the gitignored private/ tree.
 PAGE_IMAGES_ROOT = PRIVATE_ROOT / "page_images"
@@ -26,25 +28,36 @@ def _page_root(root: Path) -> Path:
     """Validate the release default; explicit alternate roots are test injection."""
     if root == PAGE_IMAGES_ROOT:
         return resolve_private_path(root, create_root=True)
-    return root.resolve(strict=False)
+    resolved = root.resolve(strict=False)
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
 
 
-def save_page_images(images: list[Image.Image], root: Path = PAGE_IMAGES_ROOT) -> list[str]:
-    """Save each page (downscaled like Tesseract saw it) and return POSIX rel paths.
+def save_page_artifacts(
+    pages: Sequence[PageArtifact],
+    root: Path = PAGE_IMAGES_ROOT,
+) -> list[str]:
+    """Atomically persist the exact PNG bytes read by the document reader.
 
     Paths are relative to *root* (e.g. ``"<uuid>/page_0.png"``) so the stored state is
     portable and the serving endpoint controls the absolute location.
     """
     root = _page_root(root)
+    if not pages:
+        raise ValueError("At least one page artifact is required.")
     key = uuid.uuid4().hex
     page_dir = root / key
-    page_dir.mkdir(parents=True, exist_ok=True)
-    rel_paths: list[str] = []
-    for n, image in enumerate(images):
-        rel = Path(key) / f"page_{n}.png"
-        downscale_for_ocr(image).save(root / rel, format="PNG")
-        rel_paths.append(rel.as_posix())
-    return rel_paths
+    staging = Path(tempfile.mkdtemp(prefix=f".{key}-", dir=root))
+    try:
+        for expected_index, page in enumerate(pages):
+            if page.page_index != expected_index:
+                raise ValueError("Page artifact indexes must be contiguous and ordered.")
+            (staging / f"page_{expected_index}.png").write_bytes(page.png_bytes)
+        os.replace(staging, page_dir)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return [(Path(key) / f"page_{index}.png").as_posix() for index in range(len(pages))]
 
 
 def resolve_page_image(rel_paths: list[str], n: int, root: Path = PAGE_IMAGES_ROOT) -> Path:

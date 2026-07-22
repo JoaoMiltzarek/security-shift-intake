@@ -9,6 +9,7 @@ deterministic rules; experimental external adapters require manual injection.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from src.clients.base import DocumentReader, LLMClient
@@ -16,7 +17,7 @@ from src.pipeline.classify import classify
 from src.pipeline.draft import blocked_draft_message, draft
 from src.pipeline.extract import extract
 from src.pipeline.extract_table import extract_table
-from src.pipeline.ingest import DEFAULT_DPI
+from src.pipeline.ingest import DEFAULT_DPI, Deadline, PageArtifact, load_page_artifacts
 from src.pipeline.ocr_quality import OCR_FAILED, assess_ocr_quality
 from src.pipeline.outputs import build_outputs
 from src.pipeline.route import route
@@ -25,6 +26,14 @@ from src.pipeline.validate import validate, validate_table
 from src.schema.config import ReportConfig
 from src.schema.loader import config_fingerprint
 from src.schema.state import Classification, PipelineState
+
+
+@dataclass(frozen=True, slots=True)
+class IntakeResult:
+    """Final domain state plus the exact immutable pages reviewed by the reader."""
+
+    state: PipelineState
+    pages: tuple[PageArtifact, ...]
 
 
 def _has_table(config: ReportConfig) -> bool:
@@ -38,20 +47,23 @@ def run_pipeline(
     llm: LLMClient,
     config: ReportConfig,
     dpi: int = DEFAULT_DPI,
-) -> PipelineState:
-    """Run all stages on *source* and return the final PipelineState (not persisted).
+) -> IntakeResult:
+    """Run all stages and return state plus the exact page artifacts (not persisted).
 
     The extract/validate pair is chosen by config: the deterministic table path
     (extract_table → validate_table, ADR controle_ocorrencias) when a table field is
     declared, otherwise the scalar path (extract → validate). Classify/route/draft are
     shared and config-driven.
     """
+    budget_seconds = config.performance.max_seconds_per_sheet if config.performance else 300.0
+    deadline = Deadline.after(budget_seconds)
+    pages = load_page_artifacts(source, dpi=dpi, deadline=deadline)
     state = PipelineState(
         source_pdf=source,
         report_type=config.report_type,
         config_sha256=config_fingerprint(config),
     )
-    state = transcribe(state, vision, dpi=dpi)
+    state = transcribe(state, vision, pages=pages, deadline=deadline)
 
     if _has_table(config):
         state = extract_table(state, config)
@@ -72,11 +84,12 @@ def run_pipeline(
                 }
             )
             state = route(state, config)
-            return state.model_copy(update={"email_draft": blocked_draft_message(reason)})
+            blocked = state.model_copy(update={"email_draft": blocked_draft_message(reason)})
+            return IntakeResult(state=blocked, pages=pages)
         state = classify(state, llm, config)
         state = route(state, config)
         # Outputs do produto: planilha padronizada + mensagem copy-ready (bloqueia se pendente).
-        return build_outputs(state, config)
+        return IntakeResult(state=build_outputs(state, config), pages=pages)
 
     # Caminho escalar (htmicron_security) — preservado para não-regressão.
     state = extract(state, llm, config)
@@ -84,4 +97,4 @@ def run_pipeline(
     state = classify(state, llm, config)
     state = route(state, config)
     state = draft(state, config)
-    return state
+    return IntakeResult(state=state, pages=pages)

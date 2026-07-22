@@ -41,7 +41,9 @@ def client() -> Iterator[TestClient]:
 
 
 def _submit_table_draft(client: TestClient) -> int:
-    state = run_pipeline(SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedLLMClient(CFG), CFG)
+    state = run_pipeline(
+        SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedLLMClient(CFG), CFG
+    ).state
     body = state.model_dump(mode="json")
     return int(client.post("/drafts", json=body).json()["id"])
 
@@ -52,7 +54,7 @@ def _submit_unknown_without_derived_pending(client: TestClient) -> int:
         MockVisionClient(text=_OCR_UNKNOWN),
         RuleBasedLLMClient(CFG),
         CFG,
-    ).model_copy(update={"must_review_fields": []})
+    ).state.model_copy(update={"must_review_fields": []})
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 
@@ -143,7 +145,9 @@ def _headers_form() -> dict[str, str]:
 
 
 def _submit_unknown_draft(client: TestClient) -> int:
-    state = run_pipeline(SAMPLE, MockVisionClient(text=_OCR_UNKNOWN), RuleBasedLLMClient(CFG), CFG)
+    state = run_pipeline(
+        SAMPLE, MockVisionClient(text=_OCR_UNKNOWN), RuleBasedLLMClient(CFG), CFG
+    ).state
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 

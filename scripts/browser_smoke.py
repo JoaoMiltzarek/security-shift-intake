@@ -36,13 +36,13 @@ import httpx  # noqa: E402
 from sqlmodel import Session  # noqa: E402
 
 from src.api.db import init_db, make_engine  # noqa: E402
-from src.api.page_images import save_page_images  # noqa: E402
+from src.api.page_images import save_page_artifacts  # noqa: E402
 from src.api.repository import create_draft  # noqa: E402
 from src.clients.local_rules import RuleBasedLLMClient  # noqa: E402
 from src.clients.mock import MockVisionClient  # noqa: E402
 from src.orchestrator import run_pipeline  # noqa: E402
 from src.paths import PRIVATE_ROOT  # noqa: E402
-from src.pipeline.ingest import OCR_DPI, load_source_images  # noqa: E402
+from src.pipeline.ingest import OCR_DPI  # noqa: E402
 from src.schema.loader import load_config  # noqa: E402
 from src.schema.state import PipelineState  # noqa: E402
 
@@ -102,11 +102,11 @@ def _seed_draft() -> int:
     config = load_config(CONFIG)
     vision = MockVisionClient(text=_OCR_INCIDENT, confidence=0.95)
     llm = RuleBasedLLMClient(config)
-    state = run_pipeline(SAMPLE, vision, llm, config, dpi=OCR_DPI)
-    page_paths = save_page_images(load_source_images(SAMPLE, dpi=OCR_DPI))
-    payload: dict[str, Any] = state.model_copy(update={"page_image_paths": page_paths}).model_dump(
-        mode="json"
-    )
+    result = run_pipeline(SAMPLE, vision, llm, config, dpi=OCR_DPI)
+    page_paths = save_page_artifacts(result.pages)
+    payload: dict[str, Any] = result.state.model_copy(
+        update={"page_image_paths": page_paths}
+    ).model_dump(mode="json")
 
     # Inject a probable-region bbox on one field so the overlay has something to draw.
     patched = False
@@ -136,7 +136,7 @@ def _seed_unknown_draft() -> int:
         RuleBasedLLMClient(config),
         config,
         dpi=OCR_DPI,
-    )
+    ).state
     if state.normalized is None or state.normalized.disposition != "unknown":
         raise SmokeError("unknown seed did not preserve structural uncertainty")
     # Defense-in-depth scenario: even a legacy/tampered state missing this derived list must

@@ -38,7 +38,9 @@ def _mock_llm() -> MockLLMClient:
 
 
 def test_run_pipeline_populates_full_state(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text="..."), _mock_llm(), CONFIG, dpi=120)
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text="..."), _mock_llm(), CONFIG, dpi=120
+    ).state
     assert state.transcription is not None
     assert len(state.extracted_fields) == len(CONFIG.fields)
     assert state.classification is not None and state.classification.incident_type == "theft"
@@ -47,8 +49,8 @@ def test_run_pipeline_populates_full_state(sample_pdf: Path) -> None:
 
 
 def test_run_pipeline_is_deterministic(sample_pdf: Path) -> None:
-    a = run_pipeline(sample_pdf, MockVisionClient(text="x"), _mock_llm(), CONFIG, dpi=120)
-    b = run_pipeline(sample_pdf, MockVisionClient(text="x"), _mock_llm(), CONFIG, dpi=120)
+    a = run_pipeline(sample_pdf, MockVisionClient(text="x"), _mock_llm(), CONFIG, dpi=120).state
+    b = run_pipeline(sample_pdf, MockVisionClient(text="x"), _mock_llm(), CONFIG, dpi=120).state
     assert a.email_draft == b.email_draft
 
 

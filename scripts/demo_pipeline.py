@@ -20,14 +20,14 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
-from src.api.page_images import PAGE_IMAGES_ROOT, save_page_images
+from src.api.page_images import PAGE_IMAGES_ROOT, save_page_artifacts
 from src.api.repository import create_draft
 from src.clients.base import DocumentReader, LLMClient
 from src.clients.factory import get_vision_client
 from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
 from src.paths import REPO_ROOT
-from src.pipeline.ingest import OCR_DPI, load_source_images
+from src.pipeline.ingest import OCR_DPI
 from src.schema.loader import load_config
 
 DEFAULT_CONFIG = Path("configs/controle_ocorrencias.yaml")
@@ -62,10 +62,9 @@ def build_and_store(
     """Run the pipeline on *file* and persist a pending draft. Returns the draft id."""
     config = load_config(config_path)
     init_db(engine)
-    state = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
-    # Persist the OCR page images (same downscale) so the cockpit overlay lines up.
-    page_paths = save_page_images(load_source_images(file, dpi=OCR_DPI), root=page_images_root)
-    state = state.model_copy(update={"page_image_paths": page_paths})
+    result = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
+    page_paths = save_page_artifacts(result.pages, root=page_images_root)
+    state = result.state.model_copy(update={"page_image_paths": page_paths})
     with Session(engine) as session:
         draft = create_draft(session, state, actor="demo")
         assert draft.id is not None

@@ -49,7 +49,7 @@ def _llm() -> MockLLMClient:
 
 
 def test_table_path_populates_normalized(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120)
+    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
     assert state.report_type == CONFIG.report_type
     assert state.config_sha256 is not None and len(state.config_sha256) == 64
     assert state.raw_extraction is not None
@@ -59,14 +59,14 @@ def test_table_path_populates_normalized(sample_pdf: Path) -> None:
 
 
 def test_table_path_outputs_spreadsheet_and_message(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120)
+    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
     assert state.email_draft is not None
     assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in state.email_draft  # Output 2 (copy-ready)
     assert state.spreadsheet_rows  # Output 1 populated
 
 
 def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_SA), _llm(), CONFIG, dpi=120)
+    state = run_pipeline(sample_pdf, MockVisionClient(text=_SA), _llm(), CONFIG, dpi=120).state
     assert state.normalized is not None and state.normalized.no_occurrence is True
     assert len(state.spreadsheet_rows) == 1
     assert state.spreadsheet_rows[0].objeto == "Sem alteração"
@@ -74,6 +74,6 @@ def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
 
 
 def test_table_path_header_fields_must_review(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120)
+    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
     names = {f.name for f in state.extracted_fields}
     assert {"data_turno", "vigilantes", "unidade"} <= names

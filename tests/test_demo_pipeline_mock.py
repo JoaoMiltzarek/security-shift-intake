@@ -12,7 +12,7 @@ _CFG = load_config(CONFIG)
 
 
 def _run(text: str) -> object:
-    return run_pipeline(SAMPLE, MockVisionClient(text=text), RuleBasedLLMClient(_CFG), _CFG)
+    return run_pipeline(SAMPLE, MockVisionClient(text=text), RuleBasedLLMClient(_CFG), _CFG).state
 
 
 def test_sample_image_exists() -> None:

@@ -51,7 +51,9 @@ def client() -> Iterator[TestClient]:
 
 
 def _submit_table_draft(client: TestClient) -> int:
-    state = run_pipeline(SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedLLMClient(CFG), CFG)
+    state = run_pipeline(
+        SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedLLMClient(CFG), CFG
+    ).state
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 

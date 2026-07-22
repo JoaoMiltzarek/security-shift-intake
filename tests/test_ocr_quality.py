@@ -76,7 +76,9 @@ Ronda x
 
 
 def test_pipeline_blocks_on_failed_ocr() -> None:
-    state = run_pipeline(SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedLLMClient(CFG), CFG)
+    state = run_pipeline(
+        SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedLLMClient(CFG), CFG
+    ).state
     assert state.ocr_quality == OCR_FAILED
     assert state.classification is not None
     assert state.classification.sector == "manual_review"
@@ -87,6 +89,8 @@ def test_pipeline_blocks_on_failed_ocr() -> None:
 
 def test_pipeline_does_not_emit_spurious_classification() -> None:
     # The whole point: garbage OCR must NOT yield e.g. access_violation/0.60.
-    state = run_pipeline(SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedLLMClient(CFG), CFG)
+    state = run_pipeline(
+        SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedLLMClient(CFG), CFG
+    ).state
     assert state.classification is not None
     assert state.classification.incident_type not in {"access_violation", "theft", "routine"}

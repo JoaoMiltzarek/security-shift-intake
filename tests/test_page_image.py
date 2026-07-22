@@ -16,12 +16,18 @@ from PIL import Image
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MockSender
-from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image, save_page_images
+from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image, save_page_artifacts
 from src.paths import PRIVATE_ROOT
+from src.pipeline.ingest import PageArtifact
+
+
+def _artifact(size: tuple[int, int] = (8, 8), *, index: int = 0) -> PageArtifact:
+    with Image.new("RGB", size, "white") as image:
+        return PageArtifact.from_image(image, page_index=index)
 
 
 def test_resolve_rejects_out_of_range_index(tmp_path: Path) -> None:
-    rel = save_page_images([Image.new("RGB", (8, 8), "white")], root=tmp_path)
+    rel = save_page_artifacts([_artifact()], root=tmp_path)
     with pytest.raises(FileNotFoundError):
         resolve_page_image(rel, 5, root=tmp_path)
     with pytest.raises(FileNotFoundError):
@@ -36,7 +42,7 @@ def test_resolve_blocks_path_traversal(tmp_path: Path) -> None:
 
 @pytest.fixture
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[str]]]:
-    rel = save_page_images([Image.new("RGB", (12, 10), "white")], root=tmp_path)
+    rel = save_page_artifacts([_artifact((12, 10))], root=tmp_path)
     app = create_app(
         engine=make_engine("sqlite://"),
         sender=MockSender(),
@@ -84,14 +90,17 @@ def test_resolve_blocks_symlink_escape(tmp_path: Path) -> None:
 
 
 def test_saved_page_image_matches_ocr_dims(tmp_path: Path) -> None:
-    # The served image must be the *exact* image the OCR read (downscaled), so overlay
-    # boxes line up. A large page is downscaled; the saved PNG matches that transform.
-    from src.clients.local_ocr import downscale_for_ocr
+    page = _artifact((1800, 750))
+    rel = save_page_artifacts([page], root=tmp_path)
 
-    orig = Image.new("RGB", (2400, 1000), "white")
-    rel = save_page_images([orig], root=tmp_path)
-    saved = Image.open(tmp_path / rel[0])
-    assert saved.size == downscale_for_ocr(orig).size
+    assert (tmp_path / rel[0]).read_bytes() == page.png_bytes
+
+
+def test_page_artifact_directory_is_promoted_without_staging_debris(tmp_path: Path) -> None:
+    rel = save_page_artifacts([_artifact()], root=tmp_path)
+
+    assert (tmp_path / rel[0]).is_file()
+    assert not list(tmp_path.glob(".*-*"))
 
 
 def test_default_page_root_is_validated_under_private() -> None:

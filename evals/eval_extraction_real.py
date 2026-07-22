@@ -593,7 +593,7 @@ def run_sheet(
     reader = vision if vision is not None else LocalOCRVisionClient()
     started = time.monotonic()
     try:
-        state = run_pipeline(src, reader, RuleBasedLLMClient(config), config, dpi=dpi)
+        state = run_pipeline(src, reader, RuleBasedLLMClient(config), config, dpi=dpi).state
     except RuntimeError as exc:  # leitor indisponível/falha — nunca mata a rodada
         base["status"] = "reader_error"
         base["reason"] = "reader_error"
