@@ -50,8 +50,8 @@ from src.api.gate import (
 )
 from src.api.models import Draft, utc_rfc3339
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
-from src.clients.base import LLMClient
-from src.clients.local_rules import RuleBasedLLMClient
+from src.classifier.contracts import IncidentClassifier
+from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
 from src.pipeline.draft import draft as draft_stage
@@ -238,7 +238,10 @@ def _revised_content(norm: NormalizedIncidentModel) -> str:
 
 
 def _edit_table(
-    state: PipelineState, form: Any, config: ReportConfig, llm: LLMClient
+    state: PipelineState,
+    form: Any,
+    config: ReportConfig,
+    classifier: IncidentClassifier,
 ) -> PipelineState:
     """Apply human edits on the table path (editor 0/1/N, SSI-1007).
 
@@ -385,7 +388,7 @@ def _edit_table(
     if norm.disposition != "unknown":
         new_state = classify(
             new_state,
-            llm,
+            classifier,
             config,
             text=_revised_content(norm),
             reason="reclassificado a partir da revisão humana",
@@ -553,7 +556,7 @@ def create_app(
     sender: Sender | None = None,
     config: ReportConfig | None = None,
     page_images_root: Path | None = None,
-    llm: LLMClient | None = None,
+    classifier: IncidentClassifier | None = None,
     *,
     enable_test_state_submission: bool = False,
 ) -> FastAPI:
@@ -565,7 +568,7 @@ def create_app(
     active_config: ReportConfig = config or load_config(_default_config_path())
     active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
     # Reclassificação pós-edição (SSI-1007): determinística/offline por default.
-    active_llm: LLMClient = llm or RuleBasedLLMClient(active_config)
+    active_classifier = classifier or RuleBasedIncidentClassifier()
 
     app = FastAPI(
         title="security-shift-intake",
@@ -1077,7 +1080,7 @@ def create_app(
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
             try:
-                state = _edit_table(state, form, active_config, active_llm)
+                state = _edit_table(state, form, active_config, active_classifier)
             except (DispositionConflictError, ReviewFormError) as exc:
                 # Contradição no input: NADA persiste; re-renderiza com o erro visível.
                 ctx_err: dict[str, Any] = {

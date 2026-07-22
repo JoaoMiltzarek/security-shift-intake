@@ -22,9 +22,10 @@ from sqlmodel import Session
 from src.api.db import init_db, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT, save_page_artifacts
 from src.api.repository import create_draft
-from src.clients.base import DocumentReader, LLMClient
+from src.classifier.contracts import IncidentClassifier
+from src.classifier.rules import RuleBasedIncidentClassifier
+from src.clients.base import DocumentReader
 from src.clients.factory import get_vision_client
-from src.clients.local_rules import RuleBasedLLMClient
 from src.orchestrator import run_pipeline
 from src.paths import REPO_ROOT
 from src.pipeline.ingest import OCR_DPI
@@ -53,7 +54,7 @@ def _private_real_file(path: Path, root: Path = PRIVATE_REAL_ROOT) -> Path:
 def build_and_store(
     file: Path,
     vision: DocumentReader,
-    llm: LLMClient,
+    classifier: IncidentClassifier,
     config_path: Path,
     engine: Engine,
     *,
@@ -62,7 +63,7 @@ def build_and_store(
     """Run the pipeline on *file* and persist a pending draft. Returns the draft id."""
     config = load_config(config_path)
     init_db(engine)
-    result = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
+    result = run_pipeline(file, vision, classifier, config, dpi=OCR_DPI)
     page_paths = save_page_artifacts(result.pages, root=page_images_root) if result.pages else []
     state = result.state.model_copy(update={"page_image_paths": page_paths})
     with Session(engine) as session:
@@ -89,15 +90,14 @@ def main(argv: list[str]) -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
-    config = load_config(args.config)
     # This entrypoint promises an offline real-document path, so inherited environment
     # cannot silently switch it to an external adapter. Reader experiments live in evals.
     vision = get_vision_client("local_ocr")
-    llm = RuleBasedLLMClient(config)
+    classifier = RuleBasedIncidentClassifier()
     engine = make_engine()
 
     try:
-        draft_id = build_and_store(source, vision, llm, args.config, engine)
+        draft_id = build_and_store(source, vision, classifier, args.config, engine)
     except RuntimeError as exc:
         print(f"Local OCR failed: {exc}", file=sys.stderr)
         return 1

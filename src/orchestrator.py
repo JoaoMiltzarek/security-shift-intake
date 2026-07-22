@@ -12,7 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.clients.base import DocumentReader, LLMClient
+from src.classifier.contracts import IncidentClassifier
+from src.clients.base import DocumentReader
 from src.pipeline.classify import classify
 from src.pipeline.draft import blocked_draft_message, draft
 from src.pipeline.extract import extract
@@ -86,7 +87,7 @@ def _timeout_result(
 def run_pipeline(
     source: Path,
     vision: DocumentReader,
-    llm: LLMClient,
+    classifier: IncidentClassifier,
     config: ReportConfig,
     dpi: int = DEFAULT_DPI,
 ) -> IntakeResult:
@@ -132,16 +133,16 @@ def run_pipeline(
                 blocked = state.model_copy(update={"email_draft": blocked_draft_message(reason)})
                 return IntakeResult(state=blocked, pages=pages)
             deadline.remaining_seconds(stage="classification")
-            state = classify(state, llm, config)
+            state = classify(state, classifier, config)
             state = route(state, config)
             # Outputs do produto: planilha padronizada + mensagem copy-ready.
             return IntakeResult(state=build_outputs(state, config), pages=pages)
 
         # Caminho escalar (htmicron_security) — preservado para não-regressão.
         deadline.remaining_seconds(stage="scalar extraction")
-        state = extract(state, llm, config)
+        state = extract(state, classifier, config)  # type: ignore[arg-type]
         state = validate(state, config)
-        state = classify(state, llm, config)
+        state = classify(state, classifier, config)
         state = route(state, config)
         state = draft(state, config)
         return IntakeResult(state=state, pages=pages)

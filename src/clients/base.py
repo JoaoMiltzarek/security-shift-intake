@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
-from src.classifier.contracts import ClassificationResult, IncidentClassifier
+from src.classifier.contracts import (
+    ClassificationResult as ClassificationResult,
+)
+from src.classifier.contracts import (
+    IncidentClassifier as IncidentClassifier,
+)
 from src.schema.evidence import BBox
 
 if TYPE_CHECKING:

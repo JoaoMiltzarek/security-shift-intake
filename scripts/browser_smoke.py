@@ -38,7 +38,7 @@ from sqlmodel import Session  # noqa: E402
 from src.api.db import init_db, make_engine  # noqa: E402
 from src.api.page_images import save_page_artifacts  # noqa: E402
 from src.api.repository import create_draft  # noqa: E402
-from src.clients.local_rules import RuleBasedLLMClient  # noqa: E402
+from src.classifier.rules import RuleBasedIncidentClassifier  # noqa: E402
 from src.clients.mock import MockVisionClient  # noqa: E402
 from src.orchestrator import run_pipeline  # noqa: E402
 from src.paths import PRIVATE_ROOT  # noqa: E402
@@ -101,8 +101,8 @@ def _seed_draft() -> int:
         raise EnvUnavailable(f"synthetic sample missing: {SAMPLE} (run `make gen-pdfs`)")
     config = load_config(CONFIG)
     vision = MockVisionClient(text=_OCR_INCIDENT, confidence=0.95)
-    llm = RuleBasedLLMClient(config)
-    result = run_pipeline(SAMPLE, vision, llm, config, dpi=OCR_DPI)
+    classifier = RuleBasedIncidentClassifier()
+    result = run_pipeline(SAMPLE, vision, classifier, config, dpi=OCR_DPI)
     page_paths = save_page_artifacts(result.pages)
     payload: dict[str, Any] = result.state.model_copy(
         update={"page_image_paths": page_paths}
@@ -133,7 +133,7 @@ def _seed_unknown_draft() -> int:
     state = run_pipeline(
         SAMPLE,
         MockVisionClient(text=_OCR_UNKNOWN, confidence=0.95),
-        RuleBasedLLMClient(config),
+        RuleBasedIncidentClassifier(),
         config,
         dpi=OCR_DPI,
     ).state

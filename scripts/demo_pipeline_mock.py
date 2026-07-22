@@ -16,9 +16,8 @@ from pathlib import Path
 
 from scripts.demo_pipeline import build_and_store
 from src.api.db import make_engine
-from src.clients.local_rules import RuleBasedLLMClient
+from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
-from src.schema.loader import load_config
 
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 # A committed synthetic image — only used so ingest has a page to load; the mock vision
@@ -55,14 +54,13 @@ def main(argv: list[str]) -> int:
         print(f"Sample sintético ausente: {SAMPLE} (rode `make gen-pdfs`).", file=sys.stderr)
         return 2
 
-    config = load_config(CONFIG)
     engine = make_engine()
     ids: list[int] = []
     for label, text in SCENARIOS:
         print(f"\n# Cenário sintético: {label}")
         vision = MockVisionClient(text=text, confidence=0.95)
-        llm = RuleBasedLLMClient(config)
-        ids.append(build_and_store(SAMPLE, vision, llm, CONFIG, engine))
+        classifier = RuleBasedIncidentClassifier()
+        ids.append(build_and_store(SAMPLE, vision, classifier, CONFIG, engine))
 
     print("\nRevise no navegador (suba a UI com a config de tabela):")
     print("  INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.asgi:app")

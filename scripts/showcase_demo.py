@@ -25,10 +25,9 @@ from sqlalchemy.engine import Engine
 from scripts.demo_pipeline import build_and_store
 from src.api.db import DEFAULT_DB_URL, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT
+from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.local_ocr import LocalOCRVisionClient
-from src.clients.local_rules import RuleBasedLLMClient
 from src.paths import REPO_ROOT
-from src.schema.loader import load_config
 
 DEFAULT_SAMPLE = REPO_ROOT / "samples" / "sample_tc-000000.png"
 DEFAULT_CONFIG = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
@@ -57,11 +56,10 @@ def _seed_demo(
     page_images_root: Path = PAGE_IMAGES_ROOT,
 ) -> int:
     """Persist one synthetic draft using the explicitly local OCR reader."""
-    config = load_config(config_path)
     return build_and_store(
         sample,
         LocalOCRVisionClient(),
-        RuleBasedLLMClient(config),
+        RuleBasedIncidentClassifier(),
         config_path,
         engine,
         page_images_root=page_images_root,
