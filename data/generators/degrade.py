@@ -107,9 +107,8 @@ def degrade_scan(rng: random.Random, image: Image.Image, band: Band | None = Non
     # 4. Salt-and-pepper noise.
     out = _add_salt_pepper(nprng, out, _banded(rng, *_SALT_PEPPER_FRAC, band))
 
-    # 5. JPEG compression artifacts. band=None preserva o caminho legado EXATO
-    #    (randint — tier_b byte-idêntico); com banda, qualidade espelhada
-    #    (banda dura = qualidade baixa).
+    # 5. JPEG compression artifacts. ``band=None`` preserves the original
+    #    deterministic randint path; hard bands receive lower quality.
     if band is None:
         quality = rng.randint(*_JPEG_QUALITY)
     else:

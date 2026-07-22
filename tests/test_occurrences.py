@@ -109,7 +109,7 @@ def test_bank_never_matches_table_footer() -> None:
             assert not _FOOTER.search(text), f"colide com o rodapé: {text!r}"
 
 
-# --- distribuição por perfil (χ² grosso, padrão test_tier_a_distribution) ----
+# --- distribuição por perfil (tolerância estatística ampla) -----------------
 
 
 def test_profile_sa_rates() -> None:

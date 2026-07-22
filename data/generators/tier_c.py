@@ -1,6 +1,6 @@
 """Tier C: orquestração folha→disco (docs/DATASET_CONTRACT.md §3–§5).
 
-Fluxo por documento (RNG próprio via `_doc_rng`, padrão de tier_b.py):
+Fluxo por documento (RNG próprio e determinístico via `_doc_rng`):
   split do id → vocab held-out do split → gabarito limpo → superfície messy →
   variante de layout (C só no test) → render → dificuldade (clean|scan|photo,
   banda por split) → PNG canônico + PDF derivado + gt JSON + linha de manifest.
@@ -44,7 +44,7 @@ from data.generators.templates.controle_ocorrencias import (
 DATASET_VERSION = "tier_c/v1"
 MANIFEST_SCHEMA: Literal["tier_c-manifest/v2"] = "tier_c-manifest/v2"
 DEFAULT_SPLIT_SEED = 0
-_SPLIT_RATIOS = (0.70, 0.15, 0.15)  # mesmo default de tier_a.split_dataset
+_SPLIT_RATIOS = (0.70, 0.15, 0.15)
 _PDF_DPI = 150
 
 Difficulty = Literal["clean", "scan", "photo"]
@@ -94,7 +94,7 @@ class TierCMeta(BaseModel):
 
 
 def _doc_rng(seed: int, index: int) -> random.Random:
-    """RNG independente e reproduzível por documento (padrão tier_b)."""
+    """RNG independente e reproduzível por documento."""
     return random.Random(seed * 1_000_003 + index)
 
 

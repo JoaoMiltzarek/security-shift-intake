@@ -12,8 +12,8 @@ desenhada no campo "Data e Turno" ("DD/MM/AAAA - Turno") — a régua compara
 Held-out anti-memorização (contrato §5 / gate G-S3): ~20% dos nomes, unidades e
 templates de descrição-ação existem SÓ no split de test (`vocab_for_split`).
 
-Determinismo: toda aleatoriedade flui por um `random.Random` injetado (padrão de
-records.py); o held-out tem seed própria, registrada no meta.json pela PR-D5.
+Determinismo: toda aleatoriedade flui por um `random.Random` injetado; o held-out
+tem seed própria, registrada no meta.json pela PR-D5.
 """
 
 from __future__ import annotations
