@@ -48,7 +48,7 @@ from src.api.gate import (
     assert_reviewable,
     send_draft,
 )
-from src.api.models import Draft
+from src.api.models import Draft, utc_rfc3339
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
 from src.clients.base import LLMClient
 from src.clients.local_rules import RuleBasedLLMClient
@@ -395,6 +395,7 @@ def _edit_table(
 
 
 _templates = Jinja2Templates(directory=REPO_ROOT / "ui" / "templates")
+_templates.env.filters["rfc3339"] = utc_rfc3339
 _DEFAULT_CONFIG = REPO_ROOT / "configs" / "controle_ocorrencias.yaml"
 
 
@@ -486,10 +487,10 @@ def _draft_summary(draft: Draft | repository.DraftSummary) -> dict[str, Any]:
         "id": draft.id,
         "status": draft.status,
         "revision": draft.revision,
-        "created_at": draft.created_at.isoformat(),
-        "updated_at": draft.updated_at.isoformat(),
+        "created_at": utc_rfc3339(draft.created_at),
+        "updated_at": utc_rfc3339(draft.updated_at),
         "delivery_mode": draft.delivery_mode,
-        "sent_at": draft.sent_at.isoformat() if draft.sent_at else None,
+        "sent_at": utc_rfc3339(draft.sent_at) if draft.sent_at else None,
     }
 
 
@@ -731,7 +732,7 @@ def create_app(
                 "detail": a.detail,
                 "revision": a.revision,
                 "state_sha256": a.state_sha256,
-                "timestamp": a.timestamp.isoformat(),
+                "timestamp": utc_rfc3339(a.timestamp),
             }
             for a in repository.get_audit(session, draft_id)
         ]

@@ -47,12 +47,12 @@
         <dl class="draft-metadata">
           <div>
             <dt>Recebido</dt>
-            <dd><time datetime="{{ d.created_at.isoformat() }}">{{ d.created_at.strftime('%d/%m/%Y · %H:%M') }}</time></dd>
+            <dd><time datetime="{{ d.created_at | rfc3339 }}">{{ d.created_at.strftime('%d/%m/%Y · %H:%M') }}</time></dd>
           </div>
           {% if d.updated_at is defined %}
           <div>
             <dt>Última atividade</dt>
-            <dd><time datetime="{{ d.updated_at.isoformat() }}">{{ d.updated_at.strftime('%d/%m/%Y · %H:%M') }}</time></dd>
+            <dd><time datetime="{{ d.updated_at | rfc3339 }}">{{ d.updated_at.strftime('%d/%m/%Y · %H:%M') }}</time></dd>
           </div>
           {% endif %}
         </dl>

@@ -22,6 +22,12 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def utc_rfc3339(value: datetime) -> str:
+    """Serialize SQLite-aware or legacy-naive timestamps as explicit UTC."""
+    aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return aware.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
 class Draft(SQLModel, table=True):
     """A report draft persisted for review. `status` drives the send gate."""
 

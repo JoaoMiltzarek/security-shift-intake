@@ -40,13 +40,13 @@
   {% if draft.sent_at and draft.delivery_mode == 'simulated' %}
   <p class="success-banner">
     A simulação foi concluída em
-    <time datetime="{{ draft.sent_at.isoformat() }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
+    <time datetime="{{ draft.sent_at | rfc3339 }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
     Nenhuma entrega externa foi realizada.
   </p>
   {% elif draft.sent_at %}
   <p class="blocker-banner">
     Registro terminal legado em
-    <time datetime="{{ draft.sent_at.isoformat() }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
+    <time datetime="{{ draft.sent_at | rfc3339 }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
     O modo de entrega não foi comprovado; nenhuma afirmação de entrega é feita.
   </p>
   {% elif draft.status == 'approved' and draft.approved_revision is none %}
@@ -89,7 +89,7 @@
       <li>
         <strong>{{ entry.action }}</strong>
         <small>{{ entry.actor }}</small><br>
-        <time datetime="{{ entry.timestamp.isoformat() }}">{{ entry.timestamp.strftime('%d/%m/%Y · %H:%M:%S') }}</time>
+        <time datetime="{{ entry.timestamp | rfc3339 }}">{{ entry.timestamp.strftime('%d/%m/%Y · %H:%M:%S') }}</time>
         {% if entry.detail %}<p class="mono">{{ entry.detail }}</p>{% endif %}
       </li>
       {% endfor %}
