@@ -20,13 +20,15 @@ from __future__ import annotations
 
 import random
 import string
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
 from data.generators import priors
-from data.generators.records import _DATE_SPAN_DAYS, _EPOCH
+
+_EPOCH = date(2026, 1, 1)
+_DATE_SPAN_DAYS = 365
 
 Profile = Literal["balanced", "operational"]
 Split = Literal["train", "val", "test"]
