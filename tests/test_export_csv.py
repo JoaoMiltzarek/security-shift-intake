@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from scripts.demo_pipeline_mock import OCR_INCIDENT, SAMPLE
 from src.api.app import _csv_safe, create_app
 from src.api.db import make_engine
-from src.api.gate import MockSender
+from src.api.gate import MemorySimulationRecorder
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
@@ -42,7 +42,7 @@ _CLEAN_FORM = {
 def client() -> Iterator[TestClient]:
     app = create_app(
         engine=make_engine("sqlite://"),
-        sender=MockSender(),
+        simulation_recorder=MemorySimulationRecorder(),
         config=CFG,
         enable_test_state_submission=True,
     )

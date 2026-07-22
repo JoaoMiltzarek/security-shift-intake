@@ -15,7 +15,7 @@ from PIL import Image
 
 from src.api.app import create_app
 from src.api.db import make_engine
-from src.api.gate import MockSender
+from src.api.gate import MemorySimulationRecorder
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image, save_page_artifacts
 from src.paths import PRIVATE_ROOT
 from src.pipeline.ingest import PageArtifact
@@ -45,7 +45,7 @@ def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[str]]]:
     rel = save_page_artifacts([_artifact((12, 10))], root=tmp_path)
     app = create_app(
         engine=make_engine("sqlite://"),
-        sender=MockSender(),
+        simulation_recorder=MemorySimulationRecorder(),
         page_images_root=tmp_path,
         enable_test_state_submission=True,
     )

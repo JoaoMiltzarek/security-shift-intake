@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -9,15 +10,7 @@ from fastapi.testclient import TestClient
 
 from src.api.app import _default_config_path, create_app
 from src.api.db import make_engine
-from src.api.models import DeliveryMode
 from src.paths import REPO_ROOT
-
-
-class _ExternalSender:
-    delivery_mode: DeliveryMode = "external"
-
-    def send(self, recipients: list[str], body: str) -> None:
-        raise AssertionError("an external sender must never enter the v1 runtime")
 
 
 def test_default_config_is_controle_ocorrencias(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -45,6 +38,8 @@ def test_default_app_config_templates_and_static_are_cwd_independent(
     assert 'version:"2.0.3"' in asset.text
 
 
-def test_v1_app_rejects_external_delivery_adapter() -> None:
-    with pytest.raises(ValueError, match="simulation only"):
-        create_app(engine=make_engine("sqlite://"), sender=_ExternalSender())
+def test_v1_app_exposes_no_delivery_adapter_boundary() -> None:
+    parameters = inspect.signature(create_app).parameters
+
+    assert "sender" not in parameters
+    assert "simulation_recorder" in parameters

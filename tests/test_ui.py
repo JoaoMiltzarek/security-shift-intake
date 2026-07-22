@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from src.api.app import MAX_FORM_VALUE_CHARS, MAX_REQUEST_BODY_BYTES, create_app
 from src.api.db import make_engine
-from src.api.gate import MockSender
+from src.api.gate import MemorySimulationRecorder
 from src.schema.loader import config_fingerprint, load_config
 
 # Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
@@ -44,11 +44,11 @@ _BODY = {
 
 
 @pytest.fixture
-def client_and_sender() -> Iterator[tuple[TestClient, MockSender]]:
-    sender = MockSender()
+def client_and_sender() -> Iterator[tuple[TestClient, MemorySimulationRecorder]]:
+    sender = MemorySimulationRecorder()
     app = create_app(
         engine=make_engine("sqlite://"),
-        sender=sender,
+        simulation_recorder=sender,
         config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
@@ -75,7 +75,9 @@ def _ui_action(client: TestClient, draft_id: int, action: str):
     )
 
 
-def test_index_lists_drafts(client_and_sender: tuple[TestClient, MockSender]) -> None:
+def test_index_lists_drafts(
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
     r = client.get("/")
@@ -85,14 +87,16 @@ def test_index_lists_drafts(client_and_sender: tuple[TestClient, MockSender]) ->
 
 
 def test_index_rejects_invalid_filter_and_cursor(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, _ = client_and_sender
     assert client.get("/?status=deleted").status_code == 422
     assert client.get("/?cursor=not-a-cursor").status_code == 422
 
 
-def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockSender]) -> None:
+def test_review_page_shows_all_panels(
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
     r = client.get(f"/drafts/{draft_id}/review")
@@ -107,7 +111,7 @@ def test_review_page_shows_all_panels(client_and_sender: tuple[TestClient, MockS
 
 
 def test_ui_simulation_blocked_before_approval(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, sender = client_and_sender
     draft_id = _submit(client)
@@ -117,7 +121,9 @@ def test_ui_simulation_blocked_before_approval(
     assert sender.call_count == 0
 
 
-def test_ui_approve_then_simulate(client_and_sender: tuple[TestClient, MockSender]) -> None:
+def test_ui_approve_then_simulate(
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
     client, sender = client_and_sender
     draft_id = _submit(client)
 
@@ -133,7 +139,7 @@ def test_ui_approve_then_simulate(client_and_sender: tuple[TestClient, MockSende
 
 
 def test_sent_status_panel_has_no_mutation_controls(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
@@ -149,13 +155,15 @@ def test_sent_status_panel_has_no_mutation_controls(
     assert f"/ui/drafts/{draft_id}/simulate" not in panel
 
 
-def test_review_missing_draft_404(client_and_sender: tuple[TestClient, MockSender]) -> None:
+def test_review_missing_draft_404(
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
     client, _ = client_and_sender
     assert client.get("/drafts/999/review").status_code == 404
 
 
 def test_htmx_is_vendored_locally_not_cdn(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
@@ -170,7 +178,7 @@ def test_htmx_is_vendored_locally_not_cdn(
 
 
 def test_review_uses_local_brand_assets(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
@@ -184,7 +192,7 @@ def test_review_uses_local_brand_assets(
 
 
 def test_status_panel_shows_revision_and_approved_revision(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     """O painel expõe a revisão corrente e qual revisão foi aprovada (SSI-1007)."""
     client, _ = client_and_sender
@@ -208,7 +216,7 @@ def test_legacy_approved_without_stamp_shows_reapprove_warning() -> None:
     engine = make_engine("sqlite://")
     app = create_app(
         engine=engine,
-        sender=MockSender(),
+        simulation_recorder=MemorySimulationRecorder(),
         config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
@@ -232,7 +240,7 @@ def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
     engine = make_engine("sqlite://")
     app = create_app(
         engine=engine,
-        sender=MockSender(),
+        simulation_recorder=MemorySimulationRecorder(),
         config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
@@ -252,7 +260,9 @@ def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
     assert "modo de entrega não foi comprovado" in html
 
 
-def test_security_headers_present(client_and_sender: tuple[TestClient, MockSender]) -> None:
+def test_security_headers_present(
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
     client, _ = client_and_sender
     csp = client.get("/health").headers.get("content-security-policy", "")
     assert "default-src 'self'" in csp
@@ -264,7 +274,7 @@ def test_security_headers_present(client_and_sender: tuple[TestClient, MockSende
 
 
 def test_edit_rejects_oversized_request_without_mutating_draft(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)
@@ -283,7 +293,7 @@ def test_edit_rejects_oversized_request_without_mutating_draft(
 
 
 def test_edit_rejects_oversized_field_without_mutating_draft(
-    client_and_sender: tuple[TestClient, MockSender],
+    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     client, _ = client_and_sender
     draft_id = _submit(client)

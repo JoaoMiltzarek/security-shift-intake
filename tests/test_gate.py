@@ -13,8 +13,13 @@ from sqlmodel import Session
 
 from src.api import repository
 from src.api.db import init_db, make_engine
-from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
-from src.api.models import DeliveryMode, Draft
+from src.api.gate import (
+    DraftNotApprovedError,
+    MemorySimulationRecorder,
+    SimulationRecorder,
+    simulate_draft,
+)
+from src.api.models import Draft
 from src.api.repository import create_draft, get_audit, set_status
 from src.schema.extraction import NormalizedIncidentModel
 from src.schema.state import ApprovalStatus, PipelineState
@@ -37,10 +42,9 @@ def _state() -> PipelineState:
     )
 
 
-def test_mock_sender_satisfies_protocol() -> None:
-    sender = MockSender()
-    assert isinstance(sender, Sender)
-    assert sender.delivery_mode == "simulated"
+def test_memory_recorder_satisfies_simulation_protocol() -> None:
+    recorder = MemorySimulationRecorder()
+    assert isinstance(recorder, SimulationRecorder)
 
 
 def test_approved_draft_sends_and_audits(session: Session) -> None:
@@ -48,12 +52,12 @@ def test_approved_draft_sends_and_audits(session: Session) -> None:
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
 
-    sender = MockSender()
-    send_draft(session, draft.id, sender, actor="r")
+    recorder = MemorySimulationRecorder()
+    simulate_draft(session, draft.id, recorder, actor="r")
 
-    assert sender.call_count == 1
-    assert sender.sent[0][0] == ["tech_security", "general_support"]
-    assert "send_simulated" in [a.action for a in get_audit(session, draft.id)]
+    assert recorder.call_count == 1
+    assert recorder.records[0][0] == ["tech_security", "general_support"]
+    assert "simulation_completed" in [a.action for a in get_audit(session, draft.id)]
 
 
 # --- The invariant: an unapproved draft CANNOT be sent ---
@@ -62,25 +66,25 @@ def test_approved_draft_sends_and_audits(session: Session) -> None:
 def test_pending_draft_cannot_be_sent(session: Session) -> None:
     draft = create_draft(session, _state())  # status: pending
     assert draft.id is not None
-    sender = MockSender()
+    sender = MemorySimulationRecorder()
 
     with pytest.raises(DraftNotApprovedError):
-        send_draft(session, draft.id, sender, actor="r")
+        simulate_draft(session, draft.id, sender, actor="r")
 
     # The side effect must NOT have happened.
     assert sender.call_count == 0
     # The blocked attempt is audited.
-    assert "send_blocked" in [a.action for a in get_audit(session, draft.id)]
+    assert "simulation_blocked" in [a.action for a in get_audit(session, draft.id)]
 
 
 def test_rejected_draft_cannot_be_sent(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.REJECTED, actor="r")
-    sender = MockSender()
+    sender = MemorySimulationRecorder()
 
     with pytest.raises(DraftNotApprovedError):
-        send_draft(session, draft.id, sender, actor="r")
+        simulate_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 0
 
 
@@ -88,17 +92,17 @@ def test_already_sent_draft_cannot_be_resent(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    sender = MockSender()
-    send_draft(session, draft.id, sender, actor="r")  # first send ok
+    sender = MemorySimulationRecorder()
+    simulate_draft(session, draft.id, sender, actor="r")
 
     with pytest.raises(DraftNotApprovedError):
-        send_draft(session, draft.id, sender, actor="r")  # second blocked
+        simulate_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 1  # not called again
 
 
 def test_send_missing_draft_raises(session: Session) -> None:
     with pytest.raises(KeyError):
-        send_draft(session, 999, MockSender(), actor="r")
+        simulate_draft(session, 999, MemorySimulationRecorder(), actor="r")
 
 
 # --- F3.B3 (SSI-1006): o envio é do CONTEÚDO aprovado, não só do status ---
@@ -117,11 +121,11 @@ def test_hash_tampered_state_cannot_be_sent(session: Session) -> None:
     session.add(draft)
     session.commit()
 
-    sender = MockSender()
+    sender = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
-        send_draft(session, draft.id, sender, actor="r")
+        simulate_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 0
-    blocked = [a for a in get_audit(session, draft.id) if a.action == "send_blocked"]
+    blocked = [a for a in get_audit(session, draft.id) if a.action == "simulation_blocked"]
     assert blocked and blocked[-1].detail is not None
     assert "stale_approval" in blocked[-1].detail
 
@@ -135,9 +139,9 @@ def test_legacy_approved_without_stamp_cannot_be_sent(session: Session) -> None:
     session.add(draft)
     session.commit()
 
-    sender = MockSender()
+    sender = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
-        send_draft(session, draft.id, sender, actor="r")
+        simulate_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 0
 
 
@@ -149,13 +153,13 @@ def test_send_reruns_assert_reviewable_on_current_state(session: Session) -> Non
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")  # stamp válido
 
-    sender = MockSender()
+    sender = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
-        send_draft(session, draft.id, sender, actor="r")
+        simulate_draft(session, draft.id, sender, actor="r")
     assert sender.call_count == 0
 
 
-def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> None:
+def test_concurrent_simulations_invoke_recorder_exactly_once(tmp_path: Path) -> None:
     engine = make_engine(
         f"sqlite:///{(tmp_path / 'send-race.db').as_posix()}", allow_test_path=True
     )
@@ -166,27 +170,25 @@ def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> Non
         draft_id = draft.id
         set_status(setup, draft_id, ApprovalStatus.APPROVED, actor="r")
 
-    class SlowSender:
-        delivery_mode: DeliveryMode = "external"
-
+    class SlowRecorder:
         def __init__(self) -> None:
             self.call_count = 0
             self._guard = threading.Lock()
 
-        def send(self, recipients: list[str], body: str) -> None:
+        def simulate(self, recipients: list[str], body: str) -> None:
             with self._guard:
                 self.call_count += 1
             time.sleep(0.1)  # deixa a segunda sessão explorar a janela pré-sent_at
 
-    sender = SlowSender()
+    recorder = SlowRecorder()
     start = threading.Barrier(3)
 
     def attempt() -> str:
         with Session(engine) as concurrent_session:
             start.wait(timeout=5)
             try:
-                send_draft(concurrent_session, draft_id, sender, actor="r")
-                return "sent"
+                simulate_draft(concurrent_session, draft_id, recorder, actor="r")
+                return "simulated"
             except DraftNotApprovedError:
                 return "blocked"
 
@@ -195,19 +197,19 @@ def test_concurrent_send_calls_invoke_sender_exactly_once(tmp_path: Path) -> Non
         start.wait(timeout=5)
         outcomes = [future.result(timeout=10) for future in futures]
 
-    assert sender.call_count == 1
-    assert sorted(outcomes) == ["blocked", "sent"]
+    assert recorder.call_count == 1
+    assert sorted(outcomes) == ["blocked", "simulated"]
     with Session(engine) as verify:
         persisted = verify.get(Draft, draft_id)
         assert persisted is not None
-        assert persisted.delivery_mode == "external"
+        assert persisted.delivery_mode == "simulated"
         assert [entry.action for entry in get_audit(verify, draft_id)].count(
-            "external_dispatch_completed"
+            "simulation_completed"
         ) == 1
 
 
-def test_edit_cannot_interleave_with_irreversible_send(tmp_path: Path) -> None:
-    """The persisted terminal state must be the exact revision sent by the adapter."""
+def test_edit_cannot_interleave_with_terminal_simulation(tmp_path: Path) -> None:
+    """The terminal record must reference the exact revision that was simulated."""
     engine = make_engine(
         f"sqlite:///{(tmp_path / 'edit-send-race.db').as_posix()}", allow_test_path=True
     )
@@ -219,10 +221,8 @@ def test_edit_cannot_interleave_with_irreversible_send(tmp_path: Path) -> None:
         draft_id = draft.id
         set_status(setup, draft_id, ApprovalStatus.APPROVED, actor="reviewer")
 
-    class ReentrantEditingSender:
-        delivery_mode: DeliveryMode = "external"
-
-        def send(self, recipients: list[str], body: str) -> None:
+    class ReentrantEditingRecorder:
+        def simulate(self, recipients: list[str], body: str) -> None:
             edited = original.model_copy(update={"email_draft": "unapproved replacement"})
             with (
                 Session(engine) as editing,
@@ -231,7 +231,7 @@ def test_edit_cannot_interleave_with_irreversible_send(tmp_path: Path) -> None:
                 repository.update_state(editing, draft_id, edited, actor="concurrent-editor")
 
     with Session(engine) as sending:
-        send_draft(sending, draft_id, ReentrantEditingSender(), actor="reviewer")
+        simulate_draft(sending, draft_id, ReentrantEditingRecorder(), actor="reviewer")
 
     with Session(engine) as verify:
         persisted = verify.get(Draft, draft_id)
@@ -241,4 +241,4 @@ def test_edit_cannot_interleave_with_irreversible_send(tmp_path: Path) -> None:
         assert persisted.state_json == original.model_dump_json()
         actions = [entry.action for entry in get_audit(verify, draft_id)]
         assert "edited" not in actions
-        assert actions.count("external_dispatch_completed") == 1
+        assert actions.count("simulation_completed") == 1

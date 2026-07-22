@@ -10,7 +10,7 @@ from sqlalchemy import event
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
-from src.api.gate import MockSender, send_draft
+from src.api.gate import MemorySimulationRecorder, simulate_draft
 from src.api.models import Draft
 from src.api.repository import (
     DraftAlreadySentError,
@@ -70,17 +70,17 @@ def test_set_status_updates_and_audits(session: Session) -> None:
     assert "status:approved" in actions
 
 
-def test_mark_sent_persists_simulation_mode_and_audit(session: Session) -> None:
+def test_simulation_persists_terminal_mode_and_audit(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    send_draft(session, draft.id, MockSender(), actor="r")
+    simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None and refreshed.sent_at is not None
     assert refreshed.delivery_mode == "simulated"
     audit = get_audit(session, draft.id)
-    assert "send_simulated" in [a.action for a in audit]
+    assert "simulation_completed" in [a.action for a in audit]
     assert audit[-1].detail is not None
     assert "mode=simulated rev=1 sha256=" in audit[-1].detail
 
@@ -282,15 +282,15 @@ def test_approval_and_send_audit_reference_the_full_snapshot(session: Session) -
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="reviewer")
-    send_draft(session, draft.id, MockSender(), actor="reviewer")
+    simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="reviewer")
 
     expected_hash = state_sha256(draft.state_json)
     entries = {
         entry.action: entry
         for entry in get_audit(session, draft.id)
-        if entry.action in {"status:approved", "send_simulated"}
+        if entry.action in {"status:approved", "simulation_completed"}
     }
-    assert set(entries) == {"status:approved", "send_simulated"}
+    assert set(entries) == {"status:approved", "simulation_completed"}
     assert all(entry.revision == 1 for entry in entries.values())
     assert all(entry.state_sha256 == expected_hash for entry in entries.values())
 
@@ -325,7 +325,7 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    send_draft(session, draft.id, MockSender(), actor="r")
+    simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
     with pytest.raises(DraftAlreadySentError):
         update_state(session, draft.id, _state(), actor="reviewer")
@@ -341,7 +341,7 @@ def test_sent_draft_rejects_later_status_changes(session: Session, status: Appro
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    send_draft(session, draft.id, MockSender(), actor="r")
+    simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
     with pytest.raises(DraftAlreadySentError):
         set_status(session, draft.id, status, actor="r")
@@ -399,23 +399,23 @@ def test_status_rolls_back_when_status_audit_fails(
     assert "status:approved" not in [entry.action for entry in get_audit(session, draft.id)]
 
 
-def test_mark_sent_rolls_back_when_simulation_audit_fails(
+def test_simulation_rolls_back_when_audit_fails(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    _fail_audit_action(monkeypatch, "send_simulated")
+    _fail_audit_action(monkeypatch, "simulation_completed")
 
     with pytest.raises(RuntimeError, match="injected audit"):
-        send_draft(session, draft.id, MockSender(), actor="r")
+        simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
     session.expire_all()
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None
     assert refreshed.sent_at is None
     assert refreshed.delivery_mode is None
-    assert "send_simulated" not in [entry.action for entry in get_audit(session, draft.id)]
+    assert "simulation_completed" not in [entry.action for entry in get_audit(session, draft.id)]
 
 
 def test_update_rolls_back_when_edit_audit_fails(
@@ -575,7 +575,7 @@ def test_queue_page_separates_approved_from_simulated(session: Session) -> None:
     assert simulated.id is not None
     set_status(session, approved.id, ApprovalStatus.APPROVED, actor="reviewer")
     set_status(session, simulated.id, ApprovalStatus.APPROVED, actor="reviewer")
-    send_draft(session, simulated.id, MockSender(), actor="reviewer")
+    simulate_draft(session, simulated.id, MemorySimulationRecorder(), actor="reviewer")
 
     approved_page = list_draft_page(session, status="approved")
     simulated_page = list_draft_page(session, status="simulated")
@@ -616,4 +616,4 @@ def test_terminal_state_can_only_be_recorded_through_gate(session: Session) -> N
     assert draft.id is not None
     assert not hasattr(repository, "mark_sent")
     with pytest.raises(DraftOperationConflictError, match="not approved"):
-        repository._mark_sent_locked(session, draft.id, "bypass", "simulated")
+        repository._mark_simulated_locked(session, draft.id, "bypass")

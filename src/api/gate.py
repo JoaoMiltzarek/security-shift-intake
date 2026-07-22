@@ -1,10 +1,4 @@
-"""The human-approval send gate — the project's #1 safety invariant.
-
-A draft can be sent ONLY from status `approved`. Any other status (or an
-already-sent draft) is a hard block: the sender is never called and the attempt is
-audited. Sending goes through a mockable `Sender` so tests can prove the side
-effect did or did not happen.
-"""
+"""Revision-bound human approval and local simulation gate."""
 
 from __future__ import annotations
 
@@ -12,9 +6,9 @@ from typing import Protocol, runtime_checkable
 
 from sqlmodel import Session
 
-from src.api.models import DeliveryMode, Draft
+from src.api.models import Draft
 from src.api.repository import (
-    _mark_sent_locked,
+    _mark_simulated_locked,
     add_audit,
     draft_operation_lock,
     get_draft,
@@ -25,25 +19,15 @@ from src.schema.state import ApprovalStatus, PipelineState
 
 
 class DraftNotApprovedError(RuntimeError):
-    """Raised when a send is attempted on a draft that is not approved."""
+    """Raised when simulation is attempted without a current approval."""
 
 
 class DraftNotReviewableError(RuntimeError):
-    """Raised when approval is attempted while fields still need review (plano R4)."""
+    """Raised when a draft still contains unresolved review blockers."""
 
 
 def assert_reviewable(state: PipelineState) -> None:
-    """Block approval while any field is still flagged for review (plano R4).
-
-    Enforces "nunca adivinhar": a draft cannot be approved while the critic's
-    `must_review_fields` is non-empty (low-confidence, missing, invalid, or ambiguous
-    values). The human must resolve every flag (edit screen) before approving.
-
-    Also a hard safety block when the OCR quality gate failed: a document the OCR
-    could not read is never approvable until a human transcribes/corrects it (which
-    clears the failed state). Explicit so the block does not rely on the critic
-    coincidentally leaving fields pending.
-    """
+    """Fail closed unless the occurrence-sheet state is explicitly reviewable."""
     if state.exceeds_v1_page_scope():
         raise DraftNotReviewableError(
             "Legacy multi-page state exceeds the supported single-page v1 contract."
@@ -68,46 +52,46 @@ def assert_reviewable(state: PipelineState) -> None:
 
 
 @runtime_checkable
-class Sender(Protocol):
-    """Performs a terminal delivery attempt and declares whether it is simulated."""
+class SimulationRecorder(Protocol):
+    """Observe the terminal local simulation without any delivery capability."""
 
-    @property
-    def delivery_mode(self) -> DeliveryMode: ...
+    def simulate(self, recipients: list[str], body: str) -> None:
+        """Record the would-be recipients and body in process memory only."""
+        ...
 
-    def send(self, recipients: list[str], body: str) -> None: ...
 
-
-class MockSender:
-    """Records sends instead of performing them. MOCK — nothing is actually sent."""
-
-    delivery_mode: DeliveryMode = "simulated"
+class MemorySimulationRecorder:
+    """In-memory simulation observer used by the local cockpit and tests."""
 
     def __init__(self) -> None:
-        self.sent: list[tuple[list[str], str]] = []
+        self.records: list[tuple[list[str], str]] = []
 
     @property
     def call_count(self) -> int:
-        return len(self.sent)
+        return len(self.records)
 
-    def send(self, recipients: list[str], body: str) -> None:
-        self.sent.append((recipients, body))
-
-
-def send_draft(session: Session, draft_id: int, sender: Sender, actor: str = "reviewer") -> Draft:
-    """Serialize the irreversible side effect per draft in the supported local process."""
-    with draft_operation_lock(session, draft_id, wait=True):
-        # A concurrent session may have committed sent_at while this caller waited.
-        session.expire_all()
-        return _send_draft_once(session, draft_id, sender, actor)
+    def simulate(self, recipients: list[str], body: str) -> None:
+        self.records.append((recipients, body))
 
 
-def _send_draft_once(
-    session: Session, draft_id: int, sender: Sender, actor: str = "reviewer"
+def simulate_draft(
+    session: Session,
+    draft_id: int,
+    recorder: SimulationRecorder,
+    actor: str = "reviewer",
 ) -> Draft:
-    """Send a draft iff it is approved. Otherwise block, audit, and raise.
+    """Serialize and record one terminal simulation for an approved snapshot."""
+    with draft_operation_lock(session, draft_id, wait=True):
+        session.expire_all()
+        return _simulate_draft_once(session, draft_id, recorder, actor)
 
-    The sender is invoked only on the approved path — never for a blocked attempt.
-    """
+
+def _simulate_draft_once(
+    session: Session,
+    draft_id: int,
+    recorder: SimulationRecorder,
+    actor: str,
+) -> Draft:
     draft = get_draft(session, draft_id)
     if draft is None:
         raise KeyError(f"Draft {draft_id} not found")
@@ -117,20 +101,23 @@ def _send_draft_once(
             session,
             draft_id,
             actor=actor,
-            action="send_blocked",
+            action="simulation_blocked",
             detail=f"status={draft.status}",
         )
         raise DraftNotApprovedError(
-            f"Draft {draft_id} is '{draft.status}', not approved — send blocked."
+            f"Draft {draft_id} is '{draft.status}', not approved — simulation blocked."
         )
 
     if draft.sent_at is not None:
-        add_audit(session, draft_id, actor=actor, action="send_blocked", detail="already_sent")
-        raise DraftNotApprovedError(f"Draft {draft_id} was already sent — send blocked.")
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="simulation_blocked",
+            detail="already_simulated",
+        )
+        raise DraftNotApprovedError(f"Draft {draft_id} was already simulated.")
 
-    # A aprovação vale para UMA revisão/conteúdo (SSI-1006): revisão e hash estampados
-    # no approve precisam bater com o estado corrente. Cobre aprovação legada
-    # (approved_revision NULL) e escrita direta em state_json fora de update_state.
     if draft.approved_revision != draft.revision or draft.approved_state_sha256 != state_sha256(
         draft.state_json
     ):
@@ -138,28 +125,26 @@ def _send_draft_once(
             session,
             draft_id,
             actor=actor,
-            action="send_blocked",
+            action="simulation_blocked",
             detail=(f"stale_approval rev={draft.revision} approved_rev={draft.approved_revision}"),
         )
         raise DraftNotApprovedError(
-            f"Draft {draft_id} content is not the approved revision — send blocked; "
+            f"Draft {draft_id} content is not the approved revision — simulation blocked; "
             "re-approve the current content."
         )
 
     state = PipelineState.model_validate_json(draft.state_json)
-
-    # Última linha de defesa: o estado corrente precisa continuar aprovável
-    # (sem pendências, sem OCR falho, sem disposição unknown) no momento do envio.
     try:
         assert_reviewable(state)
     except DraftNotReviewableError as exc:
-        add_audit(session, draft_id, actor=actor, action="send_blocked", detail="not_reviewable")
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="simulation_blocked",
+            detail="not_reviewable",
+        )
         raise DraftNotApprovedError(str(exc)) from exc
 
-    sender.send(state.recipients, state.email_draft or "")
-    return _mark_sent_locked(
-        session,
-        draft_id,
-        actor=actor,
-        delivery_mode=sender.delivery_mode,
-    )
+    recorder.simulate(state.recipients, state.email_draft or "")
+    return _mark_simulated_locked(session, draft_id, actor=actor)

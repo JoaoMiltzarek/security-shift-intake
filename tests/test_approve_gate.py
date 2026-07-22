@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from src.api.app import create_app
 from src.api.db import make_engine
-from src.api.gate import DraftNotReviewableError, MockSender, assert_reviewable
+from src.api.gate import DraftNotReviewableError, MemorySimulationRecorder, assert_reviewable
 from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import config_fingerprint, load_config
 from src.schema.state import PipelineState
@@ -65,7 +65,7 @@ _OCR_FAILED_BODY = {
 def client() -> Iterator[TestClient]:
     app = create_app(
         engine=make_engine("sqlite://"),
-        sender=MockSender(),
+        simulation_recorder=MemorySimulationRecorder(),
         config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )

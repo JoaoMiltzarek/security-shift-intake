@@ -1,11 +1,11 @@
 """FastAPI application for the approval gate.
 
-`create_app(engine, sender)` builds the app with injectable persistence and sender
-so tests run against an in-memory DB and a mock sender. ``src.api.asgi:app`` is the
-intentional production entry point for Uvicorn.
+`create_app` builds the app with injectable persistence and a local simulation
+recorder so tests can observe the terminal action without delivery capability.
+``src.api.asgi:app`` is the intentional production entry point for Uvicorn.
 
-Endpoints expose the state machine: submit -> review -> approve/reject -> send.
-Sending always goes through the gate (M7.b) — never auto-sent.
+Endpoints expose the state machine: submit -> review -> approve/reject -> simulate.
+Simulation always goes through the revision-bound approval gate.
 """
 
 from __future__ import annotations
@@ -43,10 +43,10 @@ from src.api.forms import ReviewFormError, parse_occurrence_rows
 from src.api.gate import (
     DraftNotApprovedError,
     DraftNotReviewableError,
-    MockSender,
-    Sender,
+    MemorySimulationRecorder,
+    SimulationRecorder,
     assert_reviewable,
-    send_draft,
+    simulate_draft,
 )
 from src.api.models import Draft, utc_rfc3339
 from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
@@ -551,7 +551,7 @@ def _queue_page(
 
 def create_app(
     engine: Engine | None = None,
-    sender: Sender | None = None,
+    simulation_recorder: SimulationRecorder | None = None,
     config: ReportConfig | None = None,
     page_images_root: Path | None = None,
     classifier: IncidentClassifier | None = None,
@@ -560,9 +560,7 @@ def create_app(
 ) -> FastAPI:
     engine = engine or make_engine()
     init_db(engine)
-    active_sender: Sender = sender or MockSender()
-    if active_sender.delivery_mode != "simulated":
-        raise ValueError("The v1 cockpit supports local delivery simulation only.")
+    active_recorder = simulation_recorder or MemorySimulationRecorder()
     active_config: ReportConfig = config or load_config(_default_config_path())
     active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
     # Reclassificação pós-edição (SSI-1007): determinística/offline por default.
@@ -808,7 +806,7 @@ def create_app(
         )
         _compatible_state(draft)
         try:
-            draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
+            draft = simulate_draft(session, draft_id, active_recorder, actor=_LOCAL_ACTOR)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DraftNotApprovedError as exc:
@@ -859,7 +857,6 @@ def create_app(
                 "draft": draft,
                 "audit": repository.get_audit(session, draft.id or 0),
                 "message": message,
-                "active_delivery_mode": active_sender.delivery_mode,
                 "config_blocker": _config_blocker(draft),
                 "approval_blocker": _approval_blocker(draft),
                 "state_sha256": repository.state_sha256(draft.state_json),
@@ -892,7 +889,6 @@ def create_app(
         ctx: dict[str, Any] = {
             "draft": draft,
             "audit": repository.get_audit(session, draft_id),
-            "active_delivery_mode": active_sender.delivery_mode,
             "config_blocker": _config_blocker(draft),
             "approval_blocker": _approval_blocker(draft),
         }
@@ -1049,7 +1045,7 @@ def create_app(
         )
         _compatible_state(current)
         try:
-            draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
+            draft = simulate_draft(session, draft_id, active_recorder, actor=_LOCAL_ACTOR)
             return _status_panel(
                 request,
                 draft,
@@ -1068,7 +1064,8 @@ def create_app(
         # Draft enviado é imutável (SSI-1006): o registro do que foi enviado não muda.
         if draft.sent_at is not None:
             raise HTTPException(
-                status_code=409, detail=f"Draft {draft_id} was already sent — edit blocked."
+                status_code=409,
+                detail=f"Draft {draft_id} was already simulated — edit blocked.",
             )
         state = PipelineState.model_validate_json(draft.state_json)
         _assert_config_compatible(state, active_config)

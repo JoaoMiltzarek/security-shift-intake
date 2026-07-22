@@ -22,7 +22,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, select
 
-from src.api.models import AuditEntry, DeliveryMode, Draft, DraftRevision, utcnow
+from src.api.models import AuditEntry, Draft, DraftRevision, utcnow
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -385,17 +385,16 @@ def _set_status_locked(
     return draft
 
 
-def _mark_sent_locked(
+def _mark_simulated_locked(
     session: Session,
     draft_id: int,
     actor: str,
-    delivery_mode: DeliveryMode,
 ) -> Draft:
-    """Record a gate-authorized adapter attempt.
+    """Record a gate-authorized local simulation.
 
     This private transaction helper repeats the revision/hash checks so importing
     it directly cannot turn stale or unapproved content into a terminal record.
-    Public callers must enter through ``gate.send_draft``.
+    Public callers must enter through ``gate.simulate_draft``.
     """
     draft = _require(session, draft_id)
     digest = state_sha256(draft.state_json)
@@ -410,18 +409,16 @@ def _mark_sent_locked(
     try:
         now = utcnow()
         draft.sent_at = now
-        draft.delivery_mode = delivery_mode
+        draft.delivery_mode = "simulated"
         draft.updated_at = now
         session.add(draft)
-        action = "send_simulated" if delivery_mode == "simulated" else "external_dispatch_completed"
         _stage_audit(
             session,
             draft_id,
             actor=actor,
-            action=action,
+            action="simulation_completed",
             detail=(
-                f"mode={delivery_mode} rev={draft.revision} "
-                f"sha256={state_sha256(draft.state_json)[:12]}"
+                f"mode=simulated rev={draft.revision} sha256={state_sha256(draft.state_json)[:12]}"
             ),
             revision=draft.revision,
             snapshot_sha256=digest,
