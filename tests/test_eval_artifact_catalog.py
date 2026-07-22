@@ -10,7 +10,6 @@ from pathlib import Path, PurePosixPath
 
 CATALOG_PATH = Path("docs/evals/catalog.json")
 EXPECTED_ARTIFACTS = {
-    "EVAL_REPORT.md",
     "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl",
     "data/manifests/tier_c_v1_bench_balanced_test.jsonl",
     "data/manifests/tier_c_v1_bench_operational_test.jsonl",

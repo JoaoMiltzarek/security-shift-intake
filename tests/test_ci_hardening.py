@@ -28,8 +28,8 @@ def test_ci_jobs_are_bounded_and_use_fixed_runner_image() -> None:
     workflow = _workflow()
 
     assert "ubuntu-latest" not in workflow
-    assert workflow.count("runs-on: ubuntu-24.04") == 5
-    assert workflow.count("timeout-minutes:") == 5
+    assert workflow.count("runs-on: ubuntu-24.04") == 4
+    assert workflow.count("timeout-minutes:") == 4
 
 
 def test_python_runtime_is_pinned_to_the_security_release_used_by_ci() -> None:
@@ -42,9 +42,9 @@ def test_python_runtime_is_pinned_to_the_security_release_used_by_ci() -> None:
     assert pyproject["tool"]["mypy"]["python_version"] == "3.11"
     assert ">=3.11.15" in lock["requires-python"]
     assert "<3.12" in lock["requires-python"]
-    assert workflow.count("uv python install 3.11.15") == 5
-    assert workflow.count("uv sync --locked --python 3.11.15") == 5
-    assert workflow.count("assert sys.version_info[:3] == (3, 11, 15)") == 5
+    assert workflow.count("uv python install 3.11.15") == 4
+    assert workflow.count("uv sync --locked --python 3.11.15") == 4
+    assert workflow.count("assert sys.version_info[:3] == (3, 11, 15)") == 4
 
 
 def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
@@ -53,8 +53,8 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
 
     assert action_refs
     assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", ref) for ref in action_refs)
-    assert workflow.count("persist-credentials: false") == 5
-    assert workflow.count('version: "0.11.23"') == 5
+    assert workflow.count("persist-credentials: false") == 4
+    assert workflow.count('version: "0.11.23"') == 4
 
 
 def test_browser_gate_proves_readiness_and_cleans_up_the_server() -> None:
@@ -81,7 +81,7 @@ def test_ci_fails_when_a_declared_release_artifact_is_missing() -> None:
     workflow = _workflow()
     uploads = workflow.count("uses: actions/upload-artifact@")
 
-    assert uploads == 6
+    assert uploads == 5
     assert workflow.count("if-no-files-found: error") == uploads
 
 
@@ -122,7 +122,7 @@ def test_ci_promotes_release_candidate_only_after_every_blocking_job() -> None:
 
     final_start = workflow.index("release-evidence-candidate:")
     final_block = workflow[final_start:]
-    assert "needs: [quality, smoke-eval, eval-safety, browser-smoke]" in final_block
+    assert "needs: [quality, eval-safety, browser-smoke]" in final_block
     assert "github.event_name == 'push'" in final_block
     assert "github.ref == 'refs/heads/main'" in final_block
     assert f"name: {intermediate}" in final_block
@@ -131,15 +131,6 @@ def test_ci_promotes_release_candidate_only_after_every_blocking_job() -> None:
         "- name: Upload promotable release-candidate summary"
     )
     assert f"name: {candidate}" in final_block
-
-
-def test_component_eval_artifacts_stay_outside_the_checkout() -> None:
-    workflow = _workflow()
-
-    assert "python -m evals.run_eval --out /tmp/component_eval" in workflow
-    assert "cat /tmp/component_eval/EVAL_REPORT.md" in workflow
-    assert "path: |\n            /tmp/component_eval/metrics.json" in workflow
-    assert "            /tmp/component_eval/EVAL_REPORT.md" in workflow
 
 
 def test_quality_diagnostics_stay_outside_the_checkout() -> None:

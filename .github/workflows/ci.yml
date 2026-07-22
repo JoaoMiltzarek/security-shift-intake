@@ -93,49 +93,6 @@ jobs:
           path: /tmp/SSI-1002_EVIDENCE.md
           if-no-files-found: error
 
-  smoke-eval:
-    name: smoke-eval (metrics + report)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-
-      - name: Install tesseract (OCR baseline)
-        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: true
-          version: "0.11.23"
-
-      - name: Set up Python 3.11.15
-        run: uv python install 3.11.15
-
-      - name: Sync dependencies (from uv.lock)
-        run: uv sync --locked --python 3.11.15
-
-      - name: Verify Python runtime
-        run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
-
-      - name: Run eval on a tiny fixture
-        run: uv run --locked python -m evals.run_eval --out /tmp/component_eval --classification-n 400 --transcription-n 2
-
-      - name: Show generated report
-        run: cat /tmp/component_eval/EVAL_REPORT.md
-
-      - name: Upload eval artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: eval-artifacts
-          path: |
-            /tmp/component_eval/metrics.json
-            /tmp/component_eval/EVAL_REPORT.md
-          if-no-files-found: error
-
   # SSI-1010: mede a promessa CENTRAL do produto (falha estrutural de parse nunca vira
   # "sem alteração" aceito) com Tesseract real sobre o split val congelado. Gates
   # binários: unsafe_clean=0, safe_review_recall=1.0, false_incident_unreviewed=0 —
@@ -275,7 +232,7 @@ jobs:
   release-evidence-candidate:
     name: release-evidence candidate (all gates passed)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [quality, smoke-eval, eval-safety, browser-smoke]
+    needs: [quality, eval-safety, browser-smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

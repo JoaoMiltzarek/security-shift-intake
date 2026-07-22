@@ -1,1 +1,1 @@
-"""Eval harness, baselines, and report generator (metrics.json -> EVAL_REPORT.md)."""
+"""Frozen-corpus and reader evidence tooling kept outside the product runtime."""
