@@ -9,9 +9,6 @@
 # override e.g. `make demo-pipeline FILE=... CONFIG=configs/htmicron_security.yaml`.
 CONFIG ?= configs/controle_ocorrencias.yaml
 
-# External Anthropic demo stays disabled unless the operator gives literal consent.
-ALLOW_EXTERNAL ?= NO
-
 # Optional arguments for the one-command synthetic showcase (e.g. --no-open).
 DEMO_ARGS ?=
 
@@ -40,7 +37,7 @@ override SAFETY_SPLIT := val
 override SAFETY_VISION := local_ocr
 
 .PHONY: help install lint format format-check typecheck test check audit-deps \
-        validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-transcribe demo-pipeline \
+        validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-pipeline \
         demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
@@ -59,7 +56,6 @@ help:
 	@echo   make gen-pdfs        - [M3] render Tier B handwritten PDFs
 	@echo   make gen-sheets      - [tier_c] generate occurrence-table sheets, DATASET=smoke/bench-balanced/bench-operational/stress
 	@echo   make gen-safety-sheets - generate the exact bench-balanced/val release corpus
-	@echo   make demo-transcribe - external Anthropic call; requires FILE=... ALLOW_EXTERNAL=YES
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
@@ -114,9 +110,6 @@ gen-sheets:
 
 gen-safety-sheets:
 	uv run --locked python -m scripts.gen_sheets --dataset $(SAFETY_DATASET)
-
-demo-transcribe:
-	uv run --locked python -m scripts.demo_transcribe --file "$(FILE)" $(if $(filter YES,$(ALLOW_EXTERNAL)),--allow-external,)
 
 demo-pipeline:
 	uv run --locked python -m scripts.demo_pipeline --file "$(FILE)" --config "$(CONFIG)"

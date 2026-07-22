@@ -13,30 +13,12 @@ def _has_phrase(text: str, phrase: str) -> bool:
     return phrase in " ".join(text.split())
 
 
-def test_anthropic_llm_is_documented_as_unwired_external_adapter() -> None:
-    adapter = _read("src/clients/anthropic_llm.py")
-    protocol = _read("src/clients/base.py")
-    architecture = _read("docs/ARCHITECTURE.md")
-    readme = _read("README.md")
-
-    assert "EXPERIMENTAL paid external adapter, outside v1" in adapter
-    assert "No official entrypoint constructs it" in adapter
-    assert "fake SDK and do not prove live integration" in adapter
-    assert _has_phrase(protocol, "external experimental AnthropicLLMClient")
-    assert _has_phrase(
-        architecture, "Anthropic LLM adapter is not wired into the v1 executable path"
-    )
-    assert _has_phrase(
-        readme, "`AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline"
-    )
-
-
 def test_privacy_policy_limits_locality_guarantee_to_default_flow() -> None:
     privacy = _read("docs/PRIVACY.md")
 
     required = (
-        "No default command uploads a sheet",
-        "Anthropic and remote-VLM paths can transmit document data",
+        "does not upload a sheet",
+        "A non-loopback VLM endpoint can transmit document data",
         "explicit opt-in",
         "must not receive real PII without authorization",
     )

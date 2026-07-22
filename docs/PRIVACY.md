@@ -5,13 +5,12 @@ project keeps the supported default flow on the operator's machine and keeps rea
 the repository.
 
 ## Principles
-- **Local-first, offline.** The default flow uses local OCR (Tesseract) + deterministic rules.
-  **No external API** is called — not Anthropic, OpenAI, Google, AWS or Azure. No default command
-  uploads a sheet.
-- **External experiments cross a trust boundary.** Anthropic and remote-VLM paths can transmit
-  document data outside the machine. They require explicit opt-in (`--allow-external`,
-  `INTAKE_VISION=anthropic`, or `INTAKE_VLM_ALLOW_REMOTE=1`) and must not receive real PII without
-  authorization and an applicable external-data policy.
+- **Local-first, offline.** The supported product flow uses local OCR (Tesseract) and
+  deterministic rules. It has no cloud reader command and does not upload a sheet.
+- **Remote evaluation crosses a trust boundary.** A non-loopback VLM endpoint can transmit
+  document data outside the machine. It requires explicit opt-in
+  (`INTAKE_VLM_ALLOW_REMOTE=1`) and must not receive real PII without authorization and an
+  applicable external-data policy.
 - **Localhost only — no authentication.** The FastAPI review API/UI has no auth, and endpoints
   like `GET /drafts/{id}` return the full pipeline state (including the transcription). Run it
   bound to `127.0.0.1` for a single operator; **never expose it to a network or deploy it

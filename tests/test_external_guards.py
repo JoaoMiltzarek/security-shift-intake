@@ -1,33 +1,15 @@
 """F6.5 (SSI-1009/F-11): caminhos que podem tirar dados da máquina exigem opt-in explícito.
 
-- `demo_transcribe` (Anthropic, pago, externo) exige `--allow-external`.
 - `INTAKE_VLM_BASE_URL` fora de loopback exige `INTAKE_VLM_ALLOW_REMOTE=1` —
   senão a promessa "no data leaves the machine" viraria uma env var de distância.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from scripts.demo_transcribe import main as transcribe_main
 from src.clients.local_vlm import LocalVLMVisionClient
 from src.clients.settings import get_vlm_base_url
-
-
-def test_demo_transcribe_refuses_without_allow_external(tmp_path: Path) -> None:
-    pdf = tmp_path / "folha.pdf"
-    pdf.write_bytes(b"%PDF-1.4 synthetic")
-    assert transcribe_main(["--file", str(pdf)]) == 2  # consentimento ausente
-
-
-def test_make_target_can_only_forward_explicit_external_consent() -> None:
-    makefile = Path("Makefile").read_text(encoding="utf-8")
-
-    assert "ALLOW_EXTERNAL ?= NO" in makefile
-    assert "$(filter YES,$(ALLOW_EXTERNAL))" in makefile
-    assert "--allow-external" in makefile
 
 
 def test_vlm_base_url_loopback_default_ok(monkeypatch: pytest.MonkeyPatch) -> None:

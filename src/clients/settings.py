@@ -1,11 +1,7 @@
-"""Model configuration for the provider clients.
+"""Configuration for the isolated local-VLM evaluation adapter.
 
-The model ID lives here (single source), not scattered as literals across call
-sites (spec §8.3). Override via the VISION_MODEL env var without touching code.
-Verified against the Anthropic API reference: default `claude-opus-4-8`.
-
-The LOCAL VLM path (src/clients/local_vlm.py) is configured the same way: defaults
-here, overridable via INTAKE_VLM_* env vars. It targets any OpenAI-compatible local
+Defaults are overridable via INTAKE_VLM_* environment variables. The adapter targets
+an OpenAI-compatible local
 server (Ollama, vLLM, LM Studio, llama.cpp), so no paid API and nothing leaves the
 machine — the project's privacy-first invariant.
 """
@@ -15,12 +11,6 @@ from __future__ import annotations
 import ipaddress
 import os
 from urllib.parse import urlparse
-
-# Default vision/LLM model. Confirmed current model ID (Anthropic API reference).
-DEFAULT_VISION_MODEL = "claude-opus-4-8"
-
-# Conservative output cap for a single-page transcription/extraction call.
-DEFAULT_MAX_TOKENS = 4096
 
 # --- Local open VLM (zero-cost, offline) -----------------------------------
 # Ollama's default OpenAI-compatible endpoint. Point INTAKE_VLM_BASE_URL at vLLM /
@@ -45,16 +35,6 @@ DEFAULT_VLM_TIMEOUT_S = 600.0
 # client derives a real per-token confidence instead. Low-confidence values route
 # to human review — the system never presents an unverified read as trustworthy.
 DEFAULT_VLM_CONFIDENCE = 0.5
-
-
-def get_vision_model() -> str:
-    """Return the configured vision model id (env override > default)."""
-    return os.environ.get("VISION_MODEL", DEFAULT_VISION_MODEL)
-
-
-def get_max_tokens() -> int:
-    raw = os.environ.get("VISION_MAX_TOKENS")
-    return int(raw) if raw else DEFAULT_MAX_TOKENS
 
 
 def validate_vlm_base_url(url: str) -> str:

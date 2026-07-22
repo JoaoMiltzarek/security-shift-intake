@@ -1,11 +1,10 @@
-"""M4.b: tests for the vision client interface, mock, and model settings."""
+"""M4.b: tests for the vision client interface and deterministic mock."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from src.clients import settings
 from src.clients.base import TranscriptionResult, VisionClient
 from src.clients.mock import MockVisionClient
 
@@ -64,27 +63,3 @@ def test_mock_records_calls() -> None:
     client.transcribe("base64data")
     assert client.call_count == 1
     assert client.last_image_b64 == "base64data"
-
-
-# ---------------------------------------------------------------------------
-# Settings — model id lives in config, env-overridable
-# ---------------------------------------------------------------------------
-
-
-def test_default_vision_model() -> None:
-    assert settings.DEFAULT_VISION_MODEL == "claude-opus-4-8"
-
-
-def test_get_vision_model_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("VISION_MODEL", raising=False)
-    assert settings.get_vision_model() == "claude-opus-4-8"
-
-
-def test_get_vision_model_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VISION_MODEL", "claude-sonnet-4-6")
-    assert settings.get_vision_model() == "claude-sonnet-4-6"
-
-
-def test_get_max_tokens_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VISION_MAX_TOKENS", "1234")
-    assert settings.get_max_tokens() == 1234

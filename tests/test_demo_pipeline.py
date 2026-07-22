@@ -58,7 +58,7 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
     monkeypatch.setattr(demo_pipeline, "PRIVATE_REAL_ROOT", private_root)
     monkeypatch.setattr(demo_pipeline, "build_and_store", fake_build_and_store)
     monkeypatch.setattr(demo_pipeline, "make_engine", lambda: object())
-    monkeypatch.setenv("INTAKE_VISION", "anthropic")
+    monkeypatch.setenv("INTAKE_VISION", "local_vlm")
 
     config = Path("configs/htmicron_security.yaml")
     assert demo_pipeline.main(["--file", str(source), "--config", str(config)]) == 0

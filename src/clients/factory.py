@@ -6,7 +6,6 @@
     paddle_ocr  PP-OCRv5 mobile, local experimental (optional CPU dependencies)
     local_vlm   local open VLM, zero-cost, offline  (Phase 2 reader; needs a server)
     mock        canned output for demos/tests       ($0, deterministic)
-    anthropic   Anthropic Messages API              (opt-in, paid; needs a key)
 
 Keeping this in a factory means the demo/CLI/UI all resolve the reader the same way,
 and adding a new reader is one branch here — not a scattered edit.
@@ -45,12 +44,6 @@ def get_vision_client(name: str | None = None) -> VisionClient:
         from src.clients.mock import MockVisionClient
 
         return MockVisionClient()
-    if name == "anthropic":
-        from src.clients.anthropic_vision import AnthropicVisionClient
-
-        return AnthropicVisionClient()
-
     raise ValueError(
-        f"Unknown INTAKE_VISION={name!r}. Use one of: local_ocr, paddle_ocr, "
-        "local_vlm, mock, anthropic."
+        f"Unknown INTAKE_VISION={name!r}. Use one of: local_ocr, paddle_ocr, local_vlm, mock."
     )

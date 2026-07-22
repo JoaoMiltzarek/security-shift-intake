@@ -1,4 +1,4 @@
-"""M6.a: classify stage (mock) + offline test of the real client's classify."""
+"""M6.a: deterministic classify-stage contracts."""
 
 from __future__ import annotations
 
@@ -79,35 +79,3 @@ def test_classify_rejects_labels_outside_config_taxonomy(
 
     with pytest.raises(ValueError, match="outside configured taxonomy"):
         classify(state, client, CONFIG)
-
-
-# --- Real client classify, offline (fake SDK) ---
-
-
-class _FakeMessages:
-    def parse(self, **kwargs: Any) -> Any:
-        self.last_kwargs = kwargs
-
-        class _Resp:
-            parsed_output = ClassificationResult(
-                incident_type="safety", urgency="critical", sector="facilities", confidence=0.7
-            )
-
-        return _Resp()
-
-
-class _FakeAnthropic:
-    def __init__(self) -> None:
-        self.messages = _FakeMessages()
-
-
-def test_real_client_classify_offline() -> None:
-    from src.clients.anthropic_llm import AnthropicLLMClient
-
-    fake = _FakeAnthropic()
-    client = AnthropicLLMClient(client=fake, model="claude-opus-4-8")
-    result = client.classify("fire alarm", ["safety"], ["critical"], ["facilities"])
-
-    assert result.incident_type == "safety"
-    assert fake.messages.last_kwargs["output_format"] is ClassificationResult
-    assert "critical" in fake.messages.last_kwargs["messages"][0]["content"]

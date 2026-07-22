@@ -69,8 +69,8 @@ with per-revision content snapshots. Approval records the revision and hashes th
 at approval time; it does not claim optimistic-concurrency proof of what a separate browser tab
 displayed.
 It doesn't replace the human; it **reduces transcription load and surfaces uncertainty**.
-External Anthropic and remote-VLM utilities exist only as explicit opt-in experiments; they are
-not used by `make demo` or by the default pipeline.
+The supported product path makes no remote reader calls. Local VLM experiments remain isolated
+from the default pipeline and are not used by `make demo`.
 
 ### Two outputs
 **Output 1 — standardized spreadsheet**
@@ -156,8 +156,6 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
 
 ### Experimental / outside v1
 
-- `AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline. Anthropic Vision is a
-  separate, paid external opt-in and is never selected by the default showcase.
 - PP-OCRv5 was measured and **not promoted**. The adapter remains an experimental opt-in via
   `INTAKE_VISION=paddle_ocr`, is not installed by uv sync, and requires an isolated environment
   with the Paddle stack; it is not part of `make demo` or the release gate.
