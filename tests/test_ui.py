@@ -274,7 +274,7 @@ def test_edit_rejects_oversized_field_without_mutating_draft(
     assert after["audit"] == before["audit"]
 
 
-def test_edit_rejects_draft_from_a_different_config() -> None:
+def test_every_mutation_rejects_draft_from_a_different_config() -> None:
     from sqlmodel import Session
 
     from src.api.repository import create_draft
@@ -294,9 +294,23 @@ def test_edit_rejects_draft_from_a_different_config() -> None:
         draft_id = draft.id
 
     with TestClient(app) as client:
-        response = client.post(
-            f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}
-        )
+        responses = [
+            client.post(
+                f"/ui/drafts/{draft_id}/edit", data={"field__guard_name": "revisado"}
+            ),
+            client.post(f"/drafts/{draft_id}/approve"),
+            client.post(f"/drafts/{draft_id}/reject"),
+            client.post(f"/drafts/{draft_id}/send"),
+            client.get(f"/drafts/{draft_id}/export.csv"),
+            client.post(f"/ui/drafts/{draft_id}/approve"),
+            client.post(f"/ui/drafts/{draft_id}/reject"),
+            client.post(f"/ui/drafts/{draft_id}/send"),
+        ]
+        review = client.get(f"/drafts/{draft_id}/review")
 
-    assert response.status_code == 409
-    assert "different report configuration" in response.json()["detail"]
+    assert review.status_code == 200
+    assert all(response.status_code == 409 for response in responses)
+    assert all(
+        "different report configuration" in response.json()["detail"]
+        for response in responses
+    )

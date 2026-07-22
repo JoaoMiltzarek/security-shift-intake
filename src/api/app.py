@@ -590,6 +590,8 @@ def create_app(
     engine = engine or make_engine()
     init_db(engine)
     active_sender: Sender = sender or MockSender()
+    if active_sender.delivery_mode != "simulated":
+        raise ValueError("The v1 cockpit supports local delivery simulation only.")
     active_config: ReportConfig = config or load_config(_default_config_path())
     active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
     # Reclassificação pós-edição (SSI-1007): determinística/offline por default.
@@ -651,6 +653,18 @@ def create_app(
         with Session(engine) as session:
             yield session
 
+    def _compatible_state(draft: Draft) -> PipelineState:
+        state = PipelineState.model_validate_json(draft.state_json)
+        _assert_config_compatible(state, active_config)
+        return state
+
+    def _config_blocker(draft: Draft) -> str | None:
+        try:
+            _compatible_state(draft)
+        except HTTPException as exc:
+            return str(exc.detail)
+        return None
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -711,7 +725,7 @@ def create_app(
         draft = repository.get_draft(session, draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = _compatible_state(draft)
         try:
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
@@ -720,10 +734,18 @@ def create_app(
 
     @app.post("/drafts/{draft_id}/reject")
     def reject(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+        draft = repository.get_draft(session, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        _compatible_state(draft)
         return _set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
 
     @app.post("/drafts/{draft_id}/send")
     def send(draft_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+        draft = repository.get_draft(session, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+        _compatible_state(draft)
         try:
             draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
         except KeyError as exc:
@@ -766,6 +788,7 @@ def create_app(
                 "audit": repository.get_audit(session, draft.id or 0),
                 "message": message,
                 "active_delivery_mode": active_sender.delivery_mode,
+                "config_blocker": _config_blocker(draft),
             },
         )
 
@@ -796,6 +819,7 @@ def create_app(
             "draft": draft,
             "audit": repository.get_audit(session, draft_id),
             "active_delivery_mode": active_sender.delivery_mode,
+            "config_blocker": _config_blocker(draft),
         }
         ctx.update(_review_context(draft))
         return _render(request, "review.html", ctx)
@@ -820,7 +844,7 @@ def create_app(
         produces a clean operational artifact (invariant 2). Scalar path has no rows → 404.
         """
         draft = _require_draft(session, draft_id)
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = _compatible_state(draft)
         if not state.spreadsheet_rows:
             raise HTTPException(status_code=404, detail="no spreadsheet to export")
         blockers = export_blockers(state)
@@ -865,7 +889,7 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = _compatible_state(draft)
         try:
             assert_reviewable(state)  # plano R4: block approval with pending fields
         except DraftNotReviewableError as exc:
@@ -883,6 +907,8 @@ def create_app(
     def ui_reject(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
+        current = _require_draft(session, draft_id)
+        _compatible_state(current)
         try:
             draft = repository.set_status(session, draft_id, ApprovalStatus.REJECTED, _LOCAL_ACTOR)
         except (
@@ -896,6 +922,8 @@ def create_app(
     def ui_send(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
+        current = _require_draft(session, draft_id)
+        _compatible_state(current)
         try:
             draft = send_draft(session, draft_id, active_sender, actor=_LOCAL_ACTOR)
             return _status_panel(
