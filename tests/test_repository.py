@@ -13,7 +13,7 @@ from src.api.db import init_db, make_engine
 from src.api.gate import MemorySimulationRecorder, simulate_draft
 from src.api.models import Draft
 from src.api.repository import (
-    DraftAlreadySentError,
+    DraftAlreadySimulatedError,
     DraftOperationConflictError,
     add_audit,
     create_draft,
@@ -327,7 +327,7 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
     simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
-    with pytest.raises(DraftAlreadySentError):
+    with pytest.raises(DraftAlreadySimulatedError):
         update_state(session, draft.id, _state(), actor="reviewer")
 
     refreshed = get_draft(session, draft.id)
@@ -343,7 +343,7 @@ def test_sent_draft_rejects_later_status_changes(session: Session, status: Appro
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
     simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
-    with pytest.raises(DraftAlreadySentError):
+    with pytest.raises(DraftAlreadySimulatedError):
         set_status(session, draft.id, status, actor="r")
 
     refreshed = get_draft(session, draft.id)

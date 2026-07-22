@@ -1,7 +1,7 @@
 """Persistence models for the approval gate (SQLModel / SQLite).
 
 A `Draft` is a submitted report awaiting human review; its `status` is the
-authoritative state for the send gate. Every state change is recorded as an
+authoritative state for the simulation gate. Every state change is recorded as an
 append-only `AuditEntry` (who / what / when) plus a `DraftRevision` content
 snapshot — required by the human-approval-gate invariant.
 """
@@ -26,7 +26,7 @@ def utc_rfc3339(value: datetime) -> str:
 
 
 class Draft(SQLModel, table=True):
-    """A report draft persisted for review. `status` drives the send gate."""
+    """A report draft persisted for review. `status` drives the simulation gate."""
 
     id: int | None = Field(default=None, primary_key=True)
     # Stored as the enum's string value ("pending"/"approved"/"rejected").

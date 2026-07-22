@@ -810,7 +810,7 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DraftNotApprovedError as exc:
-            # 409 Conflict: the draft's state forbids sending.
+            # 409 Conflict: the draft's state forbids terminal simulation.
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _draft_summary(draft)
 
@@ -833,7 +833,7 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (
-            repository.DraftAlreadySentError,
+            repository.DraftAlreadySimulatedError,
             repository.DraftOperationConflictError,
         ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -993,7 +993,7 @@ def create_app(
                 expected_revision=expected_revision,
             )
         except (
-            repository.DraftAlreadySentError,
+            repository.DraftAlreadySimulatedError,
             repository.DraftOperationConflictError,
         ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -1023,7 +1023,7 @@ def create_app(
                 expected_revision=expected_revision,
             )
         except (
-            repository.DraftAlreadySentError,
+            repository.DraftAlreadySimulatedError,
             repository.DraftOperationConflictError,
         ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -1100,7 +1100,7 @@ def create_app(
                 expected_revision=expected_revision,
             )
         except (
-            repository.DraftAlreadySentError,
+            repository.DraftAlreadySimulatedError,
             repository.DraftOperationConflictError,
         ) as exc:
             # Backstop: update_state protege TODOS os callers; aqui vira HTTP 409.

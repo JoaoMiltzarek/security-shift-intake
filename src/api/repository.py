@@ -26,8 +26,8 @@ from src.api.models import AuditEntry, Draft, DraftRevision, utcnow
 from src.schema.state import ApprovalStatus, PipelineState
 
 
-class DraftAlreadySentError(RuntimeError):
-    """Raised when an edit is attempted on a draft that was already sent."""
+class DraftAlreadySimulatedError(RuntimeError):
+    """Raised when a mutation targets a terminally simulated draft."""
 
 
 class DraftOperationConflictError(RuntimeError):
@@ -352,9 +352,11 @@ def _set_status_locked(
             draft_id,
             actor=actor,
             action="status_blocked",
-            detail="already_sent",
+            detail="already_simulated",
         )
-        raise DraftAlreadySentError(f"Draft {draft_id} was already sent — status change blocked.")
+        raise DraftAlreadySimulatedError(
+            f"Draft {draft_id} was already simulated — status change blocked."
+        )
     try:
         draft.status = status
         if status == ApprovalStatus.APPROVED:
@@ -405,7 +407,7 @@ def _mark_simulated_locked(
             f"Draft {draft_id} approval does not match its current revision and content."
         )
     if draft.sent_at is not None:
-        raise DraftAlreadySentError(f"Draft {draft_id} was already sent.")
+        raise DraftAlreadySimulatedError(f"Draft {draft_id} was already simulated.")
     try:
         now = utcnow()
         draft.sent_at = now
@@ -476,8 +478,14 @@ def _update_state_locked(
             f"{draft.revision} â€” reload before saving."
         )
     if draft.sent_at is not None:
-        add_audit(session, draft_id, actor=actor, action="edit_blocked", detail="already_sent")
-        raise DraftAlreadySentError(f"Draft {draft_id} was already sent — edit blocked.")
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="edit_blocked",
+            detail="already_simulated",
+        )
+        raise DraftAlreadySimulatedError(f"Draft {draft_id} was already simulated — edit blocked.")
 
     try:
         draft.state_json = state.model_dump_json()
