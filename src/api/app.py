@@ -54,10 +54,8 @@ from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
-from src.pipeline.draft import draft as draft_stage
 from src.pipeline.outputs import build_outputs, export_blockers
 from src.pipeline.route import route
-from src.pipeline.validate import validate
 from src.schema.config import ReportConfig
 from src.schema.extraction import (
     Disposition,
@@ -1091,26 +1089,10 @@ def create_app(
                 ctx_err.update(_review_context(draft))
                 return _render(request, "_review_body.html", ctx_err)
         else:
-            # Scalar path: human-confirmed values get full confidence; the critic still
-            # flags type-invalid or required-but-blank.
-            new_fields: list[ExtractedField] = []
-            for field in active_config.fields:
-                raw = form.get(f"field__{field.name}")
-                value = raw.strip() if isinstance(raw, str) and raw.strip() else None
-                new_fields.append(
-                    ExtractedField(
-                        name=field.name,
-                        value=value,
-                        confidence=1.0 if value else 0.0,
-                        source="human" if value else None,
-                        # Human value drops any OCR bbox (invariant 4); the locator
-                        # skips source="human" so no box is re-attached on re-validate.
-                        evidence_method="human_edit" if value else None,
-                    )
-                )
-            state = state.model_copy(update={"extracted_fields": new_fields})
-            state = validate(state, active_config)  # recompute MUST_REVIEW flags
-            state = draft_stage(state, active_config)  # re-render the email draft
+            raise HTTPException(
+                status_code=409,
+                detail="Draft does not contain the supported occurrence-sheet model.",
+            )
         try:
             repository.update_state(
                 session,

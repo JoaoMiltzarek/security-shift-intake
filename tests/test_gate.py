@@ -16,6 +16,7 @@ from src.api.db import init_db, make_engine
 from src.api.gate import DraftNotApprovedError, MockSender, Sender, send_draft
 from src.api.models import DeliveryMode, Draft
 from src.api.repository import create_draft, get_audit, set_status
+from src.schema.extraction import NormalizedIncidentModel
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -32,6 +33,7 @@ def _state() -> PipelineState:
         source_pdf=Path("r.pdf"),
         recipients=["tech_security", "general_support"],
         email_draft="Subject: ...\n\nbody",
+        normalized=NormalizedIncidentModel(disposition="none"),
     )
 
 

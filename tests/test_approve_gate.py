@@ -88,8 +88,19 @@ def test_assert_reviewable_raises_when_pending() -> None:
 
 
 def test_assert_reviewable_passes_when_clean() -> None:
-    state = PipelineState(source_pdf=Path("x.pdf"), must_review_fields=[])
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(disposition="none"),
+        must_review_fields=[],
+    )
     assert_reviewable(state)  # does not raise
+
+
+def test_assert_reviewable_blocks_state_without_occurrence_model() -> None:
+    state = PipelineState(source_pdf=Path("x.pdf"), must_review_fields=[])
+
+    with pytest.raises(DraftNotReviewableError, match="occurrence-sheet"):
+        assert_reviewable(state)
 
 
 def test_assert_reviewable_blocks_failed_ocr_even_without_pending_fields() -> None:

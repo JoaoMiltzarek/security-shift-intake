@@ -52,12 +52,16 @@ def assert_reviewable(state: PipelineState) -> None:
         raise DraftNotReviewableError(
             "OCR quality failed — manual transcription required before approval."
         )
+    if state.normalized is None:
+        raise DraftNotReviewableError(
+            "Draft does not contain the supported occurrence-sheet model."
+        )
     if state.must_review_fields:
         raise DraftNotReviewableError(
             f"{len(state.must_review_fields)} field(s) need review before approval: "
             f"{', '.join(state.must_review_fields)}."
         )
-    if state.normalized is not None and state.normalized.disposition == "unknown":
+    if state.normalized.disposition == "unknown":
         raise DraftNotReviewableError(
             "Occurrence disposition is unknown — explicit human confirmation required."
         )
