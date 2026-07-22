@@ -1,8 +1,4 @@
-"""M7.c (DoD): integration test of submit -> review -> approve -> (mock) send.
-
-Also asserts the invariant at the HTTP layer: an unapproved draft cannot be sent
-(409), and the mock sender is never called for it.
-"""
+"""HTTP contracts for submit, review, approval, and local simulation."""
 
 from __future__ import annotations
 
@@ -18,7 +14,7 @@ from src.api.db import make_engine
 from src.api.gate import MemorySimulationRecorder
 from src.schema.loader import config_fingerprint, load_config
 
-# Estes corpos usam o formulário ESCALAR legado — config explícita, não o default tabular.
+# The test state uses the canonical occurrence-sheet configuration.
 _TABLE_CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 _SUBMIT_BODY = {
@@ -53,16 +49,16 @@ _SUBMIT_BODY = {
 
 
 @pytest.fixture
-def client_and_sender() -> Iterator[tuple[TestClient, MemorySimulationRecorder]]:
-    sender = MemorySimulationRecorder()
+def client_and_recorder() -> Iterator[tuple[TestClient, MemorySimulationRecorder]]:
+    recorder = MemorySimulationRecorder()
     app = create_app(
         engine=make_engine("sqlite://"),
-        simulation_recorder=sender,
+        simulation_recorder=recorder,
         config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as client:
-        yield client, sender
+        yield client, recorder
 
 
 def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
@@ -87,10 +83,10 @@ def _edit(client: TestClient, draft_id: int, **fields: str):
     )
 
 
-def test_submit_review_approve_send_flow(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+def test_submit_review_approve_simulate_flow(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, sender = client_and_sender
+    client, recorder = client_and_recorder
 
     # submit -> pending
     r = client.post("/drafts", json=_SUBMIT_BODY)
@@ -105,23 +101,23 @@ def test_submit_review_approve_send_flow(
     assert body["state"]["classification"]["incident_type"] == "theft"
     assert "submitted" in [a["action"] for a in body["audit"]]
 
-    # send before approval -> BLOCKED (409), sender not called
+    # Simulation before approval is blocked without a terminal record.
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 409
-    assert sender.call_count == 0
+    assert recorder.call_count == 0
 
     # approve
     r = client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["status"] == "approved"
 
-    # send after approval -> ok, sender called once
+    # Simulation after approval records the approved snapshot exactly once.
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["sent_at"] is not None
     assert r.json()["delivery_mode"] == "simulated"
-    assert sender.call_count == 1
-    assert sender.records[0][0] == ["tech_security", "general_support"]
+    assert recorder.call_count == 1
+    assert recorder.records[0][0] == ["tech_security", "general_support"]
 
     # audit reflects the full history
     audit = [a["action"] for a in client.get(f"/drafts/{draft_id}").json()["audit"]]
@@ -131,29 +127,29 @@ def test_submit_review_approve_send_flow(
     assert "simulation_completed" in audit
 
 
-def test_rejected_draft_send_is_blocked(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+def test_rejected_draft_simulation_is_blocked(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, sender = client_and_sender
+    client, recorder = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
 
     client.post(f"/drafts/{draft_id}/reject", params=_snapshot(client, draft_id))
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 409
-    assert sender.call_count == 0
+    assert recorder.call_count == 0
 
 
 def test_get_missing_draft_404(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     assert client.get("/drafts/999").status_code == 404
 
 
 def test_approve_missing_draft_404(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     assert (
         client.post(
             "/drafts/999/approve",
@@ -164,9 +160,9 @@ def test_approve_missing_draft_404(
 
 
 def test_list_drafts(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     client.post("/drafts", json=_SUBMIT_BODY)
     client.post("/drafts", json=_SUBMIT_BODY)
     r = client.get("/drafts")
@@ -178,9 +174,9 @@ def test_list_drafts(
 
 
 def test_consequential_actions_require_the_reviewed_snapshot(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
     reviewed = _snapshot(client, draft_id)
 
@@ -195,9 +191,9 @@ def test_consequential_actions_require_the_reviewed_snapshot(
 
 
 def test_edit_requires_revision_and_hash_identity(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
 
     missing = client.post(
@@ -216,29 +212,29 @@ def test_edit_requires_revision_and_hash_identity(
 # --- Contratos F1 (SSI-1005/F3): aprovação vinculada à revisão do conteúdo ---
 
 
-def test_approve_edit_send_is_blocked(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+def test_approve_edit_simulation_is_blocked(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, sender = client_and_sender
+    client, recorder = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
     assert (
         client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
         == 200
     )
 
-    # Edita DEPOIS de aprovado: o conteúdo enviado não seria o conteúdo aprovado.
+    # Editing after approval invalidates the reviewed snapshot.
     r = _edit(client, draft_id, field__guard_name="Outro Nome")
     assert r.status_code == 200
 
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 409  # aprovação antiga não vale para conteúdo novo
-    assert sender.call_count == 0
+    assert recorder.call_count == 0
 
 
-def test_edit_sent_draft_is_rejected(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+def test_edit_simulated_draft_is_rejected(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
     client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     assert (
@@ -247,14 +243,14 @@ def test_edit_sent_draft_is_rejected(
     )
 
     r = _edit(client, draft_id, field__guard_name="X")
-    assert r.status_code == 409  # o registro do que foi enviado não pode mudar
+    assert r.status_code == 409  # the terminal simulation record is immutable
 
 
 def test_ui_edit_reports_concurrent_operation_as_conflict(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
 
     def conflict(*args: object, **kwargs: object) -> None:
@@ -267,10 +263,10 @@ def test_ui_edit_reports_concurrent_operation_as_conflict(
 
 
 @pytest.mark.parametrize("action", ["approve", "reject"])
-def test_sent_draft_is_terminal_at_http_boundary(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder], action: str
+def test_simulated_draft_is_terminal_at_http_boundary(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder], action: str
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
     assert (
         client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id)).status_code
