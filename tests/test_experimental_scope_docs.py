@@ -13,20 +13,6 @@ def _has_phrase(text: str, phrase: str) -> bool:
     return phrase in " ".join(text.split())
 
 
-def test_reconciler_is_documented_as_unwired_prototype() -> None:
-    reconciler = _read("src/pipeline/reconcile.py")
-    orchestrator = _read("src/orchestrator.py")
-    state = _read("src/schema/state.py")
-    readme = _read("README.md")
-
-    assert "EXPERIMENTAL two-reader arbitration prototype, outside v1" in reconciler
-    assert "Reserved experimental extension point" in orchestrator
-    assert "v1 is single-reader" in orchestrator
-    assert "supported v1 paths leave this list empty" in state
-    assert "reconcile_sheet(" not in orchestrator
-    assert "two-reader reconciler is unit-tested but not wired into the v1 orchestrator" in readme
-
-
 def test_anthropic_llm_is_documented_as_unwired_external_adapter() -> None:
     adapter = _read("src/clients/anthropic_llm.py")
     protocol = _read("src/clients/base.py")

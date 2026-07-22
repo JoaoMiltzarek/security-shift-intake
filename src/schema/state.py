@@ -110,10 +110,6 @@ class PipelineState(BaseModel):
     # normalized domain model. None on the scalar path (htmicron_security).
     raw_extraction: RawDocumentExtraction | None = None
     normalized: NormalizedIncidentModel | None = None
-    # Reserved reconciler prototype output; supported v1 paths leave this list empty.
-    # No current API/UI stage produces or consumes it.
-    reconcile_results: list[Any] = Field(default_factory=list)
-
     # --- Stage 3: validate (critic) ---
     # Field names that the critic flagged as MUST_REVIEW.
     must_review_fields: list[str] = Field(default_factory=list)

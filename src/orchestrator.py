@@ -55,8 +55,6 @@ def run_pipeline(
 
     if _has_table(config):
         state = extract_table(state, config)
-        # Reserved experimental extension point: v1 is single-reader and does not invoke
-        # dual-reader arbitration. ``state.reconcile_results`` therefore stays empty.
         state = validate_table(state, config)
         status, reason = assess_ocr_quality(state, config)
         state = state.model_copy(update={"ocr_quality": status, "ocr_quality_reason": reason})

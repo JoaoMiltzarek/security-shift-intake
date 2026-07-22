@@ -156,8 +156,6 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
 
 ### Experimental / outside v1
 
-- The two-reader reconciler is unit-tested but not wired into the v1 orchestrator; supported
-  paths select exactly one reader.
 - `AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline. Anthropic Vision is a
   separate, paid external opt-in and is never selected by the default showcase.
 - PP-OCRv5 was measured and **not promoted**. The adapter remains an experimental opt-in via
