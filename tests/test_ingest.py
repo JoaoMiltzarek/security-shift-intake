@@ -7,6 +7,7 @@ rasterize) is exercised exactly as the production path will run it.
 from __future__ import annotations
 
 import base64
+import hashlib
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -23,9 +24,13 @@ from src.pipeline.ingest import (
     DEFAULT_DPI,
     MAX_DPI,
     MAX_PAGES,
+    Deadline,
     IngestDocumentError,
     IngestLimitError,
+    PageArtifact,
+    ProcessingDeadlineExceeded,
     image_to_base64_png,
+    load_page_artifacts,
     load_source_images,
     rasterize_pdf,
 )
@@ -101,6 +106,44 @@ def test_base64_png_round_trips(sample_pdf: Path) -> None:
     b64 = image_to_base64_png(img)
     raw = base64.standard_b64decode(b64)
     assert raw[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
+
+
+def test_page_artifact_freezes_exact_reader_png(tmp_path: Path) -> None:
+    source = tmp_path / "synthetic-sheet.png"
+    with Image.new("RGB", (400, 200), "white") as image:
+        image.save(source)
+
+    (page,) = load_page_artifacts(source, max_long_side=100)
+
+    assert page.page_index == 0
+    assert (page.width, page.height) == (100, 50)
+    assert page.png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    assert page.sha256 == hashlib.sha256(page.png_bytes).hexdigest()
+
+
+def test_page_artifact_rejects_mismatched_hash() -> None:
+    with Image.new("RGB", (10, 10), "white") as image:
+        page = PageArtifact.from_image(image, page_index=0)
+
+    with pytest.raises(ValueError, match="hash"):
+        PageArtifact(
+            png_bytes=page.png_bytes,
+            width=page.width,
+            height=page.height,
+            sha256="0" * 64,
+            page_index=page.page_index,
+        )
+
+
+def test_deadline_uses_monotonic_budget_and_fails_closed() -> None:
+    now = [10.0]
+    deadline = Deadline.after(5.0, clock=lambda: now[0])
+
+    assert deadline.remaining_seconds(stage="test") == 5.0
+    now[0] = 15.0
+
+    with pytest.raises(ProcessingDeadlineExceeded, match="manual review"):
+        deadline.remaining_seconds(stage="test")
 
 
 # --- load_source_images: PDF or image ---
