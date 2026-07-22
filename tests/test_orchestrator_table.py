@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 from data.generators.tier_b import build_tier_b
-from src.clients.base import ClassificationResult
+from src.clients.base import ClassificationResult, TranscriptionResult
 from src.clients.mock import MockLLMClient, MockVisionClient
 from src.orchestrator import run_pipeline
+from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 from src.schema.loader import load_config
 
 CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
@@ -77,3 +78,41 @@ def test_table_path_header_fields_must_review(sample_pdf: Path) -> None:
     state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
     names = {f.name for f in state.extracted_fields}
     assert {"data_turno", "vigilantes", "unidade"} <= names
+
+
+def test_reader_deadline_becomes_blocked_unknown_draft(sample_pdf: Path) -> None:
+    class TimedOutReader:
+        def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
+            raise ProcessingDeadlineExceeded(
+                "Processing deadline exceeded during test; manual review is required."
+            )
+
+    result = run_pipeline(sample_pdf, TimedOutReader(), _llm(), CONFIG, dpi=120)
+
+    assert len(result.pages) == 1
+    assert result.state.ocr_quality == "failed"
+    assert result.state.normalized is not None
+    assert result.state.normalized.disposition == "unknown"
+    assert result.state.must_review_fields
+    assert result.state.email_draft is not None
+    assert "BLOQUEADO" in result.state.email_draft
+
+
+def test_ingest_deadline_failure_preserves_empty_evidence_set(
+    sample_pdf: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import src.orchestrator as orchestrator
+
+    def timeout(*args: object, **kwargs: object) -> tuple[PageArtifact, ...]:
+        raise ProcessingDeadlineExceeded(
+            "Processing deadline exceeded during ingest; manual review is required."
+        )
+
+    monkeypatch.setattr(orchestrator, "load_page_artifacts", timeout)
+
+    result = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120)
+
+    assert result.pages == ()
+    assert result.state.ocr_quality == "failed"
+    assert result.state.normalized is not None
+    assert result.state.normalized.disposition == "unknown"

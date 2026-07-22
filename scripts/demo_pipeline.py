@@ -63,7 +63,7 @@ def build_and_store(
     config = load_config(config_path)
     init_db(engine)
     result = run_pipeline(file, vision, llm, config, dpi=OCR_DPI)
-    page_paths = save_page_artifacts(result.pages, root=page_images_root)
+    page_paths = save_page_artifacts(result.pages, root=page_images_root) if result.pages else []
     state = result.state.model_copy(update={"page_image_paths": page_paths})
     with Session(engine) as session:
         draft = create_draft(session, state, actor="demo")

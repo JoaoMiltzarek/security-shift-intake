@@ -17,7 +17,13 @@ from src.pipeline.classify import classify
 from src.pipeline.draft import blocked_draft_message, draft
 from src.pipeline.extract import extract
 from src.pipeline.extract_table import extract_table
-from src.pipeline.ingest import DEFAULT_DPI, Deadline, PageArtifact, load_page_artifacts
+from src.pipeline.ingest import (
+    DEFAULT_DPI,
+    Deadline,
+    PageArtifact,
+    ProcessingDeadlineExceeded,
+    load_page_artifacts,
+)
 from src.pipeline.ocr_quality import OCR_FAILED, assess_ocr_quality
 from src.pipeline.outputs import build_outputs
 from src.pipeline.route import route
@@ -41,6 +47,42 @@ def _has_table(config: ReportConfig) -> bool:
     return any(f.type == "table" for f in config.fields)
 
 
+def _timeout_result(
+    state: PipelineState,
+    pages: tuple[PageArtifact, ...],
+    config: ReportConfig,
+    reason: str,
+) -> IntakeResult:
+    """Create an auditable, structurally unknown draft after a deadline failure."""
+    blocked = state.model_copy(
+        update={
+            "transcription": "",
+            "transcription_confidence": 0.0,
+            "ocr_quality": OCR_FAILED,
+            "ocr_quality_reason": reason,
+            "validation_errors": [*state.validation_errors, reason],
+        }
+    )
+    if _has_table(config):
+        blocked = validate_table(extract_table(blocked, config), config)
+    blocked = blocked.model_copy(
+        update={
+            "ocr_quality": OCR_FAILED,
+            "ocr_quality_reason": reason,
+            "classification": Classification(
+                incident_type="unknown",
+                urgency="unknown",
+                sector="manual_review",
+                confidence=0.0,
+                reason=reason,
+            ),
+        }
+    )
+    blocked = route(blocked, config)
+    blocked = blocked.model_copy(update={"email_draft": blocked_draft_message(reason)})
+    return IntakeResult(state=blocked, pages=pages)
+
+
 def run_pipeline(
     source: Path,
     vision: DocumentReader,
@@ -57,44 +99,51 @@ def run_pipeline(
     """
     budget_seconds = config.performance.max_seconds_per_sheet if config.performance else 300.0
     deadline = Deadline.after(budget_seconds)
-    pages = load_page_artifacts(source, dpi=dpi, deadline=deadline)
+    pages: tuple[PageArtifact, ...] = ()
     state = PipelineState(
         source_pdf=source,
         report_type=config.report_type,
         config_sha256=config_fingerprint(config),
     )
-    state = transcribe(state, vision, pages=pages, deadline=deadline)
+    try:
+        pages = load_page_artifacts(source, dpi=dpi, deadline=deadline)
+        state = transcribe(state, vision, pages=pages, deadline=deadline)
 
-    if _has_table(config):
-        state = extract_table(state, config)
-        state = validate_table(state, config)
-        status, reason = assess_ocr_quality(state, config)
-        state = state.model_copy(update={"ocr_quality": status, "ocr_quality_reason": reason})
-        if status == OCR_FAILED:
-            # Modo seguro: sem classificação automática nem rascunho operacional.
-            state = state.model_copy(
-                update={
-                    "classification": Classification(
-                        incident_type="unknown",
-                        urgency="unknown",
-                        sector="manual_review",
-                        confidence=0.0,
-                        reason=reason,
-                    )
-                }
-            )
+        if _has_table(config):
+            deadline.remaining_seconds(stage="table extraction")
+            state = extract_table(state, config)
+            state = validate_table(state, config)
+            status, reason = assess_ocr_quality(state, config)
+            state = state.model_copy(update={"ocr_quality": status, "ocr_quality_reason": reason})
+            if status == OCR_FAILED:
+                # Modo seguro: sem classificação automática nem rascunho operacional.
+                state = state.model_copy(
+                    update={
+                        "classification": Classification(
+                            incident_type="unknown",
+                            urgency="unknown",
+                            sector="manual_review",
+                            confidence=0.0,
+                            reason=reason,
+                        )
+                    }
+                )
+                state = route(state, config)
+                blocked = state.model_copy(update={"email_draft": blocked_draft_message(reason)})
+                return IntakeResult(state=blocked, pages=pages)
+            deadline.remaining_seconds(stage="classification")
+            state = classify(state, llm, config)
             state = route(state, config)
-            blocked = state.model_copy(update={"email_draft": blocked_draft_message(reason)})
-            return IntakeResult(state=blocked, pages=pages)
+            # Outputs do produto: planilha padronizada + mensagem copy-ready.
+            return IntakeResult(state=build_outputs(state, config), pages=pages)
+
+        # Caminho escalar (htmicron_security) — preservado para não-regressão.
+        deadline.remaining_seconds(stage="scalar extraction")
+        state = extract(state, llm, config)
+        state = validate(state, config)
         state = classify(state, llm, config)
         state = route(state, config)
-        # Outputs do produto: planilha padronizada + mensagem copy-ready (bloqueia se pendente).
-        return IntakeResult(state=build_outputs(state, config), pages=pages)
-
-    # Caminho escalar (htmicron_security) — preservado para não-regressão.
-    state = extract(state, llm, config)
-    state = validate(state, config)
-    state = classify(state, llm, config)
-    state = route(state, config)
-    state = draft(state, config)
-    return IntakeResult(state=state, pages=pages)
+        state = draft(state, config)
+        return IntakeResult(state=state, pages=pages)
+    except ProcessingDeadlineExceeded as exc:
+        return _timeout_result(state, pages, config, str(exc))
