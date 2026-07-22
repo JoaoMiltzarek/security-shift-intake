@@ -18,6 +18,16 @@ def test_runtime_pdf_backend_excludes_pymupdf_and_uses_pdfium() -> None:
     assert "pypdfium2" in locked_names
 
 
+def test_unvalidated_ml_stack_is_absent_from_the_lock() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+    dependencies = [dependency.lower() for dependency in pyproject["project"]["dependencies"]]
+    locked_names = {package["name"].lower() for package in lock["package"]}
+
+    assert not any(dependency.startswith("scikit-learn") for dependency in dependencies)
+    assert "scikit-learn" not in locked_names
+
+
 def test_testclient_uses_native_httpx_and_blocks_deprecated_fallback() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
