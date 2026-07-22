@@ -65,7 +65,7 @@ _SOURCE_DOC_EXT = {
 # Path components under which content is synthetic by construction (text-scan exempt).
 _SYNTHETIC_SUBPATH = ("data", "synthetic")
 
-# Directory holding committed SYNTHETIC sample media for eyeballing (Tier B output).
+# Directory holding committed synthetic sample media for product inspection.
 # Known files here are allowed despite the global binary block — they are generated
 # by our code from synthetic data, never real scans. Paths alone are not evidence of
 # provenance: every exception is pinned to the SHA-256 of the reviewed public asset.
@@ -75,17 +75,8 @@ _ALLOWED_SAMPLE_SHA256: dict[Path, str] = {
     _SAMPLES_DIR / "cockpit_demo.gif": (
         "1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151"
     ),
-    _SAMPLES_DIR / "sample_doc-00000.png": (
-        "b171955288e063106856e9442e0c91166b51a1dac9494452eb54fde321811d57"
-    ),
-    _SAMPLES_DIR / "sample_doc-00001.png": (
-        "d399d50a25b252f39e3c1e663edbf7fa8d3230dafaf9cc273e98e1e90b6d3d9b"
-    ),
     _SAMPLES_DIR / "sample_tc-000000.png": (
         "b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084"
-    ),
-    _SAMPLES_DIR / "sample_tc-000001.png": (
-        "29e4505c8316a7c80b47437867f8f3c9e36b56f8802d62175720329e9627510e"
     ),
 }
 

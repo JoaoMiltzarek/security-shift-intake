@@ -14,17 +14,12 @@ including a known name with different bytes, nested files and files under `asset
 
 | Public asset | Generator/source | Introduced in | SHA-256 |
 |---|---|---|---|
-| `sample_doc-00000.png` | `data/generators/tier_b.py` via `scripts/gen_pdfs.py` (`tier_b/v1`) | `1727dfaa` | `b171955288e063106856e9442e0c91166b51a1dac9494452eb54fde321811d57` |
-| `sample_doc-00001.png` | `data/generators/tier_b.py` via `scripts/gen_pdfs.py` (`tier_b/v1`) | `1727dfaa` | `d399d50a25b252f39e3c1e663edbf7fa8d3230dafaf9cc273e98e1e90b6d3d9b` |
 | `sample_tc-000000.png` | `data/generators/tier_c.py` via `scripts/gen_sheets.py` (`tier_c/v1`) | `bc497a57` | `b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084` |
-| `sample_tc-000001.png` | `data/generators/tier_c.py` via `scripts/gen_sheets.py` (`tier_c/v1`) | `bc497a57` | `29e4505c8316a7c80b47437867f8f3c9e36b56f8802d62175720329e9627510e` |
 | `cockpit_demo.gif` | browser capture described below | `ad3236d0` | `1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151` |
 
-The two historical PNG sets predate an embedded per-asset build manifest, so this table
-does not claim byte-identical regeneration from today's native font stack. Their source
-generators and introducing commits are recorded; the reviewed bytes above are the
-release provenance enforced by both privacy guards. Replacing an asset requires one
-reviewed change updating the file, this manifest and `_ALLOWED_SAMPLE_SHA256` together.
+The reviewed bytes above are the release provenance enforced by both privacy guards.
+Replacing an asset requires one reviewed change updating the file, this manifest and
+`_ALLOWED_SAMPLE_SHA256` together.
 
 ## `cockpit_demo.gif` provenance
 

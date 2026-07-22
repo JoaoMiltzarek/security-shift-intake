@@ -22,7 +22,7 @@ from src.clients.mock import MockVisionClient
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 # A committed synthetic image — only used so ingest has a page to load; the mock vision
 # ignores it and returns the canned OCR text below.
-SAMPLE = Path("samples/sample_doc-00000.png")
+SAMPLE = Path("samples/sample_tc-000000.png")
 
 # Synthetic, fully legible "OCR" of a controle_ocorrencias sheet with one incident.
 OCR_INCIDENT = """Controle de ocorrencias
