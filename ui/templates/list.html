@@ -1,20 +1,87 @@
 {% extends "base.html" %}
-{% block title %}Drafts{% endblock %}
+{% block title %}Fila de revisão · Security Shift Intake{% endblock %}
 {% block content %}
-<h2>Drafts pending review</h2>
+<header class="page-heading queue-heading">
+  <div>
+    <p class="eyebrow">Fila operacional</p>
+    <h1>Documentos para revisão</h1>
+    <p>Confirme cada evidência antes de aprovar qualquer saída operacional.</p>
+  </div>
+  <div class="queue-summary" aria-label="Resumo da fila">
+    <strong>{{ drafts | length }}</strong>
+    <span>{{ "documento" if drafts | length == 1 else "documentos" }} nesta página</span>
+  </div>
+</header>
+
+<nav class="status-tabs" aria-label="Filtrar documentos por estado">
+  <a class="status-tab{% if not active_status or active_status == 'all' %} is-active{% endif %}"
+     href="/?status=all"{% if not active_status or active_status == 'all' %} aria-current="page"{% endif %}>Todos</a>
+  <a class="status-tab{% if active_status == 'pending' %} is-active{% endif %}"
+     href="/?status=pending"{% if active_status == 'pending' %} aria-current="page"{% endif %}>Em revisão</a>
+  <a class="status-tab{% if active_status == 'approved' %} is-active{% endif %}"
+     href="/?status=approved"{% if active_status == 'approved' %} aria-current="page"{% endif %}>Aprovados</a>
+  <a class="status-tab{% if active_status == 'rejected' %} is-active{% endif %}"
+     href="/?status=rejected"{% if active_status == 'rejected' %} aria-current="page"{% endif %}>Rejeitados</a>
+  <a class="status-tab{% if active_status == 'simulated' %} is-active{% endif %}"
+     href="/?status=simulated"{% if active_status == 'simulated' %} aria-current="page"{% endif %}>Simulados</a>
+</nav>
+
 {% if drafts %}
-<table>
-  <tr><th>ID</th><th>Status</th><th>Created</th><th></th></tr>
+<ol class="draft-list" aria-label="Documentos encontrados">
   {% for d in drafts %}
-  <tr>
-    <td>{{ d.id }}</td>
-    <td><span class="badge {{ d.status }}">{{ d.status }}</span></td>
-    <td>{{ d.created_at.isoformat() }}</td>
-    <td><a href="/drafts/{{ d.id }}/review">review</a></td>
-  </tr>
+  <li>
+    <article class="draft-card">
+      <div class="draft-card-main">
+        <div class="draft-title-row">
+          <h2>Documento <span class="mono">#{{ d.id }}</span></h2>
+          {% if d.sent_at %}
+          <span class="status-chip status-simulated">Simulado</span>
+          {% elif d.status == 'approved' %}
+          <span class="status-chip status-approved">Aprovado</span>
+          {% elif d.status == 'rejected' %}
+          <span class="status-chip status-rejected">Rejeitado</span>
+          {% else %}
+          <span class="status-chip status-pending">Em revisão</span>
+          {% endif %}
+        </div>
+        <dl class="draft-metadata">
+          <div>
+            <dt>Recebido</dt>
+            <dd><time datetime="{{ d.created_at.isoformat() }}">{{ d.created_at.strftime('%d/%m/%Y · %H:%M') }}</time></dd>
+          </div>
+          {% if d.updated_at is defined %}
+          <div>
+            <dt>Última atividade</dt>
+            <dd><time datetime="{{ d.updated_at.isoformat() }}">{{ d.updated_at.strftime('%d/%m/%Y · %H:%M') }}</time></dd>
+          </div>
+          {% endif %}
+        </dl>
+      </div>
+      <a class="button button-secondary" href="/drafts/{{ d.id }}/review">
+        {% if d.sent_at %}Consultar registro{% else %}Abrir revisão{% endif %}
+        <span aria-hidden="true">→</span>
+      </a>
+    </article>
+  </li>
   {% endfor %}
-</table>
+</ol>
+
+{% if next_cursor is defined and next_cursor %}
+<nav class="pagination" aria-label="Paginação da fila">
+  <a class="button button-secondary" href="/?cursor={{ next_cursor }}{% if active_status %}&amp;status={{ active_status }}{% endif %}">
+    Ver próximos documentos
+  </a>
+</nav>
+{% endif %}
 {% else %}
-<p>No drafts yet.</p>
+<section class="empty-state" aria-labelledby="empty-title">
+  <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <path d="M14 10h28l8 8v36H14z"/>
+    <path d="M42 10v9h8M22 28h20M22 36h20M22 44h12"/>
+    <path d="m45 45 4 4 8-10"/>
+  </svg>
+  <h2 id="empty-title">A fila está em dia</h2>
+  <p>Nenhum documento corresponde a este filtro.</p>
+</section>
 {% endif %}
 {% endblock %}
