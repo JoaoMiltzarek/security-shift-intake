@@ -1,4 +1,4 @@
-"""M7.b: the send gate enforces approval. The headline invariant test lives here."""
+"""The terminal simulation gate enforces revision-bound human approval."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def test_memory_recorder_satisfies_simulation_protocol() -> None:
     assert isinstance(recorder, SimulationRecorder)
 
 
-def test_approved_draft_sends_and_audits(session: Session) -> None:
+def test_approved_draft_simulates_and_audits(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
@@ -60,47 +60,47 @@ def test_approved_draft_sends_and_audits(session: Session) -> None:
     assert "simulation_completed" in [a.action for a in get_audit(session, draft.id)]
 
 
-# --- The invariant: an unapproved draft CANNOT be sent ---
+# --- The invariant: an unapproved draft CANNOT be simulated ---
 
 
-def test_pending_draft_cannot_be_sent(session: Session) -> None:
+def test_pending_draft_cannot_be_simulated(session: Session) -> None:
     draft = create_draft(session, _state())  # status: pending
     assert draft.id is not None
-    sender = MemorySimulationRecorder()
+    recorder = MemorySimulationRecorder()
 
     with pytest.raises(DraftNotApprovedError):
-        simulate_draft(session, draft.id, sender, actor="r")
+        simulate_draft(session, draft.id, recorder, actor="r")
 
     # The side effect must NOT have happened.
-    assert sender.call_count == 0
+    assert recorder.call_count == 0
     # The blocked attempt is audited.
     assert "simulation_blocked" in [a.action for a in get_audit(session, draft.id)]
 
 
-def test_rejected_draft_cannot_be_sent(session: Session) -> None:
+def test_rejected_draft_cannot_be_simulated(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.REJECTED, actor="r")
-    sender = MemorySimulationRecorder()
+    recorder = MemorySimulationRecorder()
 
     with pytest.raises(DraftNotApprovedError):
-        simulate_draft(session, draft.id, sender, actor="r")
-    assert sender.call_count == 0
+        simulate_draft(session, draft.id, recorder, actor="r")
+    assert recorder.call_count == 0
 
 
-def test_already_sent_draft_cannot_be_resent(session: Session) -> None:
+def test_simulated_draft_cannot_be_simulated_again(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    sender = MemorySimulationRecorder()
-    simulate_draft(session, draft.id, sender, actor="r")
+    recorder = MemorySimulationRecorder()
+    simulate_draft(session, draft.id, recorder, actor="r")
 
     with pytest.raises(DraftNotApprovedError):
-        simulate_draft(session, draft.id, sender, actor="r")
-    assert sender.call_count == 1  # not called again
+        simulate_draft(session, draft.id, recorder, actor="r")
+    assert recorder.call_count == 1
 
 
-def test_send_missing_draft_raises(session: Session) -> None:
+def test_simulate_missing_draft_raises(session: Session) -> None:
     with pytest.raises(KeyError):
         simulate_draft(session, 999, MemorySimulationRecorder(), actor="r")
 
@@ -108,9 +108,9 @@ def test_send_missing_draft_raises(session: Session) -> None:
 # --- F3.B3 (SSI-1006): o envio é do CONTEÚDO aprovado, não só do status ---
 
 
-def test_hash_tampered_state_cannot_be_sent(session: Session) -> None:
+def test_hash_tampered_state_cannot_be_simulated(session: Session) -> None:
     """Escrita direta em state_json (fora de update_state) mantendo status approved:
-    o hash estampado não bate → send bloqueia. Defesa em profundidade além do reset
+    o hash estampado não bate → a simulação bloqueia. Defesa em profundidade além do reset
     de status feito por update_state."""
     draft = create_draft(session, _state())
     assert draft.id is not None
@@ -121,16 +121,16 @@ def test_hash_tampered_state_cannot_be_sent(session: Session) -> None:
     session.add(draft)
     session.commit()
 
-    sender = MemorySimulationRecorder()
+    recorder = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
-        simulate_draft(session, draft.id, sender, actor="r")
-    assert sender.call_count == 0
+        simulate_draft(session, draft.id, recorder, actor="r")
+    assert recorder.call_count == 0
     blocked = [a for a in get_audit(session, draft.id) if a.action == "simulation_blocked"]
     assert blocked and blocked[-1].detail is not None
     assert "stale_approval" in blocked[-1].detail
 
 
-def test_legacy_approved_without_stamp_cannot_be_sent(session: Session) -> None:
+def test_legacy_approved_without_stamp_cannot_be_simulated(session: Session) -> None:
     """Draft aprovado ANTES do vínculo por revisão (approved_revision NULL, como após a
     migração de DB legado) não pode ser enviado até reaprovação."""
     draft = create_draft(session, _state())
@@ -139,29 +139,29 @@ def test_legacy_approved_without_stamp_cannot_be_sent(session: Session) -> None:
     session.add(draft)
     session.commit()
 
-    sender = MemorySimulationRecorder()
+    recorder = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
-        simulate_draft(session, draft.id, sender, actor="r")
-    assert sender.call_count == 0
+        simulate_draft(session, draft.id, recorder, actor="r")
+    assert recorder.call_count == 0
 
 
-def test_send_reruns_assert_reviewable_on_current_state(session: Session) -> None:
+def test_simulation_reruns_assert_reviewable_on_current_state(session: Session) -> None:
     """Mesmo com status/revisão/hash válidos, um estado corrente com pendências de
-    revisão nunca é enviado — send re-roda assert_reviewable."""
+    revisão nunca é simulado — o gate reexecuta assert_reviewable."""
     pending_state = _state().model_copy(update={"must_review_fields": ["guard_name"]})
     draft = create_draft(session, pending_state)
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")  # stamp válido
 
-    sender = MemorySimulationRecorder()
+    recorder = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
-        simulate_draft(session, draft.id, sender, actor="r")
-    assert sender.call_count == 0
+        simulate_draft(session, draft.id, recorder, actor="r")
+    assert recorder.call_count == 0
 
 
 def test_concurrent_simulations_invoke_recorder_exactly_once(tmp_path: Path) -> None:
     engine = make_engine(
-        f"sqlite:///{(tmp_path / 'send-race.db').as_posix()}", allow_test_path=True
+        f"sqlite:///{(tmp_path / 'simulation-race.db').as_posix()}", allow_test_path=True
     )
     init_db(engine)
     with Session(engine) as setup:
@@ -211,7 +211,7 @@ def test_concurrent_simulations_invoke_recorder_exactly_once(tmp_path: Path) -> 
 def test_edit_cannot_interleave_with_terminal_simulation(tmp_path: Path) -> None:
     """The terminal record must reference the exact revision that was simulated."""
     engine = make_engine(
-        f"sqlite:///{(tmp_path / 'edit-send-race.db').as_posix()}", allow_test_path=True
+        f"sqlite:///{(tmp_path / 'edit-simulation-race.db').as_posix()}", allow_test_path=True
     )
     init_db(engine)
     original = _state()
@@ -230,8 +230,8 @@ def test_edit_cannot_interleave_with_terminal_simulation(tmp_path: Path) -> None
             ):
                 repository.update_state(editing, draft_id, edited, actor="concurrent-editor")
 
-    with Session(engine) as sending:
-        simulate_draft(sending, draft_id, ReentrantEditingRecorder(), actor="reviewer")
+    with Session(engine) as simulating:
+        simulate_draft(simulating, draft_id, ReentrantEditingRecorder(), actor="reviewer")
 
     with Session(engine) as verify:
         persisted = verify.get(Draft, draft_id)
