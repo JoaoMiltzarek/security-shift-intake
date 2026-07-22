@@ -28,6 +28,18 @@ def test_unvalidated_ml_stack_is_absent_from_the_lock() -> None:
     assert "scikit-learn" not in locked_names
 
 
+def test_server_uses_only_required_uvicorn_dependencies() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    runtime_dependencies = [
+        dependency.lower() for dependency in pyproject["project"]["dependencies"]
+    ]
+
+    uvicorn = next(
+        dependency for dependency in runtime_dependencies if dependency.startswith("uvicorn")
+    )
+    assert "[standard]" not in uvicorn
+
+
 def test_development_tools_do_not_expand_runtime_dependencies() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
