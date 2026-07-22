@@ -10,7 +10,7 @@ from src.pipeline.route import route, select_recipients
 from src.schema.loader import load_config
 from src.schema.state import Classification, PipelineState
 
-CONFIG = load_config(Path("configs/htmicron_security.yaml"))
+CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 
 def _cls(incident_type: str, urgency: str, sector: str) -> Classification:

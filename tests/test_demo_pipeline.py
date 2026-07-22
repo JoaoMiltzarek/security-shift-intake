@@ -60,7 +60,7 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
     monkeypatch.setattr(demo_pipeline, "make_engine", lambda: object())
     monkeypatch.setenv("INTAKE_VISION", "local_vlm")
 
-    config = Path("configs/htmicron_security.yaml")
+    config = Path("configs/controle_ocorrencias.yaml")
     assert demo_pipeline.main(["--file", str(source), "--config", str(config)]) == 0
     assert isinstance(captured["vision"], LocalOCRVisionClient)
     assert captured["file"] == source.resolve()

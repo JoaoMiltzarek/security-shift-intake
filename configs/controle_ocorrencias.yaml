@@ -4,6 +4,7 @@
 # Estrutura real: cabeçalho (Data e Turno / Vigilantes / Unidade) + uma TABELA de N linhas
 # (Item / Hora / Descrição / Ação / Resolvido). S/A ou risco = sem alteração.
 # Coexiste com htmicron_security.yaml (sem mudança de código por config — ADR controle_ocorrencias).
+# Ãšnico contrato de relatÃ³rio suportado pelo runtime v1.
 # Validado por src/schema/config.ReportConfig.
 
 report_type: controle_ocorrencias
@@ -80,5 +81,4 @@ routing:
 performance:
   max_seconds_per_sheet: 300  # SLO oficial congelado — ver EVAL_PROTOCOL §5
 
-# No email_template: the occurrence-table path renders its outputs in code
-# (src/pipeline/outputs.py: build_outputs), not from a Jinja template.
+# Operational outputs are derived from the normalized occurrence model in code.

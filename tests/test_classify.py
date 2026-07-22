@@ -13,7 +13,7 @@ from src.pipeline.classify import classify
 from src.schema.loader import load_config
 from src.schema.state import PipelineState
 
-CONFIG = load_config(Path("configs/htmicron_security.yaml"))
+CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 
 def test_classify_populates_state() -> None:

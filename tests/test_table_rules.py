@@ -14,7 +14,6 @@ from src.pipeline.validate import DEFAULT_CONFIDENCE_THRESHOLD
 from src.schema.loader import load_config
 
 CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
-HTMICRON = load_config(Path("configs/htmicron_security.yaml"))
 
 _SA_SHEET = """Controle de ocorrencias
 Data e Turno 23/06/26
@@ -120,11 +119,6 @@ def test_occurrence_time_extracted_into_hora() -> None:
 def test_occurrence_sheet_is_not_no_occurrence() -> None:
     raw = RuleBasedTableExtractor(CONFIG).extract(_OCC_SHEET)
     assert normalize(raw).no_occurrence is False
-
-
-def test_config_without_table_yields_no_rows() -> None:
-    raw = RuleBasedTableExtractor(HTMICRON).extract(_OCC_SHEET)
-    assert raw.rows == []
 
 
 # --- Contratos F1 (SSI-1005): falha estrutural NUNCA vira "sem ocorrência" ---

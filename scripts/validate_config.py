@@ -1,7 +1,7 @@
 """CLI entry point for `make validate-config`.
 
 Usage:
-    python scripts/validate_config.py configs/htmicron_security.yaml [...]
+    python scripts/validate_config.py configs/controle_ocorrencias.yaml
 
 Exits 0 on success, 1 on validation error.
 """

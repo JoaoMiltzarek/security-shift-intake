@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # ---------------------------------------------------------------------------
 # Field types the pipeline supports
@@ -139,19 +139,14 @@ class PerformanceConfig(BaseModel):
 
 
 class ReportConfig(BaseModel):
-    """The complete config document loaded from a configs/*.yaml file.
+    """The complete occurrence-sheet config loaded from ``configs/*.yaml``."""
 
-    Validates the whole structure: field definitions, taxonomy, routing rules,
-    and the optional email template path.
-    """
+    model_config = ConfigDict(extra="forbid")
 
     report_type: str
     fields: Annotated[list[FieldSchema], Field(min_length=1)]
     classification: ClassificationConfig
     routing: list[RoutingRule]
-    # Jinja template for the email draft (scalar path). Optional: the occurrence-table
-    # path renders its outputs in code (build_outputs), so it declares no template.
-    email_template: str | None = None
     performance: PerformanceConfig | None = None
 
     @model_validator(mode="after")
@@ -162,8 +157,8 @@ class ReportConfig(BaseModel):
             raise ValueError("field names must be unique")
 
         table_fields = [field for field in self.fields if field.type == "table"]
-        if len(table_fields) > 1:
-            raise ValueError("v1 supports at most one table field per report config")
+        if len(table_fields) != 1:
+            raise ValueError("v1 requires exactly one table field per report config")
         for table in table_fields:
             column_names = [column.name for column in table.columns or []]
             if len(column_names) != len(set(column_names)):

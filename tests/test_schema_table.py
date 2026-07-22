@@ -51,10 +51,3 @@ def test_load_controle_ocorrencias_config() -> None:
     assert [c.name for c in table.columns] == ["item", "hora", "descricao", "acao", "resolvido"]
     resolvido = next(c for c in table.columns if c.name == "resolvido")
     assert resolvido.values == ["sim", "nao"]
-
-
-def test_htmicron_config_still_valid() -> None:
-    # Non-regression: the original scalar config keeps loading.
-    cfg = load_config(Path("configs/htmicron_security.yaml"))
-    assert cfg.report_type == "htmicron_security_shift"
-    assert all(f.type != "table" for f in cfg.fields)

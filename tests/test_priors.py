@@ -12,7 +12,7 @@ from pathlib import Path
 from data.generators import priors
 from src.schema.loader import load_config
 
-CONFIG_PATH = Path("configs/htmicron_security.yaml")
+CONFIG_PATH = Path("configs/controle_ocorrencias.yaml")
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""The app's served config is overridable via INTAKE_CONFIG (table vs scalar form)."""
+"""The app's occurrence-sheet config path is explicit and CWD-independent."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ def test_default_config_is_controle_ocorrencias(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_intake_config_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INTAKE_CONFIG", "configs/htmicron_security.yaml")
-    assert _default_config_path() == REPO_ROOT / "configs" / "htmicron_security.yaml"
+    monkeypatch.setenv("INTAKE_CONFIG", "configs/site-specific.yaml")
+    assert _default_config_path() == REPO_ROOT / "configs" / "site-specific.yaml"
 
 
 def test_default_app_config_templates_and_static_are_cwd_independent(

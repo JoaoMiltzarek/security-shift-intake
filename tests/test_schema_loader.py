@@ -1,7 +1,7 @@
 """M1.d: unit tests for load_config — valid YAML succeeds, invalid YAML fails clearly.
 
 These tests use tmp_path fixtures (no disk state) so they are fully isolated.
-The htmicron_security.yaml integration is exercised in test_schema_config_integration.py
+The committed occurrence-sheet integration is exercised in test_schema_table.py
 (M1.e), which requires the real config file to exist.
 """
 
@@ -32,6 +32,12 @@ VALID_CONFIG: dict = {
     "fields": [
         {"name": "guard_name", "type": "string", "required": True},
         {"name": "shift_period", "type": "enum", "values": ["day", "night"]},
+        {
+            "name": "occurrences",
+            "type": "table",
+            "required": False,
+            "columns": [{"name": "description", "type": "text"}],
+        },
     ],
     "classification": {
         "type": {"labels": ["routine", "safety"]},
@@ -42,7 +48,6 @@ VALID_CONFIG: dict = {
         {"when": {"urgency": "high"}, "recipients": ["tech_security"]},
         {"recipients": ["general_support"]},  # default (when omitted)
     ],
-    "email_template": "templates/test.j2",
 }
 
 
@@ -50,7 +55,7 @@ def test_valid_config_loads_successfully(tmp_path: Path) -> None:
     path = _write_yaml(tmp_path, "valid.yaml", VALID_CONFIG)
     cfg = load_config(path)
     assert cfg.report_type == "test_report"
-    assert len(cfg.fields) == 2
+    assert len(cfg.fields) == 3
     assert cfg.classification.urgency.labels == ["low", "high"]
 
 
@@ -134,8 +139,24 @@ def test_only_one_repeating_table_is_supported(tmp_path: Path) -> None:
     }
     bad["fields"] = [table, {**table, "name": "rows_b"}]
     path = _write_yaml(tmp_path, "bad.yaml", bad)
-    with pytest.raises(ValidationError, match="at most one table"):
+    with pytest.raises(ValidationError, match="exactly one table"):
         load_config(path)
+
+
+def test_config_without_occurrence_table_is_rejected(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["fields"] = [field for field in bad["fields"] if field["type"] != "table"]
+
+    with pytest.raises(ValidationError, match="exactly one table"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+def test_scalar_email_template_is_rejected(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["email_template"] = "templates/legacy.j2"
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
 
 
 def test_empty_label_set_raises(tmp_path: Path) -> None:

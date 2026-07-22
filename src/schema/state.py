@@ -107,8 +107,8 @@ class PipelineState(BaseModel):
 
     # --- Stage 2: extract ---
     extracted_fields: list[ExtractedField] = Field(default_factory=list)
-    # Table-report path (ADR controle_ocorrencias): the layout-coupled read and the
-    # normalized domain model. None on the scalar path (htmicron_security).
+    # Layout-coupled read and normalized occurrence domain model. Both remain optional
+    # while a document is being ingested; review approval requires `normalized`.
     raw_extraction: RawDocumentExtraction | None = None
     normalized: NormalizedIncidentModel | None = None
     # --- Stage 3: validate (critic) ---
