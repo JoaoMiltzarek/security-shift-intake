@@ -39,12 +39,9 @@ override SAFETY_DATASET := bench-balanced
 override SAFETY_SPLIT := val
 override SAFETY_VISION := local_ocr
 
-# Watch-dir for make watch (override: make watch WATCH_DIR=private/inbox).
-WATCH_DIR ?= private/inbox
-
 .PHONY: help install lint format format-check typecheck test check audit-deps \
         validate-config gen-data gen-pdfs gen-sheets gen-safety-sheets demo-transcribe demo-pipeline \
-        demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety watch \
+        demo demo-pipeline-mock serve eval eval-bressay eval-real eval-synthetic eval-safety \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -76,7 +73,6 @@ help:
 	@echo   make eval-synthetic  - [tier_c] synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test; see docs/DATASET_CONTRACT.md
 	@echo   make eval-safety     - [SSI-1010] structural-safety gates on val (exit 1 if unsafe); OUT=... redirects artifacts
 	@echo   "  (reader: set INTAKE_VISION=local_vlm to use the local open VLM instead of Tesseract)"
-	@echo   make watch           - experimental standalone watcher; process-local duplicate suppression
 
 install:
 	uv sync --locked
@@ -174,8 +170,3 @@ eval-synthetic:
 OUT ?= private/audit/eval_safety
 eval-safety:
 	uv run --locked python -m evals.eval_extraction_synthetic --vision $(SAFETY_VISION) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates
-
-# Intake Watch — experimental standalone watcher; process-local duplicate suppression.
-# Writes detached text drafts, NEVER sends email. Override: make watch WATCH_DIR=private/inbox.
-watch:
-	uv run --locked python -m scripts.run_watch --watch-dir $(WATCH_DIR)

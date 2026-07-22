@@ -156,9 +156,6 @@ it emits no geometry and the current frozen benchmark does **not** admit it as t
 
 ### Experimental / outside v1
 
-- `make watch` is an experimental standalone file-drop utility. It writes detached `.txt` drafts outside the review database,
-  cockpit, and approval gate; duplicate suppression is process-local
-  and is not restored after restart.
 - The two-reader reconciler is unit-tested but not wired into the v1 orchestrator; supported
   paths select exactly one reader.
 - `AnthropicLLMClient` is mock-tested but not wired into the v1 pipeline. Anthropic Vision is a

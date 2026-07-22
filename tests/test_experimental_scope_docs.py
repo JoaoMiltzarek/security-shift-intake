@@ -13,20 +13,6 @@ def _has_phrase(text: str, phrase: str) -> bool:
     return phrase in " ".join(text.split())
 
 
-def test_watcher_is_documented_as_standalone_experiment() -> None:
-    watcher = _read("src/intake_watch.py")
-    entrypoint = _read("scripts/run_watch.py")
-    makefile = _read("Makefile")
-    readme = _read("README.md")
-
-    assert "EXPERIMENTAL standalone watcher, outside the supported v1 path" in watcher
-    assert "Duplicate suppression is process-local" in watcher
-    assert "does not feed the review database, cockpit, or approval gate" in entrypoint
-    assert "experimental standalone watcher; process-local duplicate suppression" in makefile
-    assert "`make watch` is an experimental standalone file-drop utility" in readme
-    assert "detached `.txt` drafts outside the review database" in readme
-
-
 def test_reconciler_is_documented_as_unwired_prototype() -> None:
     reconciler = _read("src/pipeline/reconcile.py")
     orchestrator = _read("src/orchestrator.py")
