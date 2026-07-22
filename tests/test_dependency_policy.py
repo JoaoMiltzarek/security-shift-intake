@@ -28,7 +28,7 @@ def test_unvalidated_ml_stack_is_absent_from_the_lock() -> None:
     assert "scikit-learn" not in locked_names
 
 
-def test_testclient_uses_native_httpx_and_blocks_deprecated_fallback() -> None:
+def test_development_tools_do_not_expand_runtime_dependencies() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
     runtime_dependencies = [
@@ -38,7 +38,10 @@ def test_testclient_uses_native_httpx_and_blocks_deprecated_fallback() -> None:
     locked_names = {package["name"].lower() for package in lock["package"]}
     warnings = pyproject["tool"]["pytest"]["ini_options"].get("filterwarnings", [])
 
-    assert any(dependency.startswith("httpx") for dependency in runtime_dependencies)
+    assert not any(dependency.startswith("httpx") for dependency in runtime_dependencies)
+    assert not any(dependency.startswith("numpy") for dependency in runtime_dependencies)
+    assert any(dependency.startswith("httpx") for dependency in dev_dependencies)
+    assert any(dependency.startswith("numpy") for dependency in dev_dependencies)
     assert not any(dependency.startswith("httpx2") for dependency in dev_dependencies)
     assert "httpx" in locked_names
     assert "httpx2" not in locked_names
