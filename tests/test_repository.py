@@ -559,6 +559,24 @@ def test_queue_page_filters_status_and_bounds_limit(session: Session) -> None:
     assert [item.id for item in page.items] == [pending.id]
     with pytest.raises(ValueError, match="limit"):
         list_draft_page(session, limit=101)
+    with pytest.raises(ValueError, match="status"):
+        list_draft_page(session, status="deleted")
+
+
+def test_queue_page_separates_approved_from_simulated(session: Session) -> None:
+    approved = create_draft(session, _state())
+    simulated = create_draft(session, _state())
+    assert approved.id is not None
+    assert simulated.id is not None
+    set_status(session, approved.id, ApprovalStatus.APPROVED, actor="reviewer")
+    set_status(session, simulated.id, ApprovalStatus.APPROVED, actor="reviewer")
+    send_draft(session, simulated.id, MockSender(), actor="reviewer")
+
+    approved_page = list_draft_page(session, status="approved")
+    simulated_page = list_draft_page(session, status="simulated")
+
+    assert [item.id for item in approved_page.items] == [approved.id]
+    assert [item.id for item in simulated_page.items] == [simulated.id]
 
 
 def test_audit_pages_are_bounded_complete_and_non_overlapping(session: Session) -> None:

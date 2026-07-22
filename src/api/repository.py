@@ -82,6 +82,7 @@ class AuditPage:
 
 DEFAULT_PAGE_SIZE = 25
 MAX_PAGE_SIZE = 100
+QUEUE_STATUSES = frozenset({"pending", "approved", "rejected", "simulated"})
 
 
 @contextmanager
@@ -251,6 +252,9 @@ def list_draft_page(
 ) -> DraftPage:
     """Return a bounded newest-first queue page without loading document state."""
     page_size = _page_size(limit)
+    status_value = str(status) if status is not None else None
+    if status_value is not None and status_value not in QUEUE_STATUSES:
+        raise ValueError("status must be pending, approved, rejected, or simulated")
     statement = sa_select(
         col(Draft.id),
         col(Draft.status),
@@ -261,8 +265,12 @@ def list_draft_page(
         col(Draft.delivery_mode),
         col(Draft.sent_at),
     )
-    if status is not None:
-        statement = statement.where(col(Draft.status) == str(status))
+    if status_value == "simulated":
+        statement = statement.where(col(Draft.sent_at).is_not(None))
+    elif status_value is not None:
+        statement = statement.where(col(Draft.status) == status_value)
+        if status_value == "approved":
+            statement = statement.where(col(Draft.sent_at).is_(None))
     if cursor is not None:
         statement = statement.where(
             or_(
