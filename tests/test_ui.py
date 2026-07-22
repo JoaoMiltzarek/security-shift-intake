@@ -248,6 +248,9 @@ def test_security_headers_present(client_and_sender: tuple[TestClient, MockSende
     csp = client.get("/health").headers.get("content-security-policy", "")
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp  # no 'unsafe-inline' for scripts
+    assert "style-src 'self'" in csp
+    assert "unsafe-inline" not in csp
+    assert "unsafe-eval" not in csp
     assert "frame-ancestors 'none'" in csp
 
 

@@ -142,6 +142,21 @@ def test_htmx_disables_dynamic_code_and_history_cache() -> None:
     assert '"allowEval":false' in base
     assert '"allowScriptTags":false' in base
     assert '"historyEnabled":false' in base
+    assert '"includeIndicatorStyles":false' in base
+
+
+def test_templates_and_app_helpers_avoid_inline_code_sinks() -> None:
+    templates = "\n".join(
+        path.read_text(encoding="utf-8") for path in Path("ui/templates").glob("*.html")
+    )
+    helpers = Path("ui/static/app.js").read_text(encoding="utf-8")
+
+    assert "style=" not in templates
+    assert "<style" not in templates
+    assert "onclick=" not in templates
+    assert "javascript:" not in templates
+    assert "innerHTML" not in helpers
+    assert "eval(" not in helpers
 
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])

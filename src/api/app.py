@@ -621,9 +621,8 @@ def create_app(
     async def _security_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Lock the local cockpit down and keep document data out of browser caches.
 
-        The overlay JS is vendored under /static (script-src 'self'); templates carry
-        inline styles only (style-src 'unsafe-inline'); the page image is same-origin
-        or a data: URI. There is no inline <script>, so 'self' does not break the UI.
+        Scripts and styles are vendored under ``/static``. Templates contain no inline
+        executable code or style attributes; page images remain same-origin.
         """
         client_host = request.client.host if request.client is not None else ""
         fetch_site = request.headers.get("sec-fetch-site", "").lower()
@@ -638,7 +637,7 @@ def create_app(
             response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data:; script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; base-uri 'none'; object-src 'none'; "
+            "style-src 'self'; base-uri 'none'; object-src 'none'; "
             "form-action 'self'; frame-ancestors 'none'"
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
