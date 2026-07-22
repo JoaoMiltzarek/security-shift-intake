@@ -15,7 +15,11 @@ import hashlib
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime
 
+from sqlalchemy import and_, or_
+from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, select
 
 from src.api.models import AuditEntry, DeliveryMode, Draft, DraftRevision, utcnow
@@ -31,24 +35,77 @@ class DraftOperationConflictError(RuntimeError):
 
 
 _DRAFT_LOCKS_GUARD = threading.Lock()
-_DRAFT_LOCKS: dict[tuple[int, int], threading.Lock] = {}
+
+
+@dataclass(slots=True)
+class _DraftLockEntry:
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    references: int = 0
+
+
+_DRAFT_LOCKS: dict[tuple[int, int], _DraftLockEntry] = {}
+
+
+@dataclass(frozen=True, slots=True)
+class DraftPageCursor:
+    """Stable keyset cursor for the newest-first review queue."""
+
+    created_at: datetime
+    draft_id: int
+
+
+@dataclass(frozen=True, slots=True)
+class DraftSummary:
+    """Queue projection deliberately excluding the PII-heavy ``state_json``."""
+
+    id: int
+    status: str
+    revision: int
+    approved_revision: int | None
+    created_at: datetime
+    updated_at: datetime
+    delivery_mode: str | None
+    sent_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class DraftPage:
+    items: list[DraftSummary]
+    next_cursor: DraftPageCursor | None
+
+
+@dataclass(frozen=True, slots=True)
+class AuditPage:
+    items: list[AuditEntry]
+    next_before_id: int | None
+
+
+DEFAULT_PAGE_SIZE = 25
+MAX_PAGE_SIZE = 100
 
 
 @contextmanager
 def draft_operation_lock(session: Session, draft_id: int, *, wait: bool) -> Iterator[None]:
-    """Serialize one draft inside the supported single-process v1 runtime."""
+    """Serialize one draft and release its lock entry after the final caller."""
     key = (id(session.get_bind()), draft_id)
     with _DRAFT_LOCKS_GUARD:
-        lock = _DRAFT_LOCKS.setdefault(key, threading.Lock())
-    acquired = lock.acquire(blocking=wait)
-    if not acquired:
-        raise DraftOperationConflictError(
-            f"Draft {draft_id} has another operation in progress â€” retry safely."
-        )
+        entry = _DRAFT_LOCKS.setdefault(key, _DraftLockEntry())
+        entry.references += 1
+    acquired = False
     try:
+        acquired = entry.lock.acquire(blocking=wait)
+        if not acquired:
+            raise DraftOperationConflictError(
+                f"Draft {draft_id} has another operation in progress — retry safely."
+            )
         yield
     finally:
-        lock.release()
+        if acquired:
+            entry.lock.release()
+        with _DRAFT_LOCKS_GUARD:
+            entry.references -= 1
+            if entry.references == 0:
+                _DRAFT_LOCKS.pop(key, None)
 
 
 def state_sha256(state_json: str) -> str:
@@ -171,17 +228,104 @@ def get_draft(session: Session, draft_id: int) -> Draft | None:
 
 
 def list_drafts(session: Session) -> list[Draft]:
+    """Compatibility read for callers that need complete states.
+
+    Review queues should use :func:`list_draft_page`, which never selects
+    ``state_json`` and remains bounded.
+    """
     return list(session.exec(select(Draft).order_by(col(Draft.created_at))))
 
 
-def set_status(session: Session, draft_id: int, status: ApprovalStatus, actor: str) -> Draft:
+def _page_size(limit: int) -> int:
+    if not 1 <= limit <= MAX_PAGE_SIZE:
+        raise ValueError(f"limit must be between 1 and {MAX_PAGE_SIZE}")
+    return limit
+
+
+def list_draft_page(
+    session: Session,
+    *,
+    limit: int = DEFAULT_PAGE_SIZE,
+    cursor: DraftPageCursor | None = None,
+    status: ApprovalStatus | str | None = None,
+) -> DraftPage:
+    """Return a bounded newest-first queue page without loading document state."""
+    page_size = _page_size(limit)
+    statement = sa_select(
+        col(Draft.id),
+        col(Draft.status),
+        col(Draft.revision),
+        col(Draft.approved_revision),
+        col(Draft.created_at),
+        col(Draft.updated_at),
+        col(Draft.delivery_mode),
+        col(Draft.sent_at),
+    )
+    if status is not None:
+        statement = statement.where(col(Draft.status) == str(status))
+    if cursor is not None:
+        statement = statement.where(
+            or_(
+                col(Draft.created_at) < cursor.created_at,
+                and_(
+                    col(Draft.created_at) == cursor.created_at,
+                    col(Draft.id) < cursor.draft_id,
+                ),
+            )
+        )
+    statement = statement.order_by(
+        col(Draft.created_at).desc(),
+        col(Draft.id).desc(),
+    ).limit(page_size + 1)
+    rows = list(session.execute(statement))
+    has_more = len(rows) > page_size
+    rows = rows[:page_size]
+    items = [
+        DraftSummary(
+            id=row[0],
+            status=row[1],
+            revision=row[2],
+            approved_revision=row[3],
+            created_at=row[4],
+            updated_at=row[5],
+            delivery_mode=row[6],
+            sent_at=row[7],
+        )
+        for row in rows
+    ]
+    next_cursor = None
+    if has_more and items:
+        last = items[-1]
+        next_cursor = DraftPageCursor(created_at=last.created_at, draft_id=last.id)
+    return DraftPage(items=items, next_cursor=next_cursor)
+
+
+def set_status(
+    session: Session,
+    draft_id: int,
+    status: ApprovalStatus,
+    actor: str,
+    *,
+    expected_revision: int | None = None,
+) -> Draft:
     with draft_operation_lock(session, draft_id, wait=False):
         session.expire_all()
-        return _set_status_locked(session, draft_id, status, actor)
+        return _set_status_locked(
+            session,
+            draft_id,
+            status,
+            actor,
+            expected_revision=expected_revision,
+        )
 
 
 def _set_status_locked(
-    session: Session, draft_id: int, status: ApprovalStatus, actor: str
+    session: Session,
+    draft_id: int,
+    status: ApprovalStatus,
+    actor: str,
+    *,
+    expected_revision: int | None,
 ) -> Draft:
     """Update a draft's status and write an audit row.
 
@@ -189,6 +333,11 @@ def _set_status_locked(
     que ambos ainda batam); qualquer outro status limpa o stamp.
     """
     draft = _require(session, draft_id)
+    if expected_revision is not None and draft.revision != expected_revision:
+        raise DraftOperationConflictError(
+            f"Draft {draft_id} changed from revision {expected_revision} to "
+            f"{draft.revision} — reload before changing status."
+        )
     if draft.sent_at is not None:
         add_audit(
             session,
@@ -228,25 +377,28 @@ def _set_status_locked(
     return draft
 
 
-def mark_sent(
-    session: Session,
-    draft_id: int,
-    actor: str,
-    delivery_mode: DeliveryMode,
-) -> Draft:
-    with draft_operation_lock(session, draft_id, wait=False):
-        session.expire_all()
-        return _mark_sent_locked(session, draft_id, actor, delivery_mode)
-
-
 def _mark_sent_locked(
     session: Session,
     draft_id: int,
     actor: str,
     delivery_mode: DeliveryMode,
 ) -> Draft:
-    """Record a completed adapter attempt without claiming recipient delivery."""
+    """Record a gate-authorized adapter attempt.
+
+    This private transaction helper repeats the revision/hash checks so importing
+    it directly cannot turn stale or unapproved content into a terminal record.
+    Public callers must enter through ``gate.send_draft``.
+    """
     draft = _require(session, draft_id)
+    digest = state_sha256(draft.state_json)
+    if draft.status != ApprovalStatus.APPROVED:
+        raise DraftOperationConflictError(f"Draft {draft_id} is not approved.")
+    if draft.approved_revision != draft.revision or draft.approved_state_sha256 != digest:
+        raise DraftOperationConflictError(
+            f"Draft {draft_id} approval does not match its current revision and content."
+        )
+    if draft.sent_at is not None:
+        raise DraftAlreadySentError(f"Draft {draft_id} was already sent.")
     try:
         now = utcnow()
         draft.sent_at = now
@@ -264,7 +416,7 @@ def _mark_sent_locked(
                 f"sha256={state_sha256(draft.state_json)[:12]}"
             ),
             revision=draft.revision,
-            snapshot_sha256=state_sha256(draft.state_json),
+            snapshot_sha256=digest,
         )
         session.commit()
     except Exception:
@@ -358,11 +510,34 @@ def _update_state_locked(
     return draft
 
 
-def get_audit(session: Session, draft_id: int) -> list[AuditEntry]:
-    return list(
-        session.exec(
-            select(AuditEntry)
-            .where(col(AuditEntry.draft_id) == draft_id)
-            .order_by(col(AuditEntry.id))
-        )
-    )
+def get_audit_page(
+    session: Session,
+    draft_id: int,
+    *,
+    limit: int = DEFAULT_PAGE_SIZE,
+    before_id: int | None = None,
+) -> AuditPage:
+    """Return one bounded audit page, newest page first and chronological within it."""
+    page_size = _page_size(limit)
+    statement = select(AuditEntry).where(col(AuditEntry.draft_id) == draft_id)
+    if before_id is not None:
+        if before_id < 1:
+            raise ValueError("before_id must be a positive audit-entry id")
+        statement = statement.where(col(AuditEntry.id) < before_id)
+    statement = statement.order_by(col(AuditEntry.id).desc()).limit(page_size + 1)
+    rows = list(session.exec(statement))
+    has_more = len(rows) > page_size
+    selected = rows[:page_size]
+    next_before_id = selected[-1].id if has_more and selected else None
+    selected.reverse()
+    return AuditPage(items=selected, next_before_id=next_before_id)
+
+
+def get_audit(
+    session: Session,
+    draft_id: int,
+    *,
+    limit: int = DEFAULT_PAGE_SIZE,
+) -> list[AuditEntry]:
+    """Compatibility wrapper returning the latest bounded page chronologically."""
+    return get_audit_page(session, draft_id, limit=limit).items

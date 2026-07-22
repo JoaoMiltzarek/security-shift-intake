@@ -6,9 +6,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from sqlalchemy import event
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
+from src.api.gate import MockSender, send_draft
 from src.api.models import Draft
 from src.api.repository import (
     DraftAlreadySentError,
@@ -16,9 +18,10 @@ from src.api.repository import (
     add_audit,
     create_draft,
     get_audit,
+    get_audit_page,
     get_draft,
+    list_draft_page,
     list_drafts,
-    mark_sent,
     set_status,
 )
 from src.schema.state import ApprovalStatus, PipelineState
@@ -66,7 +69,7 @@ def test_mark_sent_persists_simulation_mode_and_audit(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
+    send_draft(session, draft.id, MockSender(), actor="r")
 
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None and refreshed.sent_at is not None
@@ -274,7 +277,7 @@ def test_approval_and_send_audit_reference_the_full_snapshot(session: Session) -
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="reviewer")
-    mark_sent(session, draft.id, actor="reviewer", delivery_mode="simulated")
+    send_draft(session, draft.id, MockSender(), actor="reviewer")
 
     expected_hash = state_sha256(draft.state_json)
     entries = {
@@ -317,7 +320,7 @@ def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
+    send_draft(session, draft.id, MockSender(), actor="r")
 
     with pytest.raises(DraftAlreadySentError):
         update_state(session, draft.id, _state(), actor="reviewer")
@@ -333,7 +336,7 @@ def test_sent_draft_rejects_later_status_changes(session: Session, status: Appro
     draft = create_draft(session, _state())
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
-    mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
+    send_draft(session, draft.id, MockSender(), actor="r")
 
     with pytest.raises(DraftAlreadySentError):
         set_status(session, draft.id, status, actor="r")
@@ -400,7 +403,7 @@ def test_mark_sent_rolls_back_when_simulation_audit_fails(
     _fail_audit_action(monkeypatch, "send_simulated")
 
     with pytest.raises(RuntimeError, match="injected audit"):
-        mark_sent(session, draft.id, actor="r", delivery_mode="simulated")
+        send_draft(session, draft.id, MockSender(), actor="r")
 
     session.expire_all()
     refreshed = get_draft(session, draft.id)
@@ -473,3 +476,121 @@ def test_init_db_migrates_legacy_draft_table(tmp_path: Path) -> None:
         assert len(snapshots) == 1
         assert snapshots[0].revision == reapproved.revision == 1
         assert snapshots[0].state_sha256 == reapproved.approved_state_sha256
+
+
+def test_status_compare_and_swap_rejects_stale_revision(session: Session) -> None:
+    from src.api.repository import update_state
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    update_state(session, draft.id, _state(), actor="first", expected_revision=1)
+
+    with pytest.raises(DraftOperationConflictError, match="reload"):
+        set_status(
+            session,
+            draft.id,
+            ApprovalStatus.APPROVED,
+            actor="stale",
+            expected_revision=1,
+        )
+
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.status == ApprovalStatus.PENDING
+
+
+def test_draft_lock_entries_are_reclaimed_after_success_and_conflict(session: Session) -> None:
+    import src.api.repository as repository
+
+    with repository.draft_operation_lock(session, 7, wait=False):
+        assert len(repository._DRAFT_LOCKS) == 1
+        with (
+            pytest.raises(DraftOperationConflictError),
+            repository.draft_operation_lock(session, 7, wait=False),
+        ):
+            pytest.fail("the nested operation must not acquire the same draft lock")
+        assert len(repository._DRAFT_LOCKS) == 1
+    assert repository._DRAFT_LOCKS == {}
+
+
+def test_queue_page_is_keyset_paginated_without_selecting_state_json(session: Session) -> None:
+    for _ in range(5):
+        create_draft(session, _state())
+
+    statements: list[str] = []
+    engine = session.get_bind()
+
+    def capture_statement(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: object,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture_statement)
+    try:
+        first = list_draft_page(session, limit=2)
+        assert first.next_cursor is not None
+        second = list_draft_page(session, limit=2, cursor=first.next_cursor)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_statement)
+
+    assert len(first.items) == len(second.items) == 2
+    assert {item.id for item in first.items}.isdisjoint(item.id for item in second.items)
+    assert [item.id for item in first.items] == sorted(
+        (item.id for item in first.items), reverse=True
+    )
+    normalized_statements = [" ".join(sql.lower().split()) for sql in statements]
+    draft_selects = [sql for sql in normalized_statements if " from draft" in sql]
+    assert draft_selects
+    assert all("state_json" not in sql for sql in draft_selects)
+
+
+def test_queue_page_filters_status_and_bounds_limit(session: Session) -> None:
+    pending = create_draft(session, _state())
+    approved = create_draft(session, _state())
+    assert approved.id is not None
+    set_status(session, approved.id, ApprovalStatus.APPROVED, actor="r")
+
+    page = list_draft_page(session, status=ApprovalStatus.PENDING)
+    assert [item.id for item in page.items] == [pending.id]
+    with pytest.raises(ValueError, match="limit"):
+        list_draft_page(session, limit=101)
+
+
+def test_audit_pages_are_bounded_complete_and_non_overlapping(session: Session) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    for index in range(6):
+        add_audit(session, draft.id, actor="reviewer", action=f"note:{index}")
+
+    first = get_audit_page(session, draft.id, limit=3)
+    assert len(first.items) == 3
+    assert first.next_before_id is not None
+    second = get_audit_page(
+        session,
+        draft.id,
+        limit=3,
+        before_id=first.next_before_id,
+    )
+
+    assert len(second.items) == 3
+    assert {entry.id for entry in first.items}.isdisjoint(entry.id for entry in second.items)
+    assert [entry.id for entry in first.items] == sorted(
+        entry.id for entry in first.items if entry.id is not None
+    )
+    with pytest.raises(ValueError, match="before_id"):
+        get_audit_page(session, draft.id, before_id=0)
+
+
+def test_terminal_state_can_only_be_recorded_through_gate(session: Session) -> None:
+    import src.api.repository as repository
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    assert not hasattr(repository, "mark_sent")
+    with pytest.raises(DraftOperationConflictError, match="not approved"):
+        repository._mark_sent_locked(session, draft.id, "bypass", "simulated")
