@@ -44,16 +44,16 @@ _BODY = {
 
 
 @pytest.fixture
-def client_and_sender() -> Iterator[tuple[TestClient, MemorySimulationRecorder]]:
-    sender = MemorySimulationRecorder()
+def client_and_recorder() -> Iterator[tuple[TestClient, MemorySimulationRecorder]]:
+    recorder = MemorySimulationRecorder()
     app = create_app(
         engine=make_engine("sqlite://"),
-        simulation_recorder=sender,
+        simulation_recorder=recorder,
         config=_TABLE_CONFIG,
         enable_test_state_submission=True,
     )
     with TestClient(app) as client:
-        yield client, sender
+        yield client, recorder
 
 
 def _submit(client: TestClient) -> int:
@@ -76,9 +76,9 @@ def _ui_action(client: TestClient, draft_id: int, action: str):
 
 
 def test_index_lists_drafts(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     r = client.get("/")
     assert r.status_code == 200
@@ -87,17 +87,17 @@ def test_index_lists_drafts(
 
 
 def test_index_rejects_invalid_filter_and_cursor(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     assert client.get("/?status=deleted").status_code == 422
     assert client.get("/?cursor=not-a-cursor").status_code == 422
 
 
 def test_review_page_shows_all_panels(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     r = client.get(f"/drafts/{draft_id}/review")
     assert r.status_code == 200
@@ -111,20 +111,20 @@ def test_review_page_shows_all_panels(
 
 
 def test_ui_simulation_blocked_before_approval(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, sender = client_and_sender
+    client, recorder = client_and_recorder
     draft_id = _submit(client)
     r = _ui_action(client, draft_id, "simulate")
     assert r.status_code == 200
     assert "Blocked" in r.text
-    assert sender.call_count == 0
+    assert recorder.call_count == 0
 
 
 def test_ui_approve_then_simulate(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, sender = client_and_sender
+    client, recorder = client_and_recorder
     draft_id = _submit(client)
 
     r = _ui_action(client, draft_id, "approve")
@@ -135,13 +135,13 @@ def test_ui_approve_then_simulate(
     assert r.status_code == 200
     assert "Simulação concluída" in r.text
     assert "nada foi entregue externamente" in r.text
-    assert sender.call_count == 1
+    assert recorder.call_count == 1
 
 
-def test_sent_status_panel_has_no_mutation_controls(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+def test_simulated_status_panel_has_no_mutation_controls(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
@@ -156,16 +156,16 @@ def test_sent_status_panel_has_no_mutation_controls(
 
 
 def test_review_missing_draft_404(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     assert client.get("/drafts/999/review").status_code == 404
 
 
 def test_htmx_is_vendored_locally_not_cdn(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     page = client.get(f"/drafts/{draft_id}/review").text
     assert "/static/htmx.min.js" in page  # vendored, not unpkg
@@ -178,9 +178,9 @@ def test_htmx_is_vendored_locally_not_cdn(
 
 
 def test_review_uses_local_brand_assets(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     page = client.get(f"/drafts/{draft_id}/review").text
     assert '<html lang="pt-BR">' in page
@@ -192,10 +192,10 @@ def test_review_uses_local_brand_assets(
 
 
 def test_status_panel_shows_revision_and_approved_revision(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
     """O painel expõe a revisão corrente e qual revisão foi aprovada (SSI-1007)."""
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     initial = client.get(f"/drafts/{draft_id}/review").text
     assert "Revisão" in initial
@@ -261,9 +261,9 @@ def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
 
 
 def test_security_headers_present(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     csp = client.get("/health").headers.get("content-security-policy", "")
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp  # no 'unsafe-inline' for scripts
@@ -274,9 +274,9 @@ def test_security_headers_present(
 
 
 def test_edit_rejects_oversized_request_without_mutating_draft(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     before = client.get(f"/drafts/{draft_id}").json()
 
@@ -293,9 +293,9 @@ def test_edit_rejects_oversized_request_without_mutating_draft(
 
 
 def test_edit_rejects_oversized_field_without_mutating_draft(
-    client_and_sender: tuple[TestClient, MemorySimulationRecorder],
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    client, _ = client_and_sender
+    client, _ = client_and_recorder
     draft_id = _submit(client)
     before = client.get(f"/drafts/{draft_id}").json()
 
