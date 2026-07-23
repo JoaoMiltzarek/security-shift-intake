@@ -12,8 +12,7 @@ def _read(path: str) -> str:
 
 def test_core_docs_describe_the_tristate_disposition_contract() -> None:
     architecture = _read("docs/ARCHITECTURE.md")
-    adr = _read("docs/ADR_controle_ocorrencias_schema.md")
-    combined = f"{architecture}\n{adr}"
+    normalized = " ".join(architecture.split())
 
     for value in (
         "unknown | none | present",
@@ -22,7 +21,7 @@ def test_core_docs_describe_the_tristate_disposition_contract() -> None:
         "derived compatibility field",
         "unknown blocks approval and export",
     ):
-        assert value in combined
+        assert value in normalized
     assert "or `no_occurrence` for an `S/A` sheet" not in architecture
 
 

@@ -3,7 +3,7 @@
 
 This is a **collector**, not an orchestrator: it reads outputs that the verification flow
 already generated (preflight JSON, pytest log, privacy-check log, browser-smoke log,
-the cockpit screenshot) and stitches them into docs/archive/SSI-1002_EVIDENCE.md. It never
+the cockpit screenshot) and stitches them into a private local report. It never
 re-runs the pipeline or the CI.
 
 Anti-self-reference: the committed file references the PARENT commit SHA + tree hash it
@@ -27,7 +27,9 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-DEFAULT_OUT = Path("docs/archive/SSI-1002_EVIDENCE.md")
+from src.paths import PRIVATE_ROOT
+
+DEFAULT_OUT = PRIVATE_ROOT / "audit" / "SSI-1002_EVIDENCE.md"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCREENSHOT = REPO_ROOT / "private" / "audit" / "browser_smoke.png"
 _MISSING = "_not collected — see the command in this section; CI produces the authoritative copy._"

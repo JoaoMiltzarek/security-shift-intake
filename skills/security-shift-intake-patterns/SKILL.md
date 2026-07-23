@@ -9,8 +9,8 @@ analyzed_commits: 121
 # Security Shift Intake — Repository Patterns
 
 Patterns mined from this repo's git history (121 commits) and tree. Follow them when
-contributing; when a pattern conflicts with `CLAUDE.md` or `docs/archive/PROJECT_SPEC.md`,
-those win — stop and ask.
+contributing; when a pattern conflicts with current repository documentation or an
+explicit user instruction, the current instruction wins.
 
 ## Commit Conventions
 

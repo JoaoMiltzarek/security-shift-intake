@@ -225,8 +225,7 @@ The **0/1/N occurrence editor** can add or clear rows and edits all five cells:
 `item`, `time`, `description`, `action` and `resolved`. Saving rebuilds the row list, reruns
 classification/routing and revokes any approval tied to the previous revision.
 
-Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why this schema:
-[docs/ADR_controle_ocorrencias_schema.md](docs/ADR_controle_ocorrencias_schema.md).
+Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Privacy & security
 Real sheets are PII and stay **only in `private/`** (gitignored). No external API is used in
