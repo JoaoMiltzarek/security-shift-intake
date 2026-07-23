@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
 import pytest
 
@@ -22,7 +23,7 @@ def test_all_occurrence_priors_validate() -> None:
         priors.P_N_VIGILANTES,
     ],
 )
-def test_occurrence_distributions_sum_to_one(distribution: Mapping[object, float]) -> None:
+def test_occurrence_distributions_sum_to_one(distribution: Mapping[Any, float]) -> None:
     assert priors.is_valid_distribution(distribution)
 
 

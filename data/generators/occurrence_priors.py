@@ -7,6 +7,7 @@ observations. They model only the canonical Tier C corpus used by safety evaluat
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
 Distribution = dict[str, float]
 
@@ -51,7 +52,7 @@ UNIDADES = [
 ]
 
 
-def is_valid_distribution(distribution: Mapping[object, float], tolerance: float = 1e-6) -> bool:
+def is_valid_distribution(distribution: Mapping[Any, float], tolerance: float = 1e-6) -> bool:
     """Return whether probabilities are non-negative and sum to one."""
     if not distribution or any(probability < 0 for probability in distribution.values()):
         return False
@@ -60,7 +61,7 @@ def is_valid_distribution(distribution: Mapping[object, float], tolerance: float
 
 def validate_all_priors() -> None:
     """Raise when any occurrence-sheet prior violates its declared bounds."""
-    distributions: dict[str, Mapping[object, float]] = {
+    distributions: dict[str, Mapping[Any, float]] = {
         "P_SHIFT_PERIOD": P_SHIFT_PERIOD,
         "P_RESOLVIDO": P_RESOLVIDO,
         "P_N_OCORRENCIAS_GIVEN_OCCURRENCE": P_N_OCORRENCIAS_GIVEN_OCCURRENCE,
