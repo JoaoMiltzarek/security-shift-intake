@@ -9,7 +9,7 @@ from __future__ import annotations
 import random
 import re
 
-from data.generators import priors
+from data.generators import occurrence_priors as priors
 from data.generators.occurrences import (
     HELDOUT_FRACTION,
     OCCURRENCE_BANK,

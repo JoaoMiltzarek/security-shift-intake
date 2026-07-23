@@ -25,7 +25,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from data.generators import priors
+from data.generators import occurrence_priors as priors
 
 _EPOCH = date(2026, 1, 1)
 _DATE_SPAN_DAYS = 365
