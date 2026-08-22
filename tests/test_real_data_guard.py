@@ -9,17 +9,34 @@ Each test covers exactly one scenario so failures are pinpoint-attributable.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from scripts.check_real_data import _ALLOWED_SAMPLE_SHA256, _REPO_ROOT, check_file
+from scripts.check_real_data import _ALLOWED_SAMPLE_SHA256, _REPO_ROOT, check_file, check_staged
 
 
 def _write(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+
+def _init_repo(repo: Path) -> None:
+    _git(repo, "init", "--quiet")
+    _git(repo, "config", "user.name", "Privacy Test")
+    _git(repo, "config", "user.email", "privacy@example.invalid")
+
+
+def _commit(repo: Path, path: str, content: str) -> None:
+    _write(repo / path, content)
+    _git(repo, "add", "--", path)
+    _git(repo, "commit", "--quiet", "-m", "fixture")
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +197,39 @@ def test_json_outside_synthetic_with_slug_blocked(tmp_path: Path) -> None:
 def test_clean_txt_passes(tmp_path: Path) -> None:
     f = _write(tmp_path / "notes.txt", "Routine patrol, no incidents noted.\n")
     assert check_file(f) == []
+
+
+def test_staged_sensitive_blob_wins_over_clean_worktree(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "report.txt", "clean\n")
+    _write(tmp_path / "report.txt", "Property of HT Micron Security.\n")
+    _git(tmp_path, "add", "--", "report.txt")
+    _write(tmp_path / "report.txt", "clean again\n")
+
+    assert check_staged(tmp_path)
+
+
+def test_staged_clean_blob_wins_over_sensitive_worktree(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "report.txt", "old\n")
+    _write(tmp_path / "report.txt", "clean staged content\n")
+    _git(tmp_path, "add", "--", "report.txt")
+    _write(tmp_path / "report.txt", "Property of HT Micron Security.\n")
+
+    assert check_staged(tmp_path) == []
+
+
+def test_staged_rename_with_spaces_scans_destination_blob(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "old report.txt", "clean\n")
+    _git(tmp_path, "mv", "old report.txt", "renamed report.txt")
+    _write(tmp_path / "renamed report.txt", "Property of HT Micron Security.\n")
+    _git(tmp_path, "add", "--", "renamed report.txt")
+
+    violations = check_staged(tmp_path)
+
+    assert violations
+    assert "renamed report.txt" in violations[0]
 
 
 # ---------------------------------------------------------------------------

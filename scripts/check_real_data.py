@@ -1,7 +1,7 @@
 """Pre-commit guard: reject staged files that look like real (non-synthetic) data.
 
 Called by the pre-commit hook. Exits 0 (clean) or 1 (suspicious patterns found).
-Also usable standalone: python scripts/check_real_data.py <file> [<file> ...]
+Also usable standalone: ``python scripts/check_real_data.py`` scans the Git index.
 
 §9 risk: confidential data leak — real shift reports / names / scans committed.
 
@@ -19,6 +19,7 @@ Design (deliberately low false-positive):
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from hashlib import sha256
 from pathlib import Path
@@ -131,47 +132,93 @@ def _is_text_scan_exempt(path: Path) -> bool:
     return _has_subpath(path, _SYNTHETIC_SUBPATH)
 
 
-def check_file(path: Path) -> list[str]:
-    """Return a list of violation descriptions for *path*, empty if clean."""
+def _logical_path(path: Path) -> Path:
+    if not path.is_absolute():
+        return path
+    try:
+        return path.resolve().relative_to(_REPO_ROOT)
+    except ValueError:
+        return path
+
+
+def check_content(path: Path, content: bytes) -> list[str]:
+    """Check repository-relative *path* using the exact supplied bytes."""
     violations: list[str] = []
+    logical_path = _logical_path(path)
 
-    # (1) Binary/attachment extensions — blocked everywhere, EXCEPT synthetic sample
-    # images explicitly committed under samples/.
-    if _BINARY_EXT.search(path.name) and not _is_allowed_sample_binary(path):
+    expected_sample_hash = _ALLOWED_SAMPLE_SHA256.get(logical_path)
+    allowed_sample = expected_sample_hash == sha256(content).hexdigest()
+    if _BINARY_EXT.search(path.name) and not allowed_sample:
         violations.append(f"  {path}: binary/attachment extension not allowed in repo")
-        return violations  # no need to read content
+        return violations
 
-    # (1b) SQLite databases belong only in private/ (gitignored). The extension is
-    # blocked wherever seen; private/ safety comes from .gitignore, not this check.
     if _DB_EXT.search(path.name):
         violations.append(f"  {path}: database file not allowed in repo (belongs in private/)")
         return violations
 
-    # (2) Text sentinels — only in data-bearing files.
-    if _is_text_scan_exempt(path):
+    if _is_text_scan_exempt(logical_path):
         return []
 
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return []
-
-    for pat in _TEXT_SENTINELS:
+    text = content.decode("utf-8", errors="replace")
+    for pattern in _TEXT_SENTINELS:
         for lineno, line in enumerate(text.splitlines(), 1):
-            if pat.search(line):
+            if pattern.search(line):
                 violations.append(f"  {path}:{lineno}: matched real-data sentinel")
 
     return violations
 
 
-def main(argv: list[str]) -> int:
-    if not argv:
-        print("usage: check_real_data.py <file> [<file> ...]", file=sys.stderr)
-        return 2
+def check_file(path: Path) -> list[str]:
+    """Check worktree bytes for unit-level and standalone callers."""
+    try:
+        content = path.read_bytes()
+    except OSError:
+        return []
+    return check_content(path, content)
 
-    all_violations: list[str] = []
-    for arg in argv:
-        all_violations.extend(check_file(Path(arg)))
+
+def staged_paths(repo_root: Path = _REPO_ROOT) -> list[Path]:
+    """Return added/copied/modified/renamed destination paths from the Git index."""
+    output = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACMR",
+            "-z",
+            "--",
+        ],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    return [Path(raw.decode("utf-8")) for raw in output.split(b"\0") if raw]
+
+
+def staged_blob(path: Path, repo_root: Path = _REPO_ROOT) -> bytes:
+    """Read *path* from the index, never from a potentially divergent worktree."""
+    return subprocess.run(
+        ["git", "cat-file", "blob", f":{path.as_posix()}"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    ).stdout
+
+
+def check_staged(repo_root: Path = _REPO_ROOT) -> list[str]:
+    """Check every committable staged blob, including rename destinations."""
+    violations: list[str] = []
+    for path in staged_paths(repo_root):
+        violations.extend(check_content(path, staged_blob(path, repo_root)))
+    return violations
+
+
+def main(argv: list[str]) -> int:
+    # Older hooks pass worktree paths. Ignore those selectors: the index is
+    # authoritative, and scanning every staged ACMR blob includes rename destinations.
+    _ = argv
+    all_violations = check_staged()
 
     if all_violations:
         print("BLOCKED: possible real data detected in staged files:", file=sys.stderr)
