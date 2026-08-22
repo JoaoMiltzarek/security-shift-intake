@@ -14,6 +14,7 @@ from src.orchestrator import run_pipeline
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 from src.pipeline.outputs import derive_operational_outputs
 from src.schema.loader import load_config
+from src.schema.state import PipelineState
 
 CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
@@ -93,6 +94,37 @@ def test_table_path_header_fields_must_review(sample_pdf: Path) -> None:
     ).state
     names = {f.name for f in state.extracted_fields}
     assert {"data_turno", "vigilantes", "unidade"} <= names
+
+
+def test_pipeline_persists_reader_and_raster_settings(sample_pdf: Path) -> None:
+    class AttestedReader(MockVisionClient):
+        def runtime_metadata(self) -> dict[str, str]:
+            return {"engine": "deterministic-test", "version": "1.0"}
+
+    state = run_pipeline(
+        sample_pdf,
+        AttestedReader(text=_OCC),
+        _llm(),
+        CONFIG,
+        dpi=120,
+    ).state
+
+    assert state.reader_settings is not None
+    assert state.reader_settings.adapter.endswith("AttestedReader")
+    assert state.reader_settings.runtime == {
+        "engine": "deterministic-test",
+        "version": "1.0",
+    }
+    assert state.raster_settings is not None
+    assert state.raster_settings.model_dump() == {
+        "dpi": 120,
+        "max_long_side": 1800,
+        "output_format": "png",
+        "color_mode": "RGB",
+    }
+    restored = PipelineState.model_validate_json(state.model_dump_json())
+    assert restored.reader_settings == state.reader_settings
+    assert restored.raster_settings == state.raster_settings
 
 
 def test_reader_deadline_becomes_blocked_unknown_draft(sample_pdf: Path) -> None:

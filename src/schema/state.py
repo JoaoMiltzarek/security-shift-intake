@@ -103,6 +103,26 @@ class RoutingDecision(BaseModel):
     recipients: list[str] = Field(min_length=1)
 
 
+class ReaderSettings(BaseModel):
+    """Sanitized identity of the document reader used for this intake."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    adapter: str = Field(min_length=1)
+    runtime: dict[str, str] = Field(default_factory=dict)
+
+
+class RasterSettings(BaseModel):
+    """Exact raster request that produced the immutable review surface."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dpi: int = Field(gt=0)
+    max_long_side: int = Field(gt=0)
+    output_format: Literal["png"] = "png"
+    color_mode: Literal["RGB"] = "RGB"
+
+
 class PipelineState(BaseModel):
     """Typed state object passed through every stage of the pipeline."""
 
@@ -122,6 +142,8 @@ class PipelineState(BaseModel):
     image_paths: list[Path] = Field(default_factory=list)
     # Immutable identity of the exact reader-sized images used for OCR and review.
     page_artifacts: list[PageArtifactRef] = Field(default_factory=list, max_length=1)
+    reader_settings: ReaderSettings | None = None
+    raster_settings: RasterSettings | None = None
 
     # --- Stage 1: transcribe ---
     transcription: str | None = None

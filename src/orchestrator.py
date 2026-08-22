@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.classifier.contracts import IncidentClassifier
-from src.clients.base import DocumentReader
+from src.clients.base import DocumentReader, RuntimeMetadataProvider
 from src.pipeline.classify import classify
 from src.pipeline.extract_table import extract_table
 from src.pipeline.ingest import (
     DEFAULT_DPI,
+    MAX_READER_LONG_SIDE,
     Deadline,
     PageArtifact,
     ProcessingDeadlineExceeded,
@@ -22,7 +23,7 @@ from src.pipeline.validate import validate_table
 from src.schema.config import ReportConfig
 from src.schema.extraction import NormalizedIncidentModel, RawDocumentExtraction
 from src.schema.loader import config_fingerprint
-from src.schema.state import PipelineState
+from src.schema.state import PipelineState, RasterSettings, ReaderSettings
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,10 +80,21 @@ def run_pipeline(
     budget_seconds = config.performance.max_seconds_per_sheet
     deadline = Deadline.after(budget_seconds)
     pages: tuple[PageArtifact, ...] = ()
+    reader_runtime = (
+        reader.runtime_metadata() if isinstance(reader, RuntimeMetadataProvider) else {}
+    )
     state = PipelineState(
         source_pdf=source,
         report_type=config.report_type,
         config_sha256=config_fingerprint(config),
+        reader_settings=ReaderSettings(
+            adapter=f"{type(reader).__module__}.{type(reader).__qualname__}",
+            runtime=reader_runtime,
+        ),
+        raster_settings=RasterSettings(
+            dpi=dpi,
+            max_long_side=MAX_READER_LONG_SIDE,
+        ),
     )
 
     try:
