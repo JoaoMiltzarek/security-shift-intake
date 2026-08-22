@@ -148,7 +148,7 @@ class RoutingRule(StrictConfigModel):
 class PerformanceConfig(StrictConfigModel):
     """SLO and throughput knobs for the pipeline."""
 
-    max_seconds_per_sheet: int = 300
+    max_seconds_per_sheet: Annotated[int, Field(strict=True, ge=1, le=900)]
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ class ReportConfig(StrictConfigModel):
     fields: Annotated[list[FieldSchema], Field(min_length=1)]
     classification: ClassificationConfig
     routing: list[RoutingRule]
-    performance: PerformanceConfig | None = None
+    performance: PerformanceConfig
 
     @model_validator(mode="after")
     def routing_has_default(self) -> ReportConfig:

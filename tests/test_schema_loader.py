@@ -62,6 +62,7 @@ VALID_CONFIG: dict[str, Any] = {
         },
         {"id": "routing.default", "recipients": ["general_support"]},
     ],
+    "performance": {"max_seconds_per_sheet": 300},
 }
 
 
@@ -71,6 +72,7 @@ def test_valid_config_loads_successfully(tmp_path: Path) -> None:
     assert cfg.report_type == "test_report"
     assert len(cfg.fields) == 3
     assert cfg.classification.urgency.labels == ["low", "high"]
+    assert cfg.performance.max_seconds_per_sheet == 300
 
 
 def test_config_fingerprint_is_stable_and_content_addressed(tmp_path: Path) -> None:
@@ -267,6 +269,25 @@ def test_duplicate_yaml_keys_are_rejected(tmp_path: Path, duplicate: str) -> Non
 
     with pytest.raises(yaml.YAMLError, match="duplicate key"):
         load_config(path)
+
+
+def test_processing_budget_is_required(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    del bad["performance"]
+
+    with pytest.raises(ValidationError, match="performance"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+@pytest.mark.parametrize("value", [0, -1, 901, float("inf"), float("nan"), True])
+def test_processing_budget_must_be_finite_integer_within_bounds(
+    tmp_path: Path, value: object
+) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["performance"]["max_seconds_per_sheet"] = value
+
+    with pytest.raises(ValidationError, match="max_seconds_per_sheet"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
 
 
 def test_empty_label_set_raises(tmp_path: Path) -> None:

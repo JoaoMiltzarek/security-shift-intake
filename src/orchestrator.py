@@ -64,7 +64,7 @@ def run_pipeline(
     dpi: int = DEFAULT_DPI,
 ) -> IntakeResult:
     """Run the single supported occurrence-sheet pipeline within one deadline."""
-    budget_seconds = config.performance.max_seconds_per_sheet if config.performance else 300.0
+    budget_seconds = config.performance.max_seconds_per_sheet
     deadline = Deadline.after(budget_seconds)
     pages: tuple[PageArtifact, ...] = ()
     state = PipelineState(
