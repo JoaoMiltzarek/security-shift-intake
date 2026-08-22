@@ -48,9 +48,22 @@ _PENDING_BODY = {
 # Body whose fields are all resolved (must_review_fields empty) — approvable.
 _CLEAN_BODY = {
     **_PENDING_BODY,
-    "extracted_fields": [{"name": "data_turno", "value": "15/01/2026", "confidence": 1.0}],
+    "extracted_fields": [
+        {"name": "data_turno", "value": "15/01/2026", "confidence": 1.0},
+        {"name": "vigilantes", "value": "A. Souza", "confidence": 1.0},
+        {"name": "unidade", "value": "Portaria 1", "confidence": 1.0},
+        {"name": "ocorrencias", "value": "(sem alteracao)", "confidence": 1.0},
+    ],
     "must_review_fields": [],
-    "normalized": {"disposition": "none", "disposition_confirmed": True},
+    "normalized": {
+        "shift": {
+            "date": "15/01/2026",
+            "guards": ["A. Souza"],
+            "unit": "Portaria 1",
+        },
+        "disposition": "none",
+        "disposition_confirmed": True,
+    },
 }
 
 # Body where OCR failed but the critic left no pending field — must still be blocked.

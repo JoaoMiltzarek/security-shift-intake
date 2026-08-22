@@ -30,6 +30,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from PIL import Image
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 from starlette.middleware.base import RequestResponseEndpoint
@@ -45,7 +46,7 @@ from src.api.gate import (
     DraftNotReviewableError,
     MemorySimulationRecorder,
     SimulationRecorder,
-    assert_reviewable,
+    approve_draft,
     simulate_draft,
 )
 from src.api.models import Draft, utc_rfc3339
@@ -53,11 +54,14 @@ from src.api.page_images import (
     PAGE_IMAGES_ROOT,
     PageArtifactIntegrityError,
     read_page_image,
+    save_page_artifacts,
 )
+from src.api.readiness import ReadinessReport, evaluate_readiness
 from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
+from src.pipeline.ingest import PageArtifact
 from src.pipeline.outputs import derive_operational_outputs, export_blockers
 from src.schema.config import ReportConfig
 from src.schema.extraction import (
@@ -559,6 +563,7 @@ def _draft_summary(draft: Draft | repository.DraftSummary) -> dict[str, Any]:
         "id": draft.id,
         "status": draft.status,
         "revision": draft.revision,
+        "approved_revision": draft.approved_revision,
         "created_at": utc_rfc3339(draft.created_at),
         "updated_at": utc_rfc3339(draft.updated_at),
         "delivery_mode": draft.delivery_mode,
@@ -697,6 +702,20 @@ def create_app(
         _assert_config_compatible(state, active_config)
         return state
 
+    def _readiness(draft: Draft) -> ReadinessReport:
+        state = PipelineState.from_persisted_json(draft.state_json)
+        digest = repository.state_sha256(draft.state_json)
+        return evaluate_readiness(
+            state,
+            active_config,
+            page_root=active_page_root,
+            status=draft.status,
+            revision=draft.revision,
+            state_sha256=digest,
+            approved_revision=draft.approved_revision,
+            approved_state_sha256=draft.approved_state_sha256,
+        )
+
     def _config_blocker(draft: Draft) -> str | None:
         try:
             _compatible_state(draft)
@@ -705,15 +724,10 @@ def create_app(
         return None
 
     def _approval_blocker(draft: Draft) -> str | None:
-        config_error = _config_blocker(draft)
-        if config_error is not None:
-            return config_error
-        state = PipelineState.from_persisted_json(draft.state_json)
-        try:
-            assert_reviewable(state)
-        except DraftNotReviewableError as exc:
-            return str(exc)
-        return None
+        report = _readiness(draft)
+        if report.approvable:
+            return None
+        return report.blockers[0].detail
 
     def _assert_expected_snapshot(
         draft: Draft,
@@ -765,10 +779,22 @@ def create_app(
         def submit(state: PipelineState, session: Session = Depends(get_session)) -> dict[str, Any]:
             # Even the opt-in test harness cannot forge the config identity used by
             # subsequent cockpit operations.
+            updates: dict[str, Any] = {
+                "report_type": active_config.report_type,
+                "config_sha256": config_fingerprint(active_config),
+            }
+            # The opt-in HTTP fixture accepts state without a real upload. Give those
+            # tests an explicit local artifact so production readiness still exercises
+            # the same hash/dimension checks; this route does not exist in release mode.
+            if not state.page_artifacts:
+                with Image.new("RGB", (1, 1), "white") as image:
+                    test_page = PageArtifact.from_image(image, page_index=0)
+                updates["page_artifacts"] = save_page_artifacts(
+                    [test_page], root=active_page_root
+                )
             state = state.model_copy(
                 update={
-                    "report_type": active_config.report_type,
-                    "config_sha256": config_fingerprint(active_config),
+                    **updates,
                 }
             )
             draft = repository.create_draft(session, state)
@@ -804,6 +830,7 @@ def create_app(
             ],
             "message": derived.message,
         }
+        summary["readiness"] = _readiness(draft).model_dump(mode="json")
         summary["audit"] = [
             {
                 "actor": a.actor,
@@ -832,18 +859,24 @@ def create_app(
             expected_revision=expected_revision,
             expected_state_sha256=expected_state_sha256,
         )
-        state = _compatible_state(draft)
         try:
-            assert_reviewable(state)  # plano R4: block approval with pending fields
+            draft = approve_draft(
+                session,
+                draft_id,
+                active_config,
+                active_page_root,
+                expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
+                actor=_LOCAL_ACTOR,
+            )
         except DraftNotReviewableError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _set_status(
-            session,
-            draft_id,
-            ApprovalStatus.APPROVED,
-            _LOCAL_ACTOR,
-            expected_revision=expected_revision,
-        )
+        except (
+            repository.DraftAlreadySimulatedError,
+            repository.DraftOperationConflictError,
+        ) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return _draft_summary(draft)
 
     @app.post("/drafts/{draft_id}/reject")
     def reject(
@@ -892,6 +925,7 @@ def create_app(
                 active_recorder,
                 active_config,
                 actor=_LOCAL_ACTOR,
+                page_root=active_page_root,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -945,6 +979,7 @@ def create_app(
                 "message": message,
                 "config_blocker": _config_blocker(draft),
                 "approval_blocker": _approval_blocker(draft),
+                "readiness": _readiness(draft),
                 "state_sha256": repository.state_sha256(draft.state_json),
             },
         )
@@ -1065,19 +1100,18 @@ def create_app(
             expected_revision=expected_revision,
             expected_state_sha256=expected_state_sha256,
         )
-        state = _compatible_state(draft)
         try:
-            assert_reviewable(state)  # plano R4: block approval with pending fields
-        except DraftNotReviewableError as exc:
-            return _status_panel(request, draft, session, message=f"Blocked: {exc}")
-        try:
-            draft = repository.set_status(
+            draft = approve_draft(
                 session,
                 draft_id,
-                ApprovalStatus.APPROVED,
-                _LOCAL_ACTOR,
+                active_config,
+                active_page_root,
                 expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
+                actor=_LOCAL_ACTOR,
             )
+        except DraftNotReviewableError as exc:
+            return _status_panel(request, draft, session, message=f"Blocked: {exc}")
         except (
             repository.DraftAlreadySimulatedError,
             repository.DraftOperationConflictError,
@@ -1137,6 +1171,7 @@ def create_app(
                 active_recorder,
                 active_config,
                 actor=_LOCAL_ACTOR,
+                page_root=active_page_root,
             )
             return _status_panel(
                 request,

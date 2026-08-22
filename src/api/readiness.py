@@ -177,7 +177,7 @@ def evaluate_readiness(
         _append_once(
             blockers,
             ReadinessBlockerCode.FIELD_PENDING,
-            "One or more required fields still need human review.",
+            "One or more required fields need review by a human.",
             fields=pending,
         )
 

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import hmac
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from sqlmodel import Session
 
 from src.api.models import Draft
-from src.api.readiness import ReadinessBlockerCode, evaluate_readiness
+from src.api.readiness import ReadinessBlockerCode, ReadinessReport, evaluate_readiness
 from src.api.repository import (
     _mark_simulated_locked,
+    _set_status_locked,
     add_audit,
     draft_operation_lock,
     get_draft,
@@ -29,6 +31,26 @@ class DraftNotReviewableError(RuntimeError):
     """Raised when a draft still contains unresolved review blockers."""
 
 
+def _reviewability_error(report: ReadinessReport) -> DraftNotReviewableError:
+    blocker_priority = (
+        ReadinessBlockerCode.EVIDENCE_CHANGED,
+        ReadinessBlockerCode.CONFIG_MISMATCH,
+        ReadinessBlockerCode.FIELD_PENDING,
+        ReadinessBlockerCode.VALIDATION_ERROR,
+        ReadinessBlockerCode.DISPOSITION_UNCONFIRMED,
+        ReadinessBlockerCode.CLASSIFICATION_UNCONFIRMED,
+        ReadinessBlockerCode.ROUTING_UNRESOLVED,
+    )
+    blocker = next(
+        item
+        for code in blocker_priority
+        for item in report.blockers
+        if item.code == code
+    )
+    suffix = f" Fields: {', '.join(blocker.fields)}." if blocker.fields else ""
+    return DraftNotReviewableError(f"{blocker.detail}{suffix}")
+
+
 def assert_reviewable(
     state: PipelineState,
     config: ReportConfig | None = None,
@@ -39,18 +61,43 @@ def assert_reviewable(
     report = evaluate_readiness(state, config, page_root=page_root)
     if report.approvable:
         return
-    operational_codes = {
-        ReadinessBlockerCode.EVIDENCE_CHANGED,
-        ReadinessBlockerCode.CONFIG_MISMATCH,
-        ReadinessBlockerCode.DISPOSITION_UNCONFIRMED,
-        ReadinessBlockerCode.FIELD_PENDING,
-        ReadinessBlockerCode.VALIDATION_ERROR,
-        ReadinessBlockerCode.CLASSIFICATION_UNCONFIRMED,
-        ReadinessBlockerCode.ROUTING_UNRESOLVED,
-    }
-    blocker = next(item for item in report.blockers if item.code in operational_codes)
-    suffix = f" Fields: {', '.join(blocker.fields)}." if blocker.fields else ""
-    raise DraftNotReviewableError(f"{blocker.detail}{suffix}")
+    raise _reviewability_error(report)
+
+
+def approve_draft(
+    session: Session,
+    draft_id: int,
+    config: ReportConfig,
+    page_root: Path,
+    *,
+    expected_revision: int,
+    expected_state_sha256: str,
+    actor: str = "reviewer",
+) -> Draft:
+    """Approve only the snapshot whose full readiness was checked under its lock."""
+    with draft_operation_lock(session, draft_id, wait=False):
+        session.expire_all()
+        draft = get_draft(session, draft_id)
+        if draft is None:
+            raise KeyError(f"Draft {draft_id} not found")
+        digest = state_sha256(draft.state_json)
+        if draft.revision != expected_revision or not hmac.compare_digest(
+            digest, expected_state_sha256
+        ):
+            raise DraftNotReviewableError(
+                "Draft changed after this review page was loaded. Reload before continuing."
+            )
+        state = PipelineState.from_persisted_json(draft.state_json)
+        report = evaluate_readiness(state, config, page_root=page_root)
+        if not report.approvable:
+            raise _reviewability_error(report)
+        return _set_status_locked(
+            session,
+            draft_id,
+            ApprovalStatus.APPROVED,
+            actor,
+            expected_revision=expected_revision,
+        )
 
 
 @runtime_checkable
@@ -82,11 +129,20 @@ def simulate_draft(
     recorder: SimulationRecorder,
     config: ReportConfig,
     actor: str = "reviewer",
+    *,
+    page_root: Path | None = None,
 ) -> Draft:
     """Serialize and record one terminal simulation for an approved snapshot."""
     with draft_operation_lock(session, draft_id, wait=True):
         session.expire_all()
-        return _simulate_draft_once(session, draft_id, recorder, config, actor)
+        return _simulate_draft_once(
+            session,
+            draft_id,
+            recorder,
+            config,
+            actor,
+            page_root=page_root,
+        )
 
 
 def _simulate_draft_once(
@@ -95,6 +151,8 @@ def _simulate_draft_once(
     recorder: SimulationRecorder,
     config: ReportConfig,
     actor: str,
+    *,
+    page_root: Path | None,
 ) -> Draft:
     draft = get_draft(session, draft_id)
     if draft is None:
@@ -122,33 +180,37 @@ def _simulate_draft_once(
         )
         raise DraftNotApprovedError(f"Draft {draft_id} was already simulated.")
 
-    if draft.approved_revision != draft.revision or draft.approved_state_sha256 != state_sha256(
-        draft.state_json
-    ):
-        add_audit(
-            session,
-            draft_id,
-            actor=actor,
-            action="simulation_blocked",
-            detail=(f"stale_approval rev={draft.revision} approved_rev={draft.approved_revision}"),
-        )
-        raise DraftNotApprovedError(
-            f"Draft {draft_id} content is not the approved revision — simulation blocked; "
-            "re-approve the current content."
-        )
-
     state = PipelineState.from_persisted_json(draft.state_json)
-    try:
-        assert_reviewable(state)
-    except DraftNotReviewableError as exc:
+    digest = state_sha256(draft.state_json)
+    readiness = evaluate_readiness(
+        state,
+        config,
+        page_root=page_root,
+        status=draft.status,
+        revision=draft.revision,
+        state_sha256=digest,
+        approved_revision=draft.approved_revision,
+        approved_state_sha256=draft.approved_state_sha256,
+    )
+    if not readiness.simulatable:
+        blocker = (
+            readiness.blocker(ReadinessBlockerCode.APPROVAL_STALE)
+            or readiness.blockers[0]
+        )
+        audit_detail: str = str(blocker.code)
+        if blocker.code == ReadinessBlockerCode.APPROVAL_STALE:
+            audit_detail = (
+                f"stale_approval rev={draft.revision} "
+                f"approved_rev={draft.approved_revision}"
+            )
         add_audit(
             session,
             draft_id,
             actor=actor,
             action="simulation_blocked",
-            detail="not_reviewable",
+            detail=str(audit_detail),
         )
-        raise DraftNotApprovedError(str(exc)) from exc
+        raise DraftNotApprovedError(blocker.detail)
 
     derived = derive_operational_outputs(state, config)
     if derived.routing is None or derived.message is None:
