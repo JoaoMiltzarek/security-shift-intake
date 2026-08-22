@@ -12,7 +12,7 @@ DEMO_ARGS ?=
 PORT ?= 8000
 
 # Synthetic evaluation reader, rasterization DPI, and optional sample cap.
-VISION ?= local_ocr
+READER ?= local_ocr
 DPI ?= 150
 REAL_N ?= 0
 
@@ -26,7 +26,7 @@ SPLIT ?= val
 # Release-safety identity is intentionally not overridable from the command line.
 override SAFETY_DATASET := bench-balanced
 override SAFETY_SPLIT := val
-override SAFETY_VISION := local_ocr
+override SAFETY_READER := local_ocr
 
 .PHONY: help install check-test-env lint format format-check typecheck test check audit-deps \
         validate-config gen-sheets gen-safety-sheets demo-pipeline \
@@ -54,7 +54,7 @@ help:
 	@echo   make purge-real-data - remove real-sheet entries (private/reais/), needs CONFIRM=YES
 	@echo   make purge-all-private - remove active entries under private/, needs CONFIRM=YES
 	@echo   make privacy-check   - verify no real data/PII tracked or outside private/
-	@echo   make eval-synthetic  - synthetic-sheet eval, VISION=... DPI=... REAL_N=... SPLIT=val/test
+	@echo   make eval-synthetic  - synthetic-sheet eval, READER=... DPI=... REAL_N=... SPLIT=val/test
 	@echo   make eval-safety     - structural-safety gates on val; OUT=... redirects artifacts
 
 install:
@@ -122,10 +122,10 @@ privacy-check:
 
 # Synthetic evaluation uses generated ground truth.
 eval-synthetic:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(VISION) --dpi $(DPI) --n $(REAL_N) --dataset $(DATASET) --split $(SPLIT)
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(READER) --dpi $(DPI) --n $(REAL_N) --dataset $(DATASET) --split $(SPLIT)
 
 # The release gate fails when unsafe output escapes review. Detailed output defaults
 # to private storage so frozen public evidence is never overwritten by a local run.
 OUT ?= private/audit/eval_safety
 eval-safety:
-	uv run --locked python -m evals.eval_extraction_synthetic --vision $(SAFETY_VISION) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates
+	uv run --locked python -m evals.eval_extraction_synthetic --vision $(SAFETY_READER) --dpi $(DPI) --dataset $(SAFETY_DATASET) --split $(SAFETY_SPLIT) --output-dir "$(OUT)" --require-safety-gates

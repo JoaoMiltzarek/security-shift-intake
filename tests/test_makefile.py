@@ -41,10 +41,10 @@ def test_release_safety_target_freezes_real_ocr_reader() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
     gate = re.search(r"(?ms)^eval-safety:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)
 
-    assert "override SAFETY_VISION := local_ocr" in makefile
+    assert "override SAFETY_READER := local_ocr" in makefile
     assert gate is not None
-    assert "--vision $(SAFETY_VISION)" in gate.group("body")
-    assert "--vision $(VISION)" not in gate.group("body")
+    assert "--vision $(SAFETY_READER)" in gate.group("body")
+    assert "--vision $(READER)" not in gate.group("body")
 
 
 def test_check_includes_format_gate() -> None:
