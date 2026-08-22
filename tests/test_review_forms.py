@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from starlette.datastructures import FormData
 
-from src.api.app import DispositionConflictError, _resolve_disposition
 from src.api.forms import MAX_OCCURRENCES, ReviewFormError, parse_occurrence_rows
+from src.api.review_service import DispositionConflictError, resolve_disposition
 
 
 def _form(**values: str) -> FormData:
@@ -89,7 +89,7 @@ def test_duplicate_disposition_is_rejected() -> None:
     )
 
     with pytest.raises(DispositionConflictError, match="duplicado"):
-        _resolve_disposition(form, [])
+        resolve_disposition(form, [])
 
 
 def test_fully_blank_row_is_discarded() -> None:
