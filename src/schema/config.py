@@ -197,7 +197,7 @@ class ReportConfig(StrictConfigModel):
     performance: PerformanceConfig
 
     @model_validator(mode="after")
-    def routing_has_default(self) -> ReportConfig:
+    def validate_runtime_contract(self) -> ReportConfig:
         """Close the executable config contract before any document is processed."""
         _validate_identifiers([self.report_type], "report_type")
 
