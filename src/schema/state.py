@@ -82,6 +82,16 @@ class ClassificationDecision(BaseModel):
     review_status: Literal["suggested", "confirmed"]
     classification_rule_id: str | None = None
 
+    @model_validator(mode="after")
+    def _validate_provenance(self) -> Self:
+        if self.source == "rule" and not self.classification_rule_id:
+            raise ValueError("rule classification requires classification_rule_id")
+        if self.source == "human" and self.classification_rule_id is not None:
+            raise ValueError("human override cannot claim a classification rule id")
+        if self.review_status == "suggested" and self.source != "rule":
+            raise ValueError("only a rule decision can remain suggested")
+        return self
+
 
 Classification = ClassificationDecision
 
@@ -187,7 +197,9 @@ class PipelineState(BaseModel):
                 migrated_classification.pop("reason", None)
                 migrated_classification.setdefault("source", "rule")
                 migrated_classification.setdefault("review_status", "suggested")
-                migrated_classification.setdefault("classification_rule_id", None)
+                migrated_classification.setdefault(
+                    "classification_rule_id", "legacy.unverified"
+                )
                 raw["classification"] = migrated_classification
         return cls.model_validate(raw)
 

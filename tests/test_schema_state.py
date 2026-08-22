@@ -73,6 +73,38 @@ def test_classification_valid() -> None:
     assert c.incident_type == "routine"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "incident_type": "theft",
+            "urgency": "high",
+            "sector": "tech_security",
+            "source": "rule",
+            "review_status": "suggested",
+        },
+        {
+            "incident_type": "theft",
+            "urgency": "high",
+            "sector": "tech_security",
+            "source": "human",
+            "review_status": "suggested",
+        },
+        {
+            "incident_type": "theft",
+            "urgency": "high",
+            "sector": "tech_security",
+            "source": "human",
+            "review_status": "confirmed",
+            "classification_rule_id": "incident.theft",
+        },
+    ],
+)
+def test_classification_rejects_contradictory_provenance(payload: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        Classification.model_validate(payload)
+
+
 def test_state_with_populated_fields() -> None:
     state = PipelineState(
         source_pdf=Path("scan.pdf"),
