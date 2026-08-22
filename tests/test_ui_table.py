@@ -98,6 +98,35 @@ def test_review_shows_table_outputs(client: TestClient) -> None:
     assert "origem: rule" in html  # real AuditedField source, not inferred ocr/human
 
 
+def test_csv_control_requires_approval_of_the_current_snapshot(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        **_classification_form("safety", "high", "facilities"),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__descricao": "Alarme confirmado no setor B",
+    }
+    assert _edit(client, draft_id, form).status_code == 200
+
+    pending = client.get(f"/drafts/{draft_id}/review").text
+    disabled_export = (
+        '<button type="button" disabled aria-describedby="export-blocker">Exportar CSV</button>'
+    )
+    assert disabled_export in pending
+    assert f'action="/drafts/{draft_id}/export.csv"' not in pending
+
+    assert _approve(client, draft_id).status_code == 200
+    approved = client.get(f"/drafts/{draft_id}/review").text
+    assert f'action="/drafts/{draft_id}/export.csv"' in approved
+    assert 'name="expected_revision" value="2"' in approved
+
+    changed = {**form, "field__unidade": "Unidade revisada"}
+    assert _edit(client, draft_id, changed).status_code == 200
+    stale = client.get(f"/drafts/{draft_id}/review").text
+    assert f'action="/drafts/{draft_id}/export.csv"' not in stale
+
+
 def test_edit_regenerates_clean_message(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     form = {

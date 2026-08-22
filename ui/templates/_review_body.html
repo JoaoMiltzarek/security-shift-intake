@@ -272,9 +272,9 @@
           </table>
         </div>
         <div class="output-actions">
-          {% if export_blockers %}
+          {% if not readiness.exportable %}
           <button type="button" disabled aria-describedby="export-blocker">Exportar CSV</button>
-          <span id="export-blocker" class="blocked-reason">Revise antes de exportar: {{ export_blockers | join(", ") }}</span>
+          <span id="export-blocker" class="blocked-reason">O CSV exige a aprovação da revisão e do conteúdo atuais.</span>
           {% else %}
           <form method="post" action="/drafts/{{ draft.id }}/export.csv">
             <input type="hidden" name="expected_revision" value="{{ draft.revision }}">

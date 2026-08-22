@@ -62,7 +62,7 @@ from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
 from src.pipeline.ingest import PageArtifact
-from src.pipeline.outputs import derive_operational_outputs, export_blockers
+from src.pipeline.outputs import derive_operational_outputs
 from src.schema.config import ReportConfig
 from src.schema.extraction import (
     Disposition,
@@ -489,7 +489,11 @@ def _document_status(state: PipelineState) -> str:
     return "Pronto para gerar/aprovar"
 
 
-def _review_context(draft: Draft, config: ReportConfig) -> dict[str, Any]:
+def _review_context(
+    draft: Draft,
+    config: ReportConfig,
+    readiness: ReadinessReport,
+) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
     state = PipelineState.from_persisted_json(draft.state_json)
     derived = derive_operational_outputs(state, config)
@@ -535,9 +539,9 @@ def _review_context(draft: Draft, config: ReportConfig) -> dict[str, Any]:
         # Cockpit overlay only renders when a page image was persisted; otherwise the
         # review degrades to the single-column layout (invariant 5).
         "has_image": bool(state.page_artifacts),
-        # Pending items that block a clean CSV export (empty = exportable). Drives the
-        # export button's disabled state + reason (invariants 2 and 8).
-        "export_blockers": export_blockers(state),
+        # The UI consumes the same revision-bound readiness report as the endpoint.
+        # A preview can exist before approval; that never makes it exportable.
+        "readiness": readiness,
     }
 
 
@@ -1010,7 +1014,7 @@ def create_app(
             "config_blocker": _config_blocker(draft),
             "approval_blocker": _approval_blocker(draft),
         }
-        ctx.update(_review_context(draft, active_config))
+        ctx.update(_review_context(draft, active_config, _readiness(draft)))
         return _render(request, "review.html", ctx)
 
     @app.get("/drafts/{draft_id}/page/{n}")
@@ -1219,7 +1223,7 @@ def create_app(
                     "status_oob": True,
                     "edit_error": str(exc),
                 }
-                ctx_err.update(_review_context(draft, active_config))
+                ctx_err.update(_review_context(draft, active_config, _readiness(draft)))
                 return _render(request, "_review_body.html", ctx_err)
         else:
             raise HTTPException(
@@ -1249,7 +1253,7 @@ def create_app(
             "audit": repository.get_audit(session, draft_id),
             "status_oob": True,
         }
-        ctx.update(_review_context(updated, active_config))
+        ctx.update(_review_context(updated, active_config, _readiness(updated)))
         return _render(request, "_review_body.html", ctx)
 
     return app
