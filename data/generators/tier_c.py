@@ -16,8 +16,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Literal, NamedTuple
 
@@ -167,7 +170,7 @@ def check_or_write_frozen(frozen_path: Path, test_rows: list[dict[str, object]])
     return "written"
 
 
-def build_tier_c(
+def _build_tier_c_into(
     out_dir: Path,
     dataset: str | None = None,
     seed: int = 42,
@@ -285,4 +288,58 @@ def build_tier_c(
         json.dumps(meta.model_dump(mode="json"), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    return meta
+
+
+def _publish_fresh_tree(staged: Path, destination: Path) -> None:
+    """Publish *staged* as a fresh tree while preserving the old tree on failure."""
+    if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+        raise ValueError(f"Tier C output must be a directory, not {destination}")
+
+    backup: Path | None = None
+    if destination.exists():
+        backup = Path(
+            tempfile.mkdtemp(prefix=f".{destination.name}.previous-", dir=destination.parent)
+        )
+        backup.rmdir()
+        os.replace(destination, backup)
+    try:
+        os.replace(staged, destination)
+    except BaseException:
+        if backup is not None:
+            os.replace(backup, destination)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup)
+
+
+def build_tier_c(
+    out_dir: Path,
+    dataset: str | None = None,
+    seed: int = 42,
+    n: int = 50,
+    profile: Profile = "balanced",
+    split_seed: int = DEFAULT_SPLIT_SEED,
+    n_samples: int = 0,
+    samples_dir: Path | None = None,
+) -> TierCMeta:
+    """Generate and publish a complete dataset without retaining stale prior files."""
+    destination = out_dir.expanduser().absolute()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staged = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
+    try:
+        meta = _build_tier_c_into(
+            staged,
+            dataset=dataset,
+            seed=seed,
+            n=n,
+            profile=profile,
+            split_seed=split_seed,
+            n_samples=n_samples,
+            samples_dir=samples_dir,
+        )
+        _publish_fresh_tree(staged, destination)
+    finally:
+        if staged.exists():
+            shutil.rmtree(staged)
     return meta

@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from data.generators import tier_c
 from data.generators.occurrences import vocab_for_split
 from data.generators.tier_c import (
     CANONICAL_DATASETS,
@@ -60,6 +62,45 @@ def test_regeneration_reproduces_hashes(tmp_path: Path) -> None:
         rows_a = _load_jsonl(a / "manifests" / f"{split}.jsonl")
         rows_b = _load_jsonl(b / "manifests" / f"{split}.jsonl")
         assert rows_a == rows_b
+
+
+def test_regeneration_replaces_the_entire_previous_tree(tmp_path: Path) -> None:
+    out = tmp_path / "tier_c"
+    build_tier_c(out, n=2, seed=3)
+    stale = out / "pngs" / "stale.png"
+    stale.write_bytes(b"old")
+
+    build_tier_c(out, n=1, seed=4)
+
+    assert not stale.exists()
+    assert {path.name for path in (out / "pngs").glob("*.png")} == {"tc-000000.png"}
+
+
+def test_failed_regeneration_preserves_the_previous_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "tier_c"
+    build_tier_c(out, n=1, seed=3)
+    before = {
+        path.relative_to(out).as_posix(): path.read_bytes()
+        for path in out.rglob("*")
+        if path.is_file()
+    }
+
+    def fail_render(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("injected render failure")
+
+    monkeypatch.setattr(tier_c, "render_sheet", fail_render)
+    with pytest.raises(RuntimeError, match="injected"):
+        build_tier_c(out, n=2, seed=4)
+
+    after = {
+        path.relative_to(out).as_posix(): path.read_bytes()
+        for path in out.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    assert not list(tmp_path.glob(".tier_c.staging-*"))
 
 
 def test_gt_shape_and_semantics(tmp_path: Path) -> None:
