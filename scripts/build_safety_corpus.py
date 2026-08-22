@@ -217,12 +217,10 @@ def main(argv: list[str]) -> int:
         with tempfile.TemporaryDirectory(prefix="ssi-safety-source-") as temporary:
             generated = Path(temporary) / "tier_c"
             build_tier_c(generated, dataset=SAFETY_DATASET)
-            local_manifest = generated / "manifests" / f"{SAFETY_SPLIT}.jsonl"
             verified = load_verified_canonical_split(
                 generated,
                 SAFETY_DATASET,
                 SAFETY_SPLIT,
-                frozen_path=local_manifest,
             )
             provenance = collect_provenance(verified, release)
             publish_corpus(generated, args.output, verified, provenance)

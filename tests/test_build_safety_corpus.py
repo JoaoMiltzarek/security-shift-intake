@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -131,6 +132,28 @@ def test_builder_refuses_noncanonical_environment(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(TierCContractError, match="manual Ubuntu 24.04"):
         builder.require_canonical_builder_environment()
+
+
+def test_builder_authenticates_generated_split_against_repository_freeze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verified = SimpleNamespace(manifest_sha256="a" * 64)
+    calls: list[tuple[Path, str, str, dict[str, object]]] = []
+
+    monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
+
+    def authenticate(root: Path, dataset: str, split: str, **kwargs: object) -> SimpleNamespace:
+        calls.append((root, dataset, split, kwargs))
+        return verified
+
+    monkeypatch.setattr(builder, "load_verified_canonical_split", authenticate)
+    monkeypatch.setattr(builder, "collect_provenance", lambda *_args: verified)
+    monkeypatch.setattr(builder, "publish_corpus", lambda *_args: None)
+
+    assert builder.main(["--output", str(tmp_path / "corpus")]) == 0
+    assert len(calls) == 1
+    assert calls[0][1:] == (SAFETY_DATASET, SAFETY_SPLIT, {})
 
 
 def test_publish_corpus_copies_exactly_45_sheets_and_replaces_stale_tree(

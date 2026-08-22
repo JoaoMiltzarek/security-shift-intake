@@ -271,7 +271,6 @@ def load_verified_safety_corpus(root: Path = SAFETY_CORPUS_DIR) -> VerifiedSafet
         root,
         SAFETY_DATASET,
         SAFETY_SPLIT,
-        frozen_path=root / "manifests" / f"{SAFETY_SPLIT}.jsonl",
     )
     if (
         verified.manifest_sha256 != provenance.manifest_sha256
