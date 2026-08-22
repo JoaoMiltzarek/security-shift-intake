@@ -1269,7 +1269,7 @@ def create_app(
             repository.DraftOperationConflictError,
         ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _status_panel(request, draft, session)
+        return _status_panel(request, draft, session, include_review=True)
 
     @app.post("/ui/drafts/{draft_id}/reject", response_class=HTMLResponse)
     def ui_reject(
@@ -1299,7 +1299,7 @@ def create_app(
             repository.DraftOperationConflictError,
         ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _status_panel(request, draft, session)
+        return _status_panel(request, draft, session, include_review=True)
 
     @app.post("/ui/drafts/{draft_id}/simulate", response_class=HTMLResponse)
     def ui_simulate(

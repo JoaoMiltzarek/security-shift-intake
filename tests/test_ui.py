@@ -189,6 +189,8 @@ def test_ui_approve_then_simulate(
     r = _ui_action(client, draft_id, "approve")
     assert r.status_code == 200
     assert "Aprovado" in r.text
+    assert 'id="review-body" hx-swap-oob="outerHTML"' in r.text
+    assert f'action="/drafts/{draft_id}/export.csv"' in r.text
 
     r = _ui_action(client, draft_id, "simulate")
     assert r.status_code == 200
@@ -197,6 +199,21 @@ def test_ui_approve_then_simulate(
     assert 'id="review-body" hx-swap-oob="outerHTML"' in r.text
     assert f"/ui/drafts/{draft_id}/edit" not in r.text
     assert recorder.call_count == 1
+
+
+def test_rejection_refreshes_an_enabled_export_control(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
+    client, _ = client_and_recorder
+    draft_id = _submit(client)
+    assert _ui_action(client, draft_id, "approve").status_code == 200
+
+    rejected = _ui_action(client, draft_id, "reject")
+
+    assert rejected.status_code == 200
+    assert 'id="review-body" hx-swap-oob="outerHTML"' in rejected.text
+    assert f'action="/drafts/{draft_id}/export.csv"' not in rejected.text
+    assert "O CSV exige a aprovação" in rejected.text
 
 
 def test_simulated_status_panel_has_no_mutation_controls(
