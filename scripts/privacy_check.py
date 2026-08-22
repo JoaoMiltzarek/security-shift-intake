@@ -61,6 +61,7 @@ _SYNTHETIC_TEXT_SUBPATHS = (
     ("data", "manifests"),
     _SYNTHETIC_SUBPATH,
 )
+_SYNTHETIC_TERM_PROVENANCE = (("data", "generators"),)
 
 # Optional, gitignored file with real terms (names, units) to scan public outputs for.
 _PII_TERMS_FILE = PRIVATE_ROOT / "pii_terms.txt"
@@ -115,6 +116,26 @@ def _load_extra_terms() -> list[re.Pattern[str]]:
         if term and not term.startswith("#"):
             patterns.append(re.compile(re.escape(term), re.IGNORECASE))
     return patterns
+
+
+def _synthetic_term_collisions(
+    root: Path, patterns: list[re.Pattern[str]]
+) -> list[re.Pattern[str]]:
+    """Return private patterns already declared by versioned synthetic generators."""
+    source_text: list[str] = []
+    for parts in _SYNTHETIC_TERM_PROVENANCE:
+        source_root = root.joinpath(*parts)
+        if not source_root.exists():
+            continue
+        if _is_redirected(source_root):
+            raise OSError("synthetic provenance root is redirected")
+        for path in _iter_tree(source_root):
+            if _is_redirected(path):
+                raise OSError("synthetic provenance source is redirected")
+            if path.suffix.lower() == ".py":
+                source_text.append(path.read_text(encoding="utf-8"))
+    corpus = "\n".join(source_text)
+    return [pattern for pattern in patterns if pattern.search(corpus)]
 
 
 def scan_text_for_pii(
@@ -215,8 +236,10 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
     violations: list[str] = []
     try:
         extra = _load_extra_terms()
+        synthetic_collisions = _synthetic_term_collisions(root, extra)
     except (OSError, UnicodeError):
-        return ["  private PII terms file could not be read as UTF-8"]
+        return ["  private PII terms or synthetic provenance could not be read as UTF-8"]
+    code_terms = [pattern for pattern in extra if pattern not in synthetic_collisions]
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR):
@@ -232,6 +255,7 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
             include_times = True
         elif suffix in _PUBLIC_CODE_EXT:
             include_times = False  # horários são legítimos em fixtures sintéticas
+            terms = code_terms
             if any(_is_root_subpath(rel, parts) for parts in _SYNTHETIC_TEXT_SUBPATHS):
                 terms = []  # vocabulário sintético colide com termos privados por design
         else:

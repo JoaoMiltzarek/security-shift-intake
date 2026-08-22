@@ -430,6 +430,42 @@ def test_arbitrary_data_and_tests_are_not_synthetic_term_exempt(
     assert pc.check_public_no_pii(tmp_path)
 
 
+def test_test_fixture_term_requires_versioned_synthetic_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import re
+
+    import scripts.privacy_check as pc
+
+    pattern = re.compile("SYNTHETIC_COLLISION", re.IGNORECASE)
+    monkeypatch.setattr(pc, "_load_extra_terms", lambda: [pattern])
+    _write(
+        tmp_path / "data" / "generators" / "vocab.py",
+        "UNIT = 'SYNTHETIC_COLLISION'",
+    )
+    _write(tmp_path / "tests" / "test_y.py", "value = 'SYNTHETIC_COLLISION'")
+
+    assert pc.check_public_no_pii(tmp_path) == []
+
+
+def test_synthetic_collision_remains_blocked_in_public_prose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import re
+
+    import scripts.privacy_check as pc
+
+    pattern = re.compile("SYNTHETIC_COLLISION", re.IGNORECASE)
+    monkeypatch.setattr(pc, "_load_extra_terms", lambda: [pattern])
+    _write(
+        tmp_path / "data" / "generators" / "vocab.py",
+        "UNIT = 'SYNTHETIC_COLLISION'",
+    )
+    _write(tmp_path / "docs" / "report.md", "Unit: SYNTHETIC_COLLISION")
+
+    assert pc.check_public_no_pii(tmp_path)
+
+
 def test_org_sentinel_still_applies_to_data_artifacts(tmp_path: Path) -> None:
     """A exempção sintética vale só para pii_terms — a sentinela org continua pegando
     .jsonl/.json/.csv em qualquer lugar (como no pre-commit guard)."""
