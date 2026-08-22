@@ -9,7 +9,7 @@ import pytest
 from data.generators.tier_c import build_tier_c
 from src.classifier.contracts import ClassificationResult
 from src.clients.base import TranscriptionResult
-from src.clients.mock import FakeIncidentClassifier, MockVisionClient
+from src.clients.mock import FakeDocumentReader, FakeIncidentClassifier
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 from src.pipeline.outputs import derive_operational_outputs
@@ -57,7 +57,7 @@ def _classifier() -> FakeIncidentClassifier:
 
 def test_table_path_populates_normalized(sample_pdf: Path) -> None:
     state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+        sample_pdf, FakeDocumentReader(text=_OCC), _classifier(), CONFIG, dpi=120
     ).state
     assert state.report_type == CONFIG.report_type
     assert state.config_sha256 is not None and len(state.config_sha256) == 64
@@ -69,7 +69,7 @@ def test_table_path_populates_normalized(sample_pdf: Path) -> None:
 
 def test_table_path_outputs_spreadsheet_and_message(sample_pdf: Path) -> None:
     state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+        sample_pdf, FakeDocumentReader(text=_OCC), _classifier(), CONFIG, dpi=120
     ).state
     derived = derive_operational_outputs(state, CONFIG)
     assert derived.message is not None
@@ -79,7 +79,7 @@ def test_table_path_outputs_spreadsheet_and_message(sample_pdf: Path) -> None:
 
 def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
     state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_SA), _classifier(), CONFIG, dpi=120
+        sample_pdf, FakeDocumentReader(text=_SA), _classifier(), CONFIG, dpi=120
     ).state
     derived = derive_operational_outputs(state, CONFIG)
     assert state.normalized is not None and state.normalized.no_occurrence is True
@@ -90,14 +90,14 @@ def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
 
 def test_table_path_header_fields_must_review(sample_pdf: Path) -> None:
     state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+        sample_pdf, FakeDocumentReader(text=_OCC), _classifier(), CONFIG, dpi=120
     ).state
     names = {f.name for f in state.extracted_fields}
     assert {"data_turno", "vigilantes", "unidade"} <= names
 
 
 def test_pipeline_persists_reader_and_raster_settings(sample_pdf: Path) -> None:
-    class AttestedReader(MockVisionClient):
+    class AttestedReader(FakeDocumentReader):
         def runtime_metadata(self) -> dict[str, str]:
             return {"engine": "deterministic-test", "version": "1.0"}
 
@@ -163,7 +163,7 @@ def test_pre_extraction_timeout_preserves_completed_transcription(
     monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_extraction)
 
     state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+        sample_pdf, FakeDocumentReader(text=_OCC), _classifier(), CONFIG, dpi=120
     ).state
 
     assert state.transcription == _OCC
@@ -189,7 +189,7 @@ def test_pre_classification_timeout_preserves_validated_ocr_state(
     monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_classification)
 
     state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+        sample_pdf, FakeDocumentReader(text=_OCC), _classifier(), CONFIG, dpi=120
     ).state
 
     assert state.transcription == _OCC
@@ -212,7 +212,7 @@ def test_ingest_deadline_failure_preserves_empty_evidence_set(
 
     monkeypatch.setattr(orchestrator, "load_page_artifacts", timeout)
 
-    result = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120)
+    result = run_pipeline(sample_pdf, FakeDocumentReader(text=_OCC), _classifier(), CONFIG, dpi=120)
 
     assert result.pages == ()
     assert result.state.ocr_quality == "failed"

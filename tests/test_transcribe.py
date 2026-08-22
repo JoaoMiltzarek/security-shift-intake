@@ -9,7 +9,7 @@ from PIL import Image
 
 from data.generators.tier_c import build_tier_c
 from src.clients.base import TranscriptionResult
-from src.clients.mock import MockVisionClient
+from src.clients.mock import FakeDocumentReader
 from src.pipeline.ingest import Deadline, PageArtifact
 from src.pipeline.transcribe import transcribe
 from src.schema.state import PipelineState
@@ -24,7 +24,7 @@ def sample_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def test_transcribe_populates_state(sample_pdf: Path) -> None:
     state = PipelineState(source_pdf=sample_pdf)
-    client = MockVisionClient(text="Guard report text", confidence=0.83)
+    client = FakeDocumentReader(text="Guard report text", confidence=0.83)
     result = transcribe(state, client, dpi=120)
 
     assert result.transcription == "Guard report text"
@@ -35,7 +35,7 @@ def test_transcribe_populates_state(sample_pdf: Path) -> None:
 
 def test_transcribe_does_not_mutate_input(sample_pdf: Path) -> None:
     state = PipelineState(source_pdf=sample_pdf)
-    transcribe(state, MockVisionClient(), dpi=120)
+    transcribe(state, FakeDocumentReader(), dpi=120)
     assert state.transcription is None
     assert state.transcription_confidence is None
 
@@ -55,7 +55,7 @@ def test_transcribe_uses_supplied_artifact_without_reingest(
         "load_page_artifacts",
         lambda *args, **kwargs: pytest.fail("supplied artifacts must be reused"),
     )
-    reader = MockVisionClient(text="synthetic")
+    reader = FakeDocumentReader(text="synthetic")
     page = _page()
 
     transcribe(

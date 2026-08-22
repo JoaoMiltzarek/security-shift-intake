@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from scripts.demo_pipeline_mock import CONFIG, OCR_INCIDENT, OCR_NO_CHANGE, SAMPLE
 from src.classifier.rules import RuleBasedIncidentClassifier
-from src.clients.mock import MockVisionClient
+from src.clients.mock import FakeDocumentReader
 from src.orchestrator import run_pipeline
 from src.pipeline.outputs import derive_operational_outputs
 from src.schema.loader import load_config
@@ -15,7 +15,7 @@ _CFG = load_config(CONFIG)
 
 def _run(text: str) -> PipelineState:
     return run_pipeline(
-        SAMPLE, MockVisionClient(text=text), RuleBasedIncidentClassifier(), _CFG
+        SAMPLE, FakeDocumentReader(text=text), RuleBasedIncidentClassifier(), _CFG
     ).state
 
 

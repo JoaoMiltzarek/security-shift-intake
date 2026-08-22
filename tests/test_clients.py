@@ -1,12 +1,14 @@
-"""M4.b: tests for the vision client interface and deterministic mock."""
+"""Tests for the document-reader contract and deterministic fake."""
 
 from __future__ import annotations
 
 import pytest
+from PIL import Image
 from pydantic import ValidationError
 
-from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
-from src.clients.mock import MockVisionClient
+from src.clients.base import DocumentReader, TranscriptionResult
+from src.clients.mock import FakeDocumentReader
+from src.pipeline.ingest import Deadline, PageArtifact
 
 # ---------------------------------------------------------------------------
 # TranscriptionResult
@@ -35,32 +37,38 @@ def test_transcription_result_accepts_paddleocr_confidence_source() -> None:
 
 
 # ---------------------------------------------------------------------------
-# MockVisionClient
+# FakeDocumentReader
 # ---------------------------------------------------------------------------
 
 
-def test_mock_satisfies_protocol() -> None:
-    assert isinstance(MockVisionClient(), VisionClient)
-    assert isinstance(MockVisionClient(), DocumentReader)
+def _page() -> PageArtifact:
+    with Image.new("RGB", (2, 2), "white") as image:
+        return PageArtifact.from_image(image, page_index=0)
 
 
-def test_mock_returns_configured_result() -> None:
-    client = MockVisionClient(text="canned text", confidence=0.42)
-    result = client.transcribe("ZmFrZQ==")
+def test_fake_reader_satisfies_protocol() -> None:
+    assert isinstance(FakeDocumentReader(), DocumentReader)
+
+
+def test_fake_reader_returns_configured_result() -> None:
+    reader = FakeDocumentReader(text="canned text", confidence=0.42)
+    result = reader.read(_page(), Deadline.after(1.0))
     assert result.text == "canned text"
     assert result.confidence == 0.42
 
 
-def test_mock_is_deterministic() -> None:
-    client = MockVisionClient(text="same")
-    a = client.transcribe("img1")
-    b = client.transcribe("img2")
+def test_fake_reader_is_deterministic() -> None:
+    reader = FakeDocumentReader(text="same")
+    page = _page()
+    a = reader.read(page, Deadline.after(1.0))
+    b = reader.read(page, Deadline.after(1.0))
     assert a == b
 
 
-def test_mock_records_calls() -> None:
-    client = MockVisionClient()
-    assert client.call_count == 0
-    client.transcribe("base64data")
-    assert client.call_count == 1
-    assert client.last_image_b64 == "base64data"
+def test_fake_reader_records_calls() -> None:
+    reader = FakeDocumentReader()
+    page = _page()
+    assert reader.call_count == 0
+    reader.read(page, Deadline.after(1.0))
+    assert reader.call_count == 1
+    assert reader.last_page_sha256 == page.sha256

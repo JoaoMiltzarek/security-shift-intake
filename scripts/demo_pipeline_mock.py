@@ -1,7 +1,7 @@
 """CLI for `make demo-pipeline-mock` — public synthetic demo, no file, no API, $0.
 
 Runs the table pipeline (controle_ocorrencias) on SYNTHETIC, legible OCR text via the
-mock vision client — so it works in a fresh clone with no real sheet and no Tesseract.
+deterministic document-reader fake, so it works without a real sheet or Tesseract.
 Creates two pending drafts (one incident, one "S/A") that mirror the standardized
 output, then prints the review URLs.
 
@@ -17,10 +17,10 @@ from pathlib import Path
 from scripts.demo_pipeline import build_and_store
 from src.api.db import make_engine
 from src.classifier.rules import RuleBasedIncidentClassifier
-from src.clients.mock import MockVisionClient
+from src.clients.mock import FakeDocumentReader
 
 CONFIG = Path("configs/controle_ocorrencias.yaml")
-# A committed synthetic image — only used so ingest has a page to load; the mock vision
+# A committed synthetic image — only used so ingest has a page to load; the reader fake
 # ignores it and returns the canned OCR text below.
 SAMPLE = Path("samples/sample_tc-000000.png")
 
@@ -58,9 +58,9 @@ def main(argv: list[str]) -> int:
     ids: list[int] = []
     for label, text in SCENARIOS:
         print(f"\n# Cenário sintético: {label}")
-        vision = MockVisionClient(text=text, confidence=0.95)
+        reader = FakeDocumentReader(text=text, confidence=0.95)
         classifier = RuleBasedIncidentClassifier()
-        ids.append(build_and_store(SAMPLE, vision, classifier, CONFIG, engine))
+        ids.append(build_and_store(SAMPLE, reader, classifier, CONFIG, engine))
 
     print("\nRevise no navegador (suba a UI com a config de tabela):")
     print("  INTAKE_CONFIG=configs/controle_ocorrencias.yaml uv run uvicorn src.api.asgi:app")
