@@ -29,7 +29,8 @@ def test_ci_jobs_are_bounded_and_use_fixed_runner_image() -> None:
 
     assert "ubuntu-latest" not in workflow
     assert workflow.count("runs-on: ubuntu-24.04") == 4
-    assert workflow.count("timeout-minutes:") == 4
+    assert workflow.count("runs-on: windows-2025") == 1
+    assert workflow.count("timeout-minutes:") == 5
 
 
 def test_python_runtime_is_pinned_to_the_security_release_used_by_ci() -> None:
@@ -42,9 +43,9 @@ def test_python_runtime_is_pinned_to_the_security_release_used_by_ci() -> None:
     assert pyproject["tool"]["mypy"]["python_version"] == "3.11"
     assert ">=3.11.15" in lock["requires-python"]
     assert "<3.12" in lock["requires-python"]
-    assert workflow.count("uv python install 3.11.15") == 4
-    assert workflow.count("uv sync --locked --python 3.11.15") == 4
-    assert workflow.count("assert sys.version_info[:3] == (3, 11, 15)") == 4
+    assert workflow.count("uv python install 3.11.15") == 5
+    assert workflow.count("uv sync --locked --python 3.11.15") == 5
+    assert workflow.count("assert sys.version_info[:3] == (3, 11, 15)") == 5
 
 
 def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
@@ -59,9 +60,9 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
         "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
     }
-    assert workflow.count("persist-credentials: false") == 4
+    assert workflow.count("persist-credentials: false") == 5
     assert workflow.count('UV_VERSION: "0.11.28"') == 1
-    assert workflow.count("version: ${{ env.UV_VERSION }}") == 4
+    assert workflow.count("version: ${{ env.UV_VERSION }}") == 5
     assert "0.11.23" not in workflow
 
 
@@ -83,6 +84,25 @@ def test_ci_executes_project_tools_only_through_the_locked_environment() -> None
     assert unlocked == []
     assert "python3 scripts/preflight.py" not in workflow
     assert "uv run --locked python scripts/preflight.py" in workflow
+
+
+def test_windows_quality_starts_clean_and_runs_the_portable_gates() -> None:
+    workflow = _workflow()
+    start = workflow.index("  quality-windows:")
+    end = workflow.index("  eval-safety:")
+    job = workflow[start:end]
+
+    assert "runs-on: windows-2025" in job
+    assert "Test-Path -LiteralPath .venv" in job
+    assert "uv sync --locked --check" in job
+    assert "python -m scripts.check_test_environment" in job
+    assert "python -m scripts.audit_locked_dependencies" in job
+    assert "ruff format --check ." in job
+    assert "ruff check ." in job
+    assert "mypy src data scripts evals" in job
+    assert "uv run --locked pytest" in job
+    assert "python -m scripts.validate_config" in job
+    assert "python -m scripts.privacy_check" in job
 
 
 def test_ci_fails_when_a_declared_release_artifact_is_missing() -> None:
@@ -130,7 +150,7 @@ def test_ci_promotes_release_candidate_only_after_every_blocking_job() -> None:
 
     final_start = workflow.index("release-evidence-candidate:")
     final_block = workflow[final_start:]
-    assert "needs: [quality, eval-safety, browser-smoke]" in final_block
+    assert "needs: [quality, quality-windows, eval-safety, browser-smoke]" in final_block
     assert "github.event_name == 'push'" in final_block
     assert "github.ref == 'refs/heads/main'" in final_block
     assert f"name: {intermediate}" in final_block
