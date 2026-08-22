@@ -106,6 +106,7 @@ def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
         server.run_calls += 1
 
     server.run = fake_run
+    monkeypatch.setattr(demo, "_port_available", lambda _port: True)
     monkeypatch.setattr(demo, "make_engine", lambda _url: object())
     monkeypatch.setattr(demo, "_seed_demo", lambda *args: 31)
     monkeypatch.setattr(demo, "_build_server", lambda _port: server)
@@ -169,6 +170,23 @@ def test_invalid_port_fails_before_seeding(monkeypatch: pytest.MonkeyPatch) -> N
     assert demo.main(["--port", "65536", "--no-serve"]) == 2
 
 
+def test_occupied_port_fails_before_seeding(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo = _showcase_demo()
+    monkeypatch.delenv("INTAKE_CONFIG", raising=False)
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
+    monkeypatch.setattr(demo, "_port_available", lambda _port: False)
+    monkeypatch.setattr(
+        demo,
+        "_seed_demo",
+        lambda *args: pytest.fail("an occupied port must fail before persistence"),
+    )
+
+    assert demo.main(["--port", "8126"]) == 2
+    assert "Port 8126 is already in use" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("missing_name", ["DEFAULT_SAMPLE", "DEFAULT_CONFIG"])
 def test_missing_fixture_or_config_fails_before_seeding(
     missing_name: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -189,6 +207,7 @@ def test_ocr_failure_never_starts_server_or_browser(
     demo = _showcase_demo()
     monkeypatch.delenv("INTAKE_CONFIG", raising=False)
     monkeypatch.delenv("INTAKE_DB_URL", raising=False)
+    monkeypatch.setattr(demo, "_port_available", lambda _port: True)
     monkeypatch.setattr(demo, "make_engine", lambda _url: object())
 
     def fail_ocr(*args: object) -> int:
@@ -255,6 +274,7 @@ def test_no_open_still_serves_without_scheduling_browser(
         server.run_calls += 1
 
     server.run = fake_run
+    monkeypatch.setattr(demo, "_port_available", lambda _port: True)
     monkeypatch.setattr(demo, "make_engine", lambda _url: object())
     monkeypatch.setattr(demo, "_seed_demo", lambda *args: 41)
     monkeypatch.setattr(demo, "_build_server", lambda _port: server)

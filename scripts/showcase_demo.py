@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import sys
 import threading
 import time
@@ -74,6 +75,15 @@ def _build_server(port: int) -> uvicorn.Server:
         port=port,
     )
     return uvicorn.Server(config)
+
+
+def _port_available(port: int) -> bool:
+    """Return whether the supported loopback endpoint can be bound."""
+    try:
+        with socket.create_server((LOOPBACK_HOST, port)):
+            return True
+    except OSError:
+        return False
 
 
 def _open_when_started(
@@ -141,6 +151,13 @@ def main(argv: list[str]) -> int:
         return 2
     if not DEFAULT_CONFIG.is_file():
         print(f"Showcase config not found: {DEFAULT_CONFIG}", file=sys.stderr)
+        return 2
+    if not args.no_serve and not _port_available(args.port):
+        print(
+            f"Port {args.port} is already in use on {LOOPBACK_HOST}; "
+            "choose another port with --port.",
+            file=sys.stderr,
+        )
         return 2
 
     inherited_db_url = os.environ.get("INTAKE_DB_URL")
