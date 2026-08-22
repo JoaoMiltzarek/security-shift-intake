@@ -22,7 +22,7 @@ from evals.readers.local_vlm import (
     _confidence_from_logprobs,
     _parse_text,
 )
-from src.clients.base import DocumentReader, TranscriptionResult, VisionClient
+from src.clients.base import DocumentReader, TranscriptionResult
 from src.pipeline.ingest import Deadline, PageArtifact
 
 
@@ -53,7 +53,6 @@ class FakeTransport:
 
 def test_client_satisfies_protocol() -> None:
     client = LocalVLMVisionClient(transport=FakeTransport(_response("hi")))
-    assert isinstance(client, VisionClient)
     assert isinstance(client, DocumentReader)
 
 

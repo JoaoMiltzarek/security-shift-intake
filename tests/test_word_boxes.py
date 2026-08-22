@@ -80,7 +80,7 @@ def test_collect_words_line_key_distinguishes_same_line_num() -> None:
 
 
 class _FakeReader:
-    """VisionClient stand-in returning a fixed WordBox — no Tesseract, no cost."""
+    """DocumentReader stand-in returning a fixed WordBox — no Tesseract, no cost."""
 
     def __init__(self, words: list[WordBox] | None) -> None:
         self._words = words
