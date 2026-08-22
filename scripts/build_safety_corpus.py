@@ -38,8 +38,10 @@ from data.tier_c_contract import (
     TierCContractError,
     VerifiedCanonicalSplit,
     canonical_manifest_bytes,
-    load_verified_canonical_split,
+    default_logical_freeze_path,
+    load_verified_generated_split,
     sha256_file,
+    verify_logical_freeze,
 )
 from src.paths import REPO_ROOT
 
@@ -217,10 +219,18 @@ def main(argv: list[str]) -> int:
         with tempfile.TemporaryDirectory(prefix="ssi-safety-source-") as temporary:
             generated = Path(temporary) / "tier_c"
             build_tier_c(generated, dataset=SAFETY_DATASET)
-            verified = load_verified_canonical_split(
+            verified = load_verified_generated_split(
                 generated,
                 SAFETY_DATASET,
                 SAFETY_SPLIT,
+            )
+            logical_freeze = default_logical_freeze_path(SAFETY_DATASET, SAFETY_SPLIT)
+            if logical_freeze is None:
+                raise TierCContractError("logical safety freeze path is not configured")
+            verify_logical_freeze(
+                verified.entries,
+                logical_freeze,
+                expected_split=SAFETY_SPLIT,
             )
             provenance = collect_provenance(verified, release)
             publish_corpus(generated, args.output, verified, provenance)

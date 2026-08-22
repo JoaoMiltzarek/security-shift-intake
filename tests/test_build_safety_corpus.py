@@ -134,26 +134,50 @@ def test_builder_refuses_noncanonical_environment(monkeypatch: pytest.MonkeyPatc
         builder.require_canonical_builder_environment()
 
 
-def test_builder_authenticates_generated_split_against_repository_freeze(
+def test_builder_requires_the_precommitted_logical_freeze(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    verified = SimpleNamespace(manifest_sha256="a" * 64)
-    calls: list[tuple[Path, str, str, dict[str, object]]] = []
+    verified = SimpleNamespace(entries=(object(),), manifest_sha256="a" * 64)
+    load_calls: list[tuple[Path, str, str]] = []
+    freeze_calls: list[tuple[object, Path, str]] = []
+    logical_freeze = tmp_path / "precommitted.logical.jsonl"
 
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
 
-    def authenticate(root: Path, dataset: str, split: str, **kwargs: object) -> SimpleNamespace:
-        calls.append((root, dataset, split, kwargs))
+    def verify_generated(root: Path, dataset: str, split: str) -> SimpleNamespace:
+        load_calls.append((root, dataset, split))
         return verified
 
-    monkeypatch.setattr(builder, "load_verified_canonical_split", authenticate)
+    def verify_freeze(entries: object, path: Path, *, expected_split: str) -> str:
+        freeze_calls.append((entries, path, expected_split))
+        return "b" * 64
+
+    monkeypatch.setattr(builder, "load_verified_generated_split", verify_generated)
+    monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: logical_freeze)
+    monkeypatch.setattr(builder, "verify_logical_freeze", verify_freeze)
     monkeypatch.setattr(builder, "collect_provenance", lambda *_args: verified)
     monkeypatch.setattr(builder, "publish_corpus", lambda *_args: None)
 
     assert builder.main(["--output", str(tmp_path / "corpus")]) == 0
-    assert len(calls) == 1
-    assert calls[0][1:] == (SAFETY_DATASET, SAFETY_SPLIT, {})
+    assert len(load_calls) == 1
+    assert load_calls[0][1:] == (SAFETY_DATASET, SAFETY_SPLIT)
+    assert freeze_calls == [(verified.entries, logical_freeze, SAFETY_SPLIT)]
+
+
+def test_builder_never_creates_a_missing_logical_freeze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = tmp_path / "missing.logical.jsonl"
+    verified = SimpleNamespace(entries=(), manifest_sha256="a" * 64)
+    monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
+    monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: missing)
+
+    assert builder.main(["--output", str(tmp_path / "corpus")]) == 1
+    assert not missing.exists()
+    assert "cannot read Tier C logical freeze" in capsys.readouterr().err
 
 
 def test_publish_corpus_copies_exactly_45_sheets_and_replaces_stale_tree(
