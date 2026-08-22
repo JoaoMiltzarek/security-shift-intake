@@ -175,6 +175,11 @@ def validate_table(
                 must_review=flagged,
                 source=cell.source if cell is not None else None,
                 status=status,
+                bbox=cell.bbox if cell is not None else None,
+                page=cell.page if cell is not None else None,
+                evidence_text=cell.evidence if cell is not None else None,
+                evidence_method=cell.evidence_method if cell is not None else None,
+                evidence_score=cell.evidence_score if cell is not None else None,
             )
         )
         if flagged:

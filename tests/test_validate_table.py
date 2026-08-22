@@ -92,6 +92,14 @@ def test_header_rule_values_are_must_review() -> None:
     assert unidade.status == "must_review"
 
 
+def test_header_fields_preserve_extractor_provenance() -> None:
+    state = _run(_OCC)
+    unidade = next(field for field in state.extracted_fields if field.name == "unidade")
+
+    assert unidade.evidence_text == "Unidade Portaria"
+    assert unidade.page == 0
+
+
 def test_occurrence_becomes_flagged_field() -> None:
     state = _run(_OCC)
     occ = next(f for f in state.extracted_fields if f.name == "ocorrencia_1_descricao")
