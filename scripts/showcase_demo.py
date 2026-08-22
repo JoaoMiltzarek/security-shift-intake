@@ -24,10 +24,12 @@ import uvicorn
 from sqlalchemy.engine import Engine
 
 from scripts.demo_pipeline import build_and_store
+from scripts.demo_pipeline_mock import OCR_INCIDENT
 from src.api.db import DEFAULT_DB_URL, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.local_ocr import TesseractReader
+from src.clients.mock import FakeDocumentReader
 from src.paths import REPO_ROOT
 
 DEFAULT_SAMPLE = REPO_ROOT / "samples" / "sample_tc-000000.png"
@@ -60,6 +62,24 @@ def _seed_demo(
     return build_and_store(
         sample,
         TesseractReader(),
+        RuleBasedIncidentClassifier(),
+        config_path,
+        engine,
+        page_images_root=page_images_root,
+    )
+
+
+def _seed_mock_demo(
+    sample: Path,
+    config_path: Path,
+    engine: Engine,
+    *,
+    page_images_root: Path = PAGE_IMAGES_ROOT,
+) -> int:
+    """Persist the portfolio scenario without requiring a local OCR binary."""
+    return build_and_store(
+        sample,
+        FakeDocumentReader(text=OCR_INCIDENT, confidence=0.95),
         RuleBasedIncidentClassifier(),
         config_path,
         engine,
@@ -142,6 +162,11 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Seed the draft and print its URL without starting Uvicorn.",
     )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Use deterministic synthetic text instead of requiring Tesseract.",
+    )
     args = parser.parse_args(argv)
 
     if not 1 <= args.port <= 65535:
@@ -176,7 +201,8 @@ def main(argv: list[str]) -> int:
     os.environ["INTAKE_DB_URL"] = SHOWCASE_DB_URL
 
     try:
-        draft_id = _seed_demo(
+        seed = _seed_mock_demo if args.mock else _seed_demo
+        draft_id = seed(
             DEFAULT_SAMPLE,
             DEFAULT_CONFIG,
             make_engine(SHOWCASE_DB_URL),
@@ -187,6 +213,8 @@ def main(argv: list[str]) -> int:
 
     review_url = f"http://{LOOPBACK_HOST}:{args.port}/drafts/{draft_id}/review"
     print(f"\nReview the synthetic draft at: {review_url}")
+    if args.mock:
+        print("Reader: deterministic synthetic fixture (Tesseract not required).")
     print("Nothing is sent automatically; approval remains mandatory.")
     print("After the demo, remove local artifacts with: make purge-demo-data")
 

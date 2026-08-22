@@ -93,6 +93,27 @@ def test_no_serve_seeds_and_prints_exact_loopback_review_url(
     assert os.environ["INTAKE_CONFIG"] == str(demo.DEFAULT_CONFIG)
 
 
+def test_mock_preview_seeds_without_the_tesseract_reader(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo = _showcase_demo()
+    monkeypatch.delenv("INTAKE_CONFIG", raising=False)
+    monkeypatch.delenv("INTAKE_DB_URL", raising=False)
+    monkeypatch.setattr(demo, "make_engine", lambda _url: object())
+    monkeypatch.setattr(demo, "_seed_mock_demo", lambda *args: 29)
+    monkeypatch.setattr(
+        demo,
+        "_seed_demo",
+        lambda *args: pytest.fail("mock preview must not start the Tesseract path"),
+    )
+
+    assert demo.main(["--mock", "--no-serve"]) == 0
+
+    output = capsys.readouterr().out
+    assert "http://127.0.0.1:8000/drafts/29/review" in output
+    assert "Tesseract not required" in output
+
+
 def test_normal_run_schedules_browser_and_starts_uvicorn_on_loopback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -371,6 +392,14 @@ def test_makefile_exposes_demo_target_with_passthrough_args() -> None:
     recipe = re.search(r"(?ms)^demo:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)
     assert recipe is not None
     assert "-m scripts.showcase_demo" in recipe.group("body")
+    assert "$(DEMO_ARGS)" in recipe.group("body")
+
+
+def test_makefile_exposes_one_command_mock_ui_preview() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    recipe = re.search(r"(?ms)^demo-mock:\s*\n(?P<body>(?:\t.*\n?)+)", makefile)
+    assert recipe is not None
+    assert "-m scripts.showcase_demo --mock" in recipe.group("body")
     assert "$(DEMO_ARGS)" in recipe.group("body")
 
 

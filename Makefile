@@ -30,7 +30,7 @@ override SAFETY_READER := local_ocr
 
 .PHONY: help install check-test-env lint format format-check typecheck test check audit-deps \
         validate-config gen-sheets gen-safety-sheets demo-pipeline \
-        demo demo-pipeline-mock serve eval-synthetic eval-safety \
+        demo demo-mock demo-pipeline-mock serve eval-synthetic eval-safety \
         purge-demo-data purge-real-data purge-all-private privacy-check
 
 help:
@@ -49,6 +49,7 @@ help:
 	@echo   make gen-safety-sheets - generate the exact bench-balanced/val release corpus
 	@echo   make demo-pipeline   - local zero-cost end-to-end on a real FILE=... (OCR+rules, CONFIG=...)
 	@echo   make demo            - one-command synthetic showcase (real local Tesseract + review UI)
+	@echo   make demo-mock       - one-command review UI preview (deterministic mock reader)
 	@echo   make demo-pipeline-mock - public synthetic demo (no file, no API)
 	@echo   make purge-demo-data - remove active demo artifacts (DB+sidecars, audit/, page_images/, debug/)
 	@echo   make purge-real-data - remove real-sheet entries (private/reais/), needs CONFIRM=YES
@@ -100,6 +101,10 @@ demo-pipeline:
 # Committed synthetic sheet -> local Tesseract -> loopback review UI.
 demo:
 	uv run --locked python -m scripts.showcase_demo $(DEMO_ARGS)
+
+# Committed synthetic sheet + deterministic text -> loopback review UI.
+demo-mock:
+	uv run --locked python -m scripts.showcase_demo --mock $(DEMO_ARGS)
 
 demo-pipeline-mock:
 	uv run --locked python -m scripts.demo_pipeline_mock
