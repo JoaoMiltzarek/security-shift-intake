@@ -1,4 +1,4 @@
-"""Validate and publish one schema/identity-validated v1 release-eval artifact.
+"""Validate and publish one schema/identity-validated v1.1 release-eval artifact.
 
 The evaluator writes diagnostics only.  This module is the separate, fail-closed
 boundary for promoting one aggregate result into version-controlled evidence.
@@ -44,10 +44,10 @@ RELEASE_DPI = 150
 CATALOG_SCHEMA = "ssi-eval-artifact-catalog/v1"
 CATALOG_PATH = REPO_ROOT / "docs" / "evals" / "catalog.json"
 RELEASE_EVIDENCE_RELATIVE = Path(
-    "docs/evals/releases/v1.0.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
+    "docs/evals/releases/v1.1.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
 )
 RELEASE_EVIDENCE_PATH = REPO_ROOT / RELEASE_EVIDENCE_RELATIVE
-RELEASE_CATALOG_ID = "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
+RELEASE_CATALOG_ID = "v1.1.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
 _ROOT_KEYS = frozenset(
     {
         "artifact_schema",

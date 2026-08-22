@@ -14,6 +14,16 @@ from scripts import publish_eval_evidence as publisher
 EXPECTED_COMMIT = "a" * 40
 
 
+def test_publisher_targets_the_v1_1_release_record() -> None:
+    assert publisher.RELEASE_EVIDENCE_RELATIVE.parts[:4] == (
+        "docs",
+        "evals",
+        "releases",
+        "v1.1.0",
+    )
+    assert publisher.RELEASE_CATALOG_ID.startswith("v1.1.0-")
+
+
 def _metrics(n_ran: int) -> dict[str, Any]:
     return {
         "n_ran": n_ran,
