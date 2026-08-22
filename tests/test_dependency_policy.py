@@ -54,9 +54,9 @@ def test_development_tools_do_not_expand_runtime_dependencies() -> None:
     assert not any(dependency.startswith("numpy") for dependency in runtime_dependencies)
     assert any(dependency.startswith("httpx") for dependency in dev_dependencies)
     assert any(dependency.startswith("numpy") for dependency in dev_dependencies)
-    assert not any(dependency.startswith("httpx2") for dependency in dev_dependencies)
+    assert any(dependency.startswith("httpx2") for dependency in dev_dependencies)
     assert "httpx" in locked_names
-    assert "httpx2" not in locked_names
+    assert "httpx2" in locked_names
     assert "error::starlette.exceptions.StarletteDeprecationWarning" in warnings
 
 
