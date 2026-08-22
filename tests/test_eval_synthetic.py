@@ -154,7 +154,7 @@ def test_refusal_metric_requires_review_signal_and_operational_block() -> None:
     }
 
 
-# --- Contratos F7 (SSI-1010): eval-safety — output externo + gates binários ---
+# --- Eval-safety: output externo e gates binários -------------------------------
 
 
 def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> None:
