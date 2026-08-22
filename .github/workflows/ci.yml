@@ -322,6 +322,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Install uv
@@ -350,6 +351,11 @@ jobs:
           uv run --locked python -m scripts.publish_eval_evidence
           --source /tmp/release_candidate/eval_synthetic_summary.json
           --expected-commit "$(git rev-parse HEAD)"
+
+      - name: Verify promoted evidence-only delta
+        run: >-
+          uv run --locked python -m scripts.verify_release_delta
+          --base HEAD^ --head HEAD
 
       - name: Upload promotable release-candidate summary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

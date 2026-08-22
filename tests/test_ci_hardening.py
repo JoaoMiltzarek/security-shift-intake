@@ -157,9 +157,14 @@ def test_ci_promotes_release_candidate_only_after_every_blocking_job() -> None:
     assert "github.ref == 'refs/heads/main'" in final_block
     assert f"name: {intermediate}" in final_block
     assert "- name: Revalidate release-candidate summary" in final_block
-    assert final_block.index("- name: Revalidate release-candidate summary") < final_block.index(
-        "- name: Upload promotable release-candidate summary"
-    )
+    assert "fetch-depth: 2" in final_block
+    assert "- name: Verify promoted evidence-only delta" in final_block
+    assert "python -m scripts.verify_release_delta" in final_block
+    assert "--base HEAD^ --head HEAD" in final_block
+    revalidate = final_block.index("- name: Revalidate release-candidate summary")
+    verify_delta = final_block.index("- name: Verify promoted evidence-only delta")
+    upload = final_block.index("- name: Upload promotable release-candidate summary")
+    assert revalidate < verify_delta < upload
     assert f"name: {candidate}" in final_block
 
 
