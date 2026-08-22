@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from data.generators.tier_c import build_tier_c
-from src.clients.base import ClassificationResult, TranscriptionResult
+from src.classifier.contracts import ClassificationResult
+from src.clients.base import TranscriptionResult
 from src.clients.mock import FakeIncidentClassifier, MockVisionClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded

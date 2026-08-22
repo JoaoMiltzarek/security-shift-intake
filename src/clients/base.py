@@ -11,13 +11,6 @@ from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
-from src.classifier.contracts import (
-    ClassificationResult as ClassificationResult,
-)
-from src.classifier.contracts import (
-    IncidentClassifier as IncidentClassifier,
-)
-from src.schema.config import ClassificationRule
 from src.schema.evidence import BBox
 
 if TYPE_CHECKING:
@@ -98,43 +91,4 @@ class RuntimeMetadataProvider(Protocol):
 
     def runtime_metadata(self) -> dict[str, str]:
         """Return safe metadata for the exact reader instance used by a run."""
-        ...
-
-
-class ExtractedFieldRaw(BaseModel):
-    """One field extracted from the transcription: raw string value + confidence.
-
-    Values are raw strings (or null when blank/absent). Type coercion and validity
-    checks happen deterministically in the critic stage, not here.
-    """
-
-    name: str
-    value: str | None = None
-    confidence: float = Field(ge=0.0, le=1.0)
-
-
-class ExtractionResponse(BaseModel):
-    """Structured-output wrapper the LLM fills (one entry per requested field)."""
-
-    fields: list[ExtractedFieldRaw]
-
-
-@runtime_checkable
-class LLMClient(IncidentClassifier, Protocol):
-    """Extracts structured fields and classifies a transcription.
-
-    Implementations include MockLLMClient (tests, $0) and the external experimental
-    AnthropicLLMClient, which has no supported v1 entrypoint.
-    """
-
-    def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:
-        """Return one ExtractedFieldRaw per requested field name."""
-        ...
-
-    def classify(
-        self,
-        transcription: str,
-        rules: list[ClassificationRule],
-    ) -> ClassificationResult:
-        """Classify the report into one label from each taxonomy dimension."""
         ...
