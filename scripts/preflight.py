@@ -214,9 +214,44 @@ def probe_tesseract() -> dict[str, Any]:
     return {"present": True, "langs": langs, "path": path}
 
 
+_PLAYWRIGHT_EXECUTABLE_NAMES = {
+    "chrome",
+    "chrome.exe",
+    "chromium",
+    "chromium.exe",
+    "headless_shell",
+    "chrome-headless-shell",
+    "chrome-headless-shell.exe",
+}
+
+
+def _playwright_executable(cache: Path) -> Path | None:
+    """Return a runnable Chromium binary, never a cache directory placeholder."""
+    try:
+        resolved_cache = cache.resolve(strict=True)
+        package_dirs = [
+            *resolved_cache.glob("chromium-*"),
+            *resolved_cache.glob("chromium_headless_shell-*"),
+        ]
+        for package_dir in package_dirs:
+            for candidate in package_dir.rglob("*"):
+                if candidate.name not in _PLAYWRIGHT_EXECUTABLE_NAMES:
+                    continue
+                resolved = candidate.resolve(strict=True)
+                if (
+                    resolved.is_relative_to(resolved_cache)
+                    and resolved.is_file()
+                    and os.access(resolved, os.X_OK)
+                ):
+                    return resolved
+    except OSError:
+        return None
+    return None
+
+
 def probe_browser() -> dict[str, Any]:
     """Detect a Chromium usable by the browser-smoke gate (system or Playwright cache)."""
-    for exe in ("chromium", "chromium-browser", "google-chrome", "chrome"):
+    for exe in ("chromium", "chromium-browser", "google-chrome", "chrome", "msedge"):
         found = shutil.which(exe)
         if found:
             return {"chromium_present": True, "path": found}
@@ -225,8 +260,9 @@ def probe_browser() -> dict[str, Any]:
     if home:
         candidates.append(str(Path(home) / ".cache" / "ms-playwright"))
     for cand in candidates:
-        if cand and Path(cand).is_dir() and any(Path(cand).glob("chromium-*")):
-            return {"chromium_present": True, "path": cand}
+        executable = _playwright_executable(Path(cand)) if cand else None
+        if executable:
+            return {"chromium_present": True, "path": str(executable)}
     return {"chromium_present": False, "path": None}
 
 

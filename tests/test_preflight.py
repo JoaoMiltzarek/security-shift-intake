@@ -128,6 +128,37 @@ def test_missing_portuguese_tesseract_language_warns() -> None:
     assert any("por" in action for action in actions)
 
 
+def test_empty_playwright_cache_is_not_reported_as_chromium(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "ms-playwright"
+    (cache / "chromium-1234").mkdir(parents=True)
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: None)
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(cache))
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("USERPROFILE", raising=False)
+
+    assert preflight.probe_browser() == {"chromium_present": False, "path": None}
+
+
+def test_playwright_cache_reports_the_actual_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "ms-playwright" / "chromium-1234" / "chrome-win" / "chrome.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"browser")
+    executable.chmod(0o700)
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: None)
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path / "ms-playwright"))
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("USERPROFILE", raising=False)
+
+    assert preflight.probe_browser() == {
+        "chromium_present": True,
+        "path": str(executable.resolve()),
+    }
+
+
 def test_git_output_preserves_leading_porcelain_status(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
