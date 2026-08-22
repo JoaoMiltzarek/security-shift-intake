@@ -281,6 +281,10 @@ def test_human_confirms_sem_alteracao(client: TestClient) -> None:
     occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
     assert occ["value"] == "(sem alteração)"
     assert occ["source"] == "human"
+    html = client.get(f"/drafts/{draft_id}/review").text
+    assert "Rotina" in html
+    assert 'name="classification_type"' not in html
+    assert 'name="classification_confirmed"' not in html
     assert _approve(client, draft_id).status_code == 200
 
 
