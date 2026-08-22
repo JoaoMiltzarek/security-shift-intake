@@ -11,6 +11,9 @@ CONFIG ?= configs/controle_ocorrencias.yaml
 # Optional arguments for the one-command synthetic showcase (e.g. --no-open).
 DEMO_ARGS ?=
 
+# Loopback UI port. Override with `make serve PORT=8080`.
+PORT ?= 8000
+
 # Sample cap for the BRESSAY real-handwriting eval (override: `make eval-bressay N=20`).
 N ?= 50
 
@@ -115,7 +118,7 @@ demo-pipeline-mock:
 
 # Launcher oficial da UI de revisão — recusa bind fora de loopback (sem auth + PII).
 serve:
-	uv run --locked python -m scripts.serve $(SERVE_ARGS)
+	uv run --locked python -m scripts.serve --port "$(PORT)" $(SERVE_ARGS)
 
 purge-demo-data:
 	uv run --locked python -m scripts.purge_demo_data demo

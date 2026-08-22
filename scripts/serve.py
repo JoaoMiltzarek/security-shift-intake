@@ -21,11 +21,26 @@ import sys
 import uvicorn
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+_DEFAULT_PORT = 8000
+
+
+def _valid_port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("port must be an integer from 1 to 65535") from exc
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("port must be from 1 to 65535")
+    return port
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Serve a UI de revisão (loopback only).")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("INTAKE_PORT", "8000")))
+    parser.add_argument(
+        "--port",
+        type=_valid_port,
+        default=os.environ.get("INTAKE_PORT", str(_DEFAULT_PORT)),
+    )
     parser.add_argument(
         "--host",
         default=os.environ.get("INTAKE_HOST", "127.0.0.1"),

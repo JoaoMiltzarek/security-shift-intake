@@ -51,3 +51,10 @@ def test_check_includes_format_gate() -> None:
     makefile = Path("Makefile").read_text(encoding="utf-8")
 
     assert "check: format-check lint typecheck test" in makefile
+
+
+def test_make_serve_passes_the_documented_port() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+
+    assert "PORT ?= 8000" in makefile
+    assert 'python -m scripts.serve --port "$(PORT)" $(SERVE_ARGS)' in makefile
