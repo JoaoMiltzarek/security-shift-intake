@@ -493,6 +493,32 @@ def _catalog_artifact_path(root: Path, raw_path: object) -> Path:
     return resolved_candidate
 
 
+def _read_index_blob(root: Path, portable_path: str) -> bytes | None:
+    """Return canonical Git bytes when *root* is a repository and the path is tracked."""
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "blob", f":{portable_path}"],
+            cwd=root,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    return result.stdout if result.returncode == 0 else None
+
+
+def _catalog_artifact_bytes(root: Path, raw_path: object) -> bytes:
+    artifact = _catalog_artifact_path(root, raw_path)
+    relative = artifact.relative_to(root.resolve(strict=True)).as_posix()
+    index_content = _read_index_blob(root, relative)
+    if index_content is not None:
+        return index_content
+    try:
+        return artifact.read_bytes()
+    except OSError as exc:
+        raise EvidenceValidationError("artefato catalogado não pôde ser lido") from exc
+
+
 def _validate_catalog_entry(entry: object, *, root: Path) -> dict[str, Any]:
     value = _mapping(entry)
     _expect_exact_keys(value, _CATALOG_ENTRY_KEYS)
@@ -531,11 +557,7 @@ def _validate_catalog_entry(entry: object, *, root: Path) -> dict[str, Any]:
     if len(limitations) != len(set(limitations)):
         raise EvidenceValidationError("limitações do catálogo inválidas")
 
-    artifact = _catalog_artifact_path(root, value["path"])
-    try:
-        content = artifact.read_bytes()
-    except OSError as exc:
-        raise EvidenceValidationError("artefato catalogado não pôde ser lido") from exc
+    content = _catalog_artifact_bytes(root, value["path"])
     if len(content) != value["bytes"] or hashlib.sha256(content).hexdigest() != value["sha256"]:
         raise EvidenceValidationError("integridade do artefato catalogado diverge")
     if value["status"] == "current_release":
@@ -569,7 +591,7 @@ def _validate_catalog_payload(payload: dict[str, Any], *, root: Path) -> dict[st
 def load_and_validate_catalog(
     catalog_path: Path = CATALOG_PATH, *, root: Path = REPO_ROOT
 ) -> dict[str, Any]:
-    """Load a strict catalog and validate every referenced worktree artifact."""
+    """Validate catalog entries against tracked blobs, falling back for new artifacts."""
     try:
         content = catalog_path.read_bytes()
     except OSError as exc:

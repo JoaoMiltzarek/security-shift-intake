@@ -462,6 +462,22 @@ def test_committed_catalog_passes_publisher_integrity_validation() -> None:
     publisher.load_and_validate_catalog(Path("docs/evals/catalog.json"))
 
 
+def test_catalog_prefers_canonical_index_bytes_over_checkout_transforms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    catalog_path, _content = _write_minimal_catalog(tmp_path)
+    canonical = b'{"historical":true}\n'
+    transformed = canonical.replace(b"\n", b"\r\n")
+    (tmp_path / "docs" / "historical.json").write_bytes(transformed)
+    monkeypatch.setattr(
+        publisher,
+        "_read_index_blob",
+        lambda _root, relative: canonical if relative == "docs/historical.json" else None,
+    )
+
+    publisher.load_and_validate_catalog(catalog_path, root=tmp_path)
+
+
 def test_catalog_rejects_stale_existing_hash(tmp_path: Path) -> None:
     catalog_path, _content = _write_minimal_catalog(tmp_path)
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
