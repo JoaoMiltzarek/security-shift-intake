@@ -1,50 +1,88 @@
-"""Classify normalized incidents through the injected deterministic contract."""
+"""Advisory classification over normalized occurrence content only."""
 
 from __future__ import annotations
 
-from src.classifier.contracts import IncidentClassifier
+from src.classifier.contracts import ClassificationResult, IncidentClassifier
 from src.schema.config import ReportConfig
-from src.schema.state import Classification, PipelineState
+from src.schema.extraction import NormalizedOccurrence
+from src.schema.state import ClassificationDecision, PipelineState
+
+_URGENCY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+_NONE_RULE_ID = "disposition.none"
+
+
+def occurrence_text(occurrence: NormalizedOccurrence) -> str:
+    """Build the only text surface classification is allowed to inspect."""
+    return " ".join(
+        value.strip()
+        for value in (occurrence.category, occurrence.description, occurrence.action)
+        if value and value.strip()
+    )
+
+
+def _validated_result(result: ClassificationResult, config: ReportConfig) -> None:
+    rules = {rule.id: rule for rule in config.classification.rules}
+    rule = rules.get(result.rule_id)
+    if rule is None:
+        raise ValueError("classification output references an unknown rule id")
+    if (result.incident_type, result.urgency, result.sector) != (
+        rule.type,
+        rule.urgency,
+        rule.sector,
+    ):
+        raise ValueError("classification output does not match its configured rule")
 
 
 def classify(
     state: PipelineState,
     client: IncidentClassifier,
     config: ReportConfig,
-    text: str | None = None,
-    reason: str | None = None,
 ) -> PipelineState:
-    """Classify the transcription against the config taxonomy; return updated state.
+    """Store one deterministic suggestion, or no decision for blocked content."""
+    normalized = state.normalized
+    if normalized is None or normalized.disposition == "unknown" or state.ocr_quality == "failed":
+        return state.model_copy(update={"classification": None})
+    if normalized.disposition == "none":
+        if not normalized.disposition_confirmed:
+            return state.model_copy(update={"classification": None})
+        return state.model_copy(
+            update={
+                "classification": ClassificationDecision(
+                    incident_type="routine",
+                    urgency="low",
+                    sector="general_support",
+                    source="rule",
+                    review_status="confirmed",
+                    classification_rule_id=_NONE_RULE_ID,
+                )
+            }
+        )
 
-    `text` (opcional) classifica um conteúdo canônico revisado no lugar da transcrição
-    bruta — usado pelo re-classify pós-edição humana (SSI-1007); `reason` registra a
-    procedência da classificação para o revisor.
-    """
-    taxonomy = config.classification
-    result = client.classify(
-        text if text is not None else (state.transcription or ""),
-        types=taxonomy.type.labels,
-        urgencies=taxonomy.urgency.labels,
-        sectors=taxonomy.sector.labels,
-    )
-    invalid_dimensions = [
-        dimension
-        for dimension, value, allowed in (
-            ("type", result.incident_type, taxonomy.type.labels),
-            ("urgency", result.urgency, taxonomy.urgency.labels),
-            ("sector", result.sector, taxonomy.sector.labels),
+    rule_order = {rule.id: index for index, rule in enumerate(config.classification.rules)}
+    candidates: list[tuple[int, int, int, ClassificationResult]] = []
+    for occurrence_index, occurrence in enumerate(normalized.occurrences):
+        result = client.classify(occurrence_text(occurrence), config.classification.rules)
+        _validated_result(result, config)
+        candidates.append(
+            (
+                _URGENCY_RANK.get(result.urgency, -1),
+                -rule_order[result.rule_id],
+                -occurrence_index,
+                result,
+            )
         )
-        if value not in allowed
-    ]
-    if invalid_dimensions:
-        raise ValueError(
-            "classification output outside configured taxonomy: " + ", ".join(invalid_dimensions)
-        )
-    classification = Classification(
-        incident_type=result.incident_type,
-        urgency=result.urgency,
-        sector=result.sector,
-        confidence=result.confidence,
-        reason=reason,
+    if not candidates:
+        return state.model_copy(update={"classification": None})
+    selected = max(candidates, key=lambda candidate: candidate[:3])[3]
+    return state.model_copy(
+        update={
+            "classification": ClassificationDecision(
+                incident_type=selected.incident_type,
+                urgency=selected.urgency,
+                sector=selected.sector,
+                source="rule",
+                review_status="suggested",
+                classification_rule_id=selected.rule_id,
+            )
+        }
     )
-    return state.model_copy(update={"classification": classification})

@@ -17,6 +17,7 @@ from src.classifier.contracts import (
 from src.classifier.contracts import (
     IncidentClassifier as IncidentClassifier,
 )
+from src.schema.config import ClassificationRule
 from src.schema.evidence import BBox
 
 if TYPE_CHECKING:
@@ -133,9 +134,7 @@ class LLMClient(IncidentClassifier, Protocol):
     def classify(
         self,
         transcription: str,
-        types: list[str],
-        urgencies: list[str],
-        sectors: list[str],
+        rules: list[ClassificationRule],
     ) -> ClassificationResult:
         """Classify the report into one label from each taxonomy dimension."""
         ...

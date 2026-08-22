@@ -70,16 +70,20 @@ class ExtractedField(BaseModel):
     evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
-class Classification(BaseModel):
-    """Structured output from the classify stage."""
+class ClassificationDecision(BaseModel):
+    """Auditable triage suggestion or explicit human decision."""
+
+    model_config = ConfigDict(extra="forbid")
 
     incident_type: str
     urgency: str
     sector: str
-    # Raw model confidence — used by the critic to surface low-confidence results.
-    confidence: float = Field(ge=0.0, le=1.0)
-    # Why this classification (e.g. "OCR quality below threshold"); None on the normal path.
-    reason: str | None = None
+    source: Literal["rule", "human"]
+    review_status: Literal["suggested", "confirmed"]
+    classification_rule_id: str | None = None
+
+
+Classification = ClassificationDecision
 
 
 class PipelineState(BaseModel):
@@ -126,7 +130,7 @@ class PipelineState(BaseModel):
     validation_errors: list[str] = Field(default_factory=list)
 
     # --- Stage 4: classify ---
-    classification: Classification | None = None
+    classification: ClassificationDecision | None = None
 
     # --- Stage 5: route + draft ---
     recipients: list[str] = Field(default_factory=list)
@@ -176,6 +180,15 @@ class PipelineState(BaseModel):
             # A path alone cannot establish evidence integrity. Legacy images remain
             # on disk but are deliberately not promoted into trusted v2 references.
             raw.pop("page_image_paths", None)
+            classification = raw.get("classification")
+            if isinstance(classification, dict):
+                migrated_classification = dict(classification)
+                migrated_classification.pop("confidence", None)
+                migrated_classification.pop("reason", None)
+                migrated_classification.setdefault("source", "rule")
+                migrated_classification.setdefault("review_status", "suggested")
+                migrated_classification.setdefault("classification_rule_id", None)
+                raw["classification"] = migrated_classification
         return cls.model_validate(raw)
 
     def exceeds_v1_page_scope(self) -> bool:

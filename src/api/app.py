@@ -222,16 +222,6 @@ def _resolve_disposition(
     raise AssertionError("validated disposition was not resolved")
 
 
-def _revised_content(norm: NormalizedIncidentModel) -> str:
-    """Texto canônico do conteúdo REVISADO — a base da reclassificação pós-edição."""
-    if norm.disposition == "none":
-        return "sem alteração"
-    return "\n".join(
-        " ".join(p for p in (occ.category, occ.description, occ.action) if p)
-        for occ in norm.occurrences
-    )
-
-
 def _edit_table(
     state: PipelineState,
     form: Any,
@@ -386,8 +376,6 @@ def _edit_table(
             new_state,
             classifier,
             config,
-            text=_revised_content(norm),
-            reason="reclassificado a partir da revisão humana",
         )
         new_state = route(new_state, config)
     return build_outputs(new_state, config)

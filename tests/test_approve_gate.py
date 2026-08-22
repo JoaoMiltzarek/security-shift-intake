@@ -36,7 +36,9 @@ _PENDING_BODY = {
         "incident_type": "routine",
         "urgency": "low",
         "sector": "general_support",
-        "confidence": 0.6,
+        "source": "rule",
+        "review_status": "confirmed",
+        "classification_rule_id": "disposition.none",
     },
     "extracted_fields": [
         {"name": "data_turno", "value": None, "confidence": 0.0, "must_review": True}

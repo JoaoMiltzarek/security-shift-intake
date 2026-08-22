@@ -28,7 +28,8 @@ _SUBMIT_BODY = {
         "incident_type": "theft",
         "urgency": "high",
         "sector": "tech_security",
-        "confidence": 0.9,
+        "source": "human",
+        "review_status": "confirmed",
     },
     "extracted_fields": [
         {"name": "data_turno", "value": "15/01/2026", "confidence": 1.0},

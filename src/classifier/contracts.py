@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
+
+from src.schema.config import ClassificationRule
 
 
 class ClassificationResult(BaseModel):
     """One classification constrained by the active operational taxonomy."""
 
+    model_config = ConfigDict(extra="forbid")
+
     incident_type: str
     urgency: str
     sector: str
-    confidence: float = Field(ge=0.0, le=1.0)
+    rule_id: str
 
 
 @runtime_checkable
@@ -23,9 +27,7 @@ class IncidentClassifier(Protocol):
     def classify(
         self,
         text: str,
-        types: list[str],
-        urgencies: list[str],
-        sectors: list[str],
+        rules: list[ClassificationRule],
     ) -> ClassificationResult:
         """Return labels from the supplied taxonomy dimensions."""
         ...

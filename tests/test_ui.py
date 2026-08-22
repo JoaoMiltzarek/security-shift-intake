@@ -27,7 +27,8 @@ _BODY = {
         "incident_type": "theft",
         "urgency": "high",
         "sector": "tech_security",
-        "confidence": 0.9,
+        "source": "human",
+        "review_status": "confirmed",
     },
     "extracted_fields": [
         {"name": "data_turno", "value": None, "confidence": 0.2, "must_review": True},

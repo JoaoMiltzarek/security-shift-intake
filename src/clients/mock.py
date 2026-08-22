@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from src.clients.base import ClassificationResult, ExtractedFieldRaw, TranscriptionResult
 from src.pipeline.ingest import Deadline, PageArtifact
+from src.schema.config import ClassificationRule
 
 
 class MockVisionClient:
@@ -53,7 +54,10 @@ class MockLLMClient:
     ) -> None:
         self._by_name = {f.name: f for f in (fields or [])}
         self._classification = classification or ClassificationResult(
-            incident_type="routine", urgency="low", sector="general_support", confidence=0.9
+            incident_type="other",
+            urgency="medium",
+            sector="general_support",
+            rule_id="incident.other",
         )
         self.call_count = 0
         self.classify_count = 0
@@ -70,9 +74,7 @@ class MockLLMClient:
     def classify(
         self,
         transcription: str,
-        types: list[str],
-        urgencies: list[str],
-        sectors: list[str],
+        rules: list[ClassificationRule],
     ) -> ClassificationResult:
         self.classify_count += 1
         self.last_transcription = transcription

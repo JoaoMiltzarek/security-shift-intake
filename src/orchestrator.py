@@ -23,7 +23,7 @@ from src.pipeline.transcribe import transcribe
 from src.pipeline.validate import validate_table
 from src.schema.config import ReportConfig
 from src.schema.loader import config_fingerprint
-from src.schema.state import Classification, PipelineState
+from src.schema.state import PipelineState
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,16 +32,6 @@ class IntakeResult:
 
     state: PipelineState
     pages: tuple[PageArtifact, ...]
-
-
-def _blocked_classification(reason: str) -> Classification:
-    return Classification(
-        incident_type="unknown",
-        urgency="unknown",
-        sector="manual_review",
-        confidence=0.0,
-        reason=reason,
-    )
 
 
 def _timeout_result(
@@ -61,8 +51,7 @@ def _timeout_result(
         }
     )
     blocked = validate_table(extract_table(blocked, config), config)
-    blocked = blocked.model_copy(update={"classification": _blocked_classification(reason)})
-    blocked = route(blocked, config)
+    blocked = blocked.model_copy(update={"classification": None, "recipients": []})
     blocked = blocked.model_copy(update={"email_draft": blocked_draft_message(reason)})
     return IntakeResult(state=blocked, pages=pages)
 
@@ -93,14 +82,19 @@ def run_pipeline(
         state = state.model_copy(update={"ocr_quality": status, "ocr_quality_reason": reason})
 
         if status == OCR_FAILED:
-            state = state.model_copy(update={"classification": _blocked_classification(reason)})
-            state = route(state, config)
-            blocked = state.model_copy(update={"email_draft": blocked_draft_message(reason)})
+            blocked = state.model_copy(
+                update={
+                    "classification": None,
+                    "recipients": [],
+                    "email_draft": blocked_draft_message(reason),
+                }
+            )
             return IntakeResult(state=blocked, pages=pages)
 
         deadline.remaining_seconds(stage="classification")
         state = classify(state, classifier, config)
-        state = route(state, config)
+        if state.classification is not None:
+            state = route(state, config)
         return IntakeResult(state=build_outputs(state, config), pages=pages)
     except ProcessingDeadlineExceeded as exc:
         return _timeout_result(state, pages, config, str(exc))

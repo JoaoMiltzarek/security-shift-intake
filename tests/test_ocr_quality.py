@@ -80,10 +80,8 @@ def test_pipeline_blocks_on_failed_ocr() -> None:
         SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedIncidentClassifier(), CFG
     ).state
     assert state.ocr_quality == OCR_FAILED
-    assert state.classification is not None
-    assert state.classification.sector == "manual_review"
-    assert state.classification.incident_type == "unknown"
-    assert state.classification.confidence == 0.0
+    assert state.classification is None
+    assert state.recipients == []
     assert state.email_draft is not None and "BLOQUEADO" in state.email_draft
 
 
@@ -92,5 +90,4 @@ def test_pipeline_does_not_emit_spurious_classification() -> None:
     state = run_pipeline(
         SAMPLE, MockVisionClient(text=_GARBAGE), RuleBasedIncidentClassifier(), CFG
     ).state
-    assert state.classification is not None
-    assert state.classification.incident_type not in {"access_violation", "theft", "routine"}
+    assert state.classification is None

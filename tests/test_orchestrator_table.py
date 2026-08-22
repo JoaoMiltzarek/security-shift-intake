@@ -44,7 +44,10 @@ def sample_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def _llm() -> MockLLMClient:
     return MockLLMClient(
         classification=ClassificationResult(
-            incident_type="routine", urgency="low", sector="general_support", confidence=0.6
+            incident_type="other",
+            urgency="medium",
+            sector="general_support",
+            rule_id="incident.other",
         )
     )
 

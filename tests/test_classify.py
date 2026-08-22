@@ -1,81 +1,149 @@
-"""M6.a: deterministic classify-stage contracts."""
+"""Classification reads normalized occurrence content and remains advisory."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from src.clients.base import ClassificationResult
+from src.classifier.contracts import ClassificationResult
 from src.clients.mock import MockLLMClient
 from src.pipeline.classify import classify
+from src.schema.extraction import NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config
 from src.schema.state import PipelineState
 
 CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 
-def test_classify_populates_state() -> None:
+def _present(*occurrences: NormalizedOccurrence) -> PipelineState:
+    return PipelineState(
+        source_pdf=Path("x.pdf"),
+        transcription="Furto no cabeçalho não pode influenciar a triagem.",
+        normalized=NormalizedIncidentModel(
+            disposition="present",
+            occurrences=list(occurrences),
+        ),
+    )
+
+
+def test_classify_populates_a_rule_suggestion() -> None:
     client = MockLLMClient(
         classification=ClassificationResult(
-            incident_type="theft", urgency="high", sector="tech_security", confidence=0.88
+            incident_type="theft",
+            urgency="high",
+            sector="tech_security",
+            rule_id="incident.theft",
         )
     )
-    state = PipelineState(source_pdf=Path("x.pdf"), transcription="...furto...")
+    state = _present(NormalizedOccurrence(description="Material subtraído"))
+
     result = classify(state, client, CONFIG)
 
     assert result.classification is not None
     assert result.classification.incident_type == "theft"
-    assert result.classification.urgency == "high"
-    assert result.classification.sector == "tech_security"
-    assert result.classification.confidence == 0.88
+    assert result.classification.source == "rule"
+    assert result.classification.review_status == "suggested"
+    assert result.classification.classification_rule_id == "incident.theft"
     assert client.classify_count == 1
 
 
-def test_classify_passes_taxonomy_labels() -> None:
-    # The mock ignores the labels but the stage must pass the config taxonomy.
-    captured: dict[str, Any] = {}
+def test_classify_passes_only_normalized_occurrence_content() -> None:
+    client = MockLLMClient()
+    state = _present(
+        NormalizedOccurrence(
+            category="Portão",
+            description="Aberto",
+            action="Fechado pelo vigilante",
+        )
+    )
 
-    class _SpyClient(MockLLMClient):
-        def classify(self, transcription, types, urgencies, sectors):  # type: ignore[no-untyped-def]
-            captured["types"] = types
-            captured["urgencies"] = urgencies
-            captured["sectors"] = sectors
-            return super().classify(transcription, types, urgencies, sectors)
+    classify(state, client, CONFIG)
 
-    state = PipelineState(source_pdf=Path("x.pdf"), transcription="...")
-    classify(state, _SpyClient(), CONFIG)
-    assert "critical" in captured["urgencies"]
-    assert "theft" in captured["types"]
-    assert "facilities" in captured["sectors"]
+    assert client.last_transcription == "Portão Aberto Fechado pelo vigilante"
 
 
 def test_classify_does_not_mutate_input() -> None:
-    state = PipelineState(source_pdf=Path("x.pdf"), transcription="...")
+    state = _present(NormalizedOccurrence(description="Rotina"))
     classify(state, MockLLMClient(), CONFIG)
     assert state.classification is None
+
+
+def test_classify_skips_unknown_and_failed_content() -> None:
+    client = MockLLMClient()
+    unknown = PipelineState(
+        source_pdf=Path("x.pdf"), normalized=NormalizedIncidentModel(disposition="unknown")
+    )
+    failed = _present(NormalizedOccurrence(description="Furto")).model_copy(
+        update={"ocr_quality": "failed"}
+    )
+
+    assert classify(unknown, client, CONFIG).classification is None
+    assert classify(failed, client, CONFIG).classification is None
+    assert client.classify_count == 0
+
+
+def test_confirmed_no_occurrence_derives_confirmed_routine() -> None:
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(
+            disposition="none", disposition_confirmed=True
+        ),
+    )
+
+    result = classify(state, MockLLMClient(), CONFIG)
+
+    assert result.classification is not None
+    assert result.classification.incident_type == "routine"
+    assert result.classification.review_status == "confirmed"
+    assert result.classification.classification_rule_id == "disposition.none"
+
+
+def test_unconfirmed_no_occurrence_has_no_classification() -> None:
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(disposition="none"),
+    )
+
+    assert classify(state, MockLLMClient(), CONFIG).classification is None
 
 
 @pytest.mark.parametrize(
     "classification",
     [
         ClassificationResult(
-            incident_type="invented", urgency="high", sector="tech_security", confidence=0.9
+            incident_type="invented",
+            urgency="high",
+            sector="tech_security",
+            rule_id="incident.theft",
         ),
         ClassificationResult(
-            incident_type="theft", urgency="invented", sector="tech_security", confidence=0.9
-        ),
-        ClassificationResult(
-            incident_type="theft", urgency="high", sector="invented", confidence=0.9
+            incident_type="theft",
+            urgency="high",
+            sector="tech_security",
+            rule_id="invented",
         ),
     ],
 )
-def test_classify_rejects_labels_outside_config_taxonomy(
+def test_classify_rejects_output_that_disagrees_with_config(
     classification: ClassificationResult,
 ) -> None:
     client = MockLLMClient(classification=classification)
-    state = PipelineState(source_pdf=Path("x.pdf"), transcription="...")
+    state = _present(NormalizedOccurrence(description="Furto"))
 
-    with pytest.raises(ValueError, match="outside configured taxonomy"):
+    with pytest.raises(ValueError, match="classification output"):
         classify(state, client, CONFIG)
+
+
+def test_multiple_occurrences_choose_highest_urgency_then_rule_order() -> None:
+    from src.classifier.rules import RuleBasedIncidentClassifier
+
+    state = _present(
+        NormalizedOccurrence(description="Alarme disparado"),
+        NormalizedOccurrence(description="Furto confirmado"),
+    )
+
+    result = classify(state, RuleBasedIncidentClassifier(), CONFIG)
+
+    assert result.classification is not None
+    assert result.classification.classification_rule_id == "incident.theft"

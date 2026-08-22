@@ -66,7 +66,9 @@ def test_classification_valid() -> None:
         incident_type="routine",
         urgency="low",
         sector="general_support",
-        confidence=0.88,
+        source="rule",
+        review_status="suggested",
+        classification_rule_id="classification.default",
     )
     assert c.incident_type == "routine"
 
@@ -80,7 +82,11 @@ def test_state_with_populated_fields() -> None:
             ExtractedField(name="guard_name", value="João", confidence=0.91),
         ],
         classification=Classification(
-            incident_type="routine", urgency="low", sector="general_support", confidence=0.92
+            incident_type="routine",
+            urgency="low",
+            sector="general_support",
+            source="human",
+            review_status="confirmed",
         ),
         recipients=["general_support"],
         email_draft="Subject: Shift report ...",
