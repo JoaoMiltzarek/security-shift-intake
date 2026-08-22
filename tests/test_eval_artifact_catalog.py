@@ -21,7 +21,8 @@ EXPECTED_ARTIFACTS = {
     "docs/eval_real_summary.json",
     "docs/eval_synthetic_summary.json",
 }
-RELEASE_PATH = "docs/evals/releases/v1.0.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
+RELEASE_PATH = "docs/evals/releases/v1.1.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
+RELEASE_ID = "v1.1.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
 
 
 def _catalog() -> dict[str, object]:
@@ -90,7 +91,7 @@ def test_catalog_classifies_only_v2_val_manifest_as_current_input() -> None:
     assert len(current_releases) <= 1
     if current_releases:
         release = current_releases[0]
-        assert release["id"] == "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
+        assert release["id"] == RELEASE_ID
         assert release["path"] == RELEASE_PATH
         assert release["kind"] == "result"
         assert release["release_blocking"] is True
@@ -137,7 +138,7 @@ def test_catalog_contract_accepts_the_future_published_state(
     assert isinstance(artifacts, list)
     artifacts.append(
         {
-            "id": "v1.0.0-eval-safety-bench-balanced-val-local-ocr-dpi150",
+            "id": RELEASE_ID,
             "path": RELEASE_PATH,
             "sha256": "a" * 64,
             "bytes": 1,
