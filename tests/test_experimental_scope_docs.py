@@ -17,14 +17,16 @@ def test_privacy_policy_limits_locality_guarantee_to_default_flow() -> None:
     privacy = _read("docs/PRIVACY.md")
 
     required = (
+        "The supported flow has no network reader or delivery adapter",
         "does not upload a sheet",
-        "A non-loopback VLM endpoint can transmit document data",
-        "explicit opt-in",
-        "must not receive real PII without authorization",
+        "reports configured indicators",
+        "does not prove",
+        "staged Git blobs rather than mutable worktree copies",
     )
     forbidden = (
         "data never leaves the operator's machine",
         "A real sheet is never uploaded anywhere",
+        "VLM",
     )
 
     assert all(_has_phrase(privacy, value) for value in required)
