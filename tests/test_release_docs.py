@@ -112,7 +112,6 @@ def test_bressay_is_consistently_documented_as_nonthresholded() -> None:
 
 def test_bressay_active_docs_use_the_privacy_allowlisted_root() -> None:
     paths = (
-        ".env.example",
         "README.md",
         "docs/EVAL_BRESSAY.md",
         "docs/EVAL_PROTOCOL.md",
@@ -121,6 +120,22 @@ def test_bressay_active_docs_use_the_privacy_allowlisted_root() -> None:
 
     assert all("data/bressay" not in document for document in documents)
     assert all("datasets/bressay" in document for document in documents)
+
+
+def test_repository_does_not_advertise_unsupported_dotenv_setup() -> None:
+    assert not Path(".env.example").exists()
+
+    public_instructions = "\n".join(
+        _read(path)
+        for path in (
+            "README.md",
+            "Makefile",
+            "CONTRIBUTING.md",
+            "docs/ARCHITECTURE.md",
+        )
+    )
+    assert ".env.example" not in public_instructions
+    assert "python-dotenv" not in public_instructions
 
 
 def test_purge_is_documented_as_logical_removal_not_secure_erase() -> None:
