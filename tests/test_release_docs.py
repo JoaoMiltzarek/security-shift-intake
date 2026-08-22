@@ -14,6 +14,9 @@ def test_dataset_contract_identifies_the_authenticated_release_freeze() -> None:
 
     required = (
         "tier_c-manifest/v2",
+        "data/manifests/safety_corpus_v1.1/bench-balanced.val.logical.jsonl",
+        "`doc_id`, `split`, `image`, `gt`, and `sha256_gt`",
+        "deliberately excludes `sha256_img`",
         "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl",
         "aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd",
         '"image": "pngs/<doc_id>.png"',
@@ -54,6 +57,7 @@ def test_dataset_contract_documents_the_manual_linux_checkpoint() -> None:
     contract = " ".join(_read("docs/DATASET_CONTRACT.md").split())
 
     required = (
+        "propose-safety-logical-freeze.yml",
         "build-safety-corpus.yml",
         "Ubuntu 24.04",
         "Python | 3.11.15",
@@ -61,9 +65,24 @@ def test_dataset_contract_documents_the_manual_linux_checkpoint() -> None:
         "5.3.4-1build5",
         "1:4.1.0-2",
         "exactly 45 sheets",
-        "security-shift-intake-v1.1-safety-corpus-C",
+        "UNTRUSTED-logical-freeze-candidate-C",
+        "security-shift-intake-v1.1-safety-corpus-F",
         "data/eval_corpora/v1.1/bench-balanced-val/",
         "Normal CI never rebuilds the exam",
+    )
+    assert all(value in contract for value in required)
+
+
+def test_dataset_checkpoint_separates_freeze_proposal_from_corpus_build() -> None:
+    contract = " ".join(_read("docs/DATASET_CONTRACT.md").split())
+
+    required = (
+        "two independent manual executions",
+        "generates the 45-sheet split twice",
+        "not release evidence",
+        "Commit only the unchanged logical JSONL",
+        "independently regenerates and authenticates the corpus",
+        "requires equality with the already versioned logical freeze",
     )
     assert all(value in contract for value in required)
 

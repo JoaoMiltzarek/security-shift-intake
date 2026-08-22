@@ -131,18 +131,25 @@ covers canonical ground truth without the storage-only `source_file` field.
 JSON and JSONL use UTF-8, LF endings, sorted keys, finite numbers, and deterministic separators.
 Metadata and manifests are published atomically.
 
-## Validation freeze
+## Logical release freeze
 
-The external freeze for the 45-entry `bench-balanced/val` split is:
+The v1.1 release gate uses a raster-byte-independent projection at:
 
 ```text
-data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl
+data/manifests/safety_corpus_v1.1/bench-balanced.val.logical.jsonl
 ```
 
-Its canonical SHA-256 is
-`aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd`.
-The loader compares the generated manifest with that independent file and then verifies every
-PNG and ground-truth hash. Generation and evaluation never create or update the freeze.
+Each of its 45 canonical rows contains only `doc_id`, `split`, `image`, `gt`, and `sha256_gt`.
+It deliberately excludes `sha256_img`: raster bytes are fixed by the later committed corpus,
+its complete manifest, and `SHA256SUMS`. The ground-truth hash still covers the exact rendered
+OCR reference, so a changed scoring surface requires an explicit new freeze review.
+
+The builder requires this file to exist in Git and compares the generated complete-manifest
+projection with it. Neither generation workflow creates, updates, or overwrites a repository
+freeze. The earlier complete freeze at
+`data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl` has canonical SHA-256
+`aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd`; it is retained as
+historical evidence for the previous ground-truth surface and is not the v1.1 builder input.
 
 ## Canonical v1.1 corpus checkpoint
 
@@ -166,18 +173,35 @@ The workflow also records the Pillow version, runner image identity, Tesseract e
 `uv.lock` SHA-256, every vendored font SHA-256, GitHub repository, workflow, run, attempt, and
 the exact 40-character commit. Generator, metadata, and workflow commit identities must agree.
 
-The checkpoint sequence is intentionally manual:
+The checkpoint uses two independent manual executions. The first proposes a freeze; it cannot
+publish a corpus or release evidence:
 
-1. Push the frozen generator commit `C` without rewriting it.
-2. Dispatch `build-safety-corpus.yml` for that ref.
-3. Confirm that the workflow `headSha` is exactly `C` and wait for a green run.
-4. Download `security-shift-intake-v1.1-safety-corpus-C` under an ignored
-   `private/checkpoints/C/` directory.
-5. Load it with `load_verified_safety_corpus` and confirm 45 sheets plus matching provenance.
-6. Import the unchanged tree into `data/eval_corpora/v1.1/bench-balanced-val/` in one dedicated
-   corpus commit.
-7. Let normal CI verify and evaluate the committed bytes. Normal CI never rebuilds the exam it
-   is scoring.
+1. Push the reviewed generator commit `C` without rewriting it.
+2. Dispatch
+   [`propose-safety-logical-freeze.yml`](../.github/workflows/propose-safety-logical-freeze.yml)
+   for `C` and confirm that its `headSha` is exactly `C`.
+3. The job generates the 45-sheet split twice in fresh directories and refuses unequal logical
+   projections.
+4. Download `UNTRUSTED-logical-freeze-candidate-C` under
+   `private/checkpoints/C/logical-freeze/`. Its name and provenance deliberately state that it
+   is not release evidence.
+5. Review the candidate provenance and canonical JSONL. Commit only the unchanged logical JSONL
+   at `data/manifests/safety_corpus_v1.1/bench-balanced.val.logical.jsonl` in a dedicated freeze
+   commit `F`; do not commit the untrusted candidate provenance.
+
+The second execution independently regenerates and authenticates the corpus:
+
+6. Push `F`, dispatch `build-safety-corpus.yml` for that ref, and confirm its `headSha` is
+   exactly `F`.
+7. The builder regenerates from a fresh directory, requires equality with the already versioned
+   logical freeze, and only then assembles the complete manifest and inventory.
+8. Download `security-shift-intake-v1.1-safety-corpus-F` under
+   `private/checkpoints/F/safety-corpus/`.
+9. Load it with `load_verified_safety_corpus` and confirm 45 sheets plus matching provenance.
+10. Import the unchanged tree into `data/eval_corpora/v1.1/bench-balanced-val/` in one dedicated
+    corpus commit.
+11. Let normal CI verify and evaluate the committed bytes. Normal CI never rebuilds the exam it
+    is scoring.
 
 The artifact contains only `pngs/`, `gt/`, `manifests/val.jsonl`, `meta.json`,
 `provenance.json`, and `SHA256SUMS`. Its inventory must cover every file exactly once. The loader
