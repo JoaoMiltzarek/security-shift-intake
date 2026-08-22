@@ -21,6 +21,35 @@ def test_dataset_contract_identifies_the_authenticated_release_freeze() -> None:
     assert all(value in contract for value in required)
 
 
+def test_dataset_contract_separates_synthetic_safety_from_accuracy_claims() -> None:
+    contract = " ".join(_read("docs/DATASET_CONTRACT.md").split())
+
+    required = (
+        "does **not** establish handwriting accuracy",
+        "Synthetic labels also share vocabulary and structure",
+        "exact rendered surface",
+        "not general OCR accuracy",
+    )
+    assert all(value in contract for value in required)
+
+
+def test_dataset_contract_documents_strict_portable_artifacts() -> None:
+    contract = _read("docs/DATASET_CONTRACT.md")
+
+    required = (
+        "tier_c/v2",
+        "ssi-safety-corpus/v1",
+        "UTF-8",
+        "LF endings",
+        "relative POSIX paths",
+        "sha256_img",
+        "sha256_gt",
+        "fresh tree",
+        "staging directory",
+    )
+    assert all(value in contract for value in required)
+
+
 def test_architecture_documents_the_current_domain_contracts() -> None:
     architecture = " ".join(_read("docs/ARCHITECTURE.md").split())
 
