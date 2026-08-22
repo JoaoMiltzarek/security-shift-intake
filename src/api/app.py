@@ -217,7 +217,10 @@ def _resolve_disposition(
     form: Any, rows: list[NormalizedOccurrence]
 ) -> tuple[Disposition, list[NormalizedOccurrence]]:
     """Disposição vem de confirmação explícita; contradições nunca persistem."""
-    disposicao = form.get("disposicao")
+    dispositions = form.getlist("disposicao")
+    if len(dispositions) > 1:
+        raise DispositionConflictError("Campo de disposição duplicado.")
+    disposicao = dispositions[0] if dispositions else None
     if disposicao == "sem_alteracao" and rows:
         raise DispositionConflictError(
             "Você marcou 'sem alteração' mas há linhas de ocorrência preenchidas — "
