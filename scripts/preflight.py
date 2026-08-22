@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -57,10 +58,18 @@ _EXPECTED_BRANCH_ENV = "PREFLIGHT_EXPECTED_BRANCH"
 
 def _run_git(root: Path, *args: str) -> str | None:
     """Run a git command in *root*; return stripped stdout or None if git/repo absent."""
-    if not shutil.which("git"):
+    executable = shutil.which("git")
+    if not executable:
         return None
     try:
-        out = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=30)
+        out = subprocess.run(
+            [executable, *args],
+            cwd=root,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
     except (OSError, subprocess.SubprocessError):
         return None
     if out.returncode != 0:
@@ -161,9 +170,19 @@ def scan_dbs(root: Path, tracked: set[str]) -> list[dict[str, Any]]:
 def probe_tools() -> dict[str, Any]:
     """Locate uv/python/make via shutil.which — NOT via uv (uv may be what's missing)."""
     return {
+        "git": shutil.which("git"),
         "uv": shutil.which("uv"),
-        "python": shutil.which("python3") or shutil.which("python") or sys.executable,
+        "python": str(Path(sys.executable).resolve()) if sys.executable else None,
         "make": shutil.which("make"),
+    }
+
+
+def probe_runtime() -> dict[str, Any]:
+    """Describe the interpreter executing preflight, independently of PATH aliases."""
+    return {
+        "executable": str(Path(sys.executable).resolve()) if sys.executable else None,
+        "version": platform.python_version(),
+        "implementation": platform.python_implementation(),
     }
 
 
@@ -209,7 +228,12 @@ def symlink_support() -> bool:
 
 
 def precommit_hook_active(root: Path) -> bool:
-    hook = root / ".git" / "hooks" / "pre-commit"
+    raw_path = _run_git(root, "rev-parse", "--git-path", "hooks/pre-commit")
+    if not raw_path:
+        return False
+    hook = Path(raw_path)
+    if not hook.is_absolute():
+        hook = root / hook
     try:
         return hook.is_file() and hook.stat().st_size > 0
     except OSError:
@@ -304,6 +328,7 @@ def build_report(start: Path, with_test_baseline: bool = False) -> dict[str, Any
         "expected_branch": expected,
         "dirty_tree": git_dirty(base),
         "tools": probe_tools(),
+        "runtime": probe_runtime(),
         "venv_ok": venv["ok"],
         "venv": venv,
         "test_baseline": collect_test_baseline(base) if with_test_baseline else None,
@@ -372,7 +397,11 @@ def _print_human(report: dict[str, Any]) -> None:
     label = {0: "CLEAN", 1: "WARN", 2: "BLOCKER"}[sev]
     print(f"preflight: severity {sev} ({label})")
     print(f"  repo: {report['repo_root']}  branch: {report['branch']}")
-    print(f"  venv_ok: {report['venv_ok']}")
+    runtime = report["runtime"]
+    print(
+        f"  runtime: {runtime['implementation']} {runtime['version']} "
+        f"({runtime['executable']})  venv_ok: {report['venv_ok']}"
+    )
     t = report["tools"]
     print(f"  tools: uv={bool(t['uv'])} make={bool(t['make'])} python={bool(t['python'])}")
     print(

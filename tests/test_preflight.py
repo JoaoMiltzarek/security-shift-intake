@@ -25,7 +25,12 @@ def _clean_report(**over: Any) -> dict[str, Any]:
         "branch_ok": True,
         "expected_branch": None,
         "dirty_tree": {"clean": True, "untracked": [], "modified": [], "dangerous": []},
-        "tools": {"uv": "/uv", "python": "/py", "make": "/make"},
+        "tools": {"git": "/git", "uv": "/uv", "python": "/py", "make": "/make"},
+        "runtime": {
+            "executable": "/py",
+            "version": "3.11.15",
+            "implementation": "CPython",
+        },
         "venv_ok": True,
         "venv": {
             "ok": True,
@@ -128,11 +133,18 @@ def test_git_output_preserves_leading_porcelain_status(
 ) -> None:
     result = SimpleNamespace(returncode=0, stdout=" M scripts/preflight.py\n")
     monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/git")
-    monkeypatch.setattr(preflight.subprocess, "run", lambda *_args, **_kwargs: result)
+    captured: dict[str, Any] = {}
+
+    def run(command: list[str], **_kwargs: Any) -> SimpleNamespace:
+        captured["command"] = command
+        return result
+
+    monkeypatch.setattr(preflight.subprocess, "run", run)
 
     output = preflight._run_git(tmp_path, "status", "--porcelain")
 
     assert output == " M scripts/preflight.py"
+    assert captured["command"] == ["/git", "status", "--porcelain"]
 
 
 def test_untracked_webp_is_classified_as_dangerous(
@@ -144,6 +156,34 @@ def test_untracked_webp_is_classified_as_dangerous(
 
     assert dirty["untracked"] == ["leaked-page.webp"]
     assert dirty["dangerous"] == ["leaked-page.webp"]
+
+
+def test_probe_tools_reports_the_active_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "active-python"
+    monkeypatch.setattr(preflight.sys, "executable", str(executable))
+    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/{name}")
+
+    tools = preflight.probe_tools()
+
+    assert tools == {
+        "git": "/git",
+        "uv": "/uv",
+        "python": str(executable.resolve()),
+        "make": "/make",
+    }
+
+
+def test_precommit_hook_uses_the_active_worktree_git_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = tmp_path / "common-git-dir" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(preflight, "_run_git", lambda *_args: str(hook))
+
+    assert preflight.precommit_hook_active(tmp_path) is True
 
 
 def test_test_baseline_is_locked_no_sync_and_cache_free(
