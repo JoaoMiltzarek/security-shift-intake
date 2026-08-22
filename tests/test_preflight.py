@@ -172,3 +172,26 @@ def test_test_baseline_is_locked_no_sync_and_cache_free(
         "no:cacheprovider",
     ]
     assert captured["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
+def test_test_baseline_supports_pytest_grouped_collection_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = SimpleNamespace(
+        returncode=0,
+        stdout="tests/test_api.py: 12\ntests/test_preflight.py: 16\n",
+    )
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/uv")
+    monkeypatch.setattr(preflight.subprocess, "run", lambda *_args, **_kwargs: result)
+
+    assert preflight.collect_test_baseline(tmp_path) == 28
+
+
+def test_test_baseline_rejects_failed_collection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = SimpleNamespace(returncode=2, stdout="tests/test_api.py: 12\n")
+    monkeypatch.setattr(preflight.shutil, "which", lambda _name: "/uv")
+    monkeypatch.setattr(preflight.subprocess, "run", lambda *_args, **_kwargs: result)
+
+    assert preflight.collect_test_baseline(tmp_path) is None

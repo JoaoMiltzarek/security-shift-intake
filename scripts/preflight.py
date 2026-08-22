@@ -281,8 +281,13 @@ def collect_test_baseline(root: Path) -> int | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    m = re.search(r"(\d+)\s+tests?\s+collected", out.stdout)
-    return int(m.group(1)) if m else None
+    if out.returncode != 0:
+        return None
+    summary = re.search(r"(\d+)\s+tests?\s+collected", out.stdout)
+    if summary:
+        return int(summary.group(1))
+    grouped_counts = re.findall(r"^tests[/\\].+:\s+(\d+)\s*$", out.stdout, re.MULTILINE)
+    return sum(map(int, grouped_counts)) if grouped_counts else None
 
 
 def build_report(start: Path, with_test_baseline: bool = False) -> dict[str, Any]:
