@@ -32,7 +32,7 @@ override SAFETY_DATASET := bench-balanced
 override SAFETY_SPLIT := val
 override SAFETY_VISION := local_ocr
 
-.PHONY: help install lint format format-check typecheck test check audit-deps \
+.PHONY: help install check-test-env lint format format-check typecheck test check audit-deps \
         validate-config gen-sheets gen-safety-sheets demo-pipeline \
         demo demo-pipeline-mock serve eval-bressay eval-real eval-synthetic eval-safety \
         purge-demo-data purge-real-data purge-all-private privacy-check
@@ -40,6 +40,7 @@ override SAFETY_VISION := local_ocr
 help:
 	@echo security-shift-intake - available targets:
 	@echo   make install         - sync the virtualenv from uv.lock
+	@echo   make check-test-env  - verify an exact sync and the Starlette test backend
 	@echo   make lint            - ruff lint
 	@echo   make format          - ruff format (write)
 	@echo   make format-check    - ruff format (check only)
@@ -65,6 +66,10 @@ help:
 
 install:
 	uv sync --locked
+
+check-test-env:
+	uv sync --locked --check
+	uv run --locked --no-sync python -m scripts.check_test_environment
 
 lint:
 	uv run --locked ruff check .
