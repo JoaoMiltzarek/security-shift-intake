@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.clients.base import WordBox
+from src.schema.evidence import PageArtifactRef
 from src.schema.extraction import AuditedField
 from src.schema.state import ExtractedField
 
@@ -47,3 +48,20 @@ def test_all_persisted_evidence_models_share_bbox_validation() -> None:
 def test_boundary_aligned_bbox_is_valid() -> None:
     bbox = (0.0, 0.0, 1.0, 1.0)
     assert _word_box(bbox).bbox == bbox
+
+
+def test_page_artifact_ref_accepts_portable_identity() -> None:
+    ref = PageArtifactRef(
+        storage_key="abc/page_0.png",
+        sha256="a" * 64,
+        width=1800,
+        height=1200,
+    )
+
+    assert ref.storage_key == "abc/page_0.png"
+
+
+@pytest.mark.parametrize("storage_key", ["../page.png", "/page.png", "a\\page.png"])
+def test_page_artifact_ref_rejects_unsafe_storage_key(storage_key: str) -> None:
+    with pytest.raises(ValidationError):
+        PageArtifactRef(storage_key=storage_key, sha256="a" * 64, width=1, height=1)
