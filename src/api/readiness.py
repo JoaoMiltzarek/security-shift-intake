@@ -80,7 +80,7 @@ def _evidence_blocker(state: PipelineState, page_root: Path) -> str | None:
     return None
 
 
-def _pending_fields(state: PipelineState, config: ReportConfig) -> list[str]:
+def _pending_fields(state: PipelineState, config: ReportConfig | None) -> list[str]:
     pending = set(state.must_review_fields)
     pending.update(field.name for field in state.extracted_fields if field.must_review)
     pending.update(
@@ -89,12 +89,13 @@ def _pending_fields(state: PipelineState, config: ReportConfig) -> list[str]:
         if field.status in {"missing", "must_review", "ambiguous"}
     )
     extracted = {field.name: field for field in state.extracted_fields}
-    for field in config.fields:
-        if not field.required or field.type == "table":
-            continue
-        value = extracted.get(field.name)
-        if value is None or _blank(value.value):
-            pending.add(field.name)
+    if config is not None:
+        for field in config.fields:
+            if not field.required or field.type == "table":
+                continue
+            value = extracted.get(field.name)
+            if value is None or _blank(value.value):
+                pending.add(field.name)
     normalized = state.normalized
     if normalized is not None:
         pending.update(
@@ -109,7 +110,7 @@ def _pending_fields(state: PipelineState, config: ReportConfig) -> list[str]:
 
 def evaluate_readiness(
     state: PipelineState,
-    config: ReportConfig,
+    config: ReportConfig | None,
     *,
     page_root: Path | None = None,
     status: str | None = None,
@@ -138,11 +139,16 @@ def evaluate_readiness(
         _append_once(
             blockers,
             ReadinessBlockerCode.EVIDENCE_CHANGED,
-            "The state predates or exceeds the supported single-page v2 evidence contract.",
+            (
+                "Legacy state has no supported single-page v2 evidence contract; "
+                "re-ingest the source document."
+            ),
         )
 
-    expected_fingerprint = config_fingerprint(config)
-    if state.report_type != config.report_type or state.config_sha256 != expected_fingerprint:
+    if config is not None and (
+        state.report_type != config.report_type
+        or state.config_sha256 != config_fingerprint(config)
+    ):
         _append_once(
             blockers,
             ReadinessBlockerCode.CONFIG_MISMATCH,
@@ -155,10 +161,15 @@ def evaluate_readiness(
         or normalized.disposition == "unknown"
         or not normalized.disposition_confirmed
     ):
+        disposition_detail = (
+            "Draft does not contain the supported occurrence-sheet model."
+            if normalized is None
+            else "Occurrence disposition requires explicit human confirmation."
+        )
         _append_once(
             blockers,
             ReadinessBlockerCode.DISPOSITION_UNCONFIRMED,
-            "Occurrence disposition requires explicit human confirmation.",
+            disposition_detail,
         )
 
     pending = _pending_fields(state, config)
@@ -182,7 +193,7 @@ def evaluate_readiness(
     classification_allowed = False
     if normalized is not None and normalized.disposition != "unknown":
         if classification is not None:
-            classification_allowed = (
+            classification_allowed = config is None or (
                 classification.incident_type in config.classification.type.labels
                 and classification.urgency in config.classification.urgency.labels
                 and classification.sector in config.classification.sector.labels
@@ -200,8 +211,11 @@ def evaluate_readiness(
 
     route_resolved = False
     if classification is not None and classification.review_status == "confirmed":
-        routing = select_route(classification, config)
-        route_resolved = bool(routing.recipients) if routing is not None else False
+        if config is None:
+            route_resolved = True
+        else:
+            routing = select_route(classification, config)
+            route_resolved = bool(routing.recipients) if routing is not None else False
     if normalized is not None and normalized.disposition != "unknown" and not route_resolved:
         _append_once(
             blockers,

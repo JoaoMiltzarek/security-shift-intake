@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from sqlmodel import Session
 
 from src.api.models import Draft
+from src.api.readiness import ReadinessBlockerCode, evaluate_readiness
 from src.api.repository import (
     _mark_simulated_locked,
     add_audit,
@@ -14,7 +16,6 @@ from src.api.repository import (
     get_draft,
     state_sha256,
 )
-from src.pipeline.ocr_quality import OCR_FAILED
 from src.pipeline.outputs import derive_operational_outputs
 from src.schema.config import ReportConfig
 from src.schema.state import ApprovalStatus, PipelineState
@@ -28,41 +29,28 @@ class DraftNotReviewableError(RuntimeError):
     """Raised when a draft still contains unresolved review blockers."""
 
 
-def assert_reviewable(state: PipelineState) -> None:
-    """Fail closed unless the occurrence-sheet state is explicitly reviewable."""
-    if state.is_legacy:
-        raise DraftNotReviewableError(
-            "Legacy state has no v2 evidence contract; re-ingest the source document."
-        )
-    if state.exceeds_v1_page_scope():
-        raise DraftNotReviewableError(
-            "Legacy multi-page state exceeds the supported single-page v1 contract."
-        )
-    if state.ocr_quality == OCR_FAILED:
-        raise DraftNotReviewableError(
-            "OCR quality failed — manual transcription required before approval."
-        )
-    if state.normalized is None:
-        raise DraftNotReviewableError(
-            "Draft does not contain the supported occurrence-sheet model."
-        )
-    if state.must_review_fields:
-        raise DraftNotReviewableError(
-            f"{len(state.must_review_fields)} field(s) need review before approval: "
-            f"{', '.join(state.must_review_fields)}."
-        )
-    if state.normalized.disposition == "unknown":
-        raise DraftNotReviewableError(
-            "Occurrence disposition is unknown — explicit human confirmation required."
-        )
-    if not state.normalized.disposition_confirmed:
-        raise DraftNotReviewableError(
-            "Occurrence disposition requires explicit human confirmation."
-        )
-    if state.classification is None:
-        raise DraftNotReviewableError("Classification is unresolved.")
-    if state.classification.review_status != "confirmed":
-        raise DraftNotReviewableError("Classification requires explicit human confirmation.")
+def assert_reviewable(
+    state: PipelineState,
+    config: ReportConfig | None = None,
+    *,
+    page_root: Path | None = None,
+) -> None:
+    """Compatibility guard backed by the centralized readiness calculation."""
+    report = evaluate_readiness(state, config, page_root=page_root)
+    if report.approvable:
+        return
+    operational_codes = {
+        ReadinessBlockerCode.EVIDENCE_CHANGED,
+        ReadinessBlockerCode.CONFIG_MISMATCH,
+        ReadinessBlockerCode.DISPOSITION_UNCONFIRMED,
+        ReadinessBlockerCode.FIELD_PENDING,
+        ReadinessBlockerCode.VALIDATION_ERROR,
+        ReadinessBlockerCode.CLASSIFICATION_UNCONFIRMED,
+        ReadinessBlockerCode.ROUTING_UNRESOLVED,
+    }
+    blocker = next(item for item in report.blockers if item.code in operational_codes)
+    suffix = f" Fields: {', '.join(blocker.fields)}." if blocker.fields else ""
+    raise DraftNotReviewableError(f"{blocker.detail}{suffix}")
 
 
 @runtime_checkable
