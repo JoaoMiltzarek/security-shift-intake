@@ -1,4 +1,4 @@
-"""F8.1 (SSI-1011): contratos do showcase local executado por ``make demo``.
+"""Contracts for the local showcase executed by ``make demo``.
 
 As garantias centrais são fixture versionada, reader Tesseract local (independente de
 env), banco purgável, bind somente em loopback e abertura do browser apenas depois que
@@ -37,7 +37,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
     def fake_build_and_store(
         file: Path,
         reader: object,
-        llm: object,
+        classifier: object,
         config_path: Path,
         engine: object,
         *,
@@ -46,7 +46,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
         captured.update(
             file=file,
             reader=reader,
-            llm=llm,
+            classifier=classifier,
             config_path=config_path,
             engine=engine,
             page_images_root=page_images_root,
