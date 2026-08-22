@@ -1034,54 +1034,59 @@ def create_app(
         expected_state_sha256: Annotated[str, Form()],
         session: Session = Depends(get_session),
     ) -> Response:
-        """Export the standardized spreadsheet as CSV — only when nothing is pending.
+        """Export only the approved current snapshot, serialized under its lock."""
+        try:
+            with repository.draft_operation_lock(session, draft_id, wait=False):
+                session.expire_all()
+                draft = _require_draft(session, draft_id)
+                _assert_expected_snapshot(
+                    draft,
+                    expected_revision=expected_revision,
+                    expected_state_sha256=expected_state_sha256,
+                )
+                state = PipelineState.from_persisted_json(draft.state_json)
+                derived = derive_operational_outputs(state, active_config)
+                if not derived.spreadsheet_rows:
+                    raise HTTPException(status_code=404, detail="no spreadsheet to export")
+                readiness = _readiness(draft)
+                if not readiness.exportable:
+                    blocker = readiness.blockers[0]
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"export blocked — {blocker.code}: {blocker.detail}",
+                    )
 
-        Derives rows from the reviewed state and refuses a clean operational artifact
-        while any blocker remains. Scalar/invalid state has no rows and returns 404.
-        """
-        draft = _require_draft(session, draft_id)
-        _assert_expected_snapshot(
-            draft,
-            expected_revision=expected_revision,
-            expected_state_sha256=expected_state_sha256,
-        )
-        state = _compatible_state(draft)
-        derived = derive_operational_outputs(state, active_config)
-        if not derived.spreadsheet_rows:
-            raise HTTPException(status_code=404, detail="no spreadsheet to export")
-        blockers = export_blockers(state)
-        if blockers:
-            raise HTTPException(
-                status_code=409, detail=f"export blocked — pending: {', '.join(blockers)}"
-            )
-        buffer = io.StringIO()
-        writer = csv.writer(buffer)
-        writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
-        for row in derived.spreadsheet_rows:
-            writer.writerow(
-                [
-                    _csv_safe(row.dia),
-                    _csv_safe(row.unidade),
-                    _csv_safe(row.objeto),
-                    _csv_safe(row.descricao),
-                ]
-            )
-        snapshot_sha256 = repository.state_sha256(draft.state_json)
-        repository.add_audit(
-            session,
-            draft_id,
-            actor=_LOCAL_ACTOR,
-            action="export_csv",
-            detail=f"rev={draft.revision} sha256={snapshot_sha256[:12]}",
-            revision=draft.revision,
-            snapshot_sha256=snapshot_sha256,
-        )
+                buffer = io.StringIO()
+                writer = csv.writer(buffer)
+                writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
+                for row in derived.spreadsheet_rows:
+                    writer.writerow(
+                        [
+                            _csv_safe(row.dia),
+                            _csv_safe(row.unidade),
+                            _csv_safe(row.objeto),
+                            _csv_safe(row.descricao),
+                        ]
+                    )
+                snapshot_sha256 = repository.state_sha256(draft.state_json)
+                revision = draft.revision
+                repository.add_audit(
+                    session,
+                    draft_id,
+                    actor=_LOCAL_ACTOR,
+                    action="export_csv",
+                    detail=f"rev={revision} sha256={snapshot_sha256[:12]}",
+                    revision=revision,
+                    snapshot_sha256=snapshot_sha256,
+                )
+        except repository.DraftOperationConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return Response(
             content=buffer.getvalue(),
             media_type="text/csv",
             headers={
                 "Content-Disposition": (
-                    f'attachment; filename="draft_{draft_id}_rev_{draft.revision}.csv"'
+                    f'attachment; filename="draft_{draft_id}_rev_{revision}.csv"'
                 )
             },
         )

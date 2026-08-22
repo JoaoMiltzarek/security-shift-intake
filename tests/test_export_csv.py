@@ -35,15 +35,20 @@ _CLEAN_FORM = {
     "occ__1__descricao": "Alarme disparou 4 vezes",
     "occ__1__acao": "Verificado",
     "occ__1__resolvido": "sim",
+    "classification_type": "safety",
+    "classification_urgency": "high",
+    "classification_sector": "facilities",
+    "classification_confirmed": "yes",
 }
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client(tmp_path: Path) -> Iterator[TestClient]:
     app = create_app(
         engine=make_engine("sqlite://"),
         simulation_recorder=MemorySimulationRecorder(),
         config=CFG,
+        page_images_root=tmp_path,
         enable_test_state_submission=True,
     )
     with TestClient(app) as c:
@@ -57,10 +62,10 @@ def _submit_table_draft(client: TestClient) -> int:
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
 
-def _snapshot(client: TestClient, draft_id: int) -> dict[str, str | int]:
+def _snapshot(client: TestClient, draft_id: int) -> dict[str, str]:
     detail = client.get(f"/drafts/{draft_id}").json()
     return {
-        "expected_revision": detail["revision"],
+        "expected_revision": str(detail["revision"]),
         "expected_state_sha256": detail["state_sha256"],
     }
 
@@ -69,6 +74,14 @@ def _edit(client: TestClient, draft_id: int, form: dict[str, str]) -> None:
     response = client.post(
         f"/ui/drafts/{draft_id}/edit",
         data={**_snapshot(client, draft_id), **form},
+    )
+    assert response.status_code == 200
+
+
+def _approve(client: TestClient, draft_id: int) -> None:
+    response = client.post(
+        f"/drafts/{draft_id}/approve",
+        params=_snapshot(client, draft_id),
     )
     assert response.status_code == 200
 
@@ -93,6 +106,11 @@ def test_scalar_path_has_nothing_to_export(client: TestClient) -> None:
 def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     _edit(client, draft_id, _CLEAN_FORM)
+
+    blocked = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
+    assert blocked.status_code == 409
+    assert "approval_required" in blocked.json()["detail"]
+    _approve(client, draft_id)
 
     resp = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
     assert resp.status_code == 200
@@ -125,11 +143,29 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
     form = dict(_CLEAN_FORM)
     form["occ__1__item"] = "=cmd()"
     _edit(client, draft_id, form)
+    _approve(client, draft_id)
 
     resp = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
     assert resp.status_code == 200
     rows = list(csv.reader(io.StringIO(resp.text)))
     assert any("'=cmd()" in cell for row in rows[1:] for cell in row)
+
+
+def test_changed_evidence_blocks_export_after_approval(
+    client: TestClient, tmp_path: Path
+) -> None:
+    draft_id = _submit_table_draft(client)
+    _edit(client, draft_id, _CLEAN_FORM)
+    _approve(client, draft_id)
+    detail = client.get(f"/drafts/{draft_id}").json()
+    page_path = tmp_path / detail["state"]["page_artifacts"][0]["storage_key"]
+    page_path.write_bytes(page_path.read_bytes() + b"changed")
+
+    response = client.post(
+        f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)
+    )
+    assert response.status_code == 409
+    assert "evidence_changed" in response.json()["detail"]
 
 
 # --- _csv_safe unit coverage (Unicode Cc/Cf, BOM, whitespace) ----------------
