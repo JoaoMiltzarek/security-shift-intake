@@ -7,8 +7,8 @@ Also usable standalone: ``python scripts/check_real_data.py`` scans the Git inde
 
 Design (deliberately low false-positive):
   1. Binary/attachment extensions (scanned PDFs, photos, spreadsheets) are BLOCKED
-     anywhere — a real report would arrive as one of these and must never enter
-     the repo.
+     except for reviewed showcase assets and the exact canonical safety corpus after
+     its external pin, full index snapshot, and matching worktree are authenticated.
   2. Real-data text sentinels (the client org name, etc.) are scanned ONLY in
      data-bearing files. Source code, docs, and config legitimately reference the
      org name (it is the subject of the project), and files under data/synthetic/
@@ -23,6 +23,20 @@ import subprocess
 import sys
 from hashlib import sha256
 from pathlib import Path
+
+# Direct execution puts scripts/ rather than the repository root on sys.path. The local
+# hook intentionally supports that documented entrypoint as well as ``python -m``.
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.privacy_policy import (  # noqa: E402
+    SAFETY_CORPUS_PIN_RELATIVE,
+    SAFETY_CORPUS_RELATIVE,
+    AuthenticatedSafetyCorpus,
+    CorpusPrivacyError,
+    authenticate_index_safety_corpus,
+    validate_staged_inventory_pin,
+)
 
 # Binary / attachment extensions that should never be committed (real scans etc.).
 _BINARY_EXT = re.compile(r"\.(pdf|jpe?g|png|webp|tiff?|bmp|gif|xlsx?|docx?|pptx?)$", re.IGNORECASE)
@@ -142,10 +156,18 @@ def _logical_path(path: Path) -> Path:
         return path
 
 
-def check_content(path: Path, content: bytes) -> list[str]:
+def check_content(
+    path: Path,
+    content: bytes,
+    *,
+    authenticated_corpus: AuthenticatedSafetyCorpus | None = None,
+) -> list[str]:
     """Check repository-relative *path* using the exact supplied bytes."""
     violations: list[str] = []
     logical_path = _logical_path(path)
+
+    if authenticated_corpus is not None and authenticated_corpus.accepts(logical_path, content):
+        return []
 
     expected_sample_hash = _ALLOWED_SAMPLE_SHA256.get(logical_path)
     allowed_sample = expected_sample_hash == sha256(content).hexdigest()
@@ -211,20 +233,48 @@ def staged_blob(path: Path, repo_root: Path = _REPO_ROOT) -> bytes:
     ).stdout
 
 
+def _has_staged_change(path: Path, repo_root: Path = _REPO_ROOT) -> bool:
+    """Detect any staged addition, edit, rename, or deletion at one path."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet", "--", path.as_posix()],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode not in {0, 1}:
+        raise subprocess.CalledProcessError(result.returncode, result.args)
+    return result.returncode == 1
+
+
 def check_staged(repo_root: Path = _REPO_ROOT) -> list[str]:
     """Check every committable staged blob, including rename destinations."""
     violations: list[str] = []
     try:
         paths = staged_paths(repo_root)
+        corpus_changed = _has_staged_change(SAFETY_CORPUS_RELATIVE, repo_root)
+        pin_changed = _has_staged_change(SAFETY_CORPUS_PIN_RELATIVE, repo_root)
     except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return ["  Git index could not be enumerated safely"]
+
+    authenticated_corpus: AuthenticatedSafetyCorpus | None = None
+    if pin_changed:
+        try:
+            validate_staged_inventory_pin(repo_root, corpus_changed=corpus_changed)
+        except CorpusPrivacyError:
+            violations.append("  external safety corpus pin change was refused")
+    if corpus_changed and not pin_changed:
+        try:
+            authenticated_corpus = authenticate_index_safety_corpus(repo_root)
+        except CorpusPrivacyError:
+            violations.append("  canonical safety corpus could not be authenticated")
+
     for path in paths:
         try:
             content = staged_blob(path, repo_root)
         except (OSError, subprocess.SubprocessError):
             violations.append(f"  {path}: staged content could not be read")
             continue
-        violations.extend(check_content(path, content))
+        violations.extend(check_content(path, content, authenticated_corpus=authenticated_corpus))
     return violations
 
 

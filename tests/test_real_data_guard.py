@@ -10,11 +10,17 @@ Each test covers exactly one scenario so failures are pinpoint-attributable.
 from __future__ import annotations
 
 import subprocess
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
 from scripts.check_real_data import _ALLOWED_SAMPLE_SHA256, _REPO_ROOT, check_file, check_staged
+from scripts.privacy_policy import (
+    SAFETY_CORPUS_RELATIVE,
+    AuthenticatedSafetyCorpus,
+    CorpusPrivacyError,
+)
 
 
 def _write(path: Path, content: str) -> Path:
@@ -238,6 +244,7 @@ def test_unreadable_staged_blob_fails_closed(
     import scripts.check_real_data as guard
 
     monkeypatch.setattr(guard, "staged_paths", lambda _root: [Path("report.txt")])
+    monkeypatch.setattr(guard, "_has_staged_change", lambda _path, _root: False)
 
     def unreadable(_path: Path, _root: Path) -> bytes:
         raise subprocess.CalledProcessError(1, ["git", "cat-file"])
@@ -245,6 +252,117 @@ def test_unreadable_staged_blob_fails_closed(
     monkeypatch.setattr(guard, "staged_blob", unreadable)
 
     assert "staged content could not be read" in "\n".join(guard.check_staged(tmp_path))
+
+
+def test_authenticated_staged_corpus_member_is_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    path = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    content = b"authenticated synthetic PNG"
+    authenticated = AuthenticatedSafetyCorpus({path: sha256(content).hexdigest()})
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [path])
+    monkeypatch.setattr(
+        guard,
+        "_has_staged_change",
+        lambda candidate, _root: candidate == SAFETY_CORPUS_RELATIVE,
+    )
+    monkeypatch.setattr(guard, "authenticate_index_safety_corpus", lambda _root: authenticated)
+    monkeypatch.setattr(guard, "staged_blob", lambda _path, _root: content)
+
+    assert guard.check_staged(tmp_path) == []
+
+
+def test_corpus_path_without_complete_authentication_remains_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    path = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [path])
+    monkeypatch.setattr(
+        guard,
+        "_has_staged_change",
+        lambda candidate, _root: candidate == SAFETY_CORPUS_RELATIVE,
+    )
+
+    def reject(_root: Path) -> AuthenticatedSafetyCorpus:
+        raise CorpusPrivacyError("partial corpus")
+
+    monkeypatch.setattr(guard, "authenticate_index_safety_corpus", reject)
+    monkeypatch.setattr(guard, "staged_blob", lambda _path, _root: b"untrusted PNG")
+
+    violations = guard.check_staged(tmp_path)
+
+    assert any("could not be authenticated" in violation for violation in violations)
+    assert any("binary/attachment" in violation for violation in violations)
+
+
+def test_corpus_member_must_match_its_authenticated_index_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    path = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    authenticated = AuthenticatedSafetyCorpus({path: sha256(b"expected").hexdigest()})
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [path])
+    monkeypatch.setattr(
+        guard,
+        "_has_staged_change",
+        lambda candidate, _root: candidate == SAFETY_CORPUS_RELATIVE,
+    )
+    monkeypatch.setattr(guard, "authenticate_index_safety_corpus", lambda _root: authenticated)
+    monkeypatch.setattr(guard, "staged_blob", lambda _path, _root: b"different")
+
+    assert "binary/attachment" in "\n".join(guard.check_staged(tmp_path))
+
+
+def test_staged_corpus_deletion_requires_complete_remaining_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [])
+    monkeypatch.setattr(
+        guard,
+        "_has_staged_change",
+        lambda candidate, _root: candidate == SAFETY_CORPUS_RELATIVE,
+    )
+
+    def reject(_root: Path) -> AuthenticatedSafetyCorpus:
+        raise CorpusPrivacyError("missing member")
+
+    monkeypatch.setattr(guard, "authenticate_index_safety_corpus", reject)
+
+    assert "could not be authenticated" in "\n".join(guard.check_staged(tmp_path))
+
+
+def test_pin_and_corpus_in_same_delta_never_authenticate_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    path = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [path])
+    monkeypatch.setattr(guard, "_has_staged_change", lambda _path, _root: True)
+
+    def reject_pin(_root: Path, *, corpus_changed: bool) -> None:
+        assert corpus_changed
+        raise CorpusPrivacyError("same delta")
+
+    monkeypatch.setattr(guard, "validate_staged_inventory_pin", reject_pin)
+    monkeypatch.setattr(
+        guard,
+        "authenticate_index_safety_corpus",
+        lambda _root: pytest.fail("corpus authentication must not run"),
+    )
+    monkeypatch.setattr(guard, "staged_blob", lambda _path, _root: b"untrusted PNG")
+
+    violations = guard.check_staged(tmp_path)
+
+    assert any("pin change was refused" in violation for violation in violations)
+    assert any("binary/attachment" in violation for violation in violations)
 
 
 def test_staged_sensitive_blob_wins_over_clean_worktree(tmp_path: Path) -> None:
