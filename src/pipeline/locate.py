@@ -128,14 +128,23 @@ def attach_evidence(
             located.append(field)
             continue
         match = locate_value(field.value, words, page=field.page or 0)
+        located_geometry = match.bbox is not None
         located.append(
             field.model_copy(
                 update={
-                    "bbox": match.bbox,
-                    "page": field.page or 0,
-                    "evidence_text": match.evidence_text,
-                    "evidence_method": match.method,
-                    "evidence_score": match.score,
+                    "bbox": match.bbox if located_geometry else field.bbox,
+                    "page": (field.page or 0) if located_geometry else field.page,
+                    "evidence_text": (
+                        match.evidence_text if located_geometry else field.evidence_text
+                    ),
+                    "evidence_method": (
+                        match.method if located_geometry else field.evidence_method or "none"
+                    ),
+                    "evidence_score": (
+                        match.score
+                        if located_geometry or field.evidence_score is None
+                        else field.evidence_score
+                    ),
                 }
             )
         )

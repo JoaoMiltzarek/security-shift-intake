@@ -99,3 +99,24 @@ def test_attach_evidence_skips_human_edited_fields() -> None:
     out = attach_evidence(fields, words)
     assert out[0].bbox is None  # human value keeps no OCR bbox (invariant 4)
     assert out[0].evidence_method is None
+
+
+def test_attach_evidence_preserves_text_when_geometry_does_not_match() -> None:
+    words = [_wb("Outro", x0=0.1)]
+    fields = [
+        ExtractedField(
+            name="unidade",
+            value="Portaria",
+            confidence=0.6,
+            source="rule",
+            evidence_text="Unidade Portaria",
+            page=0,
+        )
+    ]
+
+    (field,) = attach_evidence(fields, words)
+
+    assert field.bbox is None
+    assert field.evidence_method == "none"
+    assert field.evidence_text == "Unidade Portaria"
+    assert field.page == 0
