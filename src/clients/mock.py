@@ -1,4 +1,4 @@
-"""Deterministic, offline reader and classifier fakes for tests.
+"""Deterministic, offline document-reader fake for tests.
 
 The reader fake performs no OCR. It returns a canned ``TranscriptionResult`` so
 pipeline tests are deterministic and cost nothing (spec §8.4, §8.8). Never present
@@ -7,10 +7,8 @@ it as working transcription functionality.
 
 from __future__ import annotations
 
-from src.classifier.contracts import ClassificationResult
 from src.clients.base import TranscriptionResult
 from src.pipeline.ingest import Deadline, PageArtifact
-from src.schema.config import ClassificationRule
 
 
 class FakeDocumentReader:
@@ -30,32 +28,6 @@ class FakeDocumentReader:
         return TranscriptionResult(
             text=self._text, confidence=self._confidence, confidence_source="mock"
         )
-
-
-class FakeIncidentClassifier:
-    """Return one canned classification and record the reviewed content."""
-
-    def __init__(
-        self,
-        classification: ClassificationResult | None = None,
-    ) -> None:
-        self._classification = classification or ClassificationResult(
-            incident_type="other",
-            urgency="medium",
-            sector="general_support",
-            rule_id="incident.other",
-        )
-        self.classify_count = 0
-        self.last_transcription: str | None = None
-
-    def classify(
-        self,
-        transcription: str,
-        rules: list[ClassificationRule],
-    ) -> ClassificationResult:
-        self.classify_count += 1
-        self.last_transcription = transcription
-        return self._classification
 
 
 # Temporary compatibility for the pre-checkpoint evaluation/UI branches. Product code

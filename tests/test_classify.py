@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from src.classifier.contracts import ClassificationResult
-from src.clients.mock import FakeIncidentClassifier
+from src.classifier.fakes import FakeIncidentClassifier
 from src.pipeline.classify import classify
 from src.schema.extraction import NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config

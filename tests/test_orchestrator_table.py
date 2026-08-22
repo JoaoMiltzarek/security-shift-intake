@@ -8,8 +8,9 @@ import pytest
 
 from data.generators.tier_c import build_tier_c
 from src.classifier.contracts import ClassificationResult
+from src.classifier.fakes import FakeIncidentClassifier
 from src.clients.base import TranscriptionResult
-from src.clients.mock import FakeDocumentReader, FakeIncidentClassifier
+from src.clients.mock import FakeDocumentReader
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 from src.pipeline.outputs import derive_operational_outputs
