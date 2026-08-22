@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the SSI-1002 evidence report from artifacts already produced elsewhere.
+"""Assemble a quality evidence report from artifacts produced by the current gates.
 
 This is a **collector**, not an orchestrator: it reads outputs that the verification flow
 already generated (preflight JSON, pytest log, privacy-check log, browser-smoke log,
@@ -29,7 +29,7 @@ from typing import Any, cast
 
 from src.paths import PRIVATE_ROOT
 
-DEFAULT_OUT = PRIVATE_ROOT / "audit" / "SSI-1002_EVIDENCE.md"
+DEFAULT_OUT = PRIVATE_ROOT / "audit" / "quality_evidence.md"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCREENSHOT = REPO_ROOT / "private" / "audit" / "browser_smoke.png"
 _MISSING = "_not collected — see the command in this section; CI produces the authoritative copy._"
@@ -183,7 +183,7 @@ def render_report(
         else None
     )
     parts = [
-        "# SSI-1002 — Evidence Report (Evidence Cockpit stabilization)",
+        "# Quality Evidence Report",
         "",
         "> Anti-self-reference: this committed file references the **parent** commit + tree",
         "> it was generated against — never its own HEAD (a committed self-SHA would",
@@ -252,7 +252,7 @@ def collect(args: argparse.Namespace) -> str:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Collect the SSI-1002 evidence report.")
+    parser = argparse.ArgumentParser(description="Collect the repository quality evidence report.")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--preflight", type=Path, default=Path("preflight.json"))
     parser.add_argument("--pytest-log", type=Path, default=None)

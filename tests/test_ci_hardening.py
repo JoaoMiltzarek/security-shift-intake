@@ -173,7 +173,7 @@ def test_quality_diagnostics_stay_outside_the_checkout() -> None:
     assert "--preflight /tmp/quality-diagnostics/preflight.json" in workflow
     assert "--pytest-log /tmp/quality-diagnostics/pytest.log" in workflow
     assert "--privacy-log /tmp/quality-diagnostics/privacy.log" in workflow
-    assert "--out /tmp/quality-diagnostics/SSI-1002_EVIDENCE.md" in workflow
+    assert "--out /tmp/quality-diagnostics/quality-evidence.md" in workflow
     assert "path: /tmp/quality-diagnostics/" in workflow
 
 

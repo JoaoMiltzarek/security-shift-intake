@@ -93,7 +93,7 @@ jobs:
           --pytest-log /tmp/quality-diagnostics/pytest.log
           --privacy-log /tmp/quality-diagnostics/privacy.log
           --authoritative-sha ${{ github.sha }}
-          --out /tmp/quality-diagnostics/SSI-1002_EVIDENCE.md
+          --out /tmp/quality-diagnostics/quality-evidence.md
 
       - name: Upload quality diagnostics
         if: always()
