@@ -26,6 +26,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      - name: Initialize quality diagnostics
+        run: |
+          mkdir -p /tmp/quality-diagnostics
+          printf 'commit=%s\nrunner=%s\n' "${{ github.sha }}" "${{ runner.os }}" \
+            > /tmp/quality-diagnostics/ci-context.txt
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -52,7 +58,8 @@ jobs:
       - name: Preflight (warnings reported, blockers enforced)
         run: |
           set +e
-          uv run --locked python scripts/preflight.py --json | tee /tmp/preflight.json
+          uv run --locked python scripts/preflight.py --json --with-test-baseline \
+            | tee /tmp/quality-diagnostics/preflight.json
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ge 2 ]; then
@@ -69,29 +76,31 @@ jobs:
         run: make typecheck
 
       - name: Test (pytest)
-        run: set -o pipefail; make test 2>&1 | tee /tmp/pytest.log
+        run: set -o pipefail; make test 2>&1 | tee /tmp/quality-diagnostics/pytest.log
 
       - name: Validate configs (schema-for-the-schema)
         run: make validate-config
 
       - name: Privacy check (no real data / PII)
         id: privacy
-        run: set -o pipefail; make privacy-check 2>&1 | tee /tmp/privacy.log
+        run: set -o pipefail; make privacy-check 2>&1 | tee /tmp/quality-diagnostics/privacy.log
 
       - name: Evidence report (authoritative collector — uploaded, not committed)
         if: ${{ success() && steps.privacy.outcome == 'success' }}
         run: >
           uv run --locked python scripts/evidence_report.py
-          --preflight /tmp/preflight.json --pytest-log /tmp/pytest.log
-          --privacy-log /tmp/privacy.log --authoritative-sha ${{ github.sha }}
-          --out /tmp/SSI-1002_EVIDENCE.md
+          --preflight /tmp/quality-diagnostics/preflight.json
+          --pytest-log /tmp/quality-diagnostics/pytest.log
+          --privacy-log /tmp/quality-diagnostics/privacy.log
+          --authoritative-sha ${{ github.sha }}
+          --out /tmp/quality-diagnostics/SSI-1002_EVIDENCE.md
 
-      - name: Upload evidence report
-        if: ${{ success() && steps.privacy.outcome == 'success' }}
+      - name: Upload quality diagnostics
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ssi-1002-evidence
-          path: /tmp/SSI-1002_EVIDENCE.md
+          name: quality-diagnostics-${{ github.sha }}
+          path: /tmp/quality-diagnostics/
           if-no-files-found: error
 
   quality-windows:
@@ -161,6 +170,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
+      - name: Initialize safety-eval diagnostics
+        run: |
+          mkdir -p /tmp/eval_safety
+          printf 'commit=%s\nrunner=%s\n' "${{ github.sha }}" "${{ runner.os }}" \
+            > /tmp/eval_safety/ci-context.txt
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -172,9 +187,9 @@ jobs:
       - name: Verify Tesseract runtime
         run: |
           set -euo pipefail
-          tesseract --version
-          tesseract --list-langs | tee /tmp/tesseract-langs.txt
-          grep -qx por /tmp/tesseract-langs.txt
+          tesseract --version 2>&1 | tee /tmp/eval_safety/tesseract-version.txt
+          tesseract --list-langs | tee /tmp/eval_safety/tesseract-langs.txt
+          grep -qx por /tmp/eval_safety/tesseract-langs.txt
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -205,7 +220,7 @@ jobs:
           tests/test_showcase_demo.py::test_committed_showcase_fixture_persists_real_ocr_geometry
 
       - name: Run structural-safety gates (val split, Tesseract)
-        run: make eval-safety DPI=150 OUT=/tmp/eval_safety
+        run: set -o pipefail; make eval-safety DPI=150 OUT=/tmp/eval_safety 2>&1 | tee /tmp/eval_safety/eval.log
 
       - name: Validate release-candidate summary
         run: >-
@@ -234,6 +249,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      - name: Initialize browser diagnostics
+        run: |
+          mkdir -p /tmp/browser-smoke
+          printf 'commit=%s\nrunner=%s\n' "${{ github.sha }}" "${{ runner.os }}" \
+            > /tmp/browser-smoke/ci-context.txt
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -259,11 +280,13 @@ jobs:
 
       - name: Browser-smoke (bbox / overlay / save / CSP violations)
         env:
-          BROWSER_SMOKE_SCREENSHOT: /tmp/browser_smoke.png
+          BROWSER_SMOKE_SCREENSHOT: /tmp/browser-smoke/browser-smoke.png
         run: |
+          set -o pipefail
           mkdir -p private
           INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
-            uv run --locked uvicorn src.api.asgi:app --host 127.0.0.1 --port 8000 &
+            uv run --locked uvicorn src.api.asgi:app --host 127.0.0.1 --port 8000 \
+            > /tmp/browser-smoke/server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
@@ -276,14 +299,15 @@ jobs:
             sleep 1
           done
           test "$ready" -eq 1
-          uv run --locked python scripts/browser_smoke.py
+          uv run --locked python scripts/browser_smoke.py 2>&1 \
+            | tee /tmp/browser-smoke/browser-smoke.log
 
-      - name: Upload cockpit screenshot (real page capture)
+      - name: Upload browser diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cockpit-screenshot
-          path: /tmp/browser_smoke.png
+          name: browser-smoke-diagnostics-${{ github.sha }}
+          path: /tmp/browser-smoke/
           if-no-files-found: error
 
   # O JSON só se torna candidato promovível depois que TODOS os gates bloqueantes

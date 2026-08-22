@@ -136,9 +136,12 @@ def test_render_refuses_pytest_log_with_any_failure() -> None:
         )
 
 
-def test_ci_does_not_collect_or_upload_evidence_after_privacy_failure() -> None:
+def test_ci_skips_release_evidence_but_preserves_diagnostics_after_privacy_failure() -> None:
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     condition = "if: ${{ success() && steps.privacy.outcome == 'success' }}"
 
     assert "id: privacy" in workflow
-    assert workflow.count(condition) == 2
+    assert workflow.count(condition) == 1
+    report_step = workflow[workflow.index("- name: Evidence report") :]
+    assert report_step.index(condition) < report_step.index("scripts/evidence_report.py")
+    assert "- name: Upload quality diagnostics\n        if: always()" in workflow

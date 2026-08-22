@@ -75,6 +75,8 @@ def test_browser_gate_proves_readiness_and_cleans_up_the_server() -> None:
     assert workflow.index('test "$ready" -eq 1') < workflow.index(
         "uv run --locked python scripts/browser_smoke.py"
     )
+    assert "set -o pipefail" in workflow
+    assert "tee /tmp/browser-smoke/browser-smoke.log" in workflow
 
 
 def test_ci_executes_project_tools_only_through_the_locked_environment() -> None:
@@ -164,14 +166,27 @@ def test_ci_promotes_release_candidate_only_after_every_blocking_job() -> None:
 def test_quality_diagnostics_stay_outside_the_checkout() -> None:
     workflow = _workflow()
 
-    assert "tee /tmp/preflight.json" in workflow
-    assert "tee /tmp/pytest.log" in workflow
-    assert "tee /tmp/privacy.log" in workflow
-    assert "--preflight /tmp/preflight.json" in workflow
-    assert "--pytest-log /tmp/pytest.log" in workflow
-    assert "--privacy-log /tmp/privacy.log" in workflow
-    assert "--out /tmp/SSI-1002_EVIDENCE.md" in workflow
-    assert "path: /tmp/SSI-1002_EVIDENCE.md" in workflow
+    assert "--with-test-baseline" in workflow
+    assert "tee /tmp/quality-diagnostics/preflight.json" in workflow
+    assert "tee /tmp/quality-diagnostics/pytest.log" in workflow
+    assert "tee /tmp/quality-diagnostics/privacy.log" in workflow
+    assert "--preflight /tmp/quality-diagnostics/preflight.json" in workflow
+    assert "--pytest-log /tmp/quality-diagnostics/pytest.log" in workflow
+    assert "--privacy-log /tmp/quality-diagnostics/privacy.log" in workflow
+    assert "--out /tmp/quality-diagnostics/SSI-1002_EVIDENCE.md" in workflow
+    assert "path: /tmp/quality-diagnostics/" in workflow
+
+
+def test_primary_linux_jobs_always_preserve_initialized_diagnostics() -> None:
+    workflow = _workflow()
+
+    assert workflow.count("printf 'commit=%s\\nrunner=%s\\n'") == 3
+    assert "name: quality-diagnostics-${{ github.sha }}" in workflow
+    assert "name: eval-safety-diagnostics-${{ github.sha }}" in workflow
+    assert "name: browser-smoke-diagnostics-${{ github.sha }}" in workflow
+    assert workflow.count("if: always()") == 3
+    assert "path: /tmp/eval_safety/" in workflow
+    assert "path: /tmp/browser-smoke/" in workflow
 
 
 def test_ci_blocks_known_dependency_vulnerabilities() -> None:
