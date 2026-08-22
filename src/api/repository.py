@@ -490,10 +490,12 @@ def _update_state_locked(
     try:
         draft.state_json = state.model_dump_json()
         draft.revision += 1
-        if draft.status == ApprovalStatus.APPROVED:
+        previous_status = draft.status
+        if previous_status in {ApprovalStatus.APPROVED, ApprovalStatus.REJECTED}:
             draft.status = ApprovalStatus.PENDING
             draft.approved_revision = None
             draft.approved_state_sha256 = None
+        if previous_status == ApprovalStatus.APPROVED:
             _stage_audit(
                 session,
                 draft_id,

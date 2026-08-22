@@ -357,6 +357,22 @@ def test_edit_approved_draft_revokes_approval(session: Session) -> None:
     assert "approval_revoked" in [a.action for a in get_audit(session, draft.id)]
 
 
+def test_edit_rejected_draft_returns_to_pending(session: Session) -> None:
+    from src.api.repository import update_state
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    set_status(session, draft.id, ApprovalStatus.REJECTED, actor="r")
+
+    updated = update_state(session, draft.id, _state(), actor="reviewer")
+
+    assert updated.status == ApprovalStatus.PENDING
+    assert updated.revision == 2
+    assert updated.approved_revision is None
+    assert updated.approved_state_sha256 is None
+    assert get_audit(session, draft.id)[-1].action == "edited"
+
+
 def test_edit_sent_draft_raises_and_audits(session: Session) -> None:
     from src.api.repository import update_state
 
