@@ -53,6 +53,12 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
 
     assert action_refs
     assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", ref) for ref in action_refs)
+    assert set(action_refs) == {
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
+    }
     assert workflow.count("persist-credentials: false") == 4
     assert workflow.count('version: "0.11.23"') == 4
 
