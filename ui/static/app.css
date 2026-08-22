@@ -126,17 +126,27 @@ pre {
   z-index: 100;
   top: var(--space-3);
   left: var(--space-3);
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
+}
+
+.skip-link:focus {
+  width: auto;
+  height: auto;
   padding: var(--space-3) var(--space-4);
-  transform: translateY(-200%);
+  overflow: visible;
+  clip-path: none;
   border: 2px solid var(--focus);
   border-radius: var(--radius-sm);
   background: var(--sheet-raised);
   color: var(--ledger-ink);
   font-weight: 700;
-}
-
-.skip-link:focus {
-  transform: translateY(0);
+  white-space: normal;
 }
 
 :focus-visible {
