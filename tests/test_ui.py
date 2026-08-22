@@ -86,6 +86,21 @@ def test_index_lists_drafts(
     assert f"/drafts/{draft_id}/review" in r.text
 
 
+def test_empty_queue_explains_how_a_review_appears(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
+    client, _ = client_and_recorder
+
+    queue = client.get("/")
+    assert "Nenhum documento na fila" in queue.text
+    assert "Processe uma folha sintética" in queue.text
+    assert "Compare a evidência, confirme a triagem" in queue.text
+
+    filtered = client.get("/?status=rejected")
+    assert "Nenhum documento neste estado" in filtered.text
+    assert 'href="/">Ver toda a fila</a>' in filtered.text
+
+
 def test_index_rejects_invalid_filter_and_cursor(
     client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:

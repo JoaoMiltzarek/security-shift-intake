@@ -80,8 +80,22 @@
     <path d="M42 10v9h8M22 28h20M22 36h20M22 44h12"/>
     <path d="m45 45 4 4 8-10"/>
   </svg>
-  <h2 id="empty-title">A fila está em dia</h2>
-  <p>Nenhum documento corresponde a este filtro.</p>
+  {% if active_status and active_status != 'all' %}
+  <h2 id="empty-title">Nenhum documento neste estado</h2>
+  <p>O filtro atual não encontrou registros. Os outros estados continuam disponíveis na fila completa.</p>
+  <a class="button button-secondary" href="/">Ver toda a fila</a>
+  {% else %}
+  <div class="empty-guidance">
+    <h2 id="empty-title">Nenhum documento na fila</h2>
+    <p>Quando uma folha for processada localmente, ela aparecerá aqui para conferência humana.</p>
+    <ol>
+      <li>Processe uma folha sintética ou um arquivo permitido pelo intake local.</li>
+      <li>Volte a esta fila e abra a revisão criada.</li>
+      <li>Compare a evidência, confirme a triagem e só então aprove a saída.</li>
+    </ol>
+    <p class="form-help">Nenhum arquivo é enviado automaticamente.</p>
+  </div>
+  {% endif %}
 </section>
 {% endif %}
 {% endblock %}

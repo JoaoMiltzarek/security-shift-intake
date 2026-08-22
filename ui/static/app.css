@@ -506,6 +506,33 @@ button:disabled,
   color: var(--muted-ink);
 }
 
+.empty-state > .button {
+  margin-top: var(--space-4);
+}
+
+.empty-guidance {
+  max-width: 34rem;
+  text-align: left;
+}
+
+.empty-guidance h2,
+.empty-guidance > p:first-of-type {
+  text-align: center;
+}
+
+.empty-guidance ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-6) 0;
+  padding-left: var(--space-6);
+  color: var(--ledger-ink);
+  font-size: 0.86rem;
+}
+
+.empty-guidance .form-help {
+  text-align: center;
+}
+
 .app-notice {
   position: sticky;
   z-index: 20;
