@@ -820,7 +820,10 @@ def create_app(
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
+        # Native same-origin POST forms need a non-opaque Origin so the fail-closed
+        # request policy can distinguish them from hostile ``Origin: null`` requests.
+        # Draft URLs are still never disclosed to another origin.
+        response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
         )
