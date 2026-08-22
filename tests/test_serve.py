@@ -35,6 +35,7 @@ def test_loopback_default_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls[0]["app"] == "src.api.asgi:app"
     assert calls and calls[0]["host"] == "127.0.0.1"
     assert calls[0]["port"] == 8000
+    assert calls[0]["workers"] == 1
 
 
 def test_cli_port_is_forwarded_to_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:

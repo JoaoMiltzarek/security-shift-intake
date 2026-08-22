@@ -58,7 +58,7 @@ def main(argv: list[str]) -> int:
         )
         return 2
 
-    uvicorn.run("src.api.asgi:app", host=args.host, port=args.port)
+    uvicorn.run("src.api.asgi:app", host=args.host, port=args.port, workers=1)
     return 0
 
 

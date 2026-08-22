@@ -73,6 +73,7 @@ def _build_server(port: int) -> uvicorn.Server:
         "src.api.asgi:app",
         host=LOOPBACK_HOST,
         port=port,
+        workers=1,
     )
     return uvicorn.Server(config)
 

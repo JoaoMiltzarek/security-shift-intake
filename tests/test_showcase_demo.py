@@ -133,6 +133,7 @@ def test_server_config_is_fixed_to_loopback() -> None:
     assert server.config.app == "src.api.asgi:app"
     assert server.config.host == "127.0.0.1"
     assert server.config.port == 8125
+    assert server.config.workers == 1
 
 
 def test_browser_waits_for_own_server_before_opening_review() -> None:
