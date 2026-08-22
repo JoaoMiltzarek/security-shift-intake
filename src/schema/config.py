@@ -1,8 +1,8 @@
 """Pydantic models for the report-type configuration (the YAML schema).
 
-Design rule: this is the "schema-for-the-schema" — every config/*.yaml is
-validated against these models before any pipeline stage runs. Adding a new
-report type means a new YAML file; no code change here.
+This is the executable schema for the single table contract supported by v1.
+Every YAML value is validated before startup; a future report type requires an
+explicit product and parser change, not just another file.
 
 Build order:
   FieldSchema           — one field in the report form
@@ -90,7 +90,7 @@ class FieldSchema(StrictConfigModel):
     # Only meaningful when type == "enum"; must be provided in that case.
     values: list[str] | None = None
     # Printed label(s) the OCR/rule extractor anchors on to find this field's value
-    # (e.g. ["Data", "Dia"]). Optional; config-driven so adding a form needs no code.
+    # (e.g. ["Data", "Dia"]). Optional within the supported table contract.
     ocr_aliases: list[str] | None = None
     # Required when type == "table"; forbidden otherwise.
     columns: list[ColumnSchema] | None = None
