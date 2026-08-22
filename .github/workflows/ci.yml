@@ -363,3 +363,23 @@ jobs:
           name: eval-safety-release-candidate-${{ github.sha }}
           path: /tmp/release_candidate/eval_synthetic_summary.json
           if-no-files-found: error
+
+  release-tag-integrity:
+    name: v1.1 annotated tag targets the evidence promotion
+    if: github.event_name == 'push' && github.ref == 'refs/tags/v1.1.0'
+    needs: [quality, quality-windows, eval-safety, browser-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tagged release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Verify annotated promotion tag
+        run: |
+          test "$(git cat-file -t "$GITHUB_REF")" = tag
+          python3 -m scripts.verify_release_delta \
+            --base HEAD^ --head HEAD --require-promotion

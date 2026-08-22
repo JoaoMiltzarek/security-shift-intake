@@ -210,9 +210,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="HEAD^")
     parser.add_argument("--head", default="HEAD")
+    parser.add_argument(
+        "--require-promotion",
+        action="store_true",
+        help="fail unless base..head is the exact first publication of v1.1 evidence",
+    )
     args = parser.parse_args(argv)
     try:
         outcome = verify_release_delta(REPO_ROOT, base=args.base, head=args.head)
+        if args.require_promotion and outcome != "promotion":
+            raise ReleaseDeltaError("the tagged commit is not the v1.1 evidence promotion")
     except (OSError, subprocess.SubprocessError, ReleaseDeltaError) as exc:
         print(f"Release delta invalid: {exc}", file=sys.stderr)
         return 1

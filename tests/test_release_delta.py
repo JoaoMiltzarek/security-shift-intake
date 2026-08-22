@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.verify_release_delta as release_delta
 from scripts.verify_release_delta import (
     CATALOG_SCHEMA,
     RELEASE_CATALOG,
@@ -192,3 +193,17 @@ def test_published_evidence_cannot_be_deleted(tmp_path: Path) -> None:
 
     with pytest.raises(ReleaseDeltaError, match="was deleted"):
         verify_release_delta(repo, base=promoted, head="HEAD")
+
+
+def test_cli_can_require_the_exact_promotion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, candidate = _repository(tmp_path)
+    monkeypatch.setattr(release_delta, "REPO_ROOT", repo)
+
+    assert (
+        release_delta.main(["--base", candidate, "--head", candidate, "--require-promotion"]) == 1
+    )
+
+    _promote(repo, candidate)
+    assert release_delta.main(["--base", candidate, "--head", "HEAD", "--require-promotion"]) == 0

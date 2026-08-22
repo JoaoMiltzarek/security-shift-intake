@@ -28,9 +28,9 @@ def test_ci_jobs_are_bounded_and_use_fixed_runner_image() -> None:
     workflow = _workflow()
 
     assert "ubuntu-latest" not in workflow
-    assert workflow.count("runs-on: ubuntu-24.04") == 4
+    assert workflow.count("runs-on: ubuntu-24.04") == 5
     assert workflow.count("runs-on: windows-2025") == 1
-    assert workflow.count("timeout-minutes:") == 5
+    assert workflow.count("timeout-minutes:") == 6
 
 
 def test_python_runtime_is_pinned_to_the_security_release_used_by_ci() -> None:
@@ -60,7 +60,7 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
         "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
     }
-    assert workflow.count("persist-credentials: false") == 5
+    assert workflow.count("persist-credentials: false") == 6
     assert workflow.count('UV_VERSION: "0.11.28"') == 1
     assert workflow.count("version: ${{ env.UV_VERSION }}") == 5
     assert "0.11.23" not in workflow
@@ -175,6 +175,20 @@ def test_quality_diagnostics_stay_outside_the_checkout() -> None:
     assert "tee /tmp/quality-diagnostics/preflight.json" in workflow
     assert "tee /tmp/quality-diagnostics/pytest.log" in workflow
     assert "tee /tmp/quality-diagnostics/privacy.log" in workflow
+
+
+def test_v1_1_tag_requires_the_annotated_evidence_promotion() -> None:
+    workflow = _workflow()
+    start = workflow.index("release-tag-integrity:")
+    block = workflow[start:]
+
+    assert "github.ref == 'refs/tags/v1.1.0'" in block
+    assert "needs: [quality, quality-windows, eval-safety, browser-smoke]" in block
+    assert "fetch-depth: 2" in block
+    assert "fetch-tags: true" in block
+    assert 'git cat-file -t "$GITHUB_REF"' in block
+    assert "python3 -m scripts.verify_release_delta" in block
+    assert "--base HEAD^ --head HEAD --require-promotion" in block
     assert "--preflight /tmp/quality-diagnostics/preflight.json" in workflow
     assert "--pytest-log /tmp/quality-diagnostics/pytest.log" in workflow
     assert "--privacy-log /tmp/quality-diagnostics/privacy.log" in workflow
