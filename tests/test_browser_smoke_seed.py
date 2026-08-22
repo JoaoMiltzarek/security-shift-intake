@@ -19,6 +19,7 @@ from src.schema.state import PipelineState
 
 def test_smoke_screenshot_defaults_to_private_audit_storage() -> None:
     assert PRIVATE_ROOT / "audit" / "browser_smoke.png" == browser_smoke.SCREENSHOT
+    assert PRIVATE_ROOT / "audit" / "showcase_frames" == browser_smoke.SHOWCASE_FRAMES
 
 
 def test_ci_redirects_smoke_screenshot_outside_the_checkout() -> None:
@@ -40,6 +41,9 @@ def test_smoke_drives_current_triage_export_and_terminal_controls() -> None:
     assert 'or "unknown" not in status_panel' not in source
     assert 'expect(page.locator("#status-title")).to_be_focused' in source
     assert "wait_for_function" not in source
+    assert '"frame-0-queue.png"' in source
+    assert '"frame-1-evidence.png"' in source
+    assert '"frame-2-approved.png"' in source
 
 
 def test_smoke_seed_uses_repository_instead_of_http_submission(

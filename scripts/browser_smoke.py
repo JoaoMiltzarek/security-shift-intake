@@ -49,6 +49,7 @@ from src.schema.state import PipelineState  # noqa: E402
 CONFIG = Path("configs/controle_ocorrencias.yaml")
 SAMPLE = Path("samples/sample_tc-000000.png")
 SCREENSHOT = PRIVATE_ROOT / "audit" / "browser_smoke.png"
+SHOWCASE_FRAMES = PRIVATE_ROOT / "audit" / "showcase_frames"
 DEFAULT_URL = "http://127.0.0.1:8000"
 _urlopen = urllib.request.urlopen
 
@@ -155,6 +156,14 @@ def _wait_for_server(base_url: str) -> None:
         raise EnvUnavailable(f"server returned HTTP {status} at {base_url}")
 
 
+def _capture_showcase_frame(page: Any, name: str) -> Path:
+    """Capture one synthetic viewport frame under private storage."""
+    SHOWCASE_FRAMES.mkdir(parents=True, exist_ok=True)
+    output = SHOWCASE_FRAMES / name
+    page.screenshot(path=str(output), full_page=False)
+    return output
+
+
 def run_smoke(base_url: str) -> dict[str, Any]:
     """Drive Chromium through the cockpit; return a result dict or raise Smoke/Env errors."""
     try:
@@ -173,19 +182,22 @@ def run_smoke(base_url: str) -> dict[str, Any]:
             browser = pw.chromium.launch(headless=True)
         except Exception as exc:  # Chromium not installed / cannot launch
             raise EnvUnavailable(f"cannot launch Chromium: {exc}") from exc
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
         page.on(
             "console",
             lambda m: console_errors.append(m.text) if m.type == "error" else None,
         )
         page.on("pageerror", lambda e: console_errors.append(str(e)))
 
+        page.goto(f"{base_url}/", wait_until="networkidle")
+        _capture_showcase_frame(page, "frame-0-queue.png")
         page.goto(review_url, wait_until="networkidle")
 
         # (2) click the bbox field -> overlay visible.
         page.click(f'.evidence-trigger[data-field="{_BBOX_FIELD}"]')
         if page.locator("#bbox-highlight").is_hidden():
             raise SmokeError("bbox highlight did not become visible after clicking the field")
+        _capture_showcase_frame(page, "frame-1-evidence.png")
 
         # (3) fill every pending input, confirm triage, and save the human review.
         for handle in page.locator('input[name^="field__"]').all():
@@ -218,6 +230,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         page.get_by_role("button", name="Aprovar revisão", exact=True).click()
         page.wait_for_selector("#status-panel .status-approved", timeout=5000)
         expect(page.locator("#status-title")).to_be_focused(timeout=5000)
+        _capture_showcase_frame(page, "frame-2-approved.png")
         export_form = page.locator(f'form[action="/drafts/{draft_id}/export.csv"]')
         export_form.wait_for(timeout=5000)
         edit_form = page.locator('#review-body form[hx-post$="/edit"]')
