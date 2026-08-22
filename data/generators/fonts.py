@@ -13,11 +13,13 @@ from pathlib import Path
 
 from PIL import ImageFont
 
+from src.paths import REPO_ROOT
+
 # A drawable font — either a scalable TrueType font or Pillow's default font.
 # Both support .getlength() and work with ImageDraw.text().
 Font = ImageFont.FreeTypeFont | ImageFont.ImageFont
 
-FONTS_DIR = Path("assets/fonts")
+FONTS_DIR = REPO_ROOT / "assets" / "fonts"
 _FONT_EXTENSIONS = {".ttf", ".otf"}
 
 

@@ -44,6 +44,7 @@ from data.generators.templates.controle_ocorrencias import (
     Variant,
     render_sheet,
 )
+from src.paths import REPO_ROOT
 
 DATASET_VERSION = "tier_c/v1"
 MANIFEST_SCHEMA: Literal["tier_c-manifest/v2"] = "tier_c-manifest/v2"
@@ -105,7 +106,11 @@ def _doc_rng(seed: int, index: int) -> random.Random:
 def _git_commit() -> str:
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return out.stdout.strip() or "unknown"
     except (OSError, subprocess.CalledProcessError):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
+import pytest
 from PIL import ImageFont
 
 from data.generators import fonts
@@ -16,6 +17,15 @@ def _rng(seed: int = 0) -> random.Random:
 
 def test_discover_returns_empty_for_missing_dir(tmp_path: Path) -> None:
     assert fonts.discover_handwriting_fonts(tmp_path / "nope") == []
+
+
+def test_default_font_bundle_is_repository_anchored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert fonts.FONTS_DIR.is_absolute()
+    assert fonts.discover_handwriting_fonts()
 
 
 def test_discover_finds_only_font_files(tmp_path: Path) -> None:

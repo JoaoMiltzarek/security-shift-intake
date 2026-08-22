@@ -19,6 +19,10 @@ import sys
 from pathlib import Path
 
 from data.generators.tier_c import CANONICAL_DATASETS, build_tier_c
+from src.paths import REPO_ROOT
+
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "data" / "synthetic" / "tier_c"
+DEFAULT_SAMPLES_DIR = REPO_ROOT / "samples"
 
 
 def main(argv: list[str]) -> int:
@@ -28,8 +32,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--n", type=int, default=50)
     parser.add_argument("--profile", choices=["balanced", "operational"], default="balanced")
     parser.add_argument("--split-seed", type=int, default=0)
-    parser.add_argument("--out", type=Path, default=Path("data/synthetic/tier_c"))
-    parser.add_argument("--samples", type=Path, default=Path("samples"))
+    parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--samples", type=Path, default=DEFAULT_SAMPLES_DIR)
     parser.add_argument("--n-samples", type=int, default=0)
     args = parser.parse_args(argv)
 
