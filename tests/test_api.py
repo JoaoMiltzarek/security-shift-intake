@@ -99,6 +99,11 @@ def test_submit_review_approve_simulate_flow(
     assert r.status_code == 200
     body = r.json()
     assert body["state"]["classification"]["incident_type"] == "theft"
+    assert body["approved_revision"] is None
+    assert len(body["state_sha256"]) == 64
+    assert body["readiness"]["approvable"] is True
+    assert body["readiness"]["exportable"] is False
+    assert body["derived"]["routing"]["rule_id"] == "routing.theft"
     assert "submitted" in [a["action"] for a in body["audit"]]
 
     # Simulation before approval is blocked without a terminal record.
@@ -110,6 +115,10 @@ def test_submit_review_approve_simulate_flow(
     r = client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["status"] == "approved"
+    approved = client.get(f"/drafts/{draft_id}").json()
+    assert approved["approved_revision"] == approved["revision"] == 1
+    assert approved["readiness"]["exportable"] is True
+    assert approved["readiness"]["simulatable"] is True
 
     # Simulation after approval records the approved snapshot exactly once.
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
