@@ -158,7 +158,7 @@ def _simulate_draft_once(
     if draft is None:
         raise KeyError(f"Draft {draft_id} not found")
 
-    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
+    if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(
             session,
             draft_id,

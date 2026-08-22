@@ -65,7 +65,7 @@ class DraftSummary:
     created_at: datetime
     updated_at: datetime
     delivery_mode: str | None
-    sent_at: datetime | None
+    simulated_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,14 +263,14 @@ def list_draft_page(
         col(Draft.created_at),
         col(Draft.updated_at),
         col(Draft.delivery_mode),
-        col(Draft.sent_at),
+        col(Draft.simulated_at),
     )
     if status_value == "simulated":
-        statement = statement.where(col(Draft.sent_at).is_not(None))
+        statement = statement.where(col(Draft.simulated_at).is_not(None))
     elif status_value is not None:
         statement = statement.where(col(Draft.status) == status_value)
         if status_value == "approved":
-            statement = statement.where(col(Draft.sent_at).is_(None))
+            statement = statement.where(col(Draft.simulated_at).is_(None))
     if cursor is not None:
         statement = statement.where(
             or_(
@@ -297,7 +297,7 @@ def list_draft_page(
             created_at=row[4],
             updated_at=row[5],
             delivery_mode=row[6],
-            sent_at=row[7],
+            simulated_at=row[7],
         )
         for row in rows
     ]
@@ -346,7 +346,7 @@ def _set_status_locked(
             f"Draft {draft_id} changed from revision {expected_revision} to "
             f"{draft.revision} — reload before changing status."
         )
-    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
+    if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(
             session,
             draft_id,
@@ -400,7 +400,7 @@ def _mark_simulated_locked(
     """
     draft = _require(session, draft_id)
     digest = state_sha256(draft.state_json)
-    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
+    if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         raise DraftAlreadySimulatedError(f"Draft {draft_id} was already simulated.")
     if draft.status != ApprovalStatus.APPROVED:
         raise DraftOperationConflictError(f"Draft {draft_id} is not approved.")
@@ -411,7 +411,7 @@ def _mark_simulated_locked(
     try:
         now = utcnow()
         draft.status = ApprovalStatus.SIMULATED
-        draft.sent_at = now
+        draft.simulated_at = now
         draft.delivery_mode = "simulated"
         draft.updated_at = now
         session.add(draft)
@@ -478,7 +478,7 @@ def _update_state_locked(
             f"Draft {draft_id} changed from revision {expected_revision} to "
             f"{draft.revision} â€” reload before saving."
         )
-    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
+    if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(
             session,
             draft_id,

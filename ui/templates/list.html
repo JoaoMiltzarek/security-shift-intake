@@ -34,7 +34,7 @@
       <div class="draft-card-main">
         <div class="draft-title-row">
           <h2>Documento <span class="mono">#{{ d.id }}</span></h2>
-          {% if d.sent_at %}
+          {% if d.simulated_at %}
           <span class="status-chip status-simulated">Simulado</span>
           {% elif d.status == 'approved' %}
           <span class="status-chip status-approved">Aprovado</span>
@@ -58,7 +58,7 @@
         </dl>
       </div>
       <a class="button button-secondary" href="/drafts/{{ d.id }}/review">
-        {% if d.sent_at %}Consultar registro{% else %}Abrir revisão{% endif %}
+        {% if d.simulated_at %}Consultar registro{% else %}Abrir revisão{% endif %}
         <span aria-hidden="true">→</span>
       </a>
     </article>

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
 
 from src.schema.state import ApprovalStatus
@@ -42,10 +43,13 @@ class Draft(SQLModel, table=True):
     approved_state_sha256: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
-    # Legacy column names are retained for migration compatibility. New terminal
-    # records are always local simulations and therefore always store "simulated".
+    # The public domain name is ``simulated_at``. Its physical SQLite column stays
+    # ``sent_at`` so existing v1 databases open without a destructive rename.
     delivery_mode: str | None = Field(default=None)
-    sent_at: datetime | None = Field(default=None)
+    simulated_at: datetime | None = Field(
+        default=None,
+        sa_column=Column("sent_at", DateTime(), nullable=True),
+    )
 
 
 class AuditEntry(SQLModel, table=True):

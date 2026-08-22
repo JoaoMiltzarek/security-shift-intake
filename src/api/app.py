@@ -567,7 +567,9 @@ def _draft_summary(draft: Draft | repository.DraftSummary) -> dict[str, Any]:
         "created_at": utc_rfc3339(draft.created_at),
         "updated_at": utc_rfc3339(draft.updated_at),
         "delivery_mode": draft.delivery_mode,
-        "sent_at": utc_rfc3339(draft.sent_at) if draft.sent_at else None,
+        "simulated_at": (
+            utc_rfc3339(draft.simulated_at) if draft.simulated_at else None
+        ),
     }
 
 
@@ -1194,7 +1196,7 @@ def create_app(
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
         # Draft enviado é imutável (SSI-1006): o registro do que foi enviado não muda.
-        if draft.sent_at is not None:
+        if draft.simulated_at is not None:
             raise HTTPException(
                 status_code=409,
                 detail=f"Draft {draft_id} was already simulated — edit blocked.",

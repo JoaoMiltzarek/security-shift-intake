@@ -124,7 +124,8 @@ def test_submit_review_approve_simulate_flow(
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 200
     assert r.json()["status"] == "simulated"
-    assert r.json()["sent_at"] is not None
+    assert r.json()["simulated_at"] is not None
+    assert "sent_at" not in r.json()
     assert r.json()["delivery_mode"] == "simulated"
     assert recorder.call_count == 1
     assert recorder.records[0][0] == ["tech_security", "general_support"]

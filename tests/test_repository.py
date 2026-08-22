@@ -82,6 +82,18 @@ def _state() -> PipelineState:
     )
 
 
+def test_simulated_at_maps_to_historical_sqlite_column() -> None:
+    engine = make_engine("sqlite://")
+    init_db(engine)
+    with engine.connect() as connection:
+        columns = {
+            str(row[1]) for row in connection.exec_driver_sql("PRAGMA table_info(draft)")
+        }
+
+    assert "sent_at" in columns
+    assert "simulated_at" not in columns
+
+
 def test_create_draft_is_pending_and_audited(session: Session) -> None:
     draft = create_draft(session, _state())
     assert draft.id is not None
@@ -115,9 +127,13 @@ def test_simulation_persists_terminal_mode_and_audit(session: Session) -> None:
     simulate_draft(session, draft.id, MemorySimulationRecorder(), actor="r")
 
     refreshed = get_draft(session, draft.id)
-    assert refreshed is not None and refreshed.sent_at is not None
+    assert refreshed is not None and refreshed.simulated_at is not None
     assert refreshed.status == ApprovalStatus.SIMULATED
     assert refreshed.delivery_mode == "simulated"
+    stored_timestamp = session.connection().exec_driver_sql(
+        "SELECT sent_at FROM draft WHERE id = ?", (draft.id,)
+    )
+    assert stored_timestamp.scalar_one() is not None
     audit = get_audit(session, draft.id)
     assert "simulation_completed" in [a.action for a in audit]
     assert audit[-1].detail is not None
@@ -404,7 +420,7 @@ def test_sent_draft_rejects_later_status_changes(session: Session, status: Appro
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None
     assert refreshed.status == ApprovalStatus.SIMULATED
-    assert refreshed.sent_at is not None
+    assert refreshed.simulated_at is not None
     assert get_audit(session, draft.id)[-1].action == "status_blocked"
 
 
@@ -468,7 +484,7 @@ def test_simulation_rolls_back_when_audit_fails(
     session.expire_all()
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None
-    assert refreshed.sent_at is None
+    assert refreshed.simulated_at is None
     assert refreshed.delivery_mode is None
     assert "simulation_completed" not in [entry.action for entry in get_audit(session, draft.id)]
 

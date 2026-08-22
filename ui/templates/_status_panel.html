@@ -1,21 +1,21 @@
 <section id="status-panel"
-         class="status-panel{{ ' terminal-lock' if draft.sent_at else '' }}"
+         class="status-panel{{ ' terminal-lock' if draft.simulated_at else '' }}"
          {% if status_oob %}hx-swap-oob="true"{% endif %}
          aria-labelledby="status-title">
   <div class="section-heading">
     <div>
       <p class="eyebrow">Estado operacional</p>
       <h2 id="status-title">
-        {% if draft.sent_at and draft.delivery_mode == 'simulated' %}Simulação registrada
-        {% elif draft.sent_at %}Registro terminal legado
+        {% if draft.simulated_at and draft.delivery_mode == 'simulated' %}Simulação registrada
+        {% elif draft.simulated_at %}Registro terminal legado
         {% elif draft.status == 'approved' %}Aprovado para simulação
         {% elif draft.status == 'rejected' %}Revisão rejeitada
         {% else %}Revisão em andamento{% endif %}
       </h2>
     </div>
-    <span class="status-chip {% if draft.sent_at %}status-simulated{% else %}status-{{ draft.status }}{% endif %}">
-      {% if draft.sent_at and draft.delivery_mode == 'simulated' %}Simulado
-      {% elif draft.sent_at %}Terminal legado
+    <span class="status-chip {% if draft.simulated_at %}status-simulated{% else %}status-{{ draft.status }}{% endif %}">
+      {% if draft.simulated_at and draft.delivery_mode == 'simulated' %}Simulado
+      {% elif draft.simulated_at %}Terminal legado
       {% elif draft.status == 'approved' %}Aprovado
       {% elif draft.status == 'rejected' %}Rejeitado
       {% else %}Em revisão{% endif %}
@@ -24,9 +24,9 @@
 
   <ol class="status-strip" aria-label="Progresso do documento">
     <li class="status-step is-complete">Recebido</li>
-    <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.sent_at else 'is-current' }}">Revisão</li>
-    <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.sent_at else '' }}">Aprovado</li>
-    <li class="status-step {{ 'is-complete' if draft.sent_at else '' }}">Simulado</li>
+    <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.simulated_at else 'is-current' }}">Revisão</li>
+    <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.simulated_at else '' }}">Aprovado</li>
+    <li class="status-step {{ 'is-complete' if draft.simulated_at else '' }}">Simulado</li>
   </ol>
 
   <p class="field-meta">
@@ -37,16 +37,16 @@
     {% endif %}
   </p>
 
-  {% if draft.sent_at and draft.delivery_mode == 'simulated' %}
+  {% if draft.simulated_at and draft.delivery_mode == 'simulated' %}
   <p class="success-banner">
     A simulação foi concluída em
-    <time datetime="{{ draft.sent_at | rfc3339 }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
+    <time datetime="{{ draft.simulated_at | rfc3339 }}">{{ draft.simulated_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
     Nenhuma entrega externa foi realizada.
   </p>
-  {% elif draft.sent_at %}
+  {% elif draft.simulated_at %}
   <p class="blocker-banner">
     Registro terminal legado em
-    <time datetime="{{ draft.sent_at | rfc3339 }}">{{ draft.sent_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
+    <time datetime="{{ draft.simulated_at | rfc3339 }}">{{ draft.simulated_at.strftime('%d/%m/%Y · %H:%M') }}</time>.
     O modo de entrega não foi comprovado; nenhuma afirmação de entrega é feita.
   </p>
   {% elif draft.status == 'approved' and draft.approved_revision is none %}
@@ -59,7 +59,7 @@
   <p class="success-banner" role="status">{{ message }}</p>
   {% endif %}
 
-  {% if not draft.sent_at and not config_blocker %}
+  {% if not draft.simulated_at and not config_blocker %}
   <div class="status-actions" aria-label="Ações da revisão">
     <form hx-post="/ui/drafts/{{ draft.id }}/approve" hx-target="#status-panel" hx-swap="outerHTML">
       <input type="hidden" name="expected_revision" value="{{ draft.revision }}">

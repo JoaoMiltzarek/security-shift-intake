@@ -215,7 +215,7 @@ def test_concurrent_simulations_invoke_recorder_exactly_once(tmp_path: Path) -> 
         def simulate(self, recipients: list[str], body: str) -> None:
             with self._guard:
                 self.call_count += 1
-            time.sleep(0.1)  # deixa a segunda sessão explorar a janela pré-sent_at
+            time.sleep(0.1)  # deixa a segunda sessão explorar a janela pré-simulated_at
 
     recorder = SlowRecorder()
     start = threading.Barrier(3)
@@ -274,7 +274,7 @@ def test_edit_cannot_interleave_with_terminal_simulation(tmp_path: Path) -> None
     with Session(engine) as verify:
         persisted = verify.get(Draft, draft_id)
         assert persisted is not None
-        assert persisted.sent_at is not None
+        assert persisted.simulated_at is not None
         assert persisted.revision == 1
         assert persisted.state_json == original.model_dump_json()
         actions = [entry.action for entry in get_audit(verify, draft_id)]

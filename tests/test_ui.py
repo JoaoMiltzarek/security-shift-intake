@@ -250,7 +250,7 @@ def test_legacy_terminal_draft_does_not_claim_delivery() -> None:
         with Session(engine) as session:
             draft = session.get(Draft, draft_id)
             assert draft is not None
-            draft.sent_at = utcnow()
+            draft.simulated_at = utcnow()
             draft.delivery_mode = None
             session.add(draft)
             session.commit()
