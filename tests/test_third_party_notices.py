@@ -39,6 +39,22 @@ def test_pdfium_runtime_dependency_has_versioned_license_notice() -> None:
     assert "PDFium" in notices
 
 
+def test_every_vendored_font_has_a_linked_license_notice() -> None:
+    notices = Path("THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    font_dir = Path("assets/fonts")
+
+    font_files = sorted(font_dir.glob("*.ttf"))
+    assert font_files
+    for font_file in font_files:
+        license_file = font_dir / f"{font_file.stem}.OFL.txt"
+        assert license_file.is_file()
+        assert font_file.as_posix() in notices
+        assert license_file.as_posix() in notices
+
+    assert "SIL Open Font License 1.1" in notices
+    assert "assets/fonts/FONTS.md" in notices
+
+
 def test_commercial_offer_excludes_third_party_license_rights() -> None:
     offer = Path("COMMERCIAL-LICENSE.md").read_text(encoding="utf-8")
 
