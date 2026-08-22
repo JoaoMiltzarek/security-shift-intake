@@ -65,6 +65,19 @@ class ProcessingDeadlineExceeded(RuntimeError):
     """The configured per-sheet processing budget has been exhausted."""
 
 
+def _rgb_on_white(image: Image.Image) -> Image.Image:
+    """Return an owned RGB image, compositing any transparency onto white paper."""
+    has_alpha = "A" in image.getbands() or "transparency" in image.info
+    if not has_alpha:
+        return image.convert("RGB")
+    with (
+        image.convert("RGBA") as foreground,
+        Image.new("RGBA", image.size, (255, 255, 255, 255)) as background,
+        Image.alpha_composite(background, foreground) as composited,
+    ):
+        return composited.convert("RGB")
+
+
 @dataclass(frozen=True, slots=True)
 class Deadline:
     """Monotonic, process-local deadline shared by all stages of one intake.
@@ -127,12 +140,8 @@ class PageArtifact:
     @classmethod
     def from_image(cls, image: Image.Image, *, page_index: int) -> PageArtifact:
         """Encode one prepared image exactly once as a canonical RGB PNG."""
-        converted: Image.Image | None = None
+        prepared = _rgb_on_white(image)
         try:
-            prepared = image
-            if image.mode != "RGB":
-                converted = image.convert("RGB")
-                prepared = converted
             buffer = io.BytesIO()
             prepared.save(buffer, format="PNG")
             png_bytes = buffer.getvalue()
@@ -144,8 +153,7 @@ class PageArtifact:
                 page_index=page_index,
             )
         finally:
-            if converted is not None:
-                converted.close()
+            prepared.close()
 
 
 def _validate_dpi(dpi: int) -> None:
@@ -299,7 +307,7 @@ def load_source_images(
                 try:
                     if oriented.width * oriented.height > MAX_PIXELS_PER_PAGE:
                         raise IngestLimitError("Image exceeds the local pixel budget.")
-                    image = oriented.convert("RGB")
+                    image = _rgb_on_white(oriented)
                 finally:
                     if oriented is not img:
                         oriented.close()

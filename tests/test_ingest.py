@@ -7,6 +7,7 @@ rasterize) is exercised exactly as the production path will run it.
 from __future__ import annotations
 
 import hashlib
+import io
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -173,6 +174,30 @@ def test_load_source_images_applies_exif_orientation(tmp_path: Path) -> None:
         assert loaded.size == (20, 40)
     finally:
         loaded.close()
+
+
+def test_load_source_images_composites_transparency_on_white(tmp_path: Path) -> None:
+    source = tmp_path / "transparent.png"
+    with Image.new("RGBA", (2, 1)) as image:
+        image.putdata([(255, 0, 0, 0), (0, 0, 255, 255)])
+        image.save(source)
+
+    (loaded,) = load_source_images(source)
+    try:
+        assert loaded.mode == "RGB"
+        assert loaded.getpixel((0, 0)) == (255, 255, 255)
+        assert loaded.getpixel((1, 0)) == (0, 0, 255)
+    finally:
+        loaded.close()
+
+
+def test_page_artifact_composites_transparency_on_white() -> None:
+    with Image.new("RGBA", (1, 1), (0, 0, 0, 0)) as image:
+        artifact = PageArtifact.from_image(image, page_index=0)
+
+    with Image.open(io.BytesIO(artifact.png_bytes)) as decoded:
+        assert decoded.mode == "RGB"
+        assert decoded.getpixel((0, 0)) == (255, 255, 255)
 
 
 def test_multiframe_image_is_rejected_for_the_single_page_v1_contract(tmp_path: Path) -> None:
