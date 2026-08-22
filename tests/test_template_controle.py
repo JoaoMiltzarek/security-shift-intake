@@ -67,8 +67,10 @@ def test_ideal_transcription_parses_all_variants(variant: Variant, scenario: str
     assert normalized.disposition == expected_disposition
     assert normalized.no_occurrence is (expected_disposition == "none")
     assert len(normalized.occurrences) == len(record.ocorrencias)
-    # Cabeçalho: valores exatamente como desenhados (contrato §2.2 / §11.1-2).
-    assert normalized.shift.date == record.data
+    # Cabeçalho: o campo desenhado é separado em data e período operacionais.
+    expected_date, expected_period = record.data.split(" - ", maxsplit=1)
+    assert normalized.shift.date == expected_date
+    assert normalized.shift.period == expected_period == record.turno
     assert normalized.shift.guards == record.vigilantes
     assert normalized.shift.unit == surface.unidade_text
 
