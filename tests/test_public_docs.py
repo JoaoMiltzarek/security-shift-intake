@@ -110,3 +110,42 @@ def test_active_uv_commands_use_the_lockfile() -> None:
             if "uv run " in line and "uv run --locked " not in line:
                 unlocked.append(f"{document.as_posix()}:{line_number}")
     assert not unlocked
+
+
+def test_active_docs_do_not_advertise_retired_runtime_names() -> None:
+    retired = {
+        "Anthropic": re.compile(r"\banthropic\b", re.IGNORECASE),
+        "BRESSAY": re.compile(r"\bbressay\b", re.IGNORECASE),
+        "HT Micron form": re.compile(r"\bht\s*micron\b|\bhtmicron_security\b", re.IGNORECASE),
+        "local VLM": re.compile(r"\blocal_vlm\b|\bvlm\b", re.IGNORECASE),
+        "Ollama": re.compile(r"\bollama\b", re.IGNORECASE),
+        "Paddle reader": re.compile(r"\bpaddle(?:ocr)?\b", re.IGNORECASE),
+        "Qwen reader": re.compile(r"\bqwen[\w.:-]*\b", re.IGNORECASE),
+        "scikit-learn": re.compile(r"\bscikit-learn\b|\bsklearn\b", re.IGNORECASE),
+    }
+    found: list[str] = []
+    for document, text in _documents().items():
+        found.extend(
+            f"{document.as_posix()}: {label}"
+            for label, pattern in retired.items()
+            if pattern.search(text)
+        )
+    assert not found
+
+
+def test_showcase_docs_have_no_internal_ticket_markers_or_two_form_claim() -> None:
+    found: list[str] = []
+    for document, text in _documents().items():
+        if re.search(r"\bSSI-\d+\b", text):
+            found.append(f"{document.as_posix()}: internal ticket")
+        if re.search(r"\btwo (?:report|form) types?\b", text, re.IGNORECASE):
+            found.append(f"{document.as_posix()}: two-form claim")
+    assert not found
+
+
+def test_readme_uses_source_available_language_without_open_source_claim() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "source-available" in readme
+    assert re.search(r"\bopen[- ]source\b", readme, re.IGNORECASE) is None
+    assert "PENDING" not in readme
