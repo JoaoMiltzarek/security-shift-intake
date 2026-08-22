@@ -95,6 +95,7 @@ def test_empty_queue_explains_how_a_review_appears(
     assert "Nenhum documento na fila" in queue.text
     assert "Processe uma folha sintética" in queue.text
     assert "Compare a evidência, confirme a triagem" in queue.text
+    assert "make demo-mock" in queue.text
 
     filtered = client.get("/?status=rejected")
     assert "Nenhum documento neste estado" in filtered.text

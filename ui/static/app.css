@@ -533,6 +533,20 @@ button:disabled,
   text-align: center;
 }
 
+.empty-guidance .empty-command {
+  margin-bottom: var(--space-3);
+  color: var(--ledger-ink);
+  text-align: center;
+}
+
+.empty-command code {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--sheet-raised);
+}
+
 .app-notice {
   position: sticky;
   z-index: 20;
