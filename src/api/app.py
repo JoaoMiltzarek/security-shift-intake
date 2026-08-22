@@ -1100,22 +1100,31 @@ def create_app(
         return draft
 
     def _status_panel(
-        request: Request, draft: Draft, session: Session, message: str | None = None
+        request: Request,
+        draft: Draft,
+        session: Session,
+        message: str | None = None,
+        *,
+        include_review: bool = False,
     ) -> HTMLResponse:
         readiness = _readiness(draft)
+        context: dict[str, Any] = {
+            "draft": draft,
+            "audit": repository.get_audit(session, draft.id or 0),
+            "message": message,
+            "config_blocker": _config_blocker(draft),
+            "approval_blocker": _approval_blocker(readiness),
+            "readiness": readiness,
+            "readiness_items": _readiness_items(readiness),
+            "state_sha256": repository.state_sha256(draft.state_json),
+            "review_oob": include_review,
+        }
+        if include_review:
+            context.update(_review_context(draft, active_config, readiness))
         return _render(
             request,
             "_status_panel.html",
-            {
-                "draft": draft,
-                "audit": repository.get_audit(session, draft.id or 0),
-                "message": message,
-                "config_blocker": _config_blocker(draft),
-                "approval_blocker": _approval_blocker(readiness),
-                "readiness": readiness,
-                "readiness_items": _readiness_items(readiness),
-                "state_sha256": repository.state_sha256(draft.state_json),
-            },
+            context,
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -1321,6 +1330,7 @@ def create_app(
                 draft,
                 session,
                 message="Simulação concluída — nada foi entregue externamente.",
+                include_review=True,
             )
         except DraftNotApprovedError as exc:
             draft = _require_draft(session, draft_id)

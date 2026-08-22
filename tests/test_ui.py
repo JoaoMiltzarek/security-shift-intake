@@ -194,6 +194,8 @@ def test_ui_approve_then_simulate(
     assert r.status_code == 200
     assert "Simulação concluída" in r.text
     assert "nada foi entregue externamente" in r.text
+    assert 'id="review-body" hx-swap-oob="outerHTML"' in r.text
+    assert f"/ui/drafts/{draft_id}/edit" not in r.text
     assert recorder.call_count == 1
 
 

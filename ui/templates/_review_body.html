@@ -1,5 +1,5 @@
 {% if status_oob %}{% include "_status_panel.html" %}{% endif %}
-<div id="review-body">
+<div id="review-body"{% if review_oob %} hx-swap-oob="outerHTML"{% endif %}>
   <div class="cockpit{{ ' has-page' if has_image else '' }}">
     {% if has_image %}
     <aside class="page-pane" aria-labelledby="source-sheet-title">
