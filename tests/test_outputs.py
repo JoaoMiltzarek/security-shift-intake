@@ -98,7 +98,9 @@ def test_blockers_include_failed_ocr() -> None:
 
 
 def test_legacy_multi_page_state_blocks_clean_export() -> None:
-    state = _state(no_review=True).model_copy(update={"image_paths": [Path("1"), Path("2")]})
+    state = PipelineState.from_persisted_json(
+        '{"source_pdf":"x.pdf","image_paths":["1.png","2.png"]}'
+    )
 
     assert "documento multipágina incompatível com v1" in export_blockers(state)
 

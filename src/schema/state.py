@@ -2,7 +2,7 @@
 
 Each stage receives the current state and returns a new (or mutated) state.
 Fields accumulate as the document progresses through the pipeline:
-  Stage 0 (ingest)    → image_paths populated
+  Stage 0 (ingest)    → immutable page_artifacts populated
   Stage 1 (transcribe)→ transcription + transcription_confidence populated
   Stage 2 (extract)   → extracted_fields populated
   Stage 3 (validate)  → validation_flags populated
@@ -123,6 +123,15 @@ class RasterSettings(BaseModel):
     color_mode: Literal["RGB"] = "RGB"
 
 
+class LegacyEvidenceMetadata(BaseModel):
+    """Non-sensitive shape metadata retained from untrusted path-only evidence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source_image_count: int = Field(default=0, ge=0)
+    stored_page_count: int = Field(default=0, ge=0)
+
+
 class PipelineState(BaseModel):
     """Typed state object passed through every stage of the pipeline."""
 
@@ -131,6 +140,10 @@ class PipelineState(BaseModel):
     # Keeping the marker in subsequent snapshots prevents an edit from laundering
     # legacy evidence into a state that can be approved.
     legacy_source_version: str | None = None
+    # Legacy snapshots stored loose paths without hashes or dimensions. The loader
+    # discards those values and retains only counts so the old shape remains visible
+    # without turning any historical path into trusted evidence.
+    legacy_evidence: LegacyEvidenceMetadata | None = None
 
     # Identity of the validated report config that produced this state. The cockpit
     # rejects edits under a different config instead of silently reinterpreting data.
@@ -139,7 +152,6 @@ class PipelineState(BaseModel):
 
     # --- Stage 0: ingest ---
     source_pdf: Path
-    image_paths: list[Path] = Field(default_factory=list)
     # Immutable identity of the exact reader-sized images used for OCR and review.
     page_artifacts: list[PageArtifactRef] = Field(default_factory=list, max_length=1)
     reader_settings: ReaderSettings | None = None
@@ -180,6 +192,8 @@ class PipelineState(BaseModel):
             raise ValueError("report_type and config_sha256 must be set together")
         if self.legacy_source_version == self.schema_version:
             raise ValueError("legacy_source_version cannot identify the current schema")
+        if self.legacy_evidence is not None and not self.is_legacy:
+            raise ValueError("legacy_evidence requires a legacy_source_version")
         return self
 
     @property
@@ -207,8 +221,17 @@ class PipelineState(BaseModel):
             raw["legacy_source_version"] = str(version or "unversioned")
             raw["schema_version"] = "2.0"
             # A path alone cannot establish evidence integrity. Legacy images remain
-            # on disk but are deliberately not promoted into trusted v2 references.
-            raw.pop("page_image_paths", None)
+            # on disk but are deliberately reduced to non-sensitive count metadata,
+            # never promoted into trusted v2 references.
+            image_paths = raw.pop("image_paths", [])
+            page_image_paths = raw.pop("page_image_paths", [])
+            raw.pop("page_artifacts", None)
+            raw["legacy_evidence"] = {
+                "source_image_count": len(image_paths) if isinstance(image_paths, list) else 0,
+                "stored_page_count": (
+                    len(page_image_paths) if isinstance(page_image_paths, list) else 0
+                ),
+            }
             raw.pop("recipients", None)
             raw.pop("email_draft", None)
             raw.pop("spreadsheet_rows", None)
@@ -227,8 +250,14 @@ class PipelineState(BaseModel):
 
     def exceeds_v1_page_scope(self) -> bool:
         """Detect persisted legacy states that predate the single-page v1 contract."""
+        legacy_page_count = 0
+        if self.legacy_evidence is not None:
+            legacy_page_count = max(
+                self.legacy_evidence.source_image_count,
+                self.legacy_evidence.stored_page_count,
+            )
         return (
-            len(self.image_paths) > 1
+            legacy_page_count > 1
             or len(self.page_artifacts) > 1
             or "\f" in (self.transcription or "")
         )

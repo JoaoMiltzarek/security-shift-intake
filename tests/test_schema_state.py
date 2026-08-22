@@ -20,7 +20,8 @@ def test_initial_state_defaults() -> None:
     state = PipelineState(source_pdf=Path("report.pdf"))
     assert state.schema_version == "2.0"
     assert state.is_legacy is False
-    assert state.image_paths == []
+    assert state.legacy_evidence is None
+    assert state.page_artifacts == []
     assert state.transcription is None
     assert state.extracted_fields == []
     assert state.must_review_fields == []
@@ -134,6 +135,36 @@ def test_persisted_unversioned_state_is_readable_but_marked_legacy() -> None:
     assert state.schema_version == "2.0"
     assert state.legacy_source_version == "unversioned"
     assert state.is_legacy is True
+
+
+def test_v2_state_rejects_loose_image_paths() -> None:
+    with pytest.raises(ValidationError, match="image_paths"):
+        PipelineState.model_validate(
+            {
+                "schema_version": "2.0",
+                "source_pdf": "report.pdf",
+                "image_paths": ["private/unsafe-source.png"],
+            }
+        )
+
+
+def test_legacy_paths_are_reduced_to_untrusted_shape_metadata() -> None:
+    state = PipelineState.from_persisted_json(
+        """{
+            "source_pdf": "report.pdf",
+            "image_paths": ["private/unsafe-source.png"],
+            "page_image_paths": ["unsafe/page_0.png", "unsafe/page_1.png"]
+        }"""
+    )
+
+    assert state.legacy_evidence is not None
+    assert state.legacy_evidence.source_image_count == 1
+    assert state.legacy_evidence.stored_page_count == 2
+    assert state.page_artifacts == []
+    assert state.exceeds_v1_page_scope()
+    persisted = state.model_dump_json()
+    assert "unsafe-source" not in persisted
+    assert "unsafe/page_0" not in persisted
 
 
 def test_legacy_marker_survives_a_new_snapshot() -> None:

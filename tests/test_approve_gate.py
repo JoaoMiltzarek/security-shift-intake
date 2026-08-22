@@ -156,7 +156,9 @@ def test_assert_reviewable_blocks_unconfirmed_detected_disposition() -> None:
 @pytest.mark.parametrize(
     "state",
     [
-        PipelineState(source_pdf=Path("x.pdf"), image_paths=[Path("p1.png"), Path("p2.png")]),
+        PipelineState.from_persisted_json(
+            '{"source_pdf":"x.pdf","image_paths":["p1.png","p2.png"]}'
+        ),
         PipelineState(source_pdf=Path("x.pdf"), transcription="page one\n\f\npage two"),
     ],
 )
