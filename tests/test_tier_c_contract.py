@@ -33,8 +33,8 @@ def _sheet(doc_id: str, split: str = "val") -> dict[str, object]:
     return {
         "schema_version": "1.0",
         "document_id": doc_id,
-        # Deliberately non-portable/stale: the verified loader replaces this in memory.
-        "source_file": "old-machine/derived.pdf",
+        # Portable PDF member is storage metadata; verified loading replaces it with PNG.
+        "source_file": f"pdfs/{doc_id}.pdf",
         "review_status": "synthetic_ground_truth",
         "truth_source": "generator",
         "cabecalho": {
@@ -54,6 +54,16 @@ def _sheet(doc_id: str, split: str = "val") -> dict[str, object]:
             "template": "controle_A",
             "profile": "balanced",
             "difficulty": "clean",
+            "band": None,
+            "font": "SyntheticFont",
+            "messiness": [],
+            "legibility": {},
+            "surface": {
+                "data": "01/01/2031 - Dia",
+                "vigilantes": "Pessoa Sintetica",
+                "unidade": "Posto Delta",
+                "rows": [],
+            },
         },
     }
 
@@ -253,6 +263,36 @@ def test_load_verified_split_rejects_gt_provenance_even_with_matching_hash(tmp_p
     frozen.write_bytes(canonical_manifest_bytes(changed_entries))
 
     with pytest.raises(TierCContractError, match="truth_source"):
+        load_verified_canonical_split(root, "smoke", "val", frozen_path=frozen)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        (lambda sheet: sheet.update({"unexpected": True}), "extra_forbidden"),
+        (lambda sheet: sheet["cabecalho"].update({"turno": 1}), "cabecalho.turno"),
+        (lambda sheet: sheet["synthetic"].update({"band": "upper20"}), "degradation band"),
+        (lambda sheet: sheet.update({"source_file": "../outside.pdf"}), "parent segments"),
+    ],
+)
+def test_load_verified_split_rejects_strict_ground_truth_schema(
+    tmp_path: Path, mutation: object, expected: str
+) -> None:
+    root = tmp_path / "dataset"
+    entries, frozen = _dataset(root)
+    gt_path = root / "gt" / "tc-000000.json"
+    sheet = json.loads(gt_path.read_text(encoding="utf-8"))
+    assert callable(mutation)
+    mutation(sheet)
+    gt_path.write_text(json.dumps(sheet), encoding="utf-8")
+    changed = entries[0].model_copy(
+        update={"sha256_gt": hashlib.sha256(canonical_gt_bytes(sheet)).hexdigest()}
+    )
+    changed_entries = [changed, *entries[1:]]
+    (root / "manifests" / "val.jsonl").write_bytes(canonical_manifest_bytes(changed_entries))
+    frozen.write_bytes(canonical_manifest_bytes(changed_entries))
+
+    with pytest.raises(TierCContractError, match=expected):
         load_verified_canonical_split(root, "smoke", "val", frozen_path=frozen)
 
 

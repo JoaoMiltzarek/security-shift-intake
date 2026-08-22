@@ -39,6 +39,9 @@ _DOC_ID_RE = re.compile(r"tc-\d{6}\Z")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 _GIT_COMMIT_RE = re.compile(r"(?:unknown|[0-9a-f]{7,40})\Z")
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_TIME_RE = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z")
+_DATE_SHIFT_RE = re.compile(r"\d{2}/\d{2}/\d{4} - (?:Dia|Noite)\Z")
+_LEGIBILITY_PATH_RE = re.compile(r"ocorrencias\[(\d+)]\.descricao\Z")
 _EXPECTED_BANDS = {"train": "lower80", "val": "lower80", "test": "upper20"}
 _EXPECTED_FRACTIONS = {
     "vocab": HELDOUT_FRACTION,
@@ -151,6 +154,146 @@ class TierCManifestMetaV2(BaseModel):
         if _GIT_COMMIT_RE.fullmatch(value) is None:
             raise ValueError("git_commit must be unknown or a 7-40 character lowercase hex id")
         return value
+
+
+class SyntheticHeader(BaseModel):
+    """Strict clean header written by the synthetic generator."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    data: str
+    turno: Literal["Dia", "Noite"]
+    vigilantes: list[str]
+    unidade: str
+
+    @model_validator(mode="after")
+    def _coherent_header(self) -> SyntheticHeader:
+        if _DATE_SHIFT_RE.fullmatch(self.data) is None or not self.data.endswith(self.turno):
+            raise ValueError("data must contain a canonical date and the declared shift")
+        if not self.vigilantes or len(self.vigilantes) != len(set(self.vigilantes)):
+            raise ValueError("vigilantes must be non-empty and unique")
+        if any(not value.strip() for value in [*self.vigilantes, self.unidade]):
+            raise ValueError("header strings must be non-blank")
+        return self
+
+
+class SyntheticOccurrence(BaseModel):
+    """Strict clean occurrence truth for one generated table row."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    item: str
+    hora_entrada: str | None
+    hora_saida: str | None
+    descricao: str
+    acao: str | None
+    resolvido: Literal["sim", "nao"] | None
+
+    @model_validator(mode="after")
+    def _coherent_occurrence(self) -> SyntheticOccurrence:
+        if not self.item.strip() or not self.descricao.strip():
+            raise ValueError("occurrence item and description must be non-blank")
+        if self.acao is not None and not self.acao.strip():
+            raise ValueError("occurrence action must be non-blank when present")
+        for value in (self.hora_entrada, self.hora_saida):
+            if value is not None and _TIME_RE.fullmatch(value) is None:
+                raise ValueError("occurrence times must use HH:MM")
+        if self.hora_saida is not None and self.hora_entrada is None:
+            raise ValueError("hora_saida requires hora_entrada")
+        return self
+
+
+class SyntheticSurfaceRow(BaseModel):
+    """Strict text surface rendered into one generated table row."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    item: str | None
+    hora: str | None
+    descricao: str | None
+    acao: str | None
+    resolvido: Literal["sim", "não"] | None
+
+
+class SyntheticSurface(BaseModel):
+    """Strict rendered text surface used as the OCR reference."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    data: str
+    vigilantes: str
+    unidade: str
+    rows: list[SyntheticSurfaceRow]
+
+
+class SyntheticProvenance(BaseModel):
+    """Strict generator and render provenance embedded in every ground truth."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    generator: str
+    dataset: str
+    seed: int
+    split: Split
+    template: Literal["controle_A", "controle_B", "controle_C"]
+    profile: Profile
+    difficulty: Literal["clean", "scan", "photo"]
+    band: Literal["lower80", "upper20"] | None
+    font: str
+    messiness: list[str]
+    legibility: dict[str, Literal["illegible"]]
+    surface: SyntheticSurface
+
+    @model_validator(mode="after")
+    def _coherent_render(self) -> SyntheticProvenance:
+        if not self.font.strip() or any(not operation.strip() for operation in self.messiness):
+            raise ValueError("render provenance strings must be non-blank")
+        if self.difficulty == "clean" and self.band is not None:
+            raise ValueError("clean render must not declare a degradation band")
+        if self.difficulty != "clean" and self.band is None:
+            raise ValueError("degraded render requires a degradation band")
+        if self.split != "test" and self.template == "controle_C":
+            raise ValueError("controle_C is test-only")
+        return self
+
+
+class SyntheticGroundTruth(BaseModel):
+    """Complete, strict schema for one generated clean truth and rendered surface."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    schema_version: Literal["1.0"]
+    document_id: str
+    source_file: str
+    review_status: Literal["synthetic_ground_truth"]
+    truth_source: Literal["generator"]
+    cabecalho: SyntheticHeader
+    sem_alteracao: bool
+    riscado: bool
+    ocorrencias: list[SyntheticOccurrence]
+    synthetic: SyntheticProvenance
+
+    @model_validator(mode="after")
+    def _coherent_sheet(self) -> SyntheticGroundTruth:
+        if _DOC_ID_RE.fullmatch(self.document_id) is None:
+            raise ValueError("document_id must match tc-NNNNNN")
+        if _portable_member(self.source_file) != PurePosixPath("pdfs", f"{self.document_id}.pdf"):
+            raise ValueError("source_file must be exactly pdfs/{document_id}.pdf")
+        if self.sem_alteracao != (not self.ocorrencias):
+            raise ValueError("sem_alteracao must agree with occurrence presence")
+        if self.riscado and not self.sem_alteracao:
+            raise ValueError("only a no-occurrence sheet may be crossed out")
+        if len(self.synthetic.surface.rows) != len(self.ocorrencias):
+            raise ValueError("rendered row count must match clean occurrence count")
+        if self.synthetic.surface.data != self.cabecalho.data:
+            raise ValueError("rendered date must match clean header date")
+        if self.synthetic.surface.vigilantes != ", ".join(self.cabecalho.vigilantes):
+            raise ValueError("rendered guards must match clean header guards")
+        for path in self.synthetic.legibility:
+            match = _LEGIBILITY_PATH_RE.fullmatch(path)
+            if match is None or int(match.group(1)) >= len(self.ocorrencias):
+                raise ValueError("legibility path must identify an existing description")
+        return self
 
 
 class VerifiedCanonicalSplit(NamedTuple):
@@ -285,27 +428,12 @@ def _load_verified_meta(root: Path, dataset: str) -> TierCManifestMetaV2:
 def _validate_ground_truth(
     sheet: dict[str, Any], entry: TierCManifestEntry, meta: TierCManifestMetaV2
 ) -> None:
-    required = {
-        "schema_version": "1.0",
-        "document_id": entry.doc_id,
-        "review_status": "synthetic_ground_truth",
-        "truth_source": "generator",
-    }
-    for key, expected in required.items():
-        if sheet.get(key) != expected:
-            raise TierCContractError(f"ground truth invariant failed for {entry.doc_id}: {key}")
-    if not isinstance(sheet.get("cabecalho"), dict):
-        raise TierCContractError(f"ground truth invariant failed for {entry.doc_id}: cabecalho")
-    if type(sheet.get("sem_alteracao")) is not bool or type(sheet.get("riscado")) is not bool:
-        raise TierCContractError(f"ground truth invariant failed for {entry.doc_id}: disposition")
-    occurrences = sheet.get("ocorrencias")
-    if not isinstance(occurrences, list):
-        raise TierCContractError(f"ground truth invariant failed for {entry.doc_id}: ocorrencias")
-    if sheet["sem_alteracao"] and occurrences:
-        raise TierCContractError(
-            f"ground truth invariant failed for {entry.doc_id}: sem_alteracao with occurrences"
-        )
-    synthetic = sheet.get("synthetic")
+    try:
+        truth = SyntheticGroundTruth.model_validate(sheet)
+    except (ValidationError, ValueError) as exc:
+        raise TierCContractError(f"ground truth schema failed for {entry.doc_id}: {exc}") from exc
+    if truth.document_id != entry.doc_id:
+        raise TierCContractError(f"ground truth invariant failed for {entry.doc_id}: document_id")
     expected_synthetic = {
         "generator": meta.version,
         "dataset": meta.dataset,
@@ -313,9 +441,8 @@ def _validate_ground_truth(
         "split": entry.split,
         "profile": meta.profile,
     }
-    if not isinstance(synthetic, dict) or any(
-        synthetic.get(key) != expected for key, expected in expected_synthetic.items()
-    ):
+    observed = truth.synthetic.model_dump(mode="python")
+    if any(observed.get(key) != expected for key, expected in expected_synthetic.items()):
         raise TierCContractError(
             f"ground truth invariant failed for {entry.doc_id}: synthetic provenance"
         )
