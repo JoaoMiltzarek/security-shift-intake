@@ -313,7 +313,7 @@ def _edit_table(
     config: ReportConfig,
     classifier: IncidentClassifier,
 ) -> PipelineState:
-    """Apply human edits on the table path (editor 0/1/N, SSI-1007).
+    """Apply human edits on the supported 0/1/N table path.
 
     A disposição (sem alteração × com ocorrências) exige confirmação explícita do
     revisor; as linhas são full-replace com as 5 colunas; conteúdo confirmado é
@@ -370,7 +370,7 @@ def _edit_table(
             must_review.append(name)
     if norm.disposition == "none":
         # "(sem alteração)" humano SÓ nasce da confirmação explícita via radio — nunca
-        # da mera ausência de linhas (fecha a lavagem de falha de parse, SSI-1007).
+        # da mera ausência de linhas, para que falhas de parse continuem bloqueadas.
         fields.append(
             ExtractedField(
                 name="ocorrencias",
@@ -639,7 +639,7 @@ def _review_context(
     return {
         "draft": draft,
         "state_sha256": repository.state_sha256(draft.state_json),
-        # Editor 0/1/N (SSI-1007): grid de ocorrências + disposição pré-marcada.
+        # O editor 0/1/N combina as ocorrências com a disposição confirmada.
         "table_mode": normalized is not None,
         "disposicao": (
             normalized.disposition
@@ -775,7 +775,7 @@ def create_app(
     init_db(engine)
     active_recorder = simulation_recorder or MemorySimulationRecorder()
     active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
-    # Reclassificação pós-edição (SSI-1007): determinística/offline por default.
+    # A reclassificação pós-edição permanece determinística e local por padrão.
     active_classifier = classifier or RuleBasedIncidentClassifier()
 
     app = FastAPI(
@@ -1344,7 +1344,7 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
-        # Draft enviado é imutável (SSI-1006): o registro do que foi enviado não muda.
+        # Um rascunho simulado é imutável para preservar o registro da entrega.
         if draft.simulated_at is not None:
             raise HTTPException(
                 status_code=409,

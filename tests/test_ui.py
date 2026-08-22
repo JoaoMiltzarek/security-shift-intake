@@ -275,7 +275,7 @@ def test_review_uses_local_brand_assets(
 def test_status_panel_shows_revision_and_approved_revision(
     client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
-    """O painel expõe a revisão corrente e qual revisão foi aprovada (SSI-1007)."""
+    """O painel expõe a revisão corrente e qual revisão foi aprovada."""
     client, _ = client_and_recorder
     draft_id = _submit(client)
     initial = client.get(f"/drafts/{draft_id}/review").text

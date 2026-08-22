@@ -192,7 +192,7 @@ def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
     assert client.get(f"/drafts/{draft_id}").json()["status"] == "pending"
 
 
-# --- Contratos F4 (SSI-1007): cockpit 0/1/N — disposição explícita + 5 colunas ---
+# --- Contratos do editor 0/1/N: disposição explícita e cinco colunas ---
 
 
 def _headers_form() -> dict[str, str]:
