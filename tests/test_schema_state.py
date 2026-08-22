@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
+from src.api.readiness import ReadinessBlockerCode, evaluate_readiness
 from src.schema.state import (
     ApprovalStatus,
     Classification,
@@ -14,6 +16,18 @@ from src.schema.state import (
     PipelineState,
     UnsupportedPipelineStateVersionError,
 )
+
+V1_STATE_FIXTURE = Path(__file__).parent / "fixtures" / "pipeline_state_v1_0.json"
+V1_RETIRED_FIELDS = {
+    "image_paths",
+    "page_image_paths",
+    "reconcile_results",
+    "recipients",
+    "email_draft",
+    "spreadsheet_rows",
+    "approval_status",
+    "audit_log",
+}
 
 
 def test_initial_state_defaults() -> None:
@@ -172,6 +186,39 @@ def test_legacy_marker_survives_a_new_snapshot() -> None:
     restored = PipelineState.from_persisted_json(state.model_dump_json())
 
     assert restored.legacy_source_version == "unversioned"
+
+
+def test_complete_v1_snapshot_is_visible_but_operationally_blocked() -> None:
+    payload = V1_STATE_FIXTURE.read_text(encoding="utf-8")
+
+    state = PipelineState.from_persisted_json(payload)
+
+    assert state.legacy_source_version == "unversioned"
+    assert state.is_legacy
+    assert state.transcription is not None and "Alarm test" in state.transcription
+    assert state.raw_extraction is not None
+    assert state.normalized is not None and len(state.normalized.occurrences) == 1
+    assert state.classification is not None
+    assert state.classification.classification_rule_id == "legacy.unverified"
+    assert state.legacy_evidence is not None
+    assert state.legacy_evidence.source_image_count == 1
+    assert state.legacy_evidence.stored_page_count == 1
+    assert state.page_artifacts == []
+    assert V1_RETIRED_FIELDS.isdisjoint(state.model_dump())
+
+    readiness = evaluate_readiness(state, None)
+    assert not readiness.approvable
+    assert not readiness.exportable
+    assert not readiness.simulatable
+    assert readiness.blocker(ReadinessBlockerCode.EVIDENCE_CHANGED) is not None
+
+
+def test_complete_v1_shape_with_future_version_is_rejected() -> None:
+    payload = json.loads(V1_STATE_FIXTURE.read_text(encoding="utf-8"))
+    payload["schema_version"] = "3.0"
+
+    with pytest.raises(UnsupportedPipelineStateVersionError, match="unsupported"):
+        PipelineState.from_persisted_json(json.dumps(payload))
 
 
 def test_pipeline_state_rejects_partial_config_identity() -> None:

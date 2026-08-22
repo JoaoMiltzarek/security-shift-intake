@@ -235,6 +235,7 @@ class PipelineState(BaseModel):
             raw.pop("recipients", None)
             raw.pop("email_draft", None)
             raw.pop("spreadsheet_rows", None)
+            raw.pop("reconcile_results", None)
             raw.pop("approval_status", None)
             raw.pop("audit_log", None)
             classification = raw.get("classification")

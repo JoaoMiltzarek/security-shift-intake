@@ -1,0 +1,174 @@
+{
+  "source_pdf": "private/synthetic-intake/report.pdf",
+  "image_paths": [
+    "private/synthetic-intake/page-0.png"
+  ],
+  "page_image_paths": [
+    "legacy-review/page_0.png"
+  ],
+  "transcription": "DATA E TURNO: 21/08/2026 - NOITE\nVIGILANTES: Guard_042\nUNIDADE: UNIT_001\n1 | 22:10 | Alarm test | Panel reset | Sim",
+  "transcription_confidence": 0.87,
+  "transcription_confidence_source": "tesseract",
+  "words": [
+    {
+      "text": "Alarm",
+      "bbox": [
+        0.1,
+        0.2,
+        0.3,
+        0.25
+      ],
+      "conf": 0.88,
+      "line_key": "1:1:4",
+      "page": 0,
+      "coordinate_space": "ocr_image"
+    }
+  ],
+  "ocr_quality": "good",
+  "ocr_quality_reason": "Synthetic fixture satisfies the historical OCR gate.",
+  "extracted_fields": [
+    {
+      "name": "unidade",
+      "value": "UNIT_001",
+      "confidence": 0.91,
+      "must_review": false,
+      "source": "ocr",
+      "status": "accepted",
+      "bbox": [
+        0.15,
+        0.12,
+        0.31,
+        0.17
+      ],
+      "page": 0,
+      "evidence_text": "UNIDADE: UNIT_001",
+      "evidence_method": "exact",
+      "evidence_score": 1.0
+    }
+  ],
+  "raw_extraction": {
+    "schema_version": "1.0",
+    "report_type": "controle_ocorrencias",
+    "header": {
+      "data_turno": {
+        "value": "21/08/2026 - NOITE",
+        "confidence": 0.9,
+        "source": "ocr",
+        "status": "accepted",
+        "evidence": "DATA E TURNO: 21/08/2026 - NOITE"
+      },
+      "vigilantes": {
+        "value": [
+          "Guard_042"
+        ],
+        "confidence": 0.89,
+        "source": "ocr",
+        "status": "accepted",
+        "evidence": "VIGILANTES: Guard_042"
+      },
+      "unidade": {
+        "value": "UNIT_001",
+        "confidence": 0.91,
+        "source": "ocr",
+        "status": "accepted",
+        "evidence": "UNIDADE: UNIT_001"
+      }
+    },
+    "tabela_encontrada": true,
+    "rows": [
+      {
+        "item": {
+          "value": "1",
+          "confidence": 0.92,
+          "source": "ocr",
+          "status": "accepted"
+        },
+        "hora": {
+          "value": "22:10",
+          "confidence": 0.88,
+          "source": "ocr",
+          "status": "accepted"
+        },
+        "descricao": {
+          "value": "Alarm test",
+          "confidence": 0.86,
+          "source": "ocr",
+          "status": "accepted"
+        },
+        "acao": {
+          "value": "Panel reset",
+          "confidence": 0.85,
+          "source": "ocr",
+          "status": "accepted"
+        },
+        "resolvido": {
+          "value": "Sim",
+          "confidence": 0.9,
+          "source": "ocr",
+          "status": "accepted"
+        },
+        "sem_alteracao": false
+      }
+    ]
+  },
+  "normalized": {
+    "schema_version": "1.1",
+    "shift": {
+      "date": "21/08/2026",
+      "period": "NOITE",
+      "guards": [
+        "Guard_042"
+      ],
+      "unit": "UNIT_001"
+    },
+    "disposition": "present",
+    "occurrences": [
+      {
+        "category": "1",
+        "entry_time": "22:10",
+        "exit_time": null,
+        "description": "Alarm test",
+        "action": "Panel reset",
+        "resolved": true,
+        "needs_review": false
+      }
+    ],
+    "no_occurrence": false
+  },
+  "reconcile_results": [
+    {
+      "field": "unidade",
+      "reader_a": "UNIT_001",
+      "reader_b": "UNIT_001"
+    }
+  ],
+  "must_review_fields": [],
+  "validation_errors": [],
+  "classification": {
+    "incident_type": "routine",
+    "urgency": "low",
+    "sector": "general_support",
+    "confidence": 0.6,
+    "reason": "Historical deterministic placeholder."
+  },
+  "recipients": [
+    "security@example.invalid"
+  ],
+  "email_draft": "Subject: Synthetic shift report\n\nAlarm test recorded.",
+  "spreadsheet_rows": [
+    {
+      "dia": "21/08/2026",
+      "unidade": "UNIT_001",
+      "objeto": "1",
+      "descricao": "Alarm test"
+    }
+  ],
+  "approval_status": "approved",
+  "audit_log": [
+    {
+      "actor": "fixture-reviewer",
+      "action": "approved",
+      "timestamp": "2026-08-21T22:30:00+00:00"
+    }
+  ]
+}
