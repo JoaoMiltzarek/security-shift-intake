@@ -5,9 +5,10 @@ OCR + deterministic rules (no API, no network, no cost), persists a pending draf
 and prints the review URL. Open the review screen to verify/correct fields and
 approve/reject — nothing is sent automatically.
 
-Privacy: the draft (with PII) is stored in the gitignored `private/` DB. Use
-`make purge-demo-data` to wipe it after the test. This prints only the draft id,
-review URL and field *names* needing review — never the field values.
+Privacy: the draft (with PII) is stored in the gitignored `private/` DB. Remove derived
+artifacts with `make purge-demo-data` and remove real inputs with
+`make purge-real-data CONFIRM=YES` after the test. This prints only the draft id,
+review URL and field *names* needing review — never field values.
 """
 
 from __future__ import annotations
@@ -104,7 +105,8 @@ def main(argv: list[str]) -> int:
 
     print(f"\nReview at: http://127.0.0.1:8000/drafts/{draft_id}/review")
     print(f'Start the UI with:  INTAKE_CONFIG="{args.config.as_posix()}" make serve')
-    print("After the test, wipe real data with:  make purge-demo-data")
+    print("After the test, remove derived artifacts with:  make purge-demo-data")
+    print("Remove real inputs with:  make purge-real-data CONFIRM=YES")
     return 0
 
 

@@ -65,7 +65,10 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
     assert isinstance(captured["vision"], LocalOCRVisionClient)
     assert captured["file"] == source.resolve()
     assert captured["config_path"] == config
-    assert f'INTAKE_CONFIG="{config.as_posix()}" make serve' in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert f'INTAKE_CONFIG="{config.as_posix()}" make serve' in output
+    assert "make purge-demo-data" in output
+    assert "make purge-real-data CONFIRM=YES" in output
 
 
 def test_real_entrypoint_rejects_outside_path_before_reader_selection(
