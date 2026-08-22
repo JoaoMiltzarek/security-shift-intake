@@ -6,14 +6,12 @@ Rendering an overlay outside a browser proves nothing, so this drives a real Chr
 
   1. seed a synthetic table draft (mock reader, one field given a bbox) and open its review;
   2. click the bbox field  -> assert the highlight overlay becomes visible in the DOM;
-  3. submit "Salvar revisão" -> assert the edited field is now `human_edit` and lost its bbox;
-  4. seed a structurally `unknown` draft and assert placeholder/export/approval stay blocked;
-  5. approve -> edit -> send on the first draft: editing revokes the approval (badge back to
-     pending) and the send stays Blocked — approval is bound to the reviewed revision (SSI-1006);
-  6. row editor 0/1/N (SSI-1007): a contradictory disposition shows #edit-error without
-     persisting; filling the spare row adds an occurrence; "Limpar linha" + save removes it;
-  7. capture console errors + CSP violations -> fail on any;
-  8. screenshot the REAL page -> private/audit/browser_smoke.png (+ sha256).
+  3. confirm the deterministic triage and save the human review;
+  4. approve the current snapshot, capture it, and download its revision-bound CSV;
+  5. edit the approved review and prove that approval, CSV, and simulation are revoked;
+  6. exercise the 0/1/N occurrence editor, reapprove, and record terminal simulation;
+  7. seed a structurally unknown draft and prove its operational actions remain blocked;
+  8. fail on console/CSP errors and hash the private approved-current screenshot.
 
 Authority: on CI Linux (Chromium installable) this is BLOCKING. Locally, headless is
 flaky, so a missing browser/server exits 2 ("reported", not the authority); a genuine
@@ -29,6 +27,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 # Runnable both as `uv run python scripts/browser_smoke.py` and plain `python scripts/...`:
 # put the repo root (parent of scripts/) on sys.path so `import src...` resolves either way.
@@ -188,21 +187,132 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         if page.locator("#bbox-highlight").is_hidden():
             raise SmokeError("bbox highlight did not become visible after clicking the field")
 
-        # (3) fill every pending input and submit -> edited field becomes human_edit.
+        # (3) fill every pending input, confirm triage, and save the human review.
         for handle in page.locator('input[name^="field__"]').all():
             if not (handle.input_value() or "").strip():
                 handle.fill("revisado")
+        incident = page.locator(".occurrence-card").first
+        if not incident.locator('input[name$="__item"]').input_value().strip():
+            incident.locator('input[name$="__item"]').fill("Alarme")
+        if not incident.locator('input[name$="__descricao"]').input_value().strip():
+            incident.locator('input[name$="__descricao"]').fill("Alarme confirmado no setor B")
+        incident.locator('input[name$="__acao"]').fill("Verificado no local")
+        incident.locator('select[name$="__resolvido"]').select_option("sim")
+        page.check('input[name="disposicao"][value="com_ocorrencias"]')
+        page.check('input[name="classification_confirmed"]')
         page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        page.wait_for_timeout(250)
+        if page.locator("#edit-error").count():
+            raise SmokeError(
+                "initial human review was rejected: " + page.locator("#edit-error").inner_text()
+            )
         edited = page.locator(".field-card", has_text=_BBOX_FIELD)
         edited.get_by_text("Revisado por pessoa").wait_for(timeout=5000)
         if edited.locator(".evidence-trigger").count() != 0:
             raise SmokeError("edited field still exposes stale OCR evidence")
+        page.wait_for_selector(".classification-editor .status-approved", timeout=5000)
+        if page.locator('[data-blocker-code="classification_unconfirmed"]').count():
+            raise SmokeError("confirmed triage still appears as a readiness blocker")
 
-        # (6) screenshot the real evidence page before navigating to the safety scenario.
+        # (4) approve the exact review snapshot and prove its CSV uses the same identity.
+        page.get_by_role("button", name="Aprovar revisão", exact=True).click()
+        page.wait_for_selector("#status-panel .status-approved", timeout=5000)
+        page.wait_for_function("document.activeElement?.id === 'status-title'")
+        export_form = page.locator(f'form[action="/drafts/{draft_id}/export.csv"]')
+        export_form.wait_for(timeout=5000)
+        edit_form = page.locator('#review-body form[hx-post$="/edit"]')
+        if export_form.locator('input[name="expected_revision"]').input_value() != (
+            edit_form.locator('input[name="expected_revision"]').input_value()
+        ):
+            raise SmokeError("CSV form is not bound to the reviewed revision")
+        if export_form.locator('input[name="expected_state_sha256"]').input_value() != (
+            edit_form.locator('input[name="expected_state_sha256"]').input_value()
+        ):
+            raise SmokeError("CSV form is not bound to the reviewed state hash")
+
+        # Capture the portfolio-grade state: evidence, confirmed triage, current approval,
+        # and the now-enabled CSV are visible together. The image remains private.
         screenshot.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(screenshot), full_page=True)
 
-        # (4) structural unknown: never "Sem alteração", never exportable/approvable.
+        with (
+            page.expect_request(
+                lambda request: (
+                    request.method == "POST"
+                    and request.url.endswith(f"/drafts/{draft_id}/export.csv")
+                )
+            ) as request_info,
+            page.expect_download() as download_info,
+        ):
+            export_form.get_by_role("button", name="Exportar CSV").click()
+        export_request = request_info.value
+        parsed_base_url = urlsplit(base_url)
+        expected_origin = f"{parsed_base_url.scheme}://{parsed_base_url.netloc}"
+        if export_request.headers.get("origin") != expected_origin:
+            raise SmokeError(
+                "native export form lost its same-origin request identity: "
+                f"{export_request.headers.get('origin')!r}"
+            )
+        download = download_info.value
+        if not download.suggested_filename.startswith(f"draft_{draft_id}_rev_"):
+            raise SmokeError("CSV download filename does not identify the approved revision")
+        csv_path = download.path()
+        if csv_path is None or "DIA,UNIDADE,OBJETO,DESCRICAO" not in csv_path.read_text(
+            encoding="utf-8"
+        ):
+            raise SmokeError("approved CSV download is missing its canonical header")
+
+        # (5) a saved edit revokes approval and both consequential actions immediately.
+        page.locator('input[name^="field__"]').first.fill("editado depois da aprovação")
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        page.wait_for_selector("#status-panel .status-pending", timeout=5000)
+        if page.locator(f'form[action="/drafts/{draft_id}/export.csv"]').count():
+            raise SmokeError("post-approval edit left the CSV form enabled")
+        if not page.get_by_role("button", name="Exportar CSV").is_disabled():
+            raise SmokeError("post-approval edit left CSV export enabled")
+        simulation = page.get_by_role("button", name="Simular entrega", exact=True)
+        if not simulation.is_disabled():
+            raise SmokeError("post-approval edit left simulation enabled")
+        if "A simulação exige a aprovação" not in page.locator("#status-panel").inner_text():
+            raise SmokeError("post-approval simulation blocker is not visible")
+
+        # (6) row editor 0/1/N: contradiction -> visible error, nothing persisted;
+        # spare row adds; clearing the first row + save removes it (full-replace).
+        page.check('input[name="disposicao"][value="sem_alteracao"]')
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        page.wait_for_selector("#edit-error", timeout=5000)
+
+        page.goto(review_url, wait_until="networkidle")
+        if not page.locator('input[name="occ__1__descricao"]').input_value().strip():
+            raise SmokeError("row 1 was lost after the rejected contradictory save")
+        page.check('input[name="disposicao"][value="com_ocorrencias"]')
+        page.fill('input[name="occ__2__item"]', "Portao")
+        page.fill('input[name="occ__2__hora"]', "15:10")
+        page.fill('input[name="occ__2__descricao"]', "Portao lateral aberto sem autorizacao")
+        page.fill('input[name="occ__2__acao"]', "Fechado e registrado")
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        page.wait_for_selector('input[name="occ__3__descricao"]', timeout=5000)
+
+        page.locator(".occurrence-card").first.get_by_role(
+            "button", name="Limpar ocorrência"
+        ).click()
+        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
+        page.wait_for_selector('input[name="occ__3__descricao"]', state="detached", timeout=5000)
+        remaining = page.locator('input[name="occ__1__descricao"]').input_value()
+        if "Portao" not in remaining:
+            raise SmokeError("full-replace row removal did not keep the surviving row")
+
+        # Reapproval binds the final edited snapshot; simulation then locks the desk.
+        page.get_by_role("button", name="Aprovar revisão", exact=True).click()
+        page.wait_for_selector("#status-panel .status-approved", timeout=5000)
+        page.get_by_role("button", name="Simular entrega", exact=True).click()
+        page.wait_for_selector("#status-panel .status-simulated", timeout=5000)
+        if "Simulação registrada" not in page.locator("#status-panel").inner_text():
+            raise SmokeError("terminal simulation state is not visible")
+        if page.locator(f'form[hx-post="/ui/drafts/{draft_id}/edit"]').count():
+            raise SmokeError("terminal simulation left review mutation controls in the DOM")
+
+        # (7) structural unknown: never "Sem alteração", never exportable/approvable.
         unknown_draft_id = _seed_unknown_draft()
         page.goto(f"{base_url}/drafts/{unknown_draft_id}/review", wait_until="networkidle")
         body = page.locator("#review-body").inner_text()
@@ -217,54 +327,12 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         if not approve_button.is_disabled():
             raise SmokeError("unknown draft exposes an enabled approval action")
         status_panel = page.locator("#status-panel").inner_text()
-        if "Aprovação bloqueada" not in status_panel or "unknown" not in status_panel:
+        disposition_blocker = page.locator('[data-blocker-code="disposition_unconfirmed"]')
+        if "Aprovação bloqueada" not in status_panel or disposition_blocker.count() != 1:
             raise SmokeError("unknown draft approval blocker is not visible")
-
-        # (5) approve → edit → send: a aprovação é da REVISÃO, não do draft (SSI-1006).
-        page.goto(review_url, wait_until="networkidle")
-        page.get_by_role("button", name="Aprovar revisão", exact=True).click()
-        page.wait_for_selector("#status-panel .status-approved", timeout=5000)
-
-        page.locator('input[name^="field__"]').first.fill("editado depois da aprovação")
-        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
-        page.wait_for_selector("#status-panel .status-pending", timeout=5000)
-
-        simulation = page.get_by_role("button", name="Simular entrega", exact=True)
-        if not simulation.is_disabled():
-            raise SmokeError("post-approval edit left simulation enabled")
-        if "A simulação exige a aprovação" not in page.locator("#status-panel").inner_text():
-            raise SmokeError("post-approval simulation blocker is not visible")
-
-        # (6) row editor 0/1/N: contradiction -> visible error, nothing persisted;
-        # spare row adds; "Limpar linha" + save removes (full-replace).
-        page.goto(review_url, wait_until="networkidle")
-        page.check('input[name="disposicao"][value="sem_alteracao"]')  # contradiz a linha 1
-        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
-        page.wait_for_selector("#edit-error", timeout=5000)
-
-        page.goto(review_url, wait_until="networkidle")  # estado intacto pós-erro
-        if not page.locator('input[name="occ__1__descricao"]').input_value().strip():
-            raise SmokeError("row 1 was lost after the rejected contradictory save")
-        page.check('input[name="disposicao"][value="com_ocorrencias"]')
-        page.fill('input[name="occ__2__item"]', "Portao")
-        page.fill('input[name="occ__2__hora"]', "15:10")
-        page.fill('input[name="occ__2__descricao"]', "Portao lateral aberto sem autorizacao")
-        page.fill('input[name="occ__2__acao"]', "Fechado e registrado")
-        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
-        page.wait_for_selector('input[name="occ__3__descricao"]', timeout=5000)  # 2 linhas + spare
-
-        page.locator(".occurrence-card").first.get_by_role(
-            "button", name="Limpar ocorrência"
-        ).click()
-        page.locator('#review-body form[hx-post$="/edit"] button[type="submit"]').click()
-        # a linha 3 (spare antiga) some do DOM quando volta a haver 1 linha + spare 2
-        page.wait_for_selector('input[name="occ__3__descricao"]', state="detached", timeout=5000)
-        remaining = page.locator('input[name="occ__1__descricao"]').input_value()
-        if "Portao" not in remaining:
-            raise SmokeError("full-replace row removal did not keep the surviving row")
         browser.close()
 
-    # (4) console errors / CSP violations are fatal.
+    # (8) console errors / CSP violations are fatal.
     if console_errors:
         raise SmokeError(f"console errors / CSP violations: {console_errors}")
 
