@@ -862,6 +862,7 @@ fieldset {
 
 .error-banner,
 .blocker-banner,
+.rejection-banner,
 .success-banner {
   margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-4);
@@ -870,7 +871,8 @@ fieldset {
 }
 
 .error-banner,
-.blocker-banner {
+.blocker-banner,
+.rejection-banner {
   border-color: var(--blocked);
   background: var(--blocked-soft);
   color: #762622;
@@ -880,6 +882,10 @@ fieldset {
   border-color: var(--cleared);
   background: var(--cleared-soft);
   color: #1e5947;
+}
+
+.rejection-banner {
+  margin-top: var(--space-4);
 }
 
 .status-strip {
@@ -908,6 +914,11 @@ fieldset {
 .status-step.is-current {
   border-color: var(--caution);
   color: #765000;
+}
+
+.status-step.is-rejected {
+  border-color: var(--blocked);
+  color: var(--blocked);
 }
 
 .readiness {

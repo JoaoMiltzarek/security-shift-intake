@@ -144,6 +144,22 @@ def test_ui_simulation_blocked_before_approval(
     assert recorder.call_count == 0
 
 
+def test_rejected_review_requires_a_saved_correction_before_reapproval(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
+    client, _ = client_and_recorder
+    draft_id = _submit(client)
+
+    assert _ui_action(client, draft_id, "reject").status_code == 200
+    page = client.get(f"/drafts/{draft_id}/review").text
+
+    assert "Esta revisão foi rejeitada" in page
+    assert "Correção salva" in page and "Nova aprovação" in page
+    assert "salve uma correção para reabrir a revisão" in page
+    assert f'hx-post="/ui/drafts/{draft_id}/reject"' not in page
+    assert 'aria-current="step">Rejeitado' in page
+
+
 def test_ui_approve_then_simulate(
     client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:

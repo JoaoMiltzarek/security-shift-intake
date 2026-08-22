@@ -22,12 +22,21 @@
     </span>
   </div>
 
+  {% if draft.status == 'rejected' %}
+  <ol class="status-strip" aria-label="Progresso do documento">
+    <li class="status-step is-complete">Recebido</li>
+    <li class="status-step is-rejected" aria-current="step">Rejeitado</li>
+    <li class="status-step">Correção salva</li>
+    <li class="status-step">Nova aprovação</li>
+  </ol>
+  {% else %}
   <ol class="status-strip" aria-label="Progresso do documento">
     <li class="status-step is-complete">Recebido</li>
     <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.simulated_at else 'is-current' }}">Revisão</li>
     <li class="status-step {{ 'is-complete' if draft.status == 'approved' or draft.simulated_at else '' }}">Aprovado</li>
     <li class="status-step {{ 'is-complete' if draft.simulated_at else '' }}">Simulado</li>
   </ol>
+  {% endif %}
 
   <p class="field-meta">
     <span>Revisão <strong class="mono">{{ draft.revision }}</strong></span>
@@ -86,6 +95,11 @@
   </p>
   {% elif draft.status == 'approved' and draft.approved_revision is none %}
   <p class="blocker-banner">Esta aprovação é anterior ao vínculo por revisão. Reaprove o documento antes de simular.</p>
+  {% elif draft.status == 'rejected' %}
+  <p class="rejection-banner">
+    <strong>Esta revisão foi rejeitada.</strong>
+    Corrija o registro abaixo e salve. O documento voltará para “Em revisão” antes de poder ser aprovado novamente.
+  </p>
   {% endif %}
 
   {% if config_blocker %}
@@ -99,20 +113,23 @@
     <form hx-post="/ui/drafts/{{ draft.id }}/approve" hx-target="#status-panel" hx-swap="outerHTML">
       <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
       <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
-      <button type="submit"{% if approval_blocker %} disabled aria-describedby="approval-blocker"{% endif %}>Aprovar revisão</button>
+      <button type="submit"{% if approval_blocker or draft.status == 'rejected' %} disabled aria-describedby="approval-blocker"{% endif %}>Aprovar revisão</button>
     </form>
+    {% if draft.status != 'rejected' %}
     <form hx-post="/ui/drafts/{{ draft.id }}/reject" hx-target="#status-panel" hx-swap="outerHTML">
       <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
       <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
       <button class="button-danger" type="submit">Rejeitar</button>
     </form>
+    {% endif %}
     <form hx-post="/ui/drafts/{{ draft.id }}/simulate" hx-target="#status-panel" hx-swap="outerHTML">
       <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
       <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
       <button class="button-secondary" type="submit"{% if not readiness.simulatable %} disabled aria-describedby="simulation-blocker"{% endif %}>Simular entrega</button>
     </form>
   </div>
-  {% if approval_blocker %}<p id="approval-blocker" class="blocked-reason">Aprovação bloqueada: {{ approval_blocker }}</p>{% endif %}
+  {% if draft.status == 'rejected' %}<p id="approval-blocker" class="blocked-reason">Aprovação bloqueada: salve uma correção para reabrir a revisão.</p>
+  {% elif approval_blocker %}<p id="approval-blocker" class="blocked-reason">Aprovação bloqueada: {{ approval_blocker }}</p>{% endif %}
   {% if not readiness.simulatable %}<p id="simulation-blocker" class="blocked-reason">A simulação exige a aprovação da revisão e do conteúdo atuais.</p>{% endif %}
   {% endif %}
 
