@@ -3,6 +3,11 @@
 Committed **synthetic** example renders produced by repository fixtures, kept so the
 Document AI output and review UI can be inspected without any real document.
 
+`cockpit_demo.gif` is a legacy v1.0 pre-release capture, not evidence of the final v1.1 UI.
+After the integrated v1.1 browser flow passes, replace it in one reviewed change together with
+the hashes in this file and both privacy allowlists. Until then, the GIF is retained only for
+historical orientation.
+
 Policy: only synthetic, reviewed media belongs here. The pre-commit guard
 ([scripts/check_real_data.py](../scripts/check_real_data.py)) requires both the exact
 repository-relative path and the reviewed SHA-256 below; there is no filename pattern
@@ -21,9 +26,10 @@ The reviewed bytes above are the release provenance enforced by both privacy gua
 Replacing an asset requires one reviewed change updating the file, this manifest and
 `_ALLOWED_SAMPLE_SHA256` together.
 
-## `cockpit_demo.gif` provenance
+## Legacy `cockpit_demo.gif` provenance
 
-This is a browser capture of the real local showcase path, not a mocked overlay:
+This was a browser capture of the real local showcase path at its recorded commit, not a mocked
+overlay:
 
 - source fixture: `samples/sample_tc-000000.png` (SHA-256
   `b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084`);
