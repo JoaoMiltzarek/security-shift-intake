@@ -61,6 +61,7 @@ def test_commercial_offer_excludes_third_party_license_rights() -> None:
     assert "open-source license" in offer
     assert "requires a separate,\nwritten agreement" in offer
     assert "grant commercial rights" in offer
+    assert "João Miltzarek" in offer
     assert "project-owned code only" in offer
     assert "Third-party components remain under their own licenses" in offer
     assert "THIRD_PARTY_NOTICES.md" in offer

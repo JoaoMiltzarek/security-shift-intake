@@ -1,4 +1,4 @@
-﻿# Commercial License
+# Commercial License
 
 Security Shift Intake is source-available for noncommercial use under the
 [PolyForm Noncommercial License 1.0.0](LICENSE). It is not offered under an
