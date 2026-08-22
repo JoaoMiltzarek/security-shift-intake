@@ -249,6 +249,7 @@ def test_htmx_is_vendored_locally_not_cdn(
     assert "/static/htmx.min.js" in page  # vendored, not unpkg
     assert "unpkg.com" not in page
     assert "integrity=" in page  # SRI present
+    assert '"attributesToSettle":["class","width","height"]' in page
     # The asset is actually served and looks like htmx.
     asset = client.get("/static/htmx.min.js")
     assert asset.status_code == 200
