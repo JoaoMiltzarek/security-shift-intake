@@ -103,10 +103,10 @@ def test_review_page_shows_all_panels(
     assert r.status_code == 200
     text = r.text
     assert "Furto no patio." in text  # transcription
-    assert "theft" in text  # classification
+    assert "Furto" in text  # translated classification label
     assert "confirmada pelo revisor" in text
     assert "confiança 90%" not in text
-    assert "tech_security, general_support" in text  # recipients
+    assert "Segurança técnica, Suporte geral" in text  # server-derived recipients
     assert "Bom dia," in text  # operational message is derived, not persisted
     assert "Aprovar revisão" in text and "Rejeitar" in text and "Simular entrega" in text
     assert "Prontidão desta revisão" in text

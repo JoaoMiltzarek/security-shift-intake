@@ -464,6 +464,25 @@ def test_rule_suggestion_blocks_approval_until_confirmed(client: TestClient) -> 
     assert _approve(client, draft_id).status_code == 409
 
 
+def test_classification_controls_use_taxonomy_values_without_recipient_inputs(
+    client: TestClient,
+) -> None:
+    draft_id = _submit_table_draft(client)
+    html = client.get(f"/drafts/{draft_id}/review").text
+
+    assert 'name="classification_type"' in html
+    assert 'value="access_violation"' in html
+    assert ">Violação de acesso</option>" in html
+    assert 'name="classification_urgency"' in html
+    assert 'value="critical"' in html and ">Crítica</option>" in html
+    assert 'name="classification_sector"' in html
+    assert 'value="facilities"' in html and ">Infraestrutura</option>" in html
+    assert 'name="classification_confirmed"' in html
+    assert 'name="recipients"' not in html
+    assert "Destino definido pelo servidor" in html
+    assert "Origem: regra determinística" in html
+
+
 def test_human_override_can_set_critical_and_reroutes(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     form = {

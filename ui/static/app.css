@@ -785,6 +785,25 @@ fieldset {
   font-size: 1rem;
 }
 
+.classification-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.classification-heading p {
+  max-width: 40rem;
+  margin: 0;
+}
+
+.decision-origin {
+  margin: var(--space-3) 0;
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+}
+
 .occurrence-card {
   padding: var(--space-4);
   border: 1px solid var(--rule);
@@ -1190,6 +1209,14 @@ th {
   .occurrence-grid,
   .context-grid {
     grid-template-columns: 1fr;
+  }
+
+  .classification-heading {
+    display: block;
+  }
+
+  .classification-heading .status-chip {
+    margin-top: var(--space-2);
   }
 
   .context-grid .context-wide {

@@ -533,6 +533,40 @@ _READINESS_COPY: dict[ReadinessBlockerCode, tuple[str, str]] = {
     ),
 }
 
+_CLASSIFICATION_COPY: dict[str, dict[str, str]] = {
+    "type": {
+        "routine": "Rotina",
+        "access_violation": "Violação de acesso",
+        "equipment": "Equipamento",
+        "safety": "Segurança",
+        "theft": "Furto",
+        "other": "Outro",
+    },
+    "urgency": {
+        "low": "Baixa",
+        "medium": "Média",
+        "high": "Alta",
+        "critical": "Crítica",
+    },
+    "sector": {
+        "tech_security": "Segurança técnica",
+        "general_support": "Suporte geral",
+        "facilities": "Infraestrutura",
+    },
+}
+
+_RECIPIENT_COPY = {
+    "tech_security": "Segurança técnica",
+    "tech_security_oncall": "Plantão de segurança técnica",
+    "general_support": "Suporte geral",
+    "facilities": "Infraestrutura",
+}
+
+
+def _taxonomy_options(dimension: str, values: list[str]) -> list[dict[str, str]]:
+    labels = _CLASSIFICATION_COPY[dimension]
+    return [{"value": value, "label": labels.get(value, value)} for value in values]
+
 
 def _readiness_item(blocker: ReadinessBlocker) -> dict[str, Any]:
     """Translate a machine blocker into concise, stable review-desk copy."""
@@ -586,10 +620,17 @@ def _review_context(
         "transcription": state.transcription,
         "fields": state.extracted_fields,
         "classification": state.classification,
-        "classification_types": config.classification.type.labels,
-        "classification_urgencies": config.classification.urgency.labels,
-        "classification_sectors": config.classification.sector.labels,
+        "classification_types": _taxonomy_options("type", config.classification.type.labels),
+        "classification_urgencies": _taxonomy_options(
+            "urgency", config.classification.urgency.labels
+        ),
+        "classification_sectors": _taxonomy_options("sector", config.classification.sector.labels),
         "recipients": derived.routing.recipients if derived.routing else [],
+        "recipient_labels": (
+            [_RECIPIENT_COPY.get(recipient, recipient) for recipient in derived.routing.recipients]
+            if derived.routing
+            else []
+        ),
         "routing_rule_id": derived.routing.rule_id if derived.routing else None,
         "email_draft": derived.message,
         "ocr_quality": state.ocr_quality,
