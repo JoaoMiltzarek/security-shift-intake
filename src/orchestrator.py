@@ -20,6 +20,7 @@ from src.pipeline.ocr_quality import OCR_FAILED, assess_ocr_quality
 from src.pipeline.transcribe import transcribe
 from src.pipeline.validate import validate_table
 from src.schema.config import ReportConfig
+from src.schema.extraction import NormalizedIncidentModel, RawDocumentExtraction
 from src.schema.loader import config_fingerprint
 from src.schema.state import PipelineState
 
@@ -38,18 +39,32 @@ def _timeout_result(
     config: ReportConfig,
     reason: str,
 ) -> IntakeResult:
-    """Create an auditable, structurally unknown draft after a deadline failure."""
-    blocked = state.model_copy(
-        update={
-            "transcription": "",
-            "transcription_confidence": 0.0,
-            "ocr_quality": OCR_FAILED,
-            "ocr_quality_reason": reason,
-            "validation_errors": [*state.validation_errors, reason],
-        }
-    )
-    blocked = validate_table(extract_table(blocked, config), config)
-    blocked = blocked.model_copy(update={"classification": None})
+    """Preserve completed stages and make incomplete structure explicitly unknown."""
+    blocked = state.model_copy(update={"classification": None})
+    if blocked.raw_extraction is None or blocked.normalized is None:
+        blocked = blocked.model_copy(
+            update={
+                "raw_extraction": RawDocumentExtraction(
+                    report_type=config.report_type,
+                    tabela_encontrada=False,
+                ),
+                "normalized": NormalizedIncidentModel(),
+                "extracted_fields": [],
+                "must_review_fields": [],
+            }
+        )
+        blocked = validate_table(blocked, config)
+
+    validation_errors = list(dict.fromkeys([*blocked.validation_errors, reason]))
+    updates: dict[str, object] = {"validation_errors": validation_errors}
+    if blocked.ocr_quality is None:
+        updates.update(
+            {
+                "ocr_quality": OCR_FAILED,
+                "ocr_quality_reason": reason,
+            }
+        )
+    blocked = blocked.model_copy(update=updates)
     return IntakeResult(state=blocked, pages=pages)
 
 

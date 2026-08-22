@@ -105,6 +105,8 @@ def test_reader_deadline_becomes_blocked_unknown_draft(sample_pdf: Path) -> None
     result = run_pipeline(sample_pdf, TimedOutReader(), _classifier(), CONFIG, dpi=120)
 
     assert len(result.pages) == 1
+    assert result.state.transcription is None
+    assert result.state.transcription_confidence is None
     assert result.state.ocr_quality == "failed"
     assert result.state.normalized is not None
     assert result.state.normalized.disposition == "unknown"
@@ -112,6 +114,60 @@ def test_reader_deadline_becomes_blocked_unknown_draft(sample_pdf: Path) -> None
     derived = derive_operational_outputs(result.state, CONFIG)
     assert derived.message is not None
     assert "BLOQUEADO" in derived.message
+
+
+def test_pre_extraction_timeout_preserves_completed_transcription(
+    sample_pdf: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = Deadline.remaining_seconds
+
+    def timeout_before_extraction(self: Deadline, *, stage: str = "processing") -> float:
+        if stage == "table extraction":
+            raise ProcessingDeadlineExceeded(
+                "Processing deadline exceeded during table extraction; "
+                "manual review is required."
+            )
+        return original(self, stage=stage)
+
+    monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_extraction)
+
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120
+    ).state
+
+    assert state.transcription == _OCC
+    assert state.transcription_confidence == pytest.approx(0.9)
+    assert state.raw_extraction is not None and not state.raw_extraction.tabela_encontrada
+    assert state.normalized is not None and state.normalized.disposition == "unknown"
+    assert state.classification is None
+    assert any("table extraction" in error for error in state.validation_errors)
+
+
+def test_pre_classification_timeout_preserves_validated_ocr_state(
+    sample_pdf: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = Deadline.remaining_seconds
+
+    def timeout_before_classification(self: Deadline, *, stage: str = "processing") -> float:
+        if stage == "classification":
+            raise ProcessingDeadlineExceeded(
+                "Processing deadline exceeded during classification; "
+                "manual review is required."
+            )
+        return original(self, stage=stage)
+
+    monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_classification)
+
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120
+    ).state
+
+    assert state.transcription == _OCC
+    assert state.raw_extraction is not None and state.raw_extraction.tabela_encontrada
+    assert state.normalized is not None and state.normalized.disposition == "present"
+    assert state.ocr_quality in {"good", "low"}
+    assert state.classification is None
+    assert any("classification" in error for error in state.validation_errors)
 
 
 def test_ingest_deadline_failure_preserves_empty_evidence_set(
