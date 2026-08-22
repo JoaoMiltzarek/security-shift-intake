@@ -122,19 +122,6 @@ def build_copy_message(state: PipelineState, normalized: NormalizedIncidentModel
     return f"Bom dia,\n\n{table}\n\nVigilantes: {guards}"
 
 
-def build_outputs(state: PipelineState, config: ReportConfig) -> PipelineState:
-    """Stage: popula spreadsheet_rows e email_draft (mensagem copy-ready) no estado."""
-    normalized = state.normalized
-    if normalized is None:
-        raise ValueError("build_outputs() requires a normalized model (table path).")
-    return state.model_copy(
-        update={
-            "spreadsheet_rows": build_spreadsheet(normalized),
-            "email_draft": build_copy_message(state, normalized),
-        }
-    )
-
-
 def derive_operational_outputs(
     state: PipelineState,
     config: ReportConfig,
