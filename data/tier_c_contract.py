@@ -34,6 +34,7 @@ from data.generators.tier_c import (
 from src.paths import REPO_ROOT
 
 V2_FROZEN_ROOT = REPO_ROOT / "data" / "manifests" / "tier_c_manifest_v2"
+SAFETY_LOGICAL_FREEZE_ROOT = REPO_ROOT / "data" / "manifests" / "safety_corpus_v1.1"
 
 _DOC_ID_RE = re.compile(r"tc-\d{6}\Z")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -54,6 +55,7 @@ _EXPECTED_FRACTIONS = {
 # freezes remain under their v1 names and are not silently redefined as v2.
 # Smoke, stress, and the operational prior remain disposable/non-release inputs.
 _DEFAULT_FROZEN_SPLITS = frozenset({("bench-balanced", "val")})
+_DEFAULT_LOGICAL_FREEZE_SPLITS = frozenset({("bench-balanced", "val")})
 
 
 class TierCContractError(RuntimeError):
@@ -114,6 +116,42 @@ class TierCManifestEntry(BaseModel):
 
     @model_validator(mode="after")
     def _canonical_paths(self) -> TierCManifestEntry:
+        image = _portable_member(self.image)
+        gt = _portable_member(self.gt)
+        if image != PurePosixPath("pngs", f"{self.doc_id}.png"):
+            raise ValueError("image must be exactly pngs/{doc_id}.png")
+        if gt != PurePosixPath("gt", f"{self.doc_id}.json"):
+            raise ValueError("gt must be exactly gt/{doc_id}.json")
+        return self
+
+
+class TierCLogicalFreezeEntry(BaseModel):
+    """Raster-byte-independent identity projected from a complete Tier C entry."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    doc_id: str
+    split: Split
+    image: str
+    gt: str
+    sha256_gt: str
+
+    @field_validator("doc_id")
+    @classmethod
+    def _valid_doc_id(cls, value: str) -> str:
+        if _DOC_ID_RE.fullmatch(value) is None:
+            raise ValueError("doc_id must match tc-NNNNNN")
+        return value
+
+    @field_validator("sha256_gt")
+    @classmethod
+    def _valid_sha256(cls, value: str) -> str:
+        if _SHA256_RE.fullmatch(value) is None:
+            raise ValueError("sha256_gt must contain 64 lowercase hexadecimal characters")
+        return value
+
+    @model_validator(mode="after")
+    def _canonical_paths(self) -> TierCLogicalFreezeEntry:
         image = _portable_member(self.image)
         gt = _portable_member(self.gt)
         if image != PurePosixPath("pngs", f"{self.doc_id}.png"):
@@ -334,6 +372,32 @@ def canonical_manifest_bytes(entries: Sequence[TierCManifestEntry]) -> bytes:
     )
 
 
+def logical_freeze_projection(
+    entries: Sequence[TierCManifestEntry],
+) -> tuple[TierCLogicalFreezeEntry, ...]:
+    """Remove the platform-dependent PNG digest from complete manifest entries."""
+    return tuple(
+        TierCLogicalFreezeEntry.model_validate(
+            entry.model_dump(mode="json", exclude={"sha256_img"})
+        )
+        for entry in entries
+    )
+
+
+def canonical_logical_freeze_bytes(
+    entries: Sequence[TierCLogicalFreezeEntry],
+) -> bytes:
+    """Serialize logical freeze entries as canonical, doc-id-sorted JSONL."""
+    return canonical_jsonl_bytes(
+        (entry.model_dump(mode="json") for entry in entries), sort_key="doc_id"
+    )
+
+
+def logical_freeze_sha256(entries: Sequence[TierCLogicalFreezeEntry]) -> str:
+    """Return the content identity of a canonical logical freeze."""
+    return hashlib.sha256(canonical_logical_freeze_bytes(entries)).hexdigest()
+
+
 def parse_manifest(
     path: Path, *, expected_split: Split | None = None
 ) -> tuple[TierCManifestEntry, ...]:
@@ -372,6 +436,53 @@ def parse_manifest(
     return tuple(entries)
 
 
+def parse_logical_freeze(
+    path: Path, *, expected_split: Split | None = None
+) -> tuple[TierCLogicalFreezeEntry, ...]:
+    """Parse canonical logical-freeze bytes and reject ambiguous representations."""
+    try:
+        content = path.read_bytes()
+        if b"\r" in content or not content.endswith(b"\n"):
+            raise TierCContractError(f"Tier C logical freeze is not canonical LF text: {path}")
+        text = content.decode("utf-8", errors="strict")
+    except TierCContractError:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise TierCContractError(f"cannot read Tier C logical freeze: {path}") from exc
+    if not text.strip():
+        raise TierCContractError(f"Tier C logical freeze is empty: {path}")
+
+    entries: list[TierCLogicalFreezeEntry] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            raise TierCContractError(f"blank line in Tier C logical freeze at line {line_number}")
+        try:
+            payload = _strict_json_object(line)
+            entry = TierCLogicalFreezeEntry.model_validate(payload)
+        except (ValidationError, ValueError) as exc:
+            raise TierCContractError(
+                f"invalid Tier C logical freeze entry at line {line_number}"
+            ) from exc
+        if expected_split is not None and entry.split != expected_split:
+            raise TierCContractError(
+                f"logical freeze entry {entry.doc_id} belongs to {entry.split}, "
+                f"expected {expected_split}"
+            )
+        entries.append(entry)
+
+    for label, values in (
+        ("doc_id", [entry.doc_id for entry in entries]),
+        ("image", [entry.image for entry in entries]),
+        ("gt", [entry.gt for entry in entries]),
+    ):
+        if len(values) != len(set(values)):
+            raise TierCContractError(f"duplicate {label} in Tier C logical freeze")
+    parsed = tuple(entries)
+    if canonical_logical_freeze_bytes(parsed) != content:
+        raise TierCContractError(f"Tier C logical freeze is not canonical JSONL: {path}")
+    return parsed
+
+
 def resolve_dataset_member(root: Path, portable_path: str) -> Path:
     """Resolve one manifest member under *root*, including roots with spaces."""
     member = _portable_member(portable_path)
@@ -390,6 +501,30 @@ def default_frozen_manifest_path(dataset: str, split: Split) -> Path | None:
     if (dataset, split) not in _DEFAULT_FROZEN_SPLITS:
         return None
     return V2_FROZEN_ROOT / f"{dataset}.{split}.jsonl"
+
+
+def default_logical_freeze_path(dataset: str, split: Split) -> Path | None:
+    """Return the repository path reserved for a release logical freeze."""
+    if (dataset, split) not in _DEFAULT_LOGICAL_FREEZE_SPLITS:
+        return None
+    return SAFETY_LOGICAL_FREEZE_ROOT / f"{dataset}.{split}.logical.jsonl"
+
+
+def verify_logical_freeze(
+    entries: Sequence[TierCManifestEntry],
+    freeze_path: Path,
+    *,
+    expected_split: Split,
+) -> str:
+    """Require a pre-existing logical freeze to match complete generated entries."""
+    freeze = freeze_path if freeze_path.is_absolute() else REPO_ROOT / freeze_path
+    frozen_entries = parse_logical_freeze(freeze, expected_split=expected_split)
+    projected = logical_freeze_projection(entries)
+    if canonical_logical_freeze_bytes(projected) != canonical_logical_freeze_bytes(frozen_entries):
+        raise TierCContractError(
+            f"Tier C manifest differs from its read-only logical freeze: {freeze}"
+        )
+    return logical_freeze_sha256(frozen_entries)
 
 
 def _load_verified_meta(root: Path, dataset: str) -> TierCManifestMetaV2:
@@ -480,19 +615,12 @@ def _verify_entry(
     return verified_sheet
 
 
-def load_verified_canonical_split(
+def load_verified_generated_split(
     root: Path,
     dataset: str,
     split: Split,
-    *,
-    frozen_path: Path | None = None,
 ) -> VerifiedCanonicalSplit:
-    """Authenticate one canonical split and return only verified PNG-backed sheets.
-
-    If a canonical benchmark split has a default freeze, its absence is a hard
-    failure.  Passing an explicit path is useful for release tooling and tests;
-    this function never creates or updates that file.
-    """
+    """Verify one generated split internally without claiming a release freeze."""
     root_resolved = root.resolve(strict=False)
     meta = _load_verified_meta(root_resolved, dataset)
     manifest_path = root_resolved / "manifests" / f"{split}.jsonl"
@@ -503,16 +631,6 @@ def load_verified_canonical_split(
             f"Tier C {split} count mismatch: manifest={len(entries)}, meta={expected_count}"
         )
 
-    freeze = (
-        frozen_path if frozen_path is not None else default_frozen_manifest_path(dataset, split)
-    )
-    if freeze is not None:
-        if not freeze.is_absolute():
-            freeze = REPO_ROOT / freeze
-        frozen_entries = parse_manifest(freeze, expected_split=split)
-        if canonical_manifest_bytes(entries) != canonical_manifest_bytes(frozen_entries):
-            raise TierCContractError(f"Tier C manifest differs from its read-only freeze: {freeze}")
-
     sheets = tuple(_verify_entry(root_resolved, entry, meta) for entry in entries)
     canonical = canonical_manifest_bytes(entries)
     return VerifiedCanonicalSplit(
@@ -521,3 +639,44 @@ def load_verified_canonical_split(
         manifest_sha256=hashlib.sha256(canonical).hexdigest(),
         meta=meta,
     )
+
+
+def load_verified_canonical_split(
+    root: Path,
+    dataset: str,
+    split: Split,
+    *,
+    frozen_path: Path | None = None,
+) -> VerifiedCanonicalSplit:
+    """Authenticate one canonical split against an independent repository freeze.
+
+    An explicitly supplied ``frozen_path`` keeps the historical complete-manifest
+    contract available to tests and archival tooling.  Once the release logical
+    freeze exists, the default path validates that projection instead.  Until then,
+    the historical complete freeze remains the compatibility fallback.
+    """
+    verified = load_verified_generated_split(root, dataset, split)
+    if frozen_path is not None:
+        freeze = frozen_path if frozen_path.is_absolute() else REPO_ROOT / frozen_path
+        frozen_entries = parse_manifest(freeze, expected_split=split)
+        if canonical_manifest_bytes(verified.entries) != canonical_manifest_bytes(frozen_entries):
+            raise TierCContractError(f"Tier C manifest differs from its read-only freeze: {freeze}")
+        return verified
+
+    logical_freeze = default_logical_freeze_path(dataset, split)
+    if logical_freeze is not None and logical_freeze.is_file():
+        verify_logical_freeze(
+            verified.entries,
+            logical_freeze,
+            expected_split=split,
+        )
+        return verified
+
+    legacy_freeze = default_frozen_manifest_path(dataset, split)
+    if legacy_freeze is not None:
+        frozen_entries = parse_manifest(legacy_freeze, expected_split=split)
+        if canonical_manifest_bytes(verified.entries) != canonical_manifest_bytes(frozen_entries):
+            raise TierCContractError(
+                f"Tier C manifest differs from its read-only freeze: {legacy_freeze}"
+            )
+    return verified

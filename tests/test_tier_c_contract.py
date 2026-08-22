@@ -10,17 +10,27 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+import data.tier_c_contract as contract
 from data.generators.tier_c import CANONICAL_DATASETS, DATASET_VERSION, MANIFEST_SCHEMA
 from data.tier_c_contract import (
+    SAFETY_LOGICAL_FREEZE_ROOT,
     V2_FROZEN_ROOT,
     TierCContractError,
+    TierCLogicalFreezeEntry,
     TierCManifestEntry,
     canonical_gt_bytes,
+    canonical_logical_freeze_bytes,
     canonical_manifest_bytes,
     default_frozen_manifest_path,
+    default_logical_freeze_path,
     load_verified_canonical_split,
+    load_verified_generated_split,
+    logical_freeze_projection,
+    logical_freeze_sha256,
+    parse_logical_freeze,
     parse_manifest,
     resolve_dataset_member,
+    verify_logical_freeze,
 )
 from src.paths import REPO_ROOT
 
@@ -206,6 +216,107 @@ def test_manifest_parser_rejects_duplicate_json_keys(tmp_path: Path) -> None:
         parse_manifest(manifest, expected_split="test")
 
 
+def test_logical_freeze_projection_excludes_only_the_png_digest() -> None:
+    complete = TierCManifestEntry(
+        doc_id="tc-000001",
+        split="val",
+        image="pngs/tc-000001.png",
+        gt="gt/tc-000001.json",
+        sha256_img="0" * 64,
+        sha256_gt="1" * 64,
+    )
+
+    projected = logical_freeze_projection([complete])
+
+    assert projected == (
+        TierCLogicalFreezeEntry(
+            doc_id="tc-000001",
+            split="val",
+            image="pngs/tc-000001.png",
+            gt="gt/tc-000001.json",
+            sha256_gt="1" * 64,
+        ),
+    )
+    assert "sha256_img" not in projected[0].model_dump()
+
+
+def test_logical_freeze_parser_requires_strict_canonical_jsonl(tmp_path: Path) -> None:
+    entries = (
+        TierCLogicalFreezeEntry(
+            doc_id="tc-000002",
+            split="val",
+            image="pngs/tc-000002.png",
+            gt="gt/tc-000002.json",
+            sha256_gt="2" * 64,
+        ),
+        TierCLogicalFreezeEntry(
+            doc_id="tc-000001",
+            split="val",
+            image="pngs/tc-000001.png",
+            gt="gt/tc-000001.json",
+            sha256_gt="1" * 64,
+        ),
+    )
+    freeze = tmp_path / "logical.jsonl"
+    canonical = canonical_logical_freeze_bytes(entries)
+    freeze.write_bytes(canonical)
+
+    parsed = parse_logical_freeze(freeze, expected_split="val")
+
+    assert [entry.doc_id for entry in parsed] == ["tc-000001", "tc-000002"]
+    assert logical_freeze_sha256(parsed) == hashlib.sha256(canonical).hexdigest()
+
+    freeze.write_bytes(canonical.replace(b"\n", b"\r\n"))
+    with pytest.raises(TierCContractError, match="canonical LF"):
+        parse_logical_freeze(freeze, expected_split="val")
+
+
+def test_logical_freeze_parser_rejects_complete_or_ambiguous_entries(tmp_path: Path) -> None:
+    entry = TierCLogicalFreezeEntry(
+        doc_id="tc-000001",
+        split="val",
+        image="pngs/tc-000001.png",
+        gt="gt/tc-000001.json",
+        sha256_gt="1" * 64,
+    )
+    freeze = tmp_path / "logical.jsonl"
+    payload = entry.model_dump(mode="json")
+    payload["sha256_img"] = "0" * 64
+    freeze.write_bytes((json.dumps(payload, separators=(",", ":")) + "\n").encode())
+    with pytest.raises(TierCContractError, match="invalid Tier C logical freeze entry"):
+        parse_logical_freeze(freeze, expected_split="val")
+
+    freeze.write_bytes(canonical_logical_freeze_bytes([entry, entry]))
+    with pytest.raises(TierCContractError, match="duplicate doc_id"):
+        parse_logical_freeze(freeze, expected_split="val")
+
+
+def test_logical_freeze_authenticates_identity_and_gt_but_not_png_digest(
+    tmp_path: Path,
+) -> None:
+    entries = [
+        TierCManifestEntry(
+            doc_id="tc-000001",
+            split="val",
+            image="pngs/tc-000001.png",
+            gt="gt/tc-000001.json",
+            sha256_img="0" * 64,
+            sha256_gt="1" * 64,
+        )
+    ]
+    freeze = tmp_path / "logical.jsonl"
+    freeze.write_bytes(canonical_logical_freeze_bytes(logical_freeze_projection(entries)))
+
+    changed_png = [entries[0].model_copy(update={"sha256_img": "f" * 64})]
+    assert verify_logical_freeze(changed_png, freeze, expected_split="val") == (
+        logical_freeze_sha256(logical_freeze_projection(entries))
+    )
+
+    changed_gt = [entries[0].model_copy(update={"sha256_gt": "e" * 64})]
+    with pytest.raises(TierCContractError, match="read-only logical freeze"):
+        verify_logical_freeze(changed_gt, freeze, expected_split="val")
+
+
 def test_resolve_dataset_member_supports_spaces_and_blocks_escape(tmp_path: Path) -> None:
     root = tmp_path / "canonical dataset with spaces"
     (root / "pngs").mkdir(parents=True)
@@ -229,6 +340,35 @@ def test_load_verified_split_authenticates_files_and_replaces_source_path(tmp_pa
     assert all(Path(str(sheet["source_file"])).is_file() for sheet in verified.sheets)
     assert all(Path(str(sheet["source_file"])).suffix == ".png" for sheet in verified.sheets)
     assert "canonical dataset with spaces" in str(verified.sheets[0]["source_file"])
+
+
+def test_generated_split_verifier_makes_no_external_freeze_claim(tmp_path: Path) -> None:
+    root = tmp_path / "generated dataset"
+    entries, _ = _dataset(root)
+
+    verified = load_verified_generated_split(root, "smoke", "val")
+
+    assert verified.entries == tuple(entries)
+    assert verified.manifest_sha256 == hashlib.sha256(canonical_manifest_bytes(entries)).hexdigest()
+
+
+def test_canonical_loader_prefers_a_present_logical_freeze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "generated dataset"
+    entries, _ = _dataset(root)
+    logical = tmp_path / "logical.jsonl"
+    logical.write_bytes(canonical_logical_freeze_bytes(logical_freeze_projection(entries)))
+    monkeypatch.setattr(contract, "default_logical_freeze_path", lambda *_args: logical)
+
+    def reject_full_freeze(*_args: object) -> None:
+        raise AssertionError("historical full freeze must not be selected")
+
+    monkeypatch.setattr(contract, "default_frozen_manifest_path", reject_full_freeze)
+
+    verified = load_verified_canonical_split(root, "smoke", "val")
+
+    assert verified.entries == tuple(entries)
 
 
 def test_load_verified_split_rejects_wrong_meta_count_or_bytes(tmp_path: Path) -> None:
@@ -314,6 +454,17 @@ def test_default_v2_freezes_are_repo_anchored_and_leave_v1_untouched() -> None:
     assert default_frozen_manifest_path("bench-operational", "test") is None
     assert default_frozen_manifest_path("smoke", "val") is None
     assert CANONICAL_DATASETS["bench-balanced"].frozen_manifest != str(expected)
+
+
+def test_release_logical_freeze_path_is_reserved_without_silent_creation() -> None:
+    expected = SAFETY_LOGICAL_FREEZE_ROOT / "bench-balanced.val.logical.jsonl"
+
+    assert default_logical_freeze_path("bench-balanced", "val") == expected
+    assert expected.is_absolute()
+    assert expected.is_relative_to(REPO_ROOT)
+    assert default_logical_freeze_path("bench-balanced", "test") is None
+    assert default_logical_freeze_path("bench-operational", "val") is None
+    assert default_logical_freeze_path("smoke", "val") is None
 
 
 def test_release_v2_freeze_is_versioned_complete_and_content_addressed() -> None:
