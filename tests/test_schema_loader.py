@@ -29,15 +29,22 @@ def _write_yaml(tmp_path: Path, name: str, data: object) -> Path:
 # ---------------------------------------------------------------------------
 
 VALID_CONFIG: dict[str, Any] = {
-    "report_type": "test_report",
+    "report_type": "controle_ocorrencias",
     "fields": [
-        {"name": "guard_name", "type": "string", "required": True},
-        {"name": "shift_period", "type": "enum", "values": ["day", "night"]},
+        {"name": "data_turno", "type": "string", "required": True},
+        {"name": "vigilantes", "type": "string", "required": True},
+        {"name": "unidade", "type": "string", "required": True},
         {
-            "name": "occurrences",
+            "name": "ocorrencias",
             "type": "table",
             "required": False,
-            "columns": [{"name": "description", "type": "text"}],
+            "columns": [
+                {"name": "item", "type": "string"},
+                {"name": "hora", "type": "string"},
+                {"name": "descricao", "type": "text"},
+                {"name": "acao", "type": "string"},
+                {"name": "resolvido", "type": "enum", "values": ["sim", "nao"]},
+            ],
         },
     ],
     "classification": {
@@ -69,8 +76,8 @@ VALID_CONFIG: dict[str, Any] = {
 def test_valid_config_loads_successfully(tmp_path: Path) -> None:
     path = _write_yaml(tmp_path, "valid.yaml", VALID_CONFIG)
     cfg = load_config(path)
-    assert cfg.report_type == "test_report"
-    assert len(cfg.fields) == 3
+    assert cfg.report_type == "controle_ocorrencias"
+    assert len(cfg.fields) == 4
     assert cfg.classification.urgency.labels == ["low", "high"]
     assert cfg.performance.max_seconds_per_sheet == 300
 
@@ -79,7 +86,7 @@ def test_config_fingerprint_is_stable_and_content_addressed(tmp_path: Path) -> N
     config = load_config(_write_yaml(tmp_path, "valid.yaml", VALID_CONFIG))
     same = load_config(_write_yaml(tmp_path, "same.yaml", copy.deepcopy(VALID_CONFIG)))
     changed_payload = copy.deepcopy(VALID_CONFIG)
-    changed_payload["report_type"] = "other_report"
+    changed_payload["performance"]["max_seconds_per_sheet"] = 299
     changed = load_config(_write_yaml(tmp_path, "changed.yaml", changed_payload))
 
     assert config_fingerprint(config) == config_fingerprint(same)
@@ -212,7 +219,7 @@ def test_routing_rule_ids_must_be_unique(tmp_path: Path) -> None:
 
 def test_field_names_must_be_unique(tmp_path: Path) -> None:
     bad = copy.deepcopy(VALID_CONFIG)
-    bad["fields"].append({"name": "guard_name", "type": "string"})
+    bad["fields"].append({"name": "data_turno", "type": "string"})
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError, match="field names must be unique"):
         load_config(path)
@@ -224,7 +231,7 @@ def test_field_names_must_be_unique(tmp_path: Path) -> None:
         (lambda config: config.update(report_type=" "), "report_type"),
         (lambda config: config["fields"][0].update(name=" "), "field names"),
         (
-            lambda config: config["fields"][2]["columns"][0].update(name=" "),
+            lambda config: config["fields"][3]["columns"][0].update(name=" "),
             "column names",
         ),
         (
@@ -288,6 +295,35 @@ def test_config_without_occurrence_table_is_rejected(tmp_path: Path) -> None:
         load_config(_write_yaml(tmp_path, "bad.yaml", bad))
 
 
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda config: config.update(report_type="another_form"),
+        lambda config: config["fields"][0].update(name="date"),
+        lambda config: config["fields"][0].update(type="date"),
+        lambda config: config["fields"].reverse(),
+        lambda config: config["fields"][3]["columns"][2].update(name="details"),
+        lambda config: config["fields"][3]["columns"].reverse(),
+        lambda config: config["fields"][3]["columns"][4].update(values=["yes", "no"]),
+    ],
+    ids=[
+        "report-type",
+        "header-name",
+        "header-type",
+        "field-order",
+        "column-name",
+        "column-order",
+        "resolved-values",
+    ],
+)
+def test_v1_rejects_unsupported_form_surfaces(tmp_path: Path, mutate: Any) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    mutate(bad)
+
+    with pytest.raises(ValidationError, match="supports only the controle_ocorrencias"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
 def test_scalar_email_template_is_rejected(tmp_path: Path) -> None:
     bad = copy.deepcopy(VALID_CONFIG)
     bad["email_template"] = "templates/legacy.j2"
@@ -300,7 +336,7 @@ def test_scalar_email_template_is_rejected(tmp_path: Path) -> None:
     ("path", "unknown_key"),
     [
         (("fields", 0), "requiredd"),
-        (("fields", 2, "columns", 0), "ocr_aliasses"),
+        (("fields", 3, "columns", 0), "ocr_aliasses"),
         (("classification",), "urgenc"),
         (("classification", "type"), "label"),
         (("classification", "rules", 0), "keyword"),
@@ -327,8 +363,8 @@ def test_unknown_nested_keys_are_rejected(
 @pytest.mark.parametrize(
     "duplicate",
     [
-        "report_type: test_report\nreport_type: shadowed\n",
-        "- name: guard_name\n  name: shadowed\n",
+        "report_type: controle_ocorrencias\nreport_type: shadowed\n",
+        "- name: data_turno\n  name: shadowed\n",
         "    urgency: high\n    urgency: low\n",
     ],
     ids=["top-level", "sequence-member", "nested-condition"],
@@ -336,9 +372,9 @@ def test_unknown_nested_keys_are_rejected(
 def test_duplicate_yaml_keys_are_rejected(tmp_path: Path, duplicate: str) -> None:
     rendered = yaml.safe_dump(VALID_CONFIG, sort_keys=False)
     if duplicate.startswith("report_type"):
-        rendered = rendered.replace("report_type: test_report\n", duplicate, 1)
+        rendered = rendered.replace("report_type: controle_ocorrencias\n", duplicate, 1)
     elif duplicate.startswith("- name"):
-        rendered = rendered.replace("- name: guard_name\n", duplicate, 1)
+        rendered = rendered.replace("- name: data_turno\n", duplicate, 1)
     else:
         rendered = rendered.replace("    urgency: high\n", duplicate, 1)
     path = tmp_path / "duplicate.yaml"

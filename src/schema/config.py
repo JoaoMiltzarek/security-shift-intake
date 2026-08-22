@@ -26,6 +26,21 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 ScalarFieldType = Literal["date", "string", "enum", "bool", "text"]
 FieldType = Literal["date", "string", "enum", "bool", "text", "table"]
 
+_SUPPORTED_REPORT_TYPE = "controle_ocorrencias"
+_SUPPORTED_FIELDS = [
+    ("data_turno", "string", True),
+    ("vigilantes", "string", True),
+    ("unidade", "string", True),
+    ("ocorrencias", "table", False),
+]
+_SUPPORTED_COLUMNS = [
+    ("item", "string"),
+    ("hora", "string"),
+    ("descricao", "text"),
+    ("acao", "string"),
+    ("resolvido", "enum"),
+]
+
 
 def _validate_identifiers(values: list[str], location: str) -> None:
     stripped = [value.strip() for value in values]
@@ -195,6 +210,24 @@ class ReportConfig(StrictConfigModel):
         for table in table_fields:
             column_names = [column.name for column in table.columns or []]
             _validate_identifiers(column_names, f"table '{table.name}' column names")
+
+        field_surface = [(field.name, field.type, field.required) for field in self.fields]
+        table = table_fields[0]
+        column_surface = [(column.name, column.type) for column in table.columns or []]
+        resolved = next(
+            (column for column in table.columns or [] if column.name == "resolvido"), None
+        )
+        if (
+            self.report_type != _SUPPORTED_REPORT_TYPE
+            or field_surface != _SUPPORTED_FIELDS
+            or column_surface != _SUPPORTED_COLUMNS
+            or resolved is None
+            or resolved.values != ["sim", "nao"]
+        ):
+            raise ValueError(
+                "v1 supports only the controle_ocorrencias table contract "
+                "with its canonical header and columns"
+            )
 
         default_indexes = [index for index, rule in enumerate(self.routing) if rule.when is None]
         if default_indexes != [len(self.routing) - 1]:
