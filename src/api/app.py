@@ -865,7 +865,7 @@ def create_app(
     def _approval_blocker(report: ReadinessReport) -> str | None:
         if report.approvable:
             return None
-        return _readiness_item(report.blockers[0])["detail"]
+        return str(_readiness_item(report.blockers[0])["detail"])
 
     def _assert_expected_snapshot(
         draft: Draft,
