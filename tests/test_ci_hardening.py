@@ -60,7 +60,9 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
         "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
     }
     assert workflow.count("persist-credentials: false") == 4
-    assert workflow.count('version: "0.11.23"') == 4
+    assert workflow.count('UV_VERSION: "0.11.28"') == 1
+    assert workflow.count("version: ${{ env.UV_VERSION }}") == 4
+    assert "0.11.23" not in workflow
 
 
 def test_browser_gate_proves_readiness_and_cleans_up_the_server() -> None:
