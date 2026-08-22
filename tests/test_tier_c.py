@@ -111,6 +111,8 @@ def test_gt_shape_and_semantics(tmp_path: Path) -> None:
         assert gt["review_status"] == "synthetic_ground_truth"
         assert gt["truth_source"] == "generator"
         assert gt["source_file"].endswith(".pdf")
+        assert Path(gt["source_file"]).is_file()
+        assert ".staging-" not in gt["source_file"]
         syn = gt["synthetic"]
         assert set(syn) == {
             "generator",
