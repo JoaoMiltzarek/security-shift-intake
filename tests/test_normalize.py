@@ -82,7 +82,35 @@ def test_header_unit_and_date() -> None:
     header = RawHeader(data_turno=_af("23/06"), unidade=_af("Posto"))
     m = normalize(_raw([], header=header))
     assert m.shift.date == "23/06"
+    assert m.shift.period is None
     assert m.shift.unit == "Posto"
+
+
+def test_combined_shift_date_and_period_are_separated() -> None:
+    header = RawHeader(data_turno=_af("25/06/2026 - Noite"))
+
+    shift = normalize(_raw([], header=header)).shift
+
+    assert shift.date == "25/06/2026"
+    assert shift.period == "Noite"
+
+
+def test_period_without_a_date_is_preserved_as_period() -> None:
+    header = RawHeader(data_turno=_af("diurno"))
+
+    shift = normalize(_raw([], header=header)).shift
+
+    assert shift.date is None
+    assert shift.period == "diurno"
+
+
+def test_unrecognized_shift_text_is_not_discarded() -> None:
+    header = RawHeader(data_turno=_af("data ilegível"))
+
+    shift = normalize(_raw([], header=header)).shift
+
+    assert shift.date == "data ilegível"
+    assert shift.period is None
 
 
 def test_mixed_rows_only_real_occurrence_kept() -> None:

@@ -26,6 +26,8 @@ from src.schema.extraction import (
 )
 
 _TIME = re.compile(r"\d{1,2}:\d{2}")
+_SHIFT_DATE = re.compile(r"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b")
+_KNOWN_PERIOD = re.compile(r"^(?:dia|noite|diurno|noturno)$", re.IGNORECASE)
 _GUARD_SEP = re.compile(r"\s*(?:,|;|\be\b|/)\s*")
 _TRUE = {"sim", "s", "resolvido", "yes", "y"}
 _FALSE = {"nao", "não", "n", "no"}
@@ -48,6 +50,21 @@ def _split_guards(field: AuditedField) -> list[str]:
     if not text:
         return []
     return [g.strip() for g in _GUARD_SEP.split(text) if g.strip()]
+
+
+def parse_shift(field: AuditedField) -> tuple[str | None, str | None]:
+    """Separate the combined form field while preserving unrecognized text."""
+    text = _as_text(field)
+    if not text:
+        return None, None
+    date_match = _SHIFT_DATE.search(text)
+    if date_match is None:
+        if _KNOWN_PERIOD.fullmatch(text):
+            return None, text
+        return text, None
+    remainder = f"{text[: date_match.start()]} {text[date_match.end() :]}".strip()
+    period = remainder.strip(" -–—|/\t") or None
+    return date_match.group(0), period
 
 
 def parse_times(field: AuditedField) -> tuple[str | None, str | None]:
@@ -86,9 +103,10 @@ def _row_has_content(row: RawRow) -> bool:
 
 def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
     """Converte o que foi lido da folha no modelo de domínio estável."""
+    shift_date, shift_period = parse_shift(raw.header.data_turno)
     shift = NormalizedShift(
-        date=_as_text(raw.header.data_turno),
-        period=None,
+        date=shift_date,
+        period=shift_period,
         guards=_split_guards(raw.header.vigilantes),
         unit=_as_text(raw.header.unidade),
     )
