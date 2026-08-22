@@ -1,1 +1,1 @@
-"""scikit-learn evolution-path classifier + training script (documented alternative)."""
+"""Deterministic, config-driven incident classification contracts and rules."""
