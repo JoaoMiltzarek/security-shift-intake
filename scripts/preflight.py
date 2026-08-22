@@ -92,18 +92,32 @@ def git_tracked(root: Path) -> set[str]:
 
 
 def git_dirty(root: Path) -> dict[str, Any]:
-    """Parse ``git status --porcelain`` into untracked/modified/dangerous buckets."""
-    out = _run_git(root, "status", "--porcelain")
+    """Parse NUL-delimited porcelain without quoting or filename ambiguity."""
+    out = _run_git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     untracked: list[str] = []
     modified: list[str] = []
     dangerous: list[str] = []
-    for line in (out or "").splitlines():
-        if not line.strip():
+    entries = (out or "").split("\0")
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if len(entry) < 4 or entry[2] != " ":
             continue
-        path = line[3:].strip()
-        (untracked if line.startswith("??") else modified).append(path)
-        if _DB_RE.search(path) or _BINARY_RE.search(path):
-            dangerous.append(path)
+        status = entry[:2]
+        path = entry[3:]
+        related_paths = [path]
+        if ("R" in status or "C" in status) and index < len(entries):
+            original_path = entries[index]
+            index += 1
+            if original_path:
+                related_paths.append(original_path)
+        (untracked if status == "??" else modified).append(path)
+        dangerous.extend(
+            candidate
+            for candidate in related_paths
+            if _DB_RE.search(candidate) or _BINARY_RE.search(candidate)
+        )
     return {
         "clean": not (untracked or modified),
         "untracked": untracked,

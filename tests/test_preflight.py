@@ -150,12 +150,37 @@ def test_git_output_preserves_leading_porcelain_status(
 def test_untracked_webp_is_classified_as_dangerous(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(preflight, "_run_git", lambda *_args: "?? leaked-page.webp")
+    captured: dict[str, tuple[str, ...]] = {}
+
+    def run(_root: Path, *args: str) -> str:
+        captured["args"] = args
+        return "?? leaked-page.webp\0"
+
+    monkeypatch.setattr(preflight, "_run_git", run)
 
     dirty = preflight.git_dirty(tmp_path)
 
     assert dirty["untracked"] == ["leaked-page.webp"]
     assert dirty["dangerous"] == ["leaked-page.webp"]
+    assert captured["args"] == (
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+    )
+
+
+def test_git_status_preserves_unusual_and_renamed_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = "?? leading space.webp\0R  renamed.txt\0old\npage.png\0"
+    monkeypatch.setattr(preflight, "_run_git", lambda *_args: output)
+
+    dirty = preflight.git_dirty(tmp_path)
+
+    assert dirty["untracked"] == ["leading space.webp"]
+    assert dirty["modified"] == ["renamed.txt"]
+    assert dirty["dangerous"] == ["leading space.webp", "old\npage.png"]
 
 
 def test_probe_tools_reports_the_active_interpreter(
