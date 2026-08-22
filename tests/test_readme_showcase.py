@@ -1,4 +1,4 @@
-"""F8.3 (SSI-1011): o README deve vender somente o que o repositório prova."""
+"""The portfolio README must describe only the supported v1.1 product."""
 
 from __future__ import annotations
 
@@ -6,117 +6,91 @@ import re
 from pathlib import Path
 
 
-def _has_phrase(text: str, phrase: str) -> bool:
-    return re.search(r"\s+".join(re.escape(word) for word in phrase.split()), text) is not None
+def _readme() -> str:
+    return Path("README.md").read_text(encoding="utf-8")
 
 
-def test_readme_showcase_is_current_and_evidence_backed() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
+def _normalized(text: str) -> str:
+    return " ".join(text.split())
+
+
+def test_readme_leads_with_problem_outcome_and_human_boundary() -> None:
+    readme = _readme()
 
     required = (
-        "## In 30 seconds",
-        "samples/cockpit_demo.gif",
-        "make demo",
-        "```mermaid",
-        "browser-smoke",
-        "eval-safety",
-        "RawDocumentExtraction",
-        "NormalizedIncidentModel",
-        "Tesseract is not reliable on cursive handwriting",
-        "unknown_disposition_count",
+        "turns one photographed or scanned",
+        "OCR is evidence, not authority",
+        "Tesseract",
+        "person to confirm",
+        "unlocks CSV only for the approved revision",
     )
     assert all(value in readme for value in required)
 
-    stale_or_misleading = (
-        "samples/cockpit_screenshot.png",
-        "598 tests",
-        "all mocked",
-        "richer occurrence-table editing",
-        "PYTHONPATH=.",
-        "runs **100% locally**",
-    )
-    assert all(value not in readme for value in stale_or_misleading)
+
+def test_readme_labels_the_pre_release_capture_as_legacy() -> None:
+    readme = _normalized(_readme())
+
+    assert "Legacy v1.0 review workflow" in readme
+    assert "retained only as pre-release orientation" in readme
+    assert "final v1.1 showcase must replace it" in readme
 
 
-def test_readme_distinguishes_observed_state_from_stronger_guarantees() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
+def test_readme_describes_only_the_single_table_local_product() -> None:
+    readme = _readme()
+
     required = (
-        "stored state at approval time",
-        "CSV export requires no pending fields",
-        "delivery simulation requires the approved revision",
-        "false_incident_unreviewed",
-        "refuses to overwrite the recorded verdict",
-        "Tesseract executable is required",
-        "Portuguese language pack is recommended",
-        "configured PII patterns",
-        "loopback by default",
-    )
-    assert all(_has_phrase(readme, value) for value in required)
-
-    forbidden = (
-        "exact content the reviewer saw",
-        "correct_refusal_rate (S/A)",
-        "refuses a second test run",
-        "fails on any tracked real data or PII",
-        "experimental, loopback-only reader",
-    )
-    assert all(not _has_phrase(readme, value) for value in forbidden)
-
-
-def test_readme_flow_matches_export_and_send_gates() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
-    required_mermaid = (
-        'G["Draft outputs — incomplete preview; CSV blocked"]',
-        'H -- "No" --> K["CSV + clean copy-ready message"]',
-        'K --> J["Approve revision + state hash"]',
-        'J --> L["Delivery gate — simulation only in v1"]',
-    )
-    required_prose = (
-        "Human review is mandatory for clean output",
-        "approval is mandatory before the built-in delivery simulation",
-        "mandatory human-review gate",
+        "exactly one page or image frame",
+        "PDF, PNG, JPEG, TIFF, BMP, or WebP",
+        "configs/controle_ocorrencias.yaml",
+        "recipients are always derived by the server",
+        "It does not send messages, email, or files",
+        "Run one process on loopback only",
     )
     forbidden = (
-        'H -- "No" --> J["Approve revision + state hash"]',
-        "Human approval is mandatory",
-        "mandatory human-approval gate",
-        "blocks anything unreviewed",
+        "htmicron_security",
+        "Two outputs",
+        "two report types",
+        "local_vlm",
+        "Anthropic",
+        "PENDING",
+        "SSI-",
     )
 
-    assert all(value in readme for value in required_mermaid)
-    assert all(_has_phrase(readme, value) for value in required_prose)
-    assert all(not _has_phrase(readme, value) for value in forbidden)
-
-
-def test_readme_reader_section_points_to_normative_contracts() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
-    required_exact = (
-        "### Evaluate a reader (the decision protocol)",
-        "docs/DATASET_CONTRACT.md",
-        "docs/READER_DECISION.md",
-    )
-    forbidden = (
-        "### Medir o leitor",
-        "# opcional/legado",
-        "Saídas:",
-        "docs/archive/STATUS_TIER_C.md",
-        "a medição que decide",
-    )
-
-    assert all(value in readme for value in required_exact)
-    assert _has_phrase(readme, "does not select the default reader")
+    assert all(value in readme for value in required)
     assert all(value not in readme for value in forbidden)
 
 
-def test_readme_uses_reproducible_runtime_without_ephemeral_test_counts() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
+def test_readme_matches_revision_bound_readiness() -> None:
+    readme = _normalized(_readme())
+
+    required = (
+        "evidence changed",
+        "configuration differs",
+        "disposition or classification is unconfirmed",
+        "routing cannot be resolved",
+        "approval matching the current revision and state SHA-256",
+        "approved_revision",
+        "state_sha256",
+        "readiness",
+        "derived previews",
+    )
+    assert all(value in readme for value in required)
+
+
+def test_readme_quick_demo_uses_the_locked_python_runtime() -> None:
+    readme = _readme()
     python_version = Path(".python-version").read_text(encoding="utf-8").strip()
 
     assert f"python-{python_version}-blue" in readme
-    assert f"Python {python_version}" in readme
+    assert f"uv python install {python_version}" in readme
     assert f"uv sync --locked --python {python_version}" in readme
-    assert "make check" in readme
+    assert "uv run --locked python -m scripts.showcase_demo" in readme
+
+
+def test_readme_is_compact_and_avoids_ephemeral_counts() -> None:
+    readme = _readme()
+
+    assert len(readme.splitlines()) <= 220
     assert re.search(r"\b\d+[\d,]* passed(?:, \d+ skipped)?\b", readme) is None
     assert re.search(r"across \d+ source files", readme) is None
     assert "The latest local Windows baseline" not in readme
-    assert "release v1.0.0" not in readme
