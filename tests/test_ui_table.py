@@ -90,12 +90,12 @@ def _ui_approve(client: TestClient, draft_id: int):
 def test_review_shows_table_outputs(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     html = client.get(f"/drafts/{draft_id}/review").text
-    assert "Sinais do documento" in html
+    assert "Leitura do documento" in html
     assert "Planilha padronizada" in html
     assert "DIA" in html and "OBJETO" in html
     assert "Copiar mensagem" in html
     assert "RASCUNHO INCOMPLETO" in html  # fields still pending (never-guess)
-    assert "origem: rule" in html  # real AuditedField source, not inferred ocr/human
+    assert "fonte: regra" in html  # real AuditedField source, not inferred ocr/human
 
 
 def test_csv_control_requires_approval_of_the_current_snapshot(client: TestClient) -> None:
@@ -594,7 +594,7 @@ def test_review_renders_page_image_and_bbox(client: TestClient) -> None:
 def test_field_without_bbox_falls_back_to_text(client: TestClient) -> None:
     draft_id = _submit_cockpit_draft(client)
     html = client.get(f"/drafts/{draft_id}/review").text
-    assert "Ver evidência" in html  # field with no region never renders blank/broken
+    assert "Ver trecho" in html  # field with no region never renders blank/broken
 
 
 def test_evidence_text_is_escaped_not_injected(client: TestClient) -> None:

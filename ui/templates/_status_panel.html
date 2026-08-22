@@ -4,7 +4,7 @@
          aria-labelledby="status-title">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">Estado operacional</p>
+      <p class="eyebrow">Estado da revisão</p>
       <h2 id="status-title">
         {% if draft.simulated_at and draft.delivery_mode == 'simulated' %}Simulação registrada
         {% elif draft.simulated_at %}Registro terminal legado
@@ -40,7 +40,7 @@
 
   <p class="field-meta">
     <span>Revisão <strong class="mono">{{ draft.revision }}</strong></span>
-    <span>Hash <strong class="mono">{{ state_sha256[:12] }}</strong></span>
+    <span>Conteúdo <strong class="mono">{{ state_sha256[:12] }}</strong></span>
     {% if draft.approved_revision is not none %}
     <span>Aprovação vinculada à revisão <strong class="mono">{{ draft.approved_revision }}</strong></span>
     {% endif %}
@@ -134,13 +134,13 @@
   {% endif %}
 
   <details class="audit-details">
-    <summary>Trilha de auditoria · {{ audit | length }} eventos recentes</summary>
+    <summary>Histórico da revisão · {{ audit | length }} eventos recentes</summary>
     {% if audit %}
     <ol class="timeline">
       {% for entry in audit %}
       <li>
-        <strong>{{ entry.action }}</strong>
-        <small>{{ entry.actor }}</small><br>
+        <strong>{{ entry.action | audit_action }}</strong>
+        <small>{{ entry.actor | audit_actor }}</small><br>
         <time datetime="{{ entry.timestamp | rfc3339 }}">{{ entry.timestamp.strftime('%d/%m/%Y · %H:%M:%S') }}</time>
         {% if entry.detail %}<p class="mono">{{ entry.detail }}</p>{% endif %}
       </li>

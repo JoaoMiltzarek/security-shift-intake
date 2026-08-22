@@ -5,7 +5,7 @@
     <aside class="page-pane" aria-labelledby="source-sheet-title">
       <div class="page-pane-header">
         <div>
-          <p class="eyebrow">Fonte imutável</p>
+          <p class="eyebrow">Documento de origem</p>
           <h2 id="source-sheet-title">Folha original</h2>
         </div>
         <span class="status-chip status-pending">Página 1</span>
@@ -19,7 +19,7 @@
         </svg>
       </div>
       <p id="evidence-note" class="evidence-note" aria-live="polite">
-        Selecione “Ver origem” em um campo para localizar sua região provável. A marcação auxilia a revisão; não constitui prova.
+        Selecione “Localizar na folha” em um campo. A marcação é apenas uma ajuda visual para a conferência.
       </p>
     </aside>
     {% endif %}
@@ -29,11 +29,11 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Leitura local</p>
-            <h2 id="document-signal-title">Sinais do documento</h2>
+            <h2 id="document-signal-title">Leitura do documento</h2>
           </div>
           {% if ocr_quality %}
           <span class="badge ocr-{{ ocr_quality }}">
-            OCR {% if ocr_quality == 'good' %}bom{% elif ocr_quality == 'low' %}baixo{% else %}falhou{% endif %}
+            {% if ocr_quality == 'good' %}OCR utilizável{% elif ocr_quality == 'low' %}OCR requer revisão{% else %}OCR falhou{% endif %}
           </span>
           {% endif %}
         </div>
@@ -61,8 +61,8 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Registro estruturado</p>
-            <h2 id="field-ledger-title">Ledger de revisão</h2>
-            <p>Valores corrigidos por uma pessoa perdem a bbox antiga e recebem proveniência humana.</p>
+            <h2 id="field-ledger-title">Campos para conferir</h2>
+            <p>Correções humanas ficam registradas nesta revisão.</p>
           </div>
         </div>
 
@@ -80,6 +80,7 @@
             {% for field in fields %}
             {% set field_status = field.status or ("missing" if (field.value is none or field.value == "") else ("must_review" if field.must_review else "accepted")) %}
             {% set field_source = field.source or "não identificado" %}
+            {% set field_source_label = "regra" if field_source == "rule" else ("pessoa" if field_source == "human" else field_source) %}
             <article class="field-card{{ ' must-review' if field.must_review else '' }}" id="field-card-{{ loop.index }}">
               <div>
                 {% if (table_mode and field.name.startswith('ocorrencia')) or draft.simulated_at %}
@@ -88,7 +89,7 @@
                 <label class="field-name" for="field__{{ field.name }}">{{ field.name | replace('_', ' ') }}</label>
                 {% endif %}
                 <span class="field-meta">
-                  <span>origem: {{ field_source }}</span>
+                  <span>fonte: {{ field_source_label }}</span>
                   <span>{% if field.must_review %}REVISÃO OBRIGATÓRIA{% elif field_status == 'accepted' %}confirmado{% else %}{{ field_status }}{% endif %}</span>
                 </span>
               </div>
@@ -115,7 +116,7 @@
                         data-method='{{ field.evidence_method | tojson }}'
                         data-evidence='{{ field.evidence_text | tojson }}'
                         aria-pressed="false">
-                  {% if field.bbox %}Ver origem{% else %}Ver evidência{% endif %}
+                  {% if field.bbox %}Localizar na folha{% else %}Ver trecho{% endif %}
                 </button>
                 {% endif %}
               </div>
@@ -311,8 +312,8 @@
       </section>
 
       <details class="review-section source-details">
-        <summary>Transcrição OCR · somente leitura</summary>
-        <pre>{{ transcription if transcription else "Nenhuma transcrição disponível." }}</pre>
+        <summary>Texto lido pelo OCR · somente leitura</summary>
+        <pre>{{ transcription if transcription else "Nenhum texto foi lido pelo OCR." }}</pre>
       </details>
     </div>
   </div>

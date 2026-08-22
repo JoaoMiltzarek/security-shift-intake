@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Revisão #{{ draft.id }} · Security Shift Intake{% endblock %}
+{% block title %}Security Shift Intake — Mesa de revisão · Revisão #{{ draft.id }}{% endblock %}
 {% block content %}
 <nav class="breadcrumb" aria-label="Navegação estrutural">
   <a href="/">Fila de revisão</a>
@@ -9,9 +9,9 @@
 
 <header class="page-heading review-heading">
   <div>
-    <p class="eyebrow">Cadeia de custódia</p>
+    <p class="eyebrow">Revisão local</p>
     <h1>Revisão <span class="mono">#{{ draft.id }}</span></h1>
-    <p>Compare o registro estruturado com a folha original. Dúvidas permanecem pendentes.</p>
+    <p>Compare os campos com a folha original. Se houver dúvida, mantenha a pendência.</p>
   </div>
   <a class="button button-quiet" href="/">Voltar à fila</a>
 </header>

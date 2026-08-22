@@ -127,6 +127,10 @@ def test_review_page_shows_all_panels(
     assert "Prontidão desta revisão" in text
     assert 'data-blocker-code="approval_required"' in text
     assert "Aprovação necessária" in text
+    assert "Campos para conferir" in text
+    assert "Histórico da revisão" in text
+    assert "Documento recebido" in text
+    assert "<strong>submitted</strong>" not in text
 
 
 def test_readiness_ledger_tracks_current_approval(
@@ -238,6 +242,7 @@ def test_review_uses_local_brand_assets(
     draft_id = _submit(client)
     page = client.get(f"/drafts/{draft_id}/review").text
     assert '<html lang="pt-BR">' in page
+    assert "Security Shift Intake — Mesa de revisão" in page
     assert 'href="/static/app.css"' in page
     assert 'href="/static/favicon.svg"' in page
     favicon = client.get("/static/favicon.svg")

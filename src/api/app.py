@@ -486,12 +486,14 @@ def _render(request: Request, template: str, context: dict[str, Any]) -> HTMLRes
 def _document_status(state: PipelineState) -> str:
     """Human-facing document status for the review screen."""
     if state.ocr_quality == "failed":
-        return "OCR FAILED — transcrição manual necessária"
+        return "OCR falhou — transcrição manual necessária"
     if state.normalized is not None and state.normalized.disposition == "unknown":
         return "Em revisão — ocorrências não confirmadas"
     if state.must_review_fields:
         return f"Em revisão — {len(state.must_review_fields)} campo(s) pendente(s)"
-    return "Pronto para gerar/aprovar"
+    if state.classification is not None and state.classification.review_status == "suggested":
+        return "Leitura concluída — confirme a triagem"
+    return "Revisão estruturada completa"
 
 
 _READINESS_COPY: dict[ReadinessBlockerCode, tuple[str, str]] = {
@@ -581,6 +583,34 @@ def _readiness_item(blocker: ReadinessBlocker) -> dict[str, Any]:
 
 def _readiness_items(report: ReadinessReport) -> list[dict[str, Any]]:
     return [_readiness_item(blocker) for blocker in report.blockers]
+
+
+_AUDIT_ACTION_COPY = {
+    "submitted": "Documento recebido",
+    "edited": "Revisão salva",
+    "status:approved": "Aprovação registrada",
+    "status:rejected": "Rejeição registrada",
+    "status_blocked": "Mudança de estado bloqueada",
+    "simulation_blocked": "Simulação bloqueada",
+    "simulation_completed": "Simulação registrada",
+    "export_csv": "CSV exportado",
+}
+
+
+def _audit_action_label(action: str) -> str:
+    return _AUDIT_ACTION_COPY.get(action, action.replace("_", " ").replace(":", ": "))
+
+
+def _audit_actor_label(actor: str) -> str:
+    if actor == _LOCAL_ACTOR:
+        return "Operador local"
+    if actor in {"api", "reviewer", "browser_smoke"}:
+        return "Fluxo local"
+    return actor.replace("_", " ")
+
+
+_templates.env.filters["audit_action"] = _audit_action_label
+_templates.env.filters["audit_actor"] = _audit_actor_label
 
 
 def _review_context(
