@@ -50,9 +50,9 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
     captured: dict[str, Any] = {}
 
     def fake_build_and_store(
-        file: Path, vision: object, llm: object, config_path: Path, engine: object
+        file: Path, reader: object, classifier: object, config_path: Path, engine: object
     ) -> int:
-        captured.update(file=file, vision=vision, config_path=config_path, engine=engine)
+        captured.update(file=file, reader=reader, config_path=config_path, engine=engine)
         return 19
 
     monkeypatch.setattr(demo_pipeline, "PRIVATE_REAL_ROOT", private_root)
@@ -62,7 +62,7 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
 
     config = Path("configs/controle_ocorrencias.yaml")
     assert demo_pipeline.main(["--file", str(source), "--config", str(config)]) == 0
-    assert isinstance(captured["vision"], LocalOCRVisionClient)
+    assert isinstance(captured["reader"], LocalOCRVisionClient)
     assert captured["file"] == source.resolve()
     assert captured["config_path"] == config
     output = capsys.readouterr().out
@@ -81,7 +81,7 @@ def test_real_entrypoint_rejects_outside_path_before_reader_selection(
     monkeypatch.setattr(demo_pipeline, "PRIVATE_REAL_ROOT", private_root)
     monkeypatch.setattr(
         demo_pipeline,
-        "get_vision_client",
+        "get_document_reader",
         lambda *args: pytest.fail("reader must not be selected for an unsafe path"),
     )
 

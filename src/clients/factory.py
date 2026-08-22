@@ -12,7 +12,7 @@ from src.clients.base import DocumentReader
 _DEFAULT_VISION = "local_ocr"
 
 
-def get_vision_client(name: str | None = None) -> DocumentReader:
+def get_document_reader(name: str | None = None) -> DocumentReader:
     """Return a supported reader without environment-driven escalation."""
     name = (name or _DEFAULT_VISION).strip().lower()
 

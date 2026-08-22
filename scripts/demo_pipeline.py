@@ -26,7 +26,7 @@ from src.api.repository import create_draft
 from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.base import DocumentReader
-from src.clients.factory import get_vision_client
+from src.clients.factory import get_document_reader
 from src.orchestrator import run_pipeline
 from src.paths import REPO_ROOT
 from src.pipeline.ingest import OCR_DPI
@@ -54,7 +54,7 @@ def _private_real_file(path: Path, root: Path = PRIVATE_REAL_ROOT) -> Path:
 
 def build_and_store(
     file: Path,
-    vision: DocumentReader,
+    reader: DocumentReader,
     classifier: IncidentClassifier,
     config_path: Path,
     engine: Engine,
@@ -64,7 +64,7 @@ def build_and_store(
     """Run the pipeline on *file* and persist a pending draft. Returns the draft id."""
     config = load_config(config_path)
     init_db(engine)
-    result = run_pipeline(file, vision, classifier, config, dpi=OCR_DPI)
+    result = run_pipeline(file, reader, classifier, config, dpi=OCR_DPI)
     page_refs = save_page_artifacts(result.pages, root=page_images_root) if result.pages else []
     state = result.state.model_copy(update={"page_artifacts": page_refs})
     with Session(engine) as session:
@@ -93,12 +93,12 @@ def main(argv: list[str]) -> int:
 
     # This entrypoint promises an offline real-document path, so inherited environment
     # cannot silently switch it to an external adapter. Reader experiments live in evals.
-    vision = get_vision_client("local_ocr")
+    reader = get_document_reader("local_ocr")
     classifier = RuleBasedIncidentClassifier()
     engine = make_engine()
 
     try:
-        draft_id = build_and_store(source, vision, classifier, args.config, engine)
+        draft_id = build_and_store(source, reader, classifier, args.config, engine)
     except RuntimeError as exc:
         print(f"Local OCR failed: {exc}", file=sys.stderr)
         return 1

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.clients.base import DocumentReader
-from src.clients.factory import get_vision_client
+from src.clients.factory import get_document_reader
 
 
 def get_evaluation_reader(name: str) -> DocumentReader:
@@ -14,7 +14,7 @@ def get_evaluation_reader(name: str) -> DocumentReader:
 
         return LocalVLMVisionClient()
     try:
-        return get_vision_client(selected)
+        return get_document_reader(selected)
     except ValueError:
         raise ValueError(
             f"Unknown evaluation reader {name!r}. Use one of: local_ocr, local_vlm, mock."

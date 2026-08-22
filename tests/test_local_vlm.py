@@ -159,11 +159,11 @@ def test_parse_text_requires_content() -> None:
 
 
 def test_product_factory_default_is_local_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.clients.factory import get_vision_client
+    from src.clients.factory import get_document_reader
     from src.clients.local_ocr import LocalOCRVisionClient
 
     monkeypatch.setenv("INTAKE_VISION", "local_vlm")
-    assert isinstance(get_vision_client(), LocalOCRVisionClient)
+    assert isinstance(get_document_reader(), LocalOCRVisionClient)
 
 
 def test_evaluation_factory_selects_local_vlm() -> None:
