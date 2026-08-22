@@ -37,6 +37,41 @@
     {% endif %}
   </p>
 
+  <div class="readiness" aria-labelledby="readiness-title">
+    <div class="readiness-heading">
+      <h3 id="readiness-title">Prontidão desta revisão</h3>
+      <span>Calculada com o estado, a configuração e a evidência atuais</span>
+    </div>
+    <dl class="capability-ledger">
+      <div class="{{ 'is-ready' if readiness.approvable else 'is-blocked' }}">
+        <dt>Aprovação</dt>
+        <dd>{{ 'Disponível' if readiness.approvable else 'Bloqueada' }}</dd>
+      </div>
+      <div class="{{ 'is-ready' if readiness.exportable else 'is-blocked' }}">
+        <dt>CSV</dt>
+        <dd>{{ 'Liberado' if readiness.exportable else 'Bloqueado' }}</dd>
+      </div>
+      <div class="{{ 'is-ready' if readiness.simulatable else 'is-blocked' }}">
+        <dt>Simulação</dt>
+        <dd>{{ 'Liberada' if readiness.simulatable else 'Bloqueada' }}</dd>
+      </div>
+    </dl>
+    {% if readiness_items %}
+    <div class="readiness-blockers">
+      <h3>O que falta</h3>
+      <ul>
+        {% for blocker in readiness_items %}
+        <li data-blocker-code="{{ blocker.code }}">
+          <strong>{{ blocker.title }}</strong>
+          <span>{{ blocker.detail }}</span>
+          {% if blocker.fields %}<small>Campos: {{ blocker.fields | join(", ") }}</small>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
   {% if draft.simulated_at and draft.delivery_mode == 'simulated' %}
   <p class="success-banner">
     A simulação foi concluída em
@@ -74,11 +109,11 @@
     <form hx-post="/ui/drafts/{{ draft.id }}/simulate" hx-target="#status-panel" hx-swap="outerHTML">
       <input type="hidden" name="expected_revision" value="{{ draft.revision }}">
       <input type="hidden" name="expected_state_sha256" value="{{ state_sha256 }}">
-      <button class="button-secondary" type="submit"{% if draft.status != 'approved' %} disabled aria-describedby="simulation-blocker"{% endif %}>Simular entrega</button>
+      <button class="button-secondary" type="submit"{% if not readiness.simulatable %} disabled aria-describedby="simulation-blocker"{% endif %}>Simular entrega</button>
     </form>
   </div>
   {% if approval_blocker %}<p id="approval-blocker" class="blocked-reason">Aprovação bloqueada: {{ approval_blocker }}</p>{% endif %}
-  {% if draft.status != 'approved' %}<p id="simulation-blocker" class="blocked-reason">A simulação exige a aprovação da revisão e do hash atuais.</p>{% endif %}
+  {% if not readiness.simulatable %}<p id="simulation-blocker" class="blocked-reason">A simulação exige a aprovação da revisão e do conteúdo atuais.</p>{% endif %}
   {% endif %}
 
   <details class="audit-details">

@@ -56,7 +56,12 @@ from src.api.page_images import (
     read_page_image,
     save_page_artifacts,
 )
-from src.api.readiness import ReadinessReport, evaluate_readiness
+from src.api.readiness import (
+    ReadinessBlocker,
+    ReadinessBlockerCode,
+    ReadinessReport,
+    evaluate_readiness,
+)
 from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
@@ -489,6 +494,61 @@ def _document_status(state: PipelineState) -> str:
     return "Pronto para gerar/aprovar"
 
 
+_READINESS_COPY: dict[ReadinessBlockerCode, tuple[str, str]] = {
+    ReadinessBlockerCode.EVIDENCE_CHANGED: (
+        "Evidência indisponível",
+        "A imagem original mudou, foi removida ou pertence a um estado legado. Reimporte a folha.",
+    ),
+    ReadinessBlockerCode.CONFIG_MISMATCH: (
+        "Configuração incompatível",
+        "Este documento foi processado com outra configuração. Reimporte a folha.",
+    ),
+    ReadinessBlockerCode.DISPOSITION_UNCONFIRMED: (
+        "Ocorrências não confirmadas",
+        "Confirme se a folha tem zero ou de uma a dez ocorrências.",
+    ),
+    ReadinessBlockerCode.FIELD_PENDING: (
+        "Campos pendentes",
+        "Revise os campos obrigatórios antes de continuar.",
+    ),
+    ReadinessBlockerCode.VALIDATION_ERROR: (
+        "Dados inválidos",
+        "Corrija os valores sinalizados antes de continuar.",
+    ),
+    ReadinessBlockerCode.CLASSIFICATION_UNCONFIRMED: (
+        "Classificação pendente",
+        "Confirme o tipo, a urgência e o setor da revisão atual.",
+    ),
+    ReadinessBlockerCode.ROUTING_UNRESOLVED: (
+        "Destino não resolvido",
+        "A configuração ativa não encontrou um destino operacional.",
+    ),
+    ReadinessBlockerCode.APPROVAL_REQUIRED: (
+        "Aprovação necessária",
+        "A revisão atual ainda não foi aprovada.",
+    ),
+    ReadinessBlockerCode.APPROVAL_STALE: (
+        "Aprovação desatualizada",
+        "O conteúdo mudou desde a aprovação. Revise e aprove novamente.",
+    ),
+}
+
+
+def _readiness_item(blocker: ReadinessBlocker) -> dict[str, Any]:
+    """Translate a machine blocker into concise, stable review-desk copy."""
+    title, detail = _READINESS_COPY[blocker.code]
+    return {
+        "code": blocker.code.value,
+        "title": title,
+        "detail": detail,
+        "fields": [field.replace("_", " ") for field in blocker.fields],
+    }
+
+
+def _readiness_items(report: ReadinessReport) -> list[dict[str, Any]]:
+    return [_readiness_item(blocker) for blocker in report.blockers]
+
+
 def _review_context(
     draft: Draft,
     config: ReportConfig,
@@ -542,6 +602,7 @@ def _review_context(
         # The UI consumes the same revision-bound readiness report as the endpoint.
         # A preview can exist before approval; that never makes it exportable.
         "readiness": readiness,
+        "readiness_items": _readiness_items(readiness),
     }
 
 
@@ -727,11 +788,10 @@ def create_app(
             return str(exc.detail)
         return None
 
-    def _approval_blocker(draft: Draft) -> str | None:
-        report = _readiness(draft)
+    def _approval_blocker(report: ReadinessReport) -> str | None:
         if report.approvable:
             return None
-        return report.blockers[0].detail
+        return _readiness_item(report.blockers[0])["detail"]
 
     def _assert_expected_snapshot(
         draft: Draft,
@@ -971,6 +1031,7 @@ def create_app(
     def _status_panel(
         request: Request, draft: Draft, session: Session, message: str | None = None
     ) -> HTMLResponse:
+        readiness = _readiness(draft)
         return _render(
             request,
             "_status_panel.html",
@@ -979,8 +1040,9 @@ def create_app(
                 "audit": repository.get_audit(session, draft.id or 0),
                 "message": message,
                 "config_blocker": _config_blocker(draft),
-                "approval_blocker": _approval_blocker(draft),
-                "readiness": _readiness(draft),
+                "approval_blocker": _approval_blocker(readiness),
+                "readiness": readiness,
+                "readiness_items": _readiness_items(readiness),
                 "state_sha256": repository.state_sha256(draft.state_json),
             },
         )
@@ -1008,13 +1070,14 @@ def create_app(
         request: Request, draft_id: int, session: Session = Depends(get_session)
     ) -> HTMLResponse:
         draft = _require_draft(session, draft_id)
+        readiness = _readiness(draft)
         ctx: dict[str, Any] = {
             "draft": draft,
             "audit": repository.get_audit(session, draft_id),
             "config_blocker": _config_blocker(draft),
-            "approval_blocker": _approval_blocker(draft),
+            "approval_blocker": _approval_blocker(readiness),
         }
-        ctx.update(_review_context(draft, active_config, _readiness(draft)))
+        ctx.update(_review_context(draft, active_config, readiness))
         return _render(request, "review.html", ctx)
 
     @app.get("/drafts/{draft_id}/page/{n}")

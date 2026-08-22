@@ -187,7 +187,8 @@ def test_unknown_status_and_ui_approval_are_safe_without_derived_pending(
 
     response = _ui_approve(client, draft_id)
     assert "Blocked" in response.text
-    assert "Occurrence disposition requires explicit human confirmation" in response.text
+    assert 'data-blocker-code="disposition_unconfirmed"' in response.text
+    assert "Ocorrências não confirmadas" in response.text
     assert client.get(f"/drafts/{draft_id}").json()["status"] == "pending"
 
 

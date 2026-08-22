@@ -109,6 +109,28 @@ def test_review_page_shows_all_panels(
     assert "tech_security, general_support" in text  # recipients
     assert "Bom dia," in text  # operational message is derived, not persisted
     assert "Aprovar revisão" in text and "Rejeitar" in text and "Simular entrega" in text
+    assert "Prontidão desta revisão" in text
+    assert 'data-blocker-code="approval_required"' in text
+    assert "Aprovação necessária" in text
+
+
+def test_readiness_ledger_tracks_current_approval(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
+    client, _ = client_and_recorder
+    draft_id = _submit(client)
+
+    pending = client.get(f"/drafts/{draft_id}/review").text
+    assert "<dt>Aprovação</dt>" in pending
+    assert "<dd>Disponível</dd>" in pending
+    assert "<dt>CSV</dt>" in pending
+    assert pending.count("<dd>Bloqueado</dd>") >= 1
+
+    assert _ui_action(client, draft_id, "approve").status_code == 200
+    approved = client.get(f"/drafts/{draft_id}/review").text
+    assert 'data-blocker-code="approval_required"' not in approved
+    assert "<dd>Liberado</dd>" in approved
+    assert "<dd>Liberada</dd>" in approved
 
 
 def test_ui_simulation_blocked_before_approval(
