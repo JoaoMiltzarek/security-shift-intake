@@ -40,12 +40,6 @@ _SKIP_DIRS = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".py
 # The private folder is gitignored and is the ONLY place real data may live.
 _PRIVATE_DIR = "private"
 
-# Third-party public benchmark (BRESSAY, ICDAR 2024) — published research data used by
-# `make eval-bressay`, never org sheets. Gitignored (`/datasets/`). Exempt from the
-# working-tree scans, and narrow on purpose: only this known subtree, not all of
-# datasets/, so a stray real sheet anywhere else still trips the scan.
-_BRESSAY_SUBPATH = ("datasets", "bressay")
-
 # Public text files scanned for PII. Extensions whose content is human-facing/committed.
 # Prosa: varredura completa, incluindo o heurístico de horário HH:MM.
 _PUBLIC_TEXT_EXT = {".md", ".yaml", ".yml", ".txt", ".rst"}
@@ -88,11 +82,6 @@ _LOCAL_HOME_PATTERNS = (
 def _is_root_directory(path: Path, name: str) -> bool:
     """True only when *name* is the first repository-relative path component."""
     return bool(path.parts) and path.parts[0] == name
-
-
-def _is_bressay_root(path: Path) -> bool:
-    """Allow only the repository-root datasets/bressay subtree, never nested aliases."""
-    return path.parts[: len(_BRESSAY_SUBPATH)] == _BRESSAY_SUBPATH
 
 
 def _is_redirected(path: Path) -> bool:
@@ -220,8 +209,6 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
             continue
         if _is_root_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
-        if _is_bressay_root(rel):
-            continue
         if _DB_EXT.search(p.name):
             violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
         if _BINARY_EXT.search(p.name) and not _is_allowed_sample_binary(
@@ -246,8 +233,6 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
             continue
         if _is_redirected(p):
             violations.append(f"  redirected public path: {rel}")
-            continue
-        if _is_bressay_root(rel):
             continue
         suffix = p.suffix.lower()
         terms = extra

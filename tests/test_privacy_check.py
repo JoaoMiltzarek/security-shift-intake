@@ -334,31 +334,19 @@ def test_public_md_clean_passes(tmp_path: Path) -> None:
     assert check_public_no_pii(tmp_path) == []
 
 
-# --- third-party benchmark exemption (BRESSAY, gitignored datasets/bressay/) -----
+# --- untrusted dataset directories are never exempt ------------------------------
 
 
-def test_bressay_dataset_binary_exempt(tmp_path: Path) -> None:
-    # Published research data (ICDAR 2024), never org sheets — the eval must coexist.
-    _write(tmp_path / "datasets" / "bressay" / "data" / "words" / "w.png", "png")
-    assert check_no_sensitive_outside_private(tmp_path) == []
-
-
-def test_non_bressay_dataset_binary_still_flagged(tmp_path: Path) -> None:
-    # The exemption is the known benchmark subtree only, not a blanket datasets/ pass.
-    _write(tmp_path / "datasets" / "other" / "scan.pdf", "%PDF")
-    assert len(check_no_sensitive_outside_private(tmp_path)) >= 1
-
-
-def test_nested_bressay_named_directory_is_not_privacy_exempt(tmp_path: Path) -> None:
-    _write(tmp_path / "archive" / "datasets" / "bressay" / "scan.pdf", "%PDF")
+def test_untrusted_dataset_binary_is_flagged(tmp_path: Path) -> None:
+    _write(tmp_path / "datasets" / "benchmark" / "scan.pdf", "%PDF")
 
     assert check_no_sensitive_outside_private(tmp_path)
 
 
-def test_bressay_ground_truth_text_exempt_from_pii_scan(tmp_path: Path) -> None:
-    # BRESSAY .txt ground truth legitimately contains names/times of essay authors.
-    _write(tmp_path / "datasets" / "bressay" / "gt.txt", "encontro às 14:30 com colega")
-    assert check_public_no_pii(tmp_path) == []
+def test_untrusted_dataset_text_is_scanned(tmp_path: Path) -> None:
+    _write(tmp_path / "datasets" / "benchmark" / "gt.txt", "encontro às 14:30 com colega")
+
+    assert check_public_no_pii(tmp_path)
 
 
 # --- F6.2 (SSI-1009): formatos de código/dados públicos também são varridos ---
