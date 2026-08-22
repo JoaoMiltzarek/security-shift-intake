@@ -27,12 +27,13 @@ def test_readme_leads_with_problem_outcome_and_human_boundary() -> None:
     assert all(value in readme for value in required)
 
 
-def test_readme_labels_the_pre_release_capture_as_legacy() -> None:
+def test_readme_presents_the_current_synthetic_browser_capture() -> None:
     readme = _normalized(_readme())
 
-    assert "Legacy v1.0 review workflow" in readme
-    assert "retained only as pre-release orientation" in readme
-    assert "final v1.1 showcase must replace it" in readme
+    assert "Current v1.1 review workflow" in readme
+    assert "real Chromium smoke flow" in readme
+    assert "deterministic synthetic input" in readme
+    assert "samples/review_approved.png" in readme
 
 
 def test_readme_describes_only_the_single_table_local_product() -> None:

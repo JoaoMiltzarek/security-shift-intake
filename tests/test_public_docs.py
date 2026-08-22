@@ -152,11 +152,11 @@ def test_readme_uses_source_available_language_without_open_source_claim() -> No
     assert "PENDING" not in readme
 
 
-def test_legacy_showcase_asset_is_not_presented_as_the_final_ui() -> None:
+def test_current_showcase_asset_is_presented_with_honest_provenance() -> None:
     readme = " ".join(Path("README.md").read_text(encoding="utf-8").split())
     samples = " ".join(Path("samples/README.md").read_text(encoding="utf-8").split())
 
-    assert "legacy v1.0 capture" in readme.lower()
-    assert "legacy v1.0 pre-release capture" in samples
-    assert "not evidence of the final v1.1 UI" in samples
-    assert "replace it in one reviewed change" in samples
+    assert "current v1.1 capture" in readme.lower()
+    assert "real Chromium smoke flow" in readme
+    assert "demonstrate product behavior and layout, not OCR accuracy" in samples
+    assert "FakeDocumentReader" in samples

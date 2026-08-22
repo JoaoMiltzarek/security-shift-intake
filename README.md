@@ -12,10 +12,12 @@ The project addresses a practical gap between paper logs and downstream records 
 pretending that free OCR can read cursive handwriting reliably. OCR is evidence, not authority:
 uncertain content remains blocked until a reviewer supplies or confirms it.
 
-![Legacy v1.0 review workflow using a synthetic occurrence sheet](samples/cockpit_demo.gif)
+![Current v1.1 review workflow using a synthetic occurrence sheet](samples/cockpit_demo.gif)
 
-This legacy v1.0 capture is retained only as pre-release orientation. The final v1.1 showcase
-must replace it after the current UI and browser gates are complete.
+This current v1.1 capture comes from the real Chromium smoke flow with deterministic synthetic
+input. It shows the queue, evidence overlay, human-confirmed triage, revision-bound approval,
+and CSV readiness. See the [approved static frame](samples/review_approved.png) and
+[capture provenance](samples/README.md).
 
 ## What the v1.1 workflow does
 

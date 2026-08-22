@@ -3,10 +3,9 @@
 Committed **synthetic** example renders produced by repository fixtures, kept so the
 Document AI output and review UI can be inspected without any real document.
 
-`cockpit_demo.gif` is a legacy v1.0 pre-release capture, not evidence of the final v1.1 UI.
-After the integrated v1.1 browser flow passes, replace it in one reviewed change together with
-the hashes in this file and both privacy allowlists. Until then, the GIF is retained only for
-historical orientation.
+`cockpit_demo.gif` and `review_approved.png` show the current v1.1 review desk. They were
+captured by the repository's real Chromium smoke flow with a deterministic synthetic reader;
+they demonstrate product behavior and layout, not OCR accuracy.
 
 Policy: only synthetic, reviewed media belongs here. The pre-commit guard
 ([scripts/check_real_data.py](../scripts/check_real_data.py)) requires both the exact
@@ -17,39 +16,42 @@ including a known name with different bytes, nested files and files under `asset
 
 ## Reviewed binary manifest
 
-| Public asset | Generator/source | Introduced in | SHA-256 |
+| Public asset | Generator/source | Release | SHA-256 |
 |---|---|---|---|
-| `sample_tc-000000.png` | `data/generators/tier_c.py` via `scripts/gen_sheets.py` (`tier_c/v1`) | `bc497a57` | `b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084` |
-| `cockpit_demo.gif` | browser capture described below | `ad3236d0` | `1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151` |
+| `sample_tc-000000.png` | `data/generators/tier_c.py` via `scripts/gen_sheets.py` (`tier_c/v1`) | v1.0 | `b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084` |
+| `cockpit_demo.gif` | `scripts/browser_smoke.py` + `scripts/build_showcase_gif.py` | v1.1 | `8a47705ac65f835107d4aa11ac2f72254c0ddaaf2fc3b0f456c7ae25868ee4fe` |
+| `review_approved.png` | approved viewport from `scripts/browser_smoke.py` | v1.1 | `aea6ac9033397d2106f6b391077113ebc185952807940e1ed928df768e321acc` |
 
 The reviewed bytes above are the release provenance enforced by both privacy guards.
 Replacing an asset requires one reviewed change updating the file, this manifest and
 `_ALLOWED_SAMPLE_SHA256` together.
 
-## Legacy `cockpit_demo.gif` provenance
+## v1.1 showcase provenance
 
-This was a browser capture of the real local showcase path at its recorded commit, not a mocked
-overlay:
+This is a browser capture of the real local review path, not a hand-built mockup:
 
 - source fixture: `samples/sample_tc-000000.png` (SHA-256
   `b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084`);
-- captured application commit: `32f7da31`;
-- reader: Tesseract 5.4.0.20240606, using the installed `eng` fallback (`eng`, `osd`
-  were the available languages);
-- browser: Playwright CLI 0.1.17 with Chrome 150.0.0.0 on Windows;
+- captured application commit: `eff49702`;
+- reader: `FakeDocumentReader` with fixed synthetic text; no OCR benchmark claim is attached;
+- browser: Playwright 1.61.0 with Chromium 149.0.7827.55 on Windows;
 - capture viewport: 1440×900 CSS pixels; published GIF: 1200×750, three frames;
-- GIF SHA-256: `1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151`.
+- approved PNG SHA-256: `aea6ac9033397d2106f6b391077113ebc185952807940e1ed928df768e321acc`;
+- GIF SHA-256: `8a47705ac65f835107d4aa11ac2f72254c0ddaaf2fc3b0f456c7ae25868ee4fe`.
 
-The three frames show the initial pending draft, a real Tesseract-derived
-`token_window` bbox selected in the browser, and a synthetic human edit after which
-the prior OCR bbox is absent. No bbox was injected, no private document was used, and
-the browser observed only `127.0.0.1` requests.
+The three frames show the queue, a pending review with the evidence overlay selected,
+and the approved current revision with CSV and simulation unlocked. The smoke injects
+one documented synthetic bbox so the overlay path is deterministic. No private document
+was used, and the browser observed only `127.0.0.1` requests.
 
-To regenerate, start `make demo` with `--no-open`, capture those three browser states
-from the committed fixture, then assemble the PNGs with:
+To regenerate, run the browser smoke against a local server, then assemble its private
+frames with:
 
 ```console
-uv run --locked python -m scripts.build_showcase_gif FRAME_0 FRAME_1 FRAME_2
+uv run --locked python -m scripts.build_showcase_gif \
+  private/audit/showcase_frames/frame-0-queue.png \
+  private/audit/showcase_frames/frame-1-evidence.png \
+  private/audit/showcase_frames/frame-2-approved.png
 ```
 
 The workflow is repeatable, but the bytes are not promised to be identical across

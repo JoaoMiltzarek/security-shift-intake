@@ -13,7 +13,8 @@ OUTPUT_SIZE = (1200, 750)
 FRAME_DURATIONS_MS = (1400, 2400, 2400)
 MAX_GIF_BYTES = 5 * 1024 * 1024
 GIF_COMMENT = (
-    b"synthetic-only; source=samples/sample_tc-000000.png; reader=tesseract; "
+    b"synthetic-only; source=samples/sample_tc-000000.png; "
+    b"reader=fake-document-reader; capture=scripts/browser_smoke.py; "
     b"generated-by=scripts/build_showcase_gif.py"
 )
 

@@ -129,7 +129,7 @@ def test_other_gif_paths_remain_blocked(tmp_path: Path, relpath: str) -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["cockpit_demo.gif", "sample_tc-000000.png"],
+    ["cockpit_demo.gif", "review_approved.png", "sample_tc-000000.png"],
 )
 def test_allowlisted_name_under_archive_samples_is_blocked(tmp_path: Path, name: str) -> None:
     f = _write(tmp_path / "archive" / "samples" / name, "media")

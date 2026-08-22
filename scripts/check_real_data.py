@@ -74,7 +74,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SAMPLES_DIR = Path("samples")
 _ALLOWED_SAMPLE_SHA256: dict[Path, str] = {
     _SAMPLES_DIR / "cockpit_demo.gif": (
-        "1cb6b0e320cdf4b6fc743a0cd61c370bf3b1bb1d2b538324088561402cdc9151"
+        "8a47705ac65f835107d4aa11ac2f72254c0ddaaf2fc3b0f456c7ae25868ee4fe"
+    ),
+    _SAMPLES_DIR / "review_approved.png": (
+        "aea6ac9033397d2106f6b391077113ebc185952807940e1ed928df768e321acc"
     ),
     _SAMPLES_DIR / "sample_tc-000000.png": (
         "b31a545e88a412cf370af0b400582bec7eb7e61d22d4434f859048cb5ac69084"

@@ -5,9 +5,8 @@ when they change the supported behavior, safety boundary, or reproducibility of 
 
 ## [1.1.0] - Unreleased
 
-The v1.1.0 code line is still awaiting its promoted release evidence, final showcase assets, and
-annotated tag. This entry describes the intended release surface without asserting unpublished
-metrics.
+The v1.1.0 code line is still awaiting its promoted release evidence and annotated tag. This
+entry describes the intended release surface without asserting unpublished metrics.
 
 ### Added
 
