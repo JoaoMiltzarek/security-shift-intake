@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from data.safety_corpus import inventory_pin_bytes, parse_inventory_pin
 from data.tier_c_contract import TierCContractError
 from scripts import privacy_policy as policy
 
@@ -46,19 +47,34 @@ def _inventory_bytes(members: dict[str, bytes] = _MEMBER_BYTES) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def _write_pin(repository_root: Path, inventory: bytes) -> Path:
+    pin = repository_root / policy.SAFETY_CORPUS_PIN_RELATIVE
+    pin.parent.mkdir(parents=True, exist_ok=True)
+    pin.write_bytes(inventory_pin_bytes(hashlib.sha256(inventory).hexdigest()))
+    return pin
+
+
 def _write_corpus(repository_root: Path) -> Path:
     corpus = repository_root / policy.SAFETY_CORPUS_RELATIVE
     for relative, content in _MEMBER_BYTES.items():
         destination = corpus.joinpath(*relative.split("/"))
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
-    (corpus / "SHA256SUMS").write_bytes(_inventory_bytes())
+    inventory = _inventory_bytes()
+    (corpus / "SHA256SUMS").write_bytes(inventory)
+    _write_pin(repository_root, inventory)
     return corpus
 
 
-def _fake_validator(root: Path) -> Any:
+def _fake_validator(root: Path, *, pin_path: Path) -> Any:
     try:
-        inventory = root.joinpath("SHA256SUMS").read_text(encoding="utf-8").splitlines()
+        inventory_bytes = root.joinpath("SHA256SUMS").read_bytes()
+        if (
+            parse_inventory_pin(pin_path.read_bytes())
+            != hashlib.sha256(inventory_bytes).hexdigest()
+        ):
+            raise ValueError("external pin mismatch")
+        inventory = inventory_bytes.decode("utf-8").splitlines()
         expected: dict[str, str] = {}
         for line in inventory:
             digest, relative = line.split("  ", maxsplit=1)
@@ -82,6 +98,11 @@ def _fake_validator(root: Path) -> Any:
         raise TierCContractError("fixture contract rejected") from exc
     entry = SimpleNamespace(image="pngs/tc-000000.png", gt="gt/tc-000000.json")
     return SimpleNamespace(split=SimpleNamespace(entries=(entry,)))
+
+
+def _commit_pin(repository_root: Path) -> None:
+    _git(repository_root, "add", "--", policy.SAFETY_CORPUS_PIN_RELATIVE.as_posix())
+    _git(repository_root, "commit", "--quiet", "-m", "pin fixture")
 
 
 @pytest.fixture(autouse=True)
@@ -153,6 +174,7 @@ def test_worktree_authentication_rejects_reparse_member(
 def test_index_authentication_uses_complete_matching_snapshot(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     _write_corpus(tmp_path)
+    _commit_pin(tmp_path)
     _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
 
     authenticated = policy.authenticate_index_safety_corpus(tmp_path)
@@ -163,6 +185,7 @@ def test_index_authentication_uses_complete_matching_snapshot(tmp_path: Path) ->
 def test_index_authentication_rejects_partial_staging(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     _write_corpus(tmp_path)
+    _commit_pin(tmp_path)
     one_member = policy.SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
     _git(tmp_path, "add", "--", one_member.as_posix())
 
@@ -173,6 +196,7 @@ def test_index_authentication_rejects_partial_staging(tmp_path: Path) -> None:
 def test_index_authentication_rejects_untracked_worktree_extra(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     corpus = _write_corpus(tmp_path)
+    _commit_pin(tmp_path)
     _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
     (corpus / "extra.png").write_bytes(b"extra")
 
@@ -185,6 +209,7 @@ def test_index_authentication_rejects_worktree_bytes_different_from_index(
 ) -> None:
     _init_repo(tmp_path)
     corpus = _write_corpus(tmp_path)
+    _commit_pin(tmp_path)
     _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
     (corpus / "pngs" / "tc-000000.png").write_bytes(b"unstaged replacement")
 
@@ -195,6 +220,7 @@ def test_index_authentication_rejects_worktree_bytes_different_from_index(
 def test_index_authentication_rejects_symlink_mode(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     _write_corpus(tmp_path)
+    _commit_pin(tmp_path)
     _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
     member = policy.SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
     object_id = (
@@ -214,3 +240,88 @@ def test_index_authentication_rejects_symlink_mode(tmp_path: Path) -> None:
 
     with pytest.raises(policy.CorpusPrivacyError, match="regular file"):
         policy.authenticate_index_safety_corpus(tmp_path)
+
+
+def test_index_authentication_rejects_pin_not_committed_in_head(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_corpus(tmp_path)
+    _git(tmp_path, "add", "--", "data")
+
+    with pytest.raises(policy.CorpusPrivacyError, match="not committed in HEAD"):
+        policy.authenticate_index_safety_corpus(tmp_path)
+
+
+def test_index_authentication_rejects_unstaged_pin_change(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_corpus(tmp_path)
+    _commit_pin(tmp_path)
+    _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
+    pin = tmp_path / policy.SAFETY_CORPUS_PIN_RELATIVE
+    pin.write_bytes(inventory_pin_bytes(hashlib.sha256(b"replacement").hexdigest()))
+
+    with pytest.raises(policy.CorpusPrivacyError, match="worktree differs from HEAD"):
+        policy.authenticate_index_safety_corpus(tmp_path)
+
+
+def test_index_authentication_rejects_inventory_outside_head_pin(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_corpus(tmp_path)
+    pin = tmp_path / policy.SAFETY_CORPUS_PIN_RELATIVE
+    pin.write_bytes(inventory_pin_bytes(hashlib.sha256(b"different inventory").hexdigest()))
+    _commit_pin(tmp_path)
+    _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
+
+    with pytest.raises(policy.CorpusPrivacyError, match="validation failed"):
+        policy.authenticate_index_safety_corpus(tmp_path)
+
+
+def test_initial_staged_pin_is_valid_only_before_the_corpus(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_pin(tmp_path, _inventory_bytes())
+    _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_PIN_RELATIVE.as_posix())
+
+    policy.validate_staged_inventory_pin(tmp_path, corpus_changed=False)
+
+
+def test_staged_pin_and_corpus_in_one_delta_are_rejected(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_corpus(tmp_path)
+    _git(tmp_path, "add", "--", "data")
+
+    with pytest.raises(policy.CorpusPrivacyError, match="separate commits"):
+        policy.validate_staged_inventory_pin(tmp_path, corpus_changed=True)
+
+
+def test_committed_pin_is_write_once(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    pin = _write_pin(tmp_path, _inventory_bytes())
+    _commit_pin(tmp_path)
+    pin.write_bytes(inventory_pin_bytes(hashlib.sha256(b"replacement").hexdigest()))
+    _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_PIN_RELATIVE.as_posix())
+
+    with pytest.raises(policy.CorpusPrivacyError, match="write-once"):
+        policy.validate_staged_inventory_pin(tmp_path, corpus_changed=False)
+
+
+def test_committed_pin_deletion_is_rejected(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_pin(tmp_path, _inventory_bytes())
+    _commit_pin(tmp_path)
+    _git(tmp_path, "rm", "--quiet", "--", policy.SAFETY_CORPUS_PIN_RELATIVE.as_posix())
+
+    with pytest.raises(policy.CorpusPrivacyError, match="write-once"):
+        policy.validate_staged_inventory_pin(tmp_path, corpus_changed=False)
+
+
+def test_new_pin_cannot_follow_an_already_indexed_corpus(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    corpus = _write_corpus(tmp_path)
+    pin = tmp_path / policy.SAFETY_CORPUS_PIN_RELATIVE
+    pin.unlink()
+    _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_RELATIVE.as_posix())
+    _git(tmp_path, "commit", "--quiet", "-m", "untrusted corpus fixture")
+    _write_pin(tmp_path, (corpus / "SHA256SUMS").read_bytes())
+    _git(tmp_path, "add", "--", policy.SAFETY_CORPUS_PIN_RELATIVE.as_posix())
+
+    with pytest.raises(policy.CorpusPrivacyError, match="must precede"):
+        policy.validate_staged_inventory_pin(tmp_path, corpus_changed=False)

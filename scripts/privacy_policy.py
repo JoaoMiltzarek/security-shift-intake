@@ -23,10 +23,15 @@ from data.safety_corpus import (
     SAFETY_SPLIT,
     VerifiedSafetyCorpus,
     load_verified_safety_corpus,
+    parse_inventory_pin,
+)
+from data.safety_corpus import (
+    SAFETY_CORPUS_PIN_RELATIVE as _DATA_SAFETY_CORPUS_PIN_RELATIVE,
 )
 from data.tier_c_contract import TierCContractError
 
 SAFETY_CORPUS_RELATIVE = Path("data", "eval_corpora", "v1.1", "bench-balanced-val")
+SAFETY_CORPUS_PIN_RELATIVE = _DATA_SAFETY_CORPUS_PIN_RELATIVE
 _SAFETY_CORPUS_POSIX = PurePosixPath(SAFETY_CORPUS_RELATIVE.as_posix())
 _REGULAR_INDEX_MODE = "100644"
 _OBJECT_ID_RE = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
@@ -60,6 +65,11 @@ def is_safety_corpus_path(path: Path) -> bool:
     except ValueError:
         return False
     return path != SAFETY_CORPUS_RELATIVE
+
+
+def is_safety_corpus_pin_path(path: Path) -> bool:
+    """Match only the one external inventory-pin path."""
+    return not path.is_absolute() and path == SAFETY_CORPUS_PIN_RELATIVE
 
 
 def corpus_path_exists(repository_root: Path) -> bool:
@@ -129,6 +139,26 @@ def _collect_plain_worktree_files(repository_root: Path) -> dict[Path, bytes]:
     return files
 
 
+def _read_plain_repository_file(repository_root: Path, relative: Path) -> bytes:
+    """Read one regular repository file with no redirected path component."""
+    current = repository_root
+    for index, part in enumerate(relative.parts):
+        current /= part
+        try:
+            metadata = current.lstat()
+        except OSError as exc:
+            raise CorpusPrivacyError("external corpus pin is missing or unreadable") from exc
+        if _is_redirected(current):
+            raise CorpusPrivacyError("external corpus pin path is redirected")
+        expected_kind = stat.S_ISREG if index == len(relative.parts) - 1 else stat.S_ISDIR
+        if not expected_kind(metadata.st_mode):
+            raise CorpusPrivacyError("external corpus pin path has an invalid file type")
+    try:
+        return current.read_bytes()
+    except OSError as exc:
+        raise CorpusPrivacyError("external corpus pin could not be read") from exc
+
+
 def _expected_repository_members(verified: VerifiedSafetyCorpus) -> frozenset[Path]:
     within_corpus = {
         Path(INVENTORY_NAME),
@@ -144,9 +174,10 @@ def _expected_repository_members(verified: VerifiedSafetyCorpus) -> frozenset[Pa
 def _authenticate_files(
     files: dict[Path, bytes],
     validation_root: Path,
+    pin_path: Path,
 ) -> AuthenticatedSafetyCorpus:
     try:
-        verified = load_verified_safety_corpus(validation_root)
+        verified = load_verified_safety_corpus(validation_root, pin_path=pin_path)
     except (TierCContractError, OSError, UnicodeError, ValueError) as exc:
         raise CorpusPrivacyError("canonical safety corpus validation failed") from exc
     expected = _expected_repository_members(verified)
@@ -160,9 +191,11 @@ def _authenticate_files(
 def authenticate_worktree_safety_corpus(repository_root: Path) -> AuthenticatedSafetyCorpus:
     """Authenticate the exact corpus files present in a public worktree."""
     files = _collect_plain_worktree_files(repository_root)
+    _read_plain_repository_file(repository_root, SAFETY_CORPUS_PIN_RELATIVE)
     return _authenticate_files(
         files,
         repository_root / SAFETY_CORPUS_RELATIVE,
+        repository_root / SAFETY_CORPUS_PIN_RELATIVE,
     )
 
 
@@ -189,9 +222,9 @@ def _portable_index_member(raw_path: bytes) -> tuple[Path, Path]:
     return Path(*portable.parts), Path(*member.parts)
 
 
-def _index_records(repository_root: Path) -> list[tuple[Path, Path]]:
+def _index_listing(repository_root: Path) -> bytes:
     try:
-        output = subprocess.run(
+        return subprocess.run(
             [
                 "git",
                 "ls-files",
@@ -207,6 +240,9 @@ def _index_records(repository_root: Path) -> list[tuple[Path, Path]]:
     except (OSError, subprocess.SubprocessError) as exc:
         raise CorpusPrivacyError("Git index corpus members could not be enumerated") from exc
 
+
+def _index_records(repository_root: Path) -> list[tuple[Path, Path]]:
+    output = _index_listing(repository_root)
     records: list[tuple[Path, Path]] = []
     seen: set[Path] = set()
     for raw_record in (record for record in output.split(b"\0") if record):
@@ -242,15 +278,88 @@ def _index_blob(repository_root: Path, path: Path) -> bytes:
         raise CorpusPrivacyError("Git index corpus blob could not be read") from exc
 
 
+def _head_blob(repository_root: Path, path: Path) -> bytes:
+    try:
+        return subprocess.run(
+            ["git", "cat-file", "blob", f"HEAD:{path.as_posix()}"],
+            cwd=repository_root,
+            check=True,
+            capture_output=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CorpusPrivacyError("required external corpus pin is not committed in HEAD") from exc
+
+
+def _head_exists(repository_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
+        cwd=repository_root,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode not in {0, 1}:
+        raise CorpusPrivacyError("Git HEAD could not be inspected")
+    return result.returncode == 0
+
+
+def _head_pin_exists(repository_root: Path) -> bool:
+    if not _head_exists(repository_root):
+        return False
+    result = subprocess.run(
+        [
+            "git",
+            "cat-file",
+            "-e",
+            f"HEAD:{SAFETY_CORPUS_PIN_RELATIVE.as_posix()}",
+        ],
+        cwd=repository_root,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode not in {0, 1, 128}:
+        raise CorpusPrivacyError("external corpus pin history could not be inspected")
+    return result.returncode == 0
+
+
+def validate_staged_inventory_pin(
+    repository_root: Path,
+    *,
+    corpus_changed: bool,
+) -> None:
+    """Permit only the first, corpus-free commit of a canonical external pin."""
+    if corpus_changed:
+        raise CorpusPrivacyError("external corpus pin and corpus must use separate commits")
+    if _head_pin_exists(repository_root):
+        raise CorpusPrivacyError("external corpus pin is write-once")
+    try:
+        pin_content = _index_blob(repository_root, SAFETY_CORPUS_PIN_RELATIVE)
+        parse_inventory_pin(pin_content)
+    except (CorpusPrivacyError, TierCContractError) as exc:
+        raise CorpusPrivacyError("new external corpus pin is invalid") from exc
+    if _index_listing(repository_root):
+        raise CorpusPrivacyError("external corpus pin must precede the corpus commit")
+
+
 def authenticate_index_safety_corpus(repository_root: Path) -> AuthenticatedSafetyCorpus:
     """Authenticate a complete index snapshot and require identical worktree bytes."""
     records = _index_records(repository_root)
     worktree_files = _collect_plain_worktree_files(repository_root)
+    head_pin = _head_blob(repository_root, SAFETY_CORPUS_PIN_RELATIVE)
+    try:
+        parse_inventory_pin(head_pin)
+    except TierCContractError as exc:
+        raise CorpusPrivacyError("committed external corpus pin is invalid") from exc
+    worktree_pin = _read_plain_repository_file(repository_root, SAFETY_CORPUS_PIN_RELATIVE)
+    if worktree_pin != head_pin:
+        raise CorpusPrivacyError("external corpus pin worktree differs from HEAD")
     index_files: dict[Path, bytes] = {}
 
     with TemporaryDirectory(prefix="ssi-corpus-index-") as temporary:
         snapshot_root = Path(temporary) / "repository"
         validation_root = snapshot_root / SAFETY_CORPUS_RELATIVE
+        pin_path = snapshot_root / SAFETY_CORPUS_PIN_RELATIVE
+        pin_path.parent.mkdir(parents=True, exist_ok=True)
+        pin_path.write_bytes(head_pin)
         for repository_path, member in records:
             content = _index_blob(repository_root, repository_path)
             index_files[repository_path] = content
@@ -262,4 +371,4 @@ def authenticate_index_safety_corpus(repository_root: Path) -> AuthenticatedSafe
             worktree_files[path] != content for path, content in index_files.items()
         ):
             raise CorpusPrivacyError("corpus worktree differs from the Git index snapshot")
-        return _authenticate_files(index_files, validation_root)
+        return _authenticate_files(index_files, validation_root, pin_path)

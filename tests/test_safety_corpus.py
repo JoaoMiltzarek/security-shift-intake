@@ -27,6 +27,7 @@ from data.safety_corpus import (
     inventory_bytes,
     inventory_pin_bytes,
     load_verified_safety_corpus,
+    parse_inventory_pin,
 )
 from data.tier_c_contract import TierCContractError
 
@@ -101,8 +102,11 @@ def test_external_inventory_pin_is_canonical_and_rejects_invalid_hash() -> None:
     digest = "a" * 64
 
     assert inventory_pin_bytes(digest) == f"{digest}  {INVENTORY_PIN_TARGET}\n".encode()
+    assert parse_inventory_pin(inventory_pin_bytes(digest)) == digest
     with pytest.raises(ValueError, match="invalid safety corpus inventory pin"):
         inventory_pin_bytes("A" * 64)
+    with pytest.raises(TierCContractError, match="pin is invalid"):
+        parse_inventory_pin(inventory_pin_bytes(digest).replace(b"\n", b"\r\n"))
 
 
 def test_public_loader_requires_matching_external_inventory_pin(

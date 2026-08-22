@@ -201,16 +201,24 @@ def inventory_pin_bytes(inventory_sha256: str) -> bytes:
     return f"{inventory_sha256}  {INVENTORY_PIN_TARGET}\n".encode()
 
 
-def _read_inventory_pin(path: Path) -> str:
+def parse_inventory_pin(content: bytes) -> str:
+    """Parse canonical pin bytes without selecting a trust source for them."""
     try:
-        content = path.read_bytes()
         line = content.decode("utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise TierCContractError("external safety corpus inventory pin is unavailable") from exc
+    except UnicodeError as exc:
+        raise TierCContractError("external safety corpus inventory pin is invalid") from exc
     match = re.fullmatch(rf"([0-9a-f]{{64}})  {re.escape(INVENTORY_PIN_TARGET)}\n", line)
     if match is None or inventory_pin_bytes(match.group(1)) != content:
         raise TierCContractError("external safety corpus inventory pin is invalid")
     return match.group(1)
+
+
+def _read_inventory_pin(path: Path) -> str:
+    try:
+        content = path.read_bytes()
+    except OSError as exc:
+        raise TierCContractError("external safety corpus inventory pin is unavailable") from exc
+    return parse_inventory_pin(content)
 
 
 def _read_strict_json(path: Path) -> dict[str, Any]:
