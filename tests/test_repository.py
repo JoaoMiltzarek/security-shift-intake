@@ -10,7 +10,8 @@ from sqlalchemy import event
 from sqlmodel import Session
 
 from src.api.db import init_db, make_engine
-from src.api.gate import MemorySimulationRecorder, simulate_draft
+from src.api.gate import MemorySimulationRecorder, SimulationRecorder
+from src.api.gate import simulate_draft as _simulate_draft
 from src.api.models import Draft
 from src.api.repository import (
     DraftAlreadySimulatedError,
@@ -24,8 +25,25 @@ from src.api.repository import (
     list_drafts,
     set_status,
 )
-from src.schema.extraction import NormalizedIncidentModel
-from src.schema.state import ApprovalStatus, PipelineState
+from src.schema.extraction import NormalizedIncidentModel, NormalizedShift
+from src.schema.loader import config_fingerprint, load_config
+from src.schema.state import (
+    ApprovalStatus,
+    ClassificationDecision,
+    ExtractedField,
+    PipelineState,
+)
+
+CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
+
+
+def simulate_draft(
+    session: Session,
+    draft_id: int,
+    recorder: SimulationRecorder,
+    actor: str,
+) -> Draft:
+    return _simulate_draft(session, draft_id, recorder, CONFIG, actor=actor)
 
 
 @pytest.fixture
@@ -39,8 +57,28 @@ def session() -> Iterator[Session]:
 def _state() -> PipelineState:
     return PipelineState(
         source_pdf=Path("report.pdf"),
+        report_type=CONFIG.report_type,
+        config_sha256=config_fingerprint(CONFIG),
         transcription="hello",
-        normalized=NormalizedIncidentModel(disposition="none"),
+        normalized=NormalizedIncidentModel(
+            shift=NormalizedShift(date="21/08/2026", guards=["Ana"], unit="1"),
+            disposition="none",
+            disposition_confirmed=True,
+        ),
+        extracted_fields=[
+            ExtractedField(name="data_turno", value="21/08/2026", confidence=1),
+            ExtractedField(name="vigilantes", value="Ana", confidence=1),
+            ExtractedField(name="unidade", value="1", confidence=1),
+            ExtractedField(name="ocorrencias", value="(sem alteracao)", confidence=1),
+        ],
+        classification=ClassificationDecision(
+            incident_type="routine",
+            urgency="low",
+            sector="general_support",
+            source="rule",
+            review_status="confirmed",
+            classification_rule_id="disposition.none",
+        ),
     )
 
 
