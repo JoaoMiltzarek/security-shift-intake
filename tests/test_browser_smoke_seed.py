@@ -38,6 +38,8 @@ def test_smoke_drives_current_triage_export_and_terminal_controls() -> None:
     assert 'data-blocker-code="disposition_unconfirmed"' in source
     assert 'get_by_role("button", name="Send", exact=True)' not in source
     assert 'or "unknown" not in status_panel' not in source
+    assert 'expect(page.locator("#status-title")).to_be_focused' in source
+    assert "wait_for_function" not in source
 
 
 def test_smoke_seed_uses_repository_instead_of_http_submission(

@@ -158,7 +158,7 @@ def _wait_for_server(base_url: str) -> None:
 def run_smoke(base_url: str) -> dict[str, Any]:
     """Drive Chromium through the cockpit; return a result dict or raise Smoke/Env errors."""
     try:
-        from playwright.sync_api import sync_playwright
+        from playwright.sync_api import expect, sync_playwright
     except ImportError as exc:
         raise EnvUnavailable("playwright not installed (pip install playwright)") from exc
 
@@ -217,7 +217,7 @@ def run_smoke(base_url: str) -> dict[str, Any]:
         # (4) approve the exact review snapshot and prove its CSV uses the same identity.
         page.get_by_role("button", name="Aprovar revisão", exact=True).click()
         page.wait_for_selector("#status-panel .status-approved", timeout=5000)
-        page.wait_for_function("document.activeElement?.id === 'status-title'")
+        expect(page.locator("#status-title")).to_be_focused(timeout=5000)
         export_form = page.locator(f'form[action="/drafts/{draft_id}/export.csv"]')
         export_form.wait_for(timeout=5000)
         edit_form = page.locator('#review-body form[hx-post$="/edit"]')
