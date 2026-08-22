@@ -110,19 +110,51 @@ def test_architecture_lists_every_stable_readiness_blocker() -> None:
 
 
 def test_release_eval_publication_is_write_once_and_commit_bound() -> None:
-    guide = _read("docs/EVAL_RELEASE.md")
+    guide = " ".join(_read("docs/EVAL_RELEASE.md").split())
     required = (
         "eval-safety-release-candidate-${{ github.sha }}",
         "eval-safety-diagnostics-${{ github.sha }}",
+        "eval-safety-intermediate-${{ github.sha }}",
         "scripts.publish_eval_evidence",
         "--expected-commit",
         "--write",
         "worktree clean",
         "Tesseract language `por`",
         "write-once",
-        "schema/identity-validated",
+        "schema and repository identities",
     )
     assert all(value in guide for value in required)
+
+
+def test_release_guide_lists_every_blocking_operational_gate() -> None:
+    guide = _read("docs/EVAL_RELEASE.md")
+
+    required = (
+        "unsafe_clean = 0",
+        "unsafe_approvable = 0",
+        "unsafe_exportable = 0",
+        "false_incident_unreviewed = 0",
+        "safe_review_recall = 1.0",
+        "operational_signal_complete_count = 45",
+    )
+    assert all(value in guide for value in required)
+
+
+def test_release_guide_does_not_invent_final_metrics() -> None:
+    guide = " ".join(_read("docs/EVAL_RELEASE.md").split())
+
+    assert "No metric value is asserted in this guide" in guide
+    assert "derived from the promoted JSON" in guide
+    assert "do not answer whether Tesseract transcribes real cursive accurately" in guide
+    assert "No real corporate document" in guide
+
+
+def test_release_candidate_waits_for_every_blocking_job() -> None:
+    guide = _read("docs/EVAL_RELEASE.md")
+
+    assert "`quality`, `quality-windows`, `eval-safety`, and\n`browser-smoke`" in guide
+    assert "Passing `eval-safety`\nalone is insufficient" in guide
+    assert "push to `main`" in guide
 
 
 def test_repository_does_not_advertise_unsupported_dotenv_setup() -> None:
