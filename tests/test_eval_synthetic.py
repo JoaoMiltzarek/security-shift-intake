@@ -49,7 +49,7 @@ def test_load_curadoria_valid_status_param(tmp_path: Path) -> None:
 
 
 def test_smoke_50_mock_no_false_incident(smoke_dir: Path) -> None:
-    gts = load_curadoria(smoke_dir / "gt", valid_status={"synthetic_ground_truth"})
+    gts = ev.load_generated_sheets(smoke_dir)
     assert len(gts) == 50
     config = load_config(TABLE_CONFIG_PATH)
     vision = get_evaluation_reader("mock")

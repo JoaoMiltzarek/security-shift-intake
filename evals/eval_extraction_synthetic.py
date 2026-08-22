@@ -38,7 +38,11 @@ from pathlib import Path
 from typing import Any
 
 from data.generators.tier_c import CANONICAL_DATASETS
-from data.tier_c_contract import TierCContractError, load_verified_canonical_split
+from data.tier_c_contract import (
+    TierCContractError,
+    load_verified_canonical_split,
+    resolve_dataset_member,
+)
 from evals.eval_extraction_real import (
     CER_FAIL,
     TABLE_CONFIG_PATH,
@@ -86,6 +90,25 @@ def _public_summary_bytes(summary: dict[str, Any]) -> bytes:
     """Serialize a public summary as strict, deterministic-enough UTF-8 JSON."""
     text = json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False)
     return (text + "\n").encode("utf-8")
+
+
+def load_generated_sheets(dataset_dir: Path, split: str | None = None) -> list[dict[str, Any]]:
+    """Load exploratory GT and resolve its portable source member against the dataset."""
+    gts = load_curadoria(directory=dataset_dir / "gt", valid_status=SYNTHETIC_STATUS)
+    sheets: list[dict[str, Any]] = []
+    for original in gts:
+        if split is not None and (original.get("synthetic") or {}).get("split") != split:
+            continue
+        sheet = dict(original)
+        source = str(sheet.get("source_file") or "")
+        try:
+            sheet["source_file"] = str(resolve_dataset_member(dataset_dir, source))
+        except (TierCContractError, ValueError) as exc:
+            raise TierCContractError(
+                f"invalid generated source member for {sheet.get('document_id', 'unknown')}"
+            ) from exc
+        sheets.append(sheet)
+    return sheets
 
 
 def _match(truth: str | None, value: str | None) -> bool:
@@ -501,8 +524,11 @@ def main(argv: list[str]) -> int:
             "expected_split_count": verified.meta.counts[args.split],
         }
     else:
-        gts = load_curadoria(directory=args.dir / "gt", valid_status=SYNTHETIC_STATUS)
-        sheets = [g for g in gts if (g.get("synthetic") or {}).get("split") == args.split]
+        try:
+            sheets = load_generated_sheets(args.dir, args.split)
+        except TierCContractError as exc:
+            print(f"CONTRATO TIER C INVÁLIDO: {exc}", file=sys.stderr)
+            return 1
     if args.n > 0:
         sheets = sheets[: args.n]
     if not sheets:

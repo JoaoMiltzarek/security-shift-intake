@@ -185,7 +185,6 @@ def _build_tier_c_into(
     split_seed: int = DEFAULT_SPLIT_SEED,
     n_samples: int = 0,
     samples_dir: Path | None = None,
-    published_root: Path | None = None,
 ) -> TierCMeta:
     """Gera o dataset (PDF+PNG+gt+manifests+meta). `dataset` resolve da tabela §4."""
     if n <= 0:
@@ -228,8 +227,7 @@ def _build_tier_c_into(
         if samples_dir is not None and i < n_samples:
             image.save(samples_dir / f"sample_{doc_id}.png")
 
-        public_pdf_path = (published_root or out_dir) / "pdfs" / f"{doc_id}.pdf"
-        gt = to_curadoria_dict(record, source_file=public_pdf_path.as_posix())
+        gt = to_curadoria_dict(record, source_file=f"pdfs/{doc_id}.pdf")
         gt["synthetic"] = {
             "generator": DATASET_VERSION,
             "dataset": dataset or "custom",
@@ -366,7 +364,6 @@ def build_tier_c(
             split_seed=split_seed,
             n_samples=n_samples,
             samples_dir=samples_dir,
-            published_root=destination,
         )
         _publish_fresh_tree(staged, destination)
     finally:

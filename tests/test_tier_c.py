@@ -76,6 +76,9 @@ def test_regeneration_reproduces_hashes(tmp_path: Path) -> None:
         rows_a = _load_jsonl(a / "manifests" / f"{split}.jsonl")
         rows_b = _load_jsonl(b / "manifests" / f"{split}.jsonl")
         assert rows_a == rows_b
+    assert {path.name: path.read_bytes() for path in (a / "gt").glob("*.json")} == {
+        path.name: path.read_bytes() for path in (b / "gt").glob("*.json")
+    }
 
 
 def test_regeneration_replaces_the_entire_previous_tree(tmp_path: Path) -> None:
@@ -124,9 +127,8 @@ def test_gt_shape_and_semantics(tmp_path: Path) -> None:
         gt = json.loads(gt_path.read_text(encoding="utf-8"))
         assert gt["review_status"] == "synthetic_ground_truth"
         assert gt["truth_source"] == "generator"
-        assert gt["source_file"].endswith(".pdf")
-        assert Path(gt["source_file"]).is_file()
-        assert ".staging-" not in gt["source_file"]
+        assert gt["source_file"] == f"pdfs/{gt['document_id']}.pdf"
+        assert (out / gt["source_file"]).is_file()
         syn = gt["synthetic"]
         assert set(syn) == {
             "generator",
