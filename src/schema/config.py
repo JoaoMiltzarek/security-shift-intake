@@ -131,6 +131,12 @@ class RoutingCondition(StrictConfigModel):
     type: str | None = None
     sector: str | None = None
 
+    @model_validator(mode="after")
+    def require_at_least_one_constraint(self) -> RoutingCondition:
+        if self.type is None and self.urgency is None and self.sector is None:
+            raise ValueError("routing when condition cannot be empty")
+        return self
+
 
 class RoutingRule(StrictConfigModel):
     """Maps a condition to the list of recipient groups."""
@@ -234,13 +240,25 @@ class ReportConfig(StrictConfigModel):
             raise ValueError("routing rule ids cannot be blank")
         if len(routing_ids) != len(set(routing_ids)):
             raise ValueError("routing rule ids must be unique")
+        prior_conditions: list[tuple[int, dict[str, str]]] = []
         for index, routing_rule in enumerate(self.routing):
             if routing_rule.when is None:
                 continue
+            condition = {
+                dimension: value
+                for dimension in taxonomy
+                if (value := getattr(routing_rule.when, dimension)) is not None
+            }
             for dimension, allowed in taxonomy.items():
-                value = getattr(routing_rule.when, dimension)
+                value = condition.get(dimension)
                 if value is not None and value not in allowed:
                     raise ValueError(
                         f"routing[{index}].when.{dimension}={value!r} is not-in-taxonomy"
                     )
+            for prior_index, prior in prior_conditions:
+                if prior.items() <= condition.items():
+                    raise ValueError(
+                        f"routing[{index}] is shadowed by earlier routing[{prior_index}]"
+                    )
+            prior_conditions.append((index, condition))
         return self

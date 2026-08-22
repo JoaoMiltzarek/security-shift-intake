@@ -46,11 +46,9 @@ def test_label_set_empty_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_routing_condition_all_none_is_default() -> None:
-    cond = RoutingCondition()
-    assert cond.urgency is None
-    assert cond.type is None
-    assert cond.sector is None
+def test_routing_condition_cannot_be_empty() -> None:
+    with pytest.raises(ValidationError, match="cannot be empty"):
+        RoutingCondition()
 
 
 def test_routing_condition_partial() -> None:

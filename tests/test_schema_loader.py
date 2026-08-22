@@ -148,6 +148,34 @@ def test_routing_conditions_must_reference_taxonomy(tmp_path: Path) -> None:
         load_config(path)
 
 
+def test_empty_routing_condition_is_rejected(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"][0]["when"] = {}
+
+    with pytest.raises(ValidationError, match="cannot be empty"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+def test_shadowed_routing_condition_is_rejected(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"] = [
+        {
+            "id": "routing.high",
+            "when": {"urgency": "high"},
+            "recipients": ["tech_security"],
+        },
+        {
+            "id": "routing.high_safety",
+            "when": {"urgency": "high", "type": "safety"},
+            "recipients": ["general_support"],
+        },
+        {"id": "routing.default", "recipients": ["general_support"]},
+    ]
+
+    with pytest.raises(ValidationError, match=r"routing\[1\].*shadowed.*routing\[0\]"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
 def test_classification_rule_ids_must_be_unique(tmp_path: Path) -> None:
     bad = copy.deepcopy(VALID_CONFIG)
     fallback = copy.deepcopy(bad["classification"]["rules"][0])
