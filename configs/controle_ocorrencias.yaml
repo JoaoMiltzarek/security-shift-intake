@@ -1,11 +1,7 @@
 # configs/controle_ocorrencias.yaml
-# Report type: folha "Controle de ocorrências" (manuscrita, escaneada em PDF).
-#
-# Estrutura real: cabeçalho (Data e Turno / Vigilantes / Unidade) + uma TABELA de N linhas
-# (Item / Hora / Descrição / Ação / Resolvido). S/A ou risco = sem alteração.
-# Coexiste com htmicron_security.yaml (sem mudança de código por config — ADR controle_ocorrencias).
-# Ãšnico contrato de relatÃ³rio suportado pelo runtime v1.
-# Validado por src/schema/config.ReportConfig.
+# Supported v1 report: a scanned, handwritten "Controle de Ocorrências" sheet.
+# The runtime validates this exact header and occurrence-table shape before startup.
+# S/A or a crossed-out table is treated as an explicit no-change disposition.
 
 report_type: controle_ocorrencias
 
