@@ -144,6 +144,50 @@ Its canonical SHA-256 is
 The loader compares the generated manifest with that independent file and then verifies every
 PNG and ground-truth hash. Generation and evaluation never create or update the freeze.
 
+## Canonical v1.1 corpus checkpoint
+
+Raster bytes can vary across operating systems and native font libraries. The committed v1.1
+release corpus must therefore come from the manual
+[`build-safety-corpus.yml`](../.github/workflows/build-safety-corpus.yml) workflow, not from a
+developer workstation.
+
+The builder accepts only this reference environment:
+
+| Component | Required identity |
+|---|---|
+| Runner | Ubuntu 24.04 GitHub-hosted runner |
+| Python | 3.11.15 |
+| uv | 0.11.28 |
+| Tesseract package | `5.3.4-1build5` |
+| Portuguese language package | `1:4.1.0-2` |
+| Dataset and split | `bench-balanced/val`, exactly 45 sheets |
+
+The workflow also records the Pillow version, runner image identity, Tesseract engine version,
+`uv.lock` SHA-256, every vendored font SHA-256, GitHub repository, workflow, run, attempt, and
+the exact 40-character commit. Generator, metadata, and workflow commit identities must agree.
+
+The checkpoint sequence is intentionally manual:
+
+1. Push the frozen generator commit `C` without rewriting it.
+2. Dispatch `build-safety-corpus.yml` for that ref.
+3. Confirm that the workflow `headSha` is exactly `C` and wait for a green run.
+4. Download `security-shift-intake-v1.1-safety-corpus-C` under an ignored
+   `private/checkpoints/C/` directory.
+5. Load it with `load_verified_safety_corpus` and confirm 45 sheets plus matching provenance.
+6. Import the unchanged tree into `data/eval_corpora/v1.1/bench-balanced-val/` in one dedicated
+   corpus commit.
+7. Let normal CI verify and evaluate the committed bytes. Normal CI never rebuilds the exam it
+   is scoring.
+
+The artifact contains only `pngs/`, `gt/`, `manifests/val.jsonl`, `meta.json`,
+`provenance.json`, and `SHA256SUMS`. Its inventory must cover every file exactly once. The loader
+rejects a missing, extra, unreadable, moved, or hash-mismatched member; a different lockfile or
+font bundle also invalidates the corpus.
+
+Do not generate replacement release images on Windows, copy selected files by hand, edit the
+inventory, or update hashes to make a changed tree pass. Repeat the versioned Linux checkpoint
+instead.
+
 ## Local developer commands
 
 Generate a disposable canonical set:

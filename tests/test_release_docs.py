@@ -50,6 +50,32 @@ def test_dataset_contract_documents_strict_portable_artifacts() -> None:
     assert all(value in contract for value in required)
 
 
+def test_dataset_contract_documents_the_manual_linux_checkpoint() -> None:
+    contract = " ".join(_read("docs/DATASET_CONTRACT.md").split())
+
+    required = (
+        "build-safety-corpus.yml",
+        "Ubuntu 24.04",
+        "Python | 3.11.15",
+        "uv | 0.11.28",
+        "5.3.4-1build5",
+        "1:4.1.0-2",
+        "exactly 45 sheets",
+        "security-shift-intake-v1.1-safety-corpus-C",
+        "data/eval_corpora/v1.1/bench-balanced-val/",
+        "Normal CI never rebuilds the exam",
+    )
+    assert all(value in contract for value in required)
+
+
+def test_dataset_checkpoint_forbids_local_release_regeneration() -> None:
+    contract = " ".join(_read("docs/DATASET_CONTRACT.md").split())
+
+    assert "Do not generate replacement release images on Windows" in contract
+    assert "edit the inventory" in contract
+    assert "Repeat the versioned Linux checkpoint" in contract
+
+
 def test_architecture_documents_the_current_domain_contracts() -> None:
     architecture = " ".join(_read("docs/ARCHITECTURE.md").split())
 
