@@ -13,7 +13,7 @@ from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MemorySimulationRecorder
 from src.classifier.rules import RuleBasedIncidentClassifier
-from src.clients.mock import MockVisionClient
+from src.clients.mock import FakeDocumentReader
 from src.orchestrator import run_pipeline
 from src.schema.loader import load_config
 
@@ -42,7 +42,7 @@ def client() -> Iterator[TestClient]:
 
 def _submit_table_draft(client: TestClient) -> int:
     state = run_pipeline(
-        SAMPLE, MockVisionClient(text=OCR_INCIDENT), RuleBasedIncidentClassifier(), CFG
+        SAMPLE, FakeDocumentReader(text=OCR_INCIDENT), RuleBasedIncidentClassifier(), CFG
     ).state
     body = state.model_dump(mode="json")
     return int(client.post("/drafts", json=body).json()["id"])
@@ -51,7 +51,7 @@ def _submit_table_draft(client: TestClient) -> int:
 def _submit_unknown_without_derived_pending(client: TestClient) -> int:
     state = run_pipeline(
         SAMPLE,
-        MockVisionClient(text=_OCR_UNKNOWN),
+        FakeDocumentReader(text=_OCR_UNKNOWN),
         RuleBasedIncidentClassifier(),
         CFG,
     ).state.model_copy(update={"must_review_fields": []})
@@ -218,7 +218,7 @@ def _classification_form(
 
 def _submit_unknown_draft(client: TestClient) -> int:
     state = run_pipeline(
-        SAMPLE, MockVisionClient(text=_OCR_UNKNOWN), RuleBasedIncidentClassifier(), CFG
+        SAMPLE, FakeDocumentReader(text=_OCR_UNKNOWN), RuleBasedIncidentClassifier(), CFG
     ).state
     return int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
 
