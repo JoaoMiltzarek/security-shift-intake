@@ -1,0 +1,61 @@
+name: Propose untrusted v1.1 logical freeze
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: propose-safety-logical-freeze-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: "1"
+  TZ: UTC
+  UV_VERSION: "0.11.28"
+
+jobs:
+  propose:
+    name: UNTRUSTED logical-freeze candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout the candidate generator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
+
+      - name: Sync the exact locked environment
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify the candidate runtime and checkout
+        run: |
+          set -euo pipefail
+          test "$(uv --version)" = "uv ${UV_VERSION}"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          uv run --locked --python 3.11.15 python -c \
+            "import sys; assert sys.version_info[:3] == (3, 11, 15)"
+
+      - name: Generate two matching untrusted logical projections
+        run: >-
+          uv run --locked --python 3.11.15
+          python -m scripts.propose_safety_logical_freeze
+          --output /tmp/UNTRUSTED-logical-freeze-candidate
+
+      - name: Upload the untrusted candidate for human review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: UNTRUSTED-logical-freeze-candidate-${{ github.sha }}
+          path: /tmp/UNTRUSTED-logical-freeze-candidate/
+          if-no-files-found: error
+          retention-days: 7
