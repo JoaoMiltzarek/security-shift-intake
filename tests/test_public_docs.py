@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlsplit
 
 ACTIVE_DOCS = (
     Path("README.md"),
+    Path("CHANGELOG.md"),
     Path("CONTRIBUTING.md"),
     Path("SECURITY.md"),
     Path("COMMERCIAL-LICENSE.md"),

@@ -295,3 +295,26 @@ def test_public_license_language_is_source_available_and_precise() -> None:
     assert "Commercial use requires a separate written license" in readme
     assert "not offered under an open-source license" in commercial
     assert "project-owned code only" in commercial
+
+
+def test_changelog_describes_v110_without_claiming_release() -> None:
+    changelog = " ".join(_read("CHANGELOG.md").split())
+
+    assert "## [1.1.0] - Unreleased" in changelog
+    assert "still awaiting its promoted release evidence" in changelog
+    assert "without asserting unpublished metrics" in changelog
+    assert "Human-confirmed triage" in changelog
+    assert "Structured readiness" in changelog
+    assert "Evidence identity" in changelog
+    assert "Migration notes" in changelog
+    assert "Known limitations" in changelog
+
+
+def test_changelog_is_user_facing_not_a_commit_dump() -> None:
+    changelog = _read("CHANGELOG.md")
+
+    assert "SSI-" not in changelog
+    assert "PR-" not in changelog
+    assert "chore(" not in changelog
+    assert "fix(" not in changelog
+    assert "feat(" not in changelog
