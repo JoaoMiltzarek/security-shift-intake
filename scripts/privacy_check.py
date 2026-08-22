@@ -96,7 +96,7 @@ def _load_extra_terms() -> list[re.Pattern[str]]:
     if not _PII_TERMS_FILE.exists():
         return []
     patterns: list[re.Pattern[str]] = []
-    for line in _PII_TERMS_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in _PII_TERMS_FILE.read_text(encoding="utf-8").splitlines():
         term = line.strip()
         if term and not term.startswith("#"):
             patterns.append(re.compile(re.escape(term), re.IGNORECASE))
@@ -190,8 +190,11 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
 
 def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
     """(3) No committable public text file contains obvious PII."""
-    extra = _load_extra_terms()
     violations: list[str] = []
+    try:
+        extra = _load_extra_terms()
+    except (OSError, UnicodeError):
+        return ["  private PII terms file could not be read as UTF-8"]
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR):
@@ -209,8 +212,12 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
         else:
             continue
         try:
-            text = p.read_text(encoding="utf-8", errors="replace")
+            text = p.read_text(encoding="utf-8")
         except OSError:
+            violations.append(f"  {rel}: public text could not be read")
+            continue
+        except UnicodeError:
+            violations.append(f"  {rel}: public text is not valid UTF-8")
             continue
         # Source/docs/config legitimately name the org (it is the project's subject);
         # exempt them from the org sentinel exactly like the pre-commit guard does.

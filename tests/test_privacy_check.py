@@ -245,6 +245,33 @@ def test_public_md_with_time_flagged(tmp_path: Path) -> None:
     assert check_public_no_pii(tmp_path)
 
 
+def test_public_non_utf8_text_fails_closed(tmp_path: Path) -> None:
+    path = tmp_path / "docs" / "report.md"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"\xff\xfe")
+
+    assert "not valid UTF-8" in "\n".join(check_public_no_pii(tmp_path))
+
+
+def test_unreadable_public_text_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    path = _write(tmp_path / "docs" / "report.md", "clean\n")
+    original = Path.read_text
+
+    def read_text(candidate: Path, *args: object, **kwargs: object) -> str:
+        if candidate == path:
+            raise PermissionError("denied")
+        return original(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(pc, "_load_extra_terms", lambda: [])
+
+    assert "could not be read" in "\n".join(check_public_no_pii(tmp_path))
+
+
 def test_private_md_with_time_ignored(tmp_path: Path) -> None:
     _write(tmp_path / "private" / "audit" / "detail.md", "Ocorrência às 13:00.")
     assert check_public_no_pii(tmp_path) == []

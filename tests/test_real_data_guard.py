@@ -199,6 +199,39 @@ def test_clean_txt_passes(tmp_path: Path) -> None:
     assert check_file(f) == []
 
 
+def test_unreadable_text_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _write(tmp_path / "report.txt", "clean\n")
+
+    def unreadable(_path: Path) -> bytes:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_bytes", unreadable)
+
+    assert "could not be read" in "\n".join(check_file(path))
+
+
+def test_non_utf8_text_fails_closed(tmp_path: Path) -> None:
+    path = tmp_path / "report.txt"
+    path.write_bytes(b"\xff\xfe")
+
+    assert "not valid UTF-8" in "\n".join(check_file(path))
+
+
+def test_unreadable_staged_blob_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [Path("report.txt")])
+
+    def unreadable(_path: Path, _root: Path) -> bytes:
+        raise subprocess.CalledProcessError(1, ["git", "cat-file"])
+
+    monkeypatch.setattr(guard, "staged_blob", unreadable)
+
+    assert "staged content could not be read" in "\n".join(guard.check_staged(tmp_path))
+
+
 def test_staged_sensitive_blob_wins_over_clean_worktree(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     _commit(tmp_path, "report.txt", "clean\n")

@@ -148,8 +148,9 @@ def check_content(path: Path, content: bytes) -> list[str]:
 
     expected_sample_hash = _ALLOWED_SAMPLE_SHA256.get(logical_path)
     allowed_sample = expected_sample_hash == sha256(content).hexdigest()
-    if _BINARY_EXT.search(path.name) and not allowed_sample:
-        violations.append(f"  {path}: binary/attachment extension not allowed in repo")
+    if _BINARY_EXT.search(path.name):
+        if not allowed_sample:
+            violations.append(f"  {path}: binary/attachment extension not allowed in repo")
         return violations
 
     if _DB_EXT.search(path.name):
@@ -159,7 +160,10 @@ def check_content(path: Path, content: bytes) -> list[str]:
     if _is_text_scan_exempt(logical_path):
         return []
 
-    text = content.decode("utf-8", errors="replace")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return [f"  {path}: text content is not valid UTF-8"]
     for pattern in _TEXT_SENTINELS:
         for lineno, line in enumerate(text.splitlines(), 1):
             if pattern.search(line):
@@ -173,7 +177,7 @@ def check_file(path: Path) -> list[str]:
     try:
         content = path.read_bytes()
     except OSError:
-        return []
+        return [f"  {path}: content could not be read"]
     return check_content(path, content)
 
 
@@ -209,8 +213,17 @@ def staged_blob(path: Path, repo_root: Path = _REPO_ROOT) -> bytes:
 def check_staged(repo_root: Path = _REPO_ROOT) -> list[str]:
     """Check every committable staged blob, including rename destinations."""
     violations: list[str] = []
-    for path in staged_paths(repo_root):
-        violations.extend(check_content(path, staged_blob(path, repo_root)))
+    try:
+        paths = staged_paths(repo_root)
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        return ["  Git index could not be enumerated safely"]
+    for path in paths:
+        try:
+            content = staged_blob(path, repo_root)
+        except (OSError, subprocess.SubprocessError):
+            violations.append(f"  {path}: staged content could not be read")
+            continue
+        violations.extend(check_content(path, content))
     return violations
 
 
