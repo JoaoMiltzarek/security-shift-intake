@@ -297,6 +297,7 @@ def test_stale_editor_cannot_overwrite_a_newer_revision(tmp_path: Path) -> None:
         draft = create_draft(setup, _state())
         assert draft.id is not None
         draft_id = draft.id
+        expected_sha256 = state_sha256(draft.state_json)
 
     with Session(engine) as first, Session(engine) as stale:
         assert first.get(Draft, draft_id) is not None
@@ -307,6 +308,7 @@ def test_stale_editor_cannot_overwrite_a_newer_revision(tmp_path: Path) -> None:
             PipelineState(source_pdf=Path("report.pdf"), transcription="first edit"),
             actor="first",
             expected_revision=1,
+            expected_state_sha256=expected_sha256,
         )
         with pytest.raises(DraftOperationConflictError, match="reload"):
             update_state(
@@ -315,6 +317,7 @@ def test_stale_editor_cannot_overwrite_a_newer_revision(tmp_path: Path) -> None:
                 PipelineState(source_pdf=Path("report.pdf"), transcription="stale edit"),
                 actor="stale",
                 expected_revision=1,
+                expected_state_sha256=expected_sha256,
             )
 
     with Session(engine) as verify:
@@ -326,6 +329,34 @@ def test_stale_editor_cannot_overwrite_a_newer_revision(tmp_path: Path) -> None:
             verify.exec(select(DraftRevision).where(DraftRevision.draft_id == draft_id))
         )
         assert [revision.revision for revision in revisions] == [1, 2]
+
+
+def test_edit_rejects_changed_content_at_the_same_revision(session: Session) -> None:
+    from src.api.repository import update_state
+
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    expected_sha256 = state_sha256(draft.state_json)
+    tampered = _state().model_copy(update={"transcription": "tampered"})
+    draft.state_json = tampered.model_dump_json()
+    session.add(draft)
+    session.commit()
+
+    replacement = _state().model_copy(update={"transcription": "reviewer edit"})
+    with pytest.raises(DraftOperationConflictError, match="content changed"):
+        update_state(
+            session,
+            draft.id,
+            replacement,
+            actor="reviewer",
+            expected_revision=draft.revision,
+            expected_state_sha256=expected_sha256,
+        )
+
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.revision == 1
+    assert PipelineState.model_validate_json(refreshed.state_json).transcription == "tampered"
 
 
 def test_approve_stamps_revision_and_hash(session: Session) -> None:
@@ -568,7 +599,14 @@ def test_status_compare_and_swap_rejects_stale_revision(session: Session) -> Non
     draft = create_draft(session, _state())
     assert draft.id is not None
     original_sha256 = state_sha256(draft.state_json)
-    update_state(session, draft.id, _state(), actor="first", expected_revision=1)
+    update_state(
+        session,
+        draft.id,
+        _state(),
+        actor="first",
+        expected_revision=1,
+        expected_state_sha256=original_sha256,
+    )
 
     with pytest.raises(DraftOperationConflictError, match="reload"):
         set_status(

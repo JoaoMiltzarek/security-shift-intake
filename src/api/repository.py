@@ -453,7 +453,10 @@ def update_state(
     action: str = "edited",
     *,
     expected_revision: int | None = None,
+    expected_state_sha256: str | None = None,
 ) -> Draft:
+    if (expected_revision is None) != (expected_state_sha256 is None):
+        raise ValueError("expected revision and state hash must be provided together")
     with draft_operation_lock(session, draft_id, wait=False):
         session.expire_all()
         return _update_state_locked(
@@ -463,6 +466,7 @@ def update_state(
             actor,
             action,
             expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
         )
 
 
@@ -474,6 +478,7 @@ def _update_state_locked(
     action: str,
     *,
     expected_revision: int | None,
+    expected_state_sha256: str | None,
 ) -> Draft:
     """Replace a draft's stored PipelineState (e.g. after human edits) + audit.
 
@@ -488,6 +493,12 @@ def _update_state_locked(
         raise DraftOperationConflictError(
             f"Draft {draft_id} changed from revision {expected_revision} to "
             f"{draft.revision} — reload before saving."
+        )
+    if expected_state_sha256 is not None and not hmac.compare_digest(
+        state_sha256(draft.state_json), expected_state_sha256
+    ):
+        raise DraftOperationConflictError(
+            f"Draft {draft_id} content changed — reload before saving."
         )
     if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(

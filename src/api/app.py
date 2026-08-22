@@ -1367,7 +1367,7 @@ def create_app(
         state = PipelineState.from_persisted_json(draft.state_json)
         _assert_config_compatible(state, active_config)
         form = await _bounded_review_form(request)
-        expected_revision, _ = _expected_form_snapshot(form, draft)
+        expected_revision, expected_state_sha256 = _expected_form_snapshot(form, draft)
 
         if state.normalized is not None:
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
@@ -1399,6 +1399,7 @@ def create_app(
                 actor=_LOCAL_ACTOR,
                 action="edited",
                 expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
             )
         except (
             repository.DraftAlreadySimulatedError,
