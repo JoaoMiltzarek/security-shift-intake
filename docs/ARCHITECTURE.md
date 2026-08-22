@@ -1,92 +1,166 @@
 # Architecture
 
-A linear pipeline of **deterministic stages**, each using the simplest tool that works. No
-agents, no hidden control flow: a typed `PipelineState` flows through an explicit orchestrator
-([src/orchestrator.py](../src/orchestrator.py)). The model layer is behind a single interface
-so it is swappable and **mockable in tests** (the whole suite runs offline at $0).
+Security Shift Intake v1.1 is a local, table-only document intake system. It processes exactly
+one page or image frame from a **Controle de Ocorrências** sheet and turns uncertain OCR into a
+reviewable state. It is deliberately not a generic form platform or an autonomous incident
+decision-maker.
+
+## Supported boundary
+
+- One PDF page or one PNG, JPEG, TIFF, BMP, or WebP frame per intake.
+- One validated configuration: [`configs/controle_ocorrencias.yaml`](../configs/controle_ocorrencias.yaml).
+- One application process and one operator on a trusted workstation.
+- Loopback HTTP only, with no authentication or supported multi-worker coordination.
+- Local Tesseract OCR, deterministic classification and routing, SQLite persistence, and an
+  explicit human review gate.
+- CSV export and a terminal local simulation; no delivery adapter.
+
+Multi-page documents and multi-frame images are rejected before OCR. A different table layout
+or domain can require extraction, normalization, output, and contract changes; YAML alone is
+not presented as a universal plug-in surface.
+
+## System view
+
+```mermaid
+flowchart LR
+    I["Private PDF or image"] --> G["Ingest and rasterize"]
+    G --> P["Hashed page artifact"]
+    P --> O["Local Tesseract reader"]
+    O --> X["Table extraction"]
+    X --> N["Normalized incident model"]
+    N --> V["Validation and rule suggestion"]
+    V --> H["Human review in FastAPI and HTMX"]
+    H --> S["SQLite state and audit"]
+    S --> R["Readiness calculation"]
+    R --> D["Derived route and previews"]
+    D --> A["Approval bound to revision and hash"]
+    A --> E["CSV export or local simulation"]
+```
+
+The browser is a presentation client. It can submit field values, disposition, and a
+classification from the active taxonomy, but it cannot submit recipients or trusted output
+text. The server derives those values from the current state and configuration.
 
 ## Pipeline
 
-```
- folha (PDF/foto/scan, manuscrita)
-        │
-   [0] Ingest ────────► rasteriza PDF→imagem (~150 DPI p/ OCR local) ou abre a foto
-        │
-   [1] Transcribe ────► OCR local (Tesseract) → texto + confiança         (VisionClient)
-        │
-   [2] Extract ───────► texto → RawDocumentExtraction (cabeçalho + linhas) (table_rules)
-        │
-   [3] Normalize ─────► Raw → NormalizedIncidentModel (domínio estável)
-        │
-   [4] Validate (critic)─► por linha; baixa confiança/ausente → must_review
-        │
-   [O] OCR Quality Gate ─► good / low / FAILED
-        │                  FAILED → classificação unknown/manual_review + rascunho BLOQUEADO
-   [5] Classify ───────► tipo / urgência / setor (bloqueado se OCR failed)
-        │
-   [6] Route ──────────► destinatários determinísticos das regras YAML
-        │
-   [7] Outputs ────────► Output 1: planilha DIA|UNIDADE|OBJETO|DESCRIÇÃO
-        │                Output 2: mensagem copy-ready (bloqueada se houver pendência)
-        │
-   [8] Human Gate ─────► revisão: corrige campos → regenera; aprovar só sem pendência
-```
+1. **Ingest** validates type and size, applies image EXIF orientation, composites transparency
+   onto white, and rasterizes a PDF at the configured dimensions.
+2. **Bind evidence** writes the reader-sized PNG under `private/` and records a
+   `PageArtifactRef` with its storage key, SHA-256, width, and height.
+3. **Read** runs Tesseract locally and records text, word geometry, reader identity, and raster
+   settings. Tesseract confidence is a source-specific signal, not a calibrated probability.
+4. **Extract** maps the supported header and five-column occurrence table into
+   `RawDocumentExtraction`.
+5. **Normalize** separates the layout from the domain, including shift date and period,
+   occurrence rows, and the `unknown | none | present` disposition.
+6. **Validate** preserves missing, ambiguous, and low-quality content as review blockers.
+7. **Suggest triage** classifies only normalized occurrence content. Multiple rows resolve to
+   one primary sheet decision by severity and then stable rule order.
+8. **Review** lets a person correct the fields, explicitly confirm disposition, and confirm or
+   override type, urgency, and sector.
+9. **Derive** recalculates routing, spreadsheet rows, and the message preview from the current
+   state. These outputs are not stored as operational truth.
+10. **Approve and act** recalculates readiness under the draft lock. Export and simulation also
+    require an approval for the exact current revision and stored-state hash.
 
-The v1 input boundary accepts **exactly one page or image frame**.
-Supported formats are PDF, PNG, JPEG, TIFF, BMP and WebP. Ingest treats a multi-page PDF or
-multi-frame image as unsupported v1 scope: it is **rejected before OCR**, so content from another
-page cannot be paired with the page-0 evidence cockpit. Defensive aggregation fields retained for
-legacy state are not a public multi-page contract; persisted multi-page state is not approvable or
-exportable.
+The explicit orchestrator is [`src/orchestrator.py`](../src/orchestrator.py). It has a finite
+per-sheet processing budget and preserves a coherent reviewable state when a reader times out.
 
-Two report types coexist; switching between the two implemented families is selected by config
-without a code change:
-- **`controle_ocorrencias`** (v1.0): the occurrence-table sheet → the path above.
-- **`htmicron_security`** (legacy): a single-incident scalar form → `extract`/`validate`/Jinja
-  draft. Kept for non-regression.
+## Core contracts
 
-## The two models (anti-corruption layer)
+### Raw and normalized models
 
-The domain is deliberately decoupled from the sheet layout (the layout can change):
+`RawDocumentExtraction` represents what was read from the fixed sheet layout. Each
+`AuditedField` carries a value, source (`ocr`, `rule`, or `human`), review status, and optional
+textual or geometric evidence.
 
-- **`RawDocumentExtraction`** — *what was read from the sheet* (layout-coupled): header + rows,
-  each cell an **`AuditedField`** = `value` + `confidence` + `source` (`ocr`|`rule`|`human`) +
-  `status` (`accepted`|`must_review`|`missing`|`ambiguous`) + `evidence`.
-- **`NormalizedIncidentModel`** — *what the domain understands* (stable): shift (date, guards,
-  unit) + a list of normalized occurrences and the `unknown | none | present` disposition.
-  `none` requires explicit S/A evidence (or an explicit human confirmation); an empty or
-  unreadable table is `unknown`. In schema_version 1.1, `no_occurrence` is a derived compatibility
-  field, never an independent source of truth.
+`NormalizedIncidentModel` is the stable domain model. Its v1.1 disposition rules are:
 
-The `normalize` stage is the only boundary between them. Models live in
-[src/schema/extraction.py](../src/schema/extraction.py).
+- `unknown` means the occurrence state is not established and cannot be confirmed;
+- `none` requires explicit human confirmation and cannot contain occurrence rows;
+- `present` requires explicit human confirmation and at least one valid occurrence row.
 
-Confidence values are source-specific routing signals, not calibrated probabilities:
-rule-based values use conservative fixed placeholders, Tesseract supplies mean word confidence,
-and VLM fallback values are labeled placeholders. The critic's `must_review` decision, not the
-numeric signal alone, drives the human gate.
+The read-only `no_occurrence` property is a derived compatibility view. It is never an
+independent source of truth.
 
-## Safety properties
+### Persisted pipeline state
 
-- **OCR is honest.** Free OCR can't read cursive; the OCR Quality Gate
-  ([src/pipeline/ocr_quality.py](../src/pipeline/ocr_quality.py)) detects this and enters a safe
-  mode — no auto-classification, no operational draft — routing to manual transcription.
-- **Never guess.** Low-confidence/ambiguous values go to the human (`must_review`); they are
-  never silently trusted.
-- **Structural uncertainty fails closed.** `unknown blocks approval and export`; only explicit
-  evidence can turn it into `none` or `present`.
-- **Human gate.** A draft cannot be **approved** while any field is pending. The v1 has no external
-  delivery adapter: its `MockSender` records a terminal simulation only, after explicit approval,
-  and the audit/UI identify that mode without claiming receipt — enforced in
-  [src/api/gate.py](../src/api/gate.py).
-- **Config-driven within a bounded surface.** Fields, taxonomy and routing within the implemented
-  schema families live in YAML ([configs/](../configs/)). A new table layout or domain can require extractor, normalizer and output code
-  plus contract/integration tests; configuration alone is
-  not claimed as a universal sheet-type plugin system.
+`PipelineState` schema v2 is strict and rejects contradictory or unknown shapes. A stored state
+contains intake evidence, extraction and normalization results, validation findings, reader and
+raster provenance, and the current classification decision. Routing and output previews are
+derived on demand.
 
-## Stack
-Python 3.11.15 · Pydantic v2 (typed contracts) · pypdfium2/PDFium + Pillow (ingest) ·
-Tesseract/pytesseract (local OCR) · FastAPI + HTMX + Jinja2 (approval API + review UI) ·
-SQLModel + SQLite (drafts,
-audit) · pytest + ruff + mypy(strict) + GitHub Actions. The supported executable path has no
-cloud reader or external LLM adapter.
+Known older states can still be opened for inspection. They remain marked as legacy and fail
+closed because a historical path cannot establish the current evidence identity. There is no
+silent hash backfill; re-ingestion is required.
+
+### Evidence identity
+
+`PageArtifactRef` replaces trust in a loose filesystem path. Reading a review image or allowing
+an operational action requires all of the following:
+
+- a storage key confined to the configured page-artifact root;
+- an existing regular file;
+- matching SHA-256 bytes;
+- matching decoded width and height;
+- exactly one page for the v1.1 product surface.
+
+Changing, replacing, deleting, or redirecting the page therefore blocks image use, approval,
+CSV export, and simulation.
+
+### Classification and routing
+
+`ClassificationDecision` records `incident_type`, `urgency`, `sector`, source, review status,
+and the stable rule identifier when the source is a rule. A rule decision begins as a
+suggestion. A no-change decision or an unchanged suggestion still needs explicit human
+confirmation before it is operational.
+
+`RoutingDecision` contains a stable rule ID and a non-empty recipient list. It exists only as a
+server-side derivation from a confirmed classification and the active configuration.
+
+### Readiness
+
+One `ReadinessReport` controls every consequential action:
+
+| Capability | Additional requirement |
+|---|---|
+| `approvable` | Evidence, config, disposition, fields, validation, classification, and route are current |
+| `exportable` | `approvable` plus approval for the current revision and state hash |
+| `simulatable` | Same snapshot requirement as export |
+
+Stable blocker codes are `evidence_changed`, `config_mismatch`,
+`disposition_unconfirmed`, `field_pending`, `validation_error`,
+`classification_unconfirmed`, `routing_unresolved`, `approval_required`, and
+`approval_stale`.
+
+## Persistence and concurrency
+
+SQLite stores drafts, immutable revision snapshots, and append-only audit entries. The database
+keeps the historical delivery timestamp column for compatibility while the public model exposes
+`simulated_at`. `simulated` is terminal: a simulated draft cannot be edited, approved, rejected,
+exported, or simulated again.
+
+Mutations carry the revision and SHA-256 that the reviewer loaded. A mismatch returns a conflict
+instead of overwriting a newer edit. In-process per-draft locks serialize approval, export, and
+simulation with their audit writes.
+
+Those locks do not coordinate multiple operating-system processes. The supported deployment is
+one Uvicorn process with one worker. Scaling to multiple workers requires a shared locking and
+transaction design and is outside v1.1.
+
+## HTTP and UI boundary
+
+Stable entrypoints are `src.api.asgi:app`, `create_app`, the existing `/drafts` JSON routes, and
+the HTMX review flow. The server disables public API documentation, rejects non-loopback clients
+and hosts, checks same-origin state changes, limits request bodies, serves vendored assets, and
+sets a restrictive content security policy.
+
+`GET /drafts/{id}` exposes the current revision, `approved_revision`, `state_sha256`, readiness,
+derived routing, spreadsheet rows, and message preview. It contains sensitive review data and is
+safe only inside the documented loopback boundary.
+
+## Technology
+
+Python 3.11.15; Pydantic; Pillow and pypdfium2/PDFium; Tesseract and pytesseract; FastAPI,
+HTMX, and Jinja; SQLModel and SQLite; pytest, Ruff, strict mypy, and GitHub Actions. The
+supported path has no cloud reader, analytics, CDN, or outbound delivery integration.

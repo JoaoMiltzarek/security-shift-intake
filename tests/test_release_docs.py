@@ -21,6 +21,39 @@ def test_dataset_contract_identifies_the_authenticated_release_freeze() -> None:
     assert all(value in contract for value in required)
 
 
+def test_architecture_documents_the_current_domain_contracts() -> None:
+    architecture = " ".join(_read("docs/ARCHITECTURE.md").split())
+
+    required = (
+        "unknown | none | present",
+        "no_occurrence",
+        "ClassificationDecision",
+        "RoutingDecision",
+        "ReadinessReport",
+        "approved_revision",
+        "state_sha256",
+        "simulated_at",
+    )
+    assert all(value in architecture for value in required)
+
+
+def test_architecture_lists_every_stable_readiness_blocker() -> None:
+    architecture = _read("docs/ARCHITECTURE.md")
+
+    blockers = (
+        "evidence_changed",
+        "config_mismatch",
+        "disposition_unconfirmed",
+        "field_pending",
+        "validation_error",
+        "classification_unconfirmed",
+        "routing_unresolved",
+        "approval_required",
+        "approval_stale",
+    )
+    assert all(blocker in architecture for blocker in blockers)
+
+
 def test_release_eval_publication_is_write_once_and_commit_bound() -> None:
     guide = _read("docs/EVAL_RELEASE.md")
     required = (
