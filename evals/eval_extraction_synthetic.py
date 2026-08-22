@@ -119,20 +119,11 @@ def _match(truth: str | None, value: str | None) -> bool:
 
 
 def _surface_reference(syn: dict[str, Any]) -> str:
-    """Texto de referência da transcrição = o DESENHADO (surface), sem marcadores."""
-    surface = syn.get("surface") or {}
-    parts: list[str] = [
-        str(surface.get("data") or ""),
-        str(surface.get("vigilantes") or ""),
-        str(surface.get("unidade") or ""),
-    ]
-    for row in surface.get("rows") or []:
-        for key in ("item", "hora", "descricao", "acao", "resolvido"):
-            value = row.get(key)
-            if value:
-                parts.append(str(value))
-    text = " ".join(p for p in parts if p)
-    return text.replace("[risc:", "").replace("]", "")
+    """Return the exact line-oriented text surface used during rendering."""
+    reference = syn.get("ocr_reference")
+    if not isinstance(reference, str) or not reference.strip():
+        raise ValueError("synthetic OCR reference is missing")
+    return reference
 
 
 def row_metrics(cur: dict[str, Any], normalized: NormalizedIncidentModel) -> dict[str, Any]:

@@ -146,8 +146,11 @@ def test_gt_shape_and_semantics(tmp_path: Path) -> None:
             "font",
             "messiness",
             "legibility",
+            "ocr_reference",
             "surface",
         }
+        assert syn["ocr_reference"].startswith("CONTROLE DE OCORRENCIAS\n")
+        assert syn["ocr_reference"].endswith("Ronda")
         assert syn["difficulty"] in {"clean", "scan", "photo"}
         assert (syn["band"] is None) == (syn["difficulty"] == "clean")
 

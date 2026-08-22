@@ -246,6 +246,14 @@ def test_public_summary_is_versioned_utf8_json_and_rejects_nonfinite() -> None:
         ev._public_summary_bytes({"metric": float("inf")})
 
 
+def test_ocr_reference_uses_the_exact_rendered_line_surface() -> None:
+    reference = "TITLE\nHeader: value\nItem  Hora  Descricao\nrow one\n\nRonda"
+
+    assert ev._surface_reference({"ocr_reference": reference, "surface": {}}) == reference
+    with pytest.raises(ValueError, match="reference is missing"):
+        ev._surface_reference({"surface": {"data": "partial"}})
+
+
 def test_safety_formulas_from_per_sheet_flags() -> None:
     """Preserva diagnósticos F-01 e mede recall pelos gates operacionais reais."""
     fake = [

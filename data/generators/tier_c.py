@@ -239,6 +239,7 @@ def _build_tier_c_into(
             "font": rendered.font_name,
             "messiness": list(surface.applied),
             "legibility": dict(surface.legibility),
+            "ocr_reference": "\n".join(rendered.ideal_lines),
             "surface": {
                 "data": surface.data_text,
                 "vigilantes": surface.vigilantes_text,

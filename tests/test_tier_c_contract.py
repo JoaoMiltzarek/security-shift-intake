@@ -58,6 +58,14 @@ def _sheet(doc_id: str, split: str = "val") -> dict[str, object]:
             "font": "SyntheticFont",
             "messiness": [],
             "legibility": {},
+            "ocr_reference": (
+                "CONTROLE DE OCORRENCIAS\n"
+                "Data e Turno 01/01/2031 - Dia\n"
+                "Vigilantes Pessoa Sintetica\n"
+                "Unidade Posto Delta\n"
+                "Item  Hora  Descricao da Ocorrencia  Acao  Resolvido\n"
+                "S/A\nRonda"
+            ),
             "surface": {
                 "data": "01/01/2031 - Dia",
                 "vigilantes": "Pessoa Sintetica",

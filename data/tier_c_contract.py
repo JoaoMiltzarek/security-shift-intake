@@ -242,11 +242,16 @@ class SyntheticProvenance(BaseModel):
     font: str
     messiness: list[str]
     legibility: dict[str, Literal["illegible"]]
+    ocr_reference: str
     surface: SyntheticSurface
 
     @model_validator(mode="after")
     def _coherent_render(self) -> SyntheticProvenance:
-        if not self.font.strip() or any(not operation.strip() for operation in self.messiness):
+        if (
+            not self.font.strip()
+            or not self.ocr_reference.strip()
+            or any(not operation.strip() for operation in self.messiness)
+        ):
             raise ValueError("render provenance strings must be non-blank")
         if self.difficulty == "clean" and self.band is not None:
             raise ValueError("clean render must not declare a degradation band")
