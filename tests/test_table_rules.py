@@ -121,7 +121,7 @@ def test_occurrence_sheet_is_not_no_occurrence() -> None:
     assert normalize(raw).no_occurrence is False
 
 
-# --- Contratos F1 (SSI-1005): falha estrutural NUNCA vira "sem ocorrência" ---
+# --- Falha estrutural nunca vira "sem ocorrência" -----------------------------
 
 # Folha com cabeçalho legível mas SEM a linha de header de coluna ("Item ... Descricao ...")
 # — o caso real em que o OCR perde a estrutura da tabela e some com as ocorrências.

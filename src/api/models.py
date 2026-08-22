@@ -35,7 +35,7 @@ class Draft(SQLModel, table=True):
     # Full PipelineState serialized as JSON (transcription, fields, classification,
     # recipients, draft, ...). The review screen reconstructs it from here.
     state_json: str
-    # Vínculo aprovação↔conteúdo (SSI-1006): toda edição incrementa `revision`; aprovar
+    # Vínculo aprovação↔conteúdo: toda edição incrementa `revision`; aprovar
     # estampa `approved_revision` + sha256 do state_json aprovado. O gate de envio exige
     # revisão E hash iguais — uma aprovação nunca vale para conteúdo que o revisor não viu.
     revision: int = Field(default=1)
@@ -71,7 +71,7 @@ class AuditEntry(SQLModel, table=True):
 
 
 class DraftRevision(SQLModel, table=True):
-    """Snapshot de UMA revisão do conteúdo de um draft (SSI-1008).
+    """Snapshot de UMA revisão do conteúdo de um draft.
 
     Gravado em toda criação/edição; nunca sobrescrito. Permite provar exatamente
     qual conteúdo cada aprovação/envio referenciou (via `approved_state_sha256`).

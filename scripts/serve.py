@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launcher oficial da UI de revisão — loopback only (SSI-1009 / finding F-08).
+"""Launcher oficial da UI de revisão — somente loopback porque v1 não autentica usuários.
 
 A API de revisão NÃO tem autenticação e `GET /drafts/{id}` devolve o estado
 completo (transcrição/PII). O único deploy suportado é single-operator em

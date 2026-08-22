@@ -220,7 +220,7 @@ def test_edit_requires_revision_and_hash_identity(
     assert malformed.status_code == 422
 
 
-# --- Contratos F1 (SSI-1005/F3): aprovação vinculada à revisão do conteúdo ---
+# --- Aprovação vinculada à revisão do conteúdo --------------------------------
 
 
 def test_approve_edit_simulation_is_blocked(

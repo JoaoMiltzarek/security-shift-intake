@@ -3,7 +3,7 @@
 Thin, explicit functions over a SQLModel Session. Every state-changing operation
 writes an audit row so the approval history is always reconstructable.
 
-Vínculo aprovação↔conteúdo (SSI-1006): o hash é SEMPRE calculado sobre o string
+Vínculo aprovação↔conteúdo: o hash é SEMPRE calculado sobre o string
 `state_json` exatamente como armazenado — nunca re-serializar o modelo em outro
 ponto do código, ou uma mudança de serialização do Pydantic invalidaria toda
 aprovação silenciosamente.

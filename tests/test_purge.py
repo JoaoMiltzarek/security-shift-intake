@@ -94,7 +94,7 @@ def test_main_all_mode_requires_confirm(
     assert (tmp_path / "curadoria").exists()
 
 
-# --- F6.1 (SSI-1009): o purge demo cobre TODAS as cópias transitórias com PII ---
+# --- O purge demo cobre todas as cópias transitórias com PII -------------------
 
 
 def test_main_demo_mode_removes_page_images_shm_and_debug(

@@ -1,4 +1,4 @@
-"""F9 (SSI-1012): active docs must distinguish v1 paths from prototypes."""
+"""Active documentation must distinguish supported v1 paths from prototypes."""
 
 from __future__ import annotations
 

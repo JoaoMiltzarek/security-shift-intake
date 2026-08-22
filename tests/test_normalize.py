@@ -126,7 +126,7 @@ def test_mixed_rows_only_real_occurrence_kept() -> None:
     assert m.no_occurrence is False
 
 
-# --- Contratos F1 (SSI-1005): disposição tri-state (unknown | none | present) ---
+# --- Disposição tri-state (unknown | none | present) ---------------------------
 # Regra: "none" exige evidência POSITIVA (linha S/A parseada); zero linhas sem S/A é
 # "unknown" (o parser pode ter perdido a tabela) e NUNCA vira "sem alteração" válido.
 

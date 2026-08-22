@@ -21,7 +21,7 @@ def _clean_report(**over: Any) -> dict[str, Any]:
     """A report where everything is healthy; override single fields per test."""
     report: dict[str, Any] = {
         "repo_root": "/repo",
-        "branch": "SSI-1002-hardening",
+        "branch": "hardening-test",
         "branch_ok": True,
         "expected_branch": None,
         "dirty_tree": {"clean": True, "untracked": [], "modified": [], "dangerous": []},

@@ -1,4 +1,4 @@
-"""F6.4 (SSI-1009): o launcher oficial serve a UI apenas em loopback.
+"""The official launcher serves the unauthenticated v1 UI only on loopback.
 
 A API não tem auth e o estado carrega PII — o entry point suportado recusa bind
 não-loopback sem bypass no perfil v1.

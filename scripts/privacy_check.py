@@ -43,7 +43,7 @@ _PRIVATE_DIR = "private"
 # Public text files scanned for PII. Extensions whose content is human-facing/committed.
 # Prosa: varredura completa, incluindo o heurístico de horário HH:MM.
 _PUBLIC_TEXT_EXT = {".md", ".yaml", ".yml", ".txt", ".rst"}
-# Código/dados commitáveis (SSI-1009/F-06): varridos por sentinela de org e termos reais
+# Código e dados commitáveis são varridos por sentinela de organização e termos reais
 # (pii_terms), mas SEM o heurístico HH:MM — fixtures sintéticas contêm horários legítimos
 # (limitação documentada em docs/PRIVACY.md).
 _PUBLIC_CODE_EXT = {".py", ".js", ".html", ".j2", ".json", ".jsonl", ".csv", ".toml"}

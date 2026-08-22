@@ -95,7 +95,7 @@ def test_normalized_with_occurrence() -> None:
     assert m.occurrences[0].needs_review is True
 
 
-# --- Contratos F2.A1 (SSI-1005): disposição segura e compatibilidade legada ---
+# --- Disposição segura e compatibilidade legada -------------------------------
 
 
 def test_normalized_defaults_to_safe_unknown() -> None:

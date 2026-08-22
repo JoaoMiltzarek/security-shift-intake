@@ -16,7 +16,7 @@ from scripts.evidence_report import SCREENSHOT, render_report
 
 def test_render_tolerates_missing_inputs() -> None:
     md = render_report(
-        branch="SSI-1002-hardening",
+        branch="hardening-test",
         parent_sha="abc123",
         tree_hash="def456",
         authoritative_sha=None,

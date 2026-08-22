@@ -162,7 +162,7 @@ def test_audit_records_actor_and_detail(session: Session) -> None:
     assert entry.detail == "looks ok"
 
 
-# --- F5 (SSI-1008): snapshot por revisão — provar o que foi aprovado/enviado ---
+# --- Snapshot por revisão prova exatamente o que foi aprovado ou simulado ------
 
 
 def test_every_revision_snapshot_is_preserved(session: Session) -> None:
@@ -211,7 +211,7 @@ def test_approved_hash_matches_a_preserved_revision(session: Session) -> None:
     assert approved.approved_state_sha256 in hashes  # aprovação sempre prova o conteúdo
 
 
-# --- F3.B1 (SSI-1006): revisão do draft + migração de DB legado ---
+# --- Revisão do draft e migração do banco legado -------------------------------
 
 
 def test_database_rejects_duplicate_revision_numbers(session: Session) -> None:
@@ -422,7 +422,7 @@ def test_sent_draft_rejects_later_status_changes(session: Session, status: Appro
     assert get_audit(session, draft.id)[-1].action == "status_blocked"
 
 
-# --- SSI-1015: mutation + snapshot + audit are one transaction -----------------
+# --- Mutation, snapshot, and audit are one transaction -------------------------
 
 
 def _fail_audit_action(monkeypatch: pytest.MonkeyPatch, action_to_fail: str) -> None:

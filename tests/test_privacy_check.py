@@ -349,7 +349,7 @@ def test_untrusted_dataset_text_is_scanned(tmp_path: Path) -> None:
     assert check_public_no_pii(tmp_path)
 
 
-# --- F6.2 (SSI-1009): formatos de código/dados públicos também são varridos ---
+# --- Formatos públicos de código e dados também são varridos -------------------
 
 
 @pytest.mark.parametrize(

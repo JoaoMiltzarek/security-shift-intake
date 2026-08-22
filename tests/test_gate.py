@@ -142,7 +142,7 @@ def test_simulate_missing_draft_raises(session: Session) -> None:
         simulate_draft(session, 999, MemorySimulationRecorder(), actor="r")
 
 
-# --- F3.B3 (SSI-1006): o envio é do CONTEÚDO aprovado, não só do status ---
+# --- O envio usa o conteúdo aprovado, não apenas o status ----------------------
 
 
 def test_hash_tampered_state_cannot_be_simulated(session: Session) -> None:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preflight environment probe for the SSI-1002 stabilization protocol (stdlib only).
+"""Preflight environment probe for the repository quality gates (stdlib only).
 
 Runs under a plain ``python3`` — **no** ``uv``, **no** third-party imports — because its
 job is precisely to detect a broken/absent venv or a missing ``uv``. A tool must never

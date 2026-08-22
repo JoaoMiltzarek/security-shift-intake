@@ -200,7 +200,7 @@ def test_default_tesseract_temp_creates_validated_nested_directory(
     assert isolated.is_dir()
 
 
-# --- Contrato F1 (SSI-1005): integração REAL — Tesseract sobre folha sintética ---
+# --- Integração real: Tesseract sobre folha sintética --------------------------
 # Propriedade de segurança leitor-independente: uma folha renderizada COM ocorrências,
 # lida pelo Tesseract REAL e passada pelo caminho de produção (extract → normalize),
 # NUNCA pode afirmar "sem ocorrência" (disposition "none"). Pós-F2 vale para qualquer
