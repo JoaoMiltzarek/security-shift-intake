@@ -245,6 +245,30 @@ def test_unknown_nested_keys_are_rejected(
         load_config(_write_yaml(tmp_path, "bad.yaml", bad))
 
 
+@pytest.mark.parametrize(
+    "duplicate",
+    [
+        "report_type: test_report\nreport_type: shadowed\n",
+        "- name: guard_name\n  name: shadowed\n",
+        "    urgency: high\n    urgency: low\n",
+    ],
+    ids=["top-level", "sequence-member", "nested-condition"],
+)
+def test_duplicate_yaml_keys_are_rejected(tmp_path: Path, duplicate: str) -> None:
+    rendered = yaml.safe_dump(VALID_CONFIG, sort_keys=False)
+    if duplicate.startswith("report_type"):
+        rendered = rendered.replace("report_type: test_report\n", duplicate, 1)
+    elif duplicate.startswith("- name"):
+        rendered = rendered.replace("- name: guard_name\n", duplicate, 1)
+    else:
+        rendered = rendered.replace("    urgency: high\n", duplicate, 1)
+    path = tmp_path / "duplicate.yaml"
+    path.write_text(rendered, encoding="utf-8")
+
+    with pytest.raises(yaml.YAMLError, match="duplicate key"):
+        load_config(path)
+
+
 def test_empty_label_set_raises(tmp_path: Path) -> None:
     bad = dict(VALID_CONFIG)
     bad["classification"] = {
