@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -27,8 +28,8 @@ from scripts.check_real_data import (
     _BINARY_EXT,
     _DB_EXT,
     _SYNTHETIC_SUBPATH,
-    _has_subpath,
     _is_allowed_sample_binary,
+    _is_root_subpath,
     _is_text_scan_exempt,
 )
 from src.paths import PRIVATE_ROOT, REPO_ROOT
@@ -53,11 +54,13 @@ _PUBLIC_TEXT_EXT = {".md", ".yaml", ".yml", ".txt", ".rst"}
 # (limitação documentada em docs/PRIVACY.md).
 _PUBLIC_CODE_EXT = {".py", ".js", ".html", ".j2", ".json", ".jsonl", ".csv", ".toml"}
 
-# Árvores sintéticas POR CONTRATO (geradores + splits congelados + fixtures de teste):
-# o vocabulário de domínio colide com termos privados por design (ex.: o nome de uma
-# unidade impresso na própria folha), então pii_terms não se aplica a código/dados aqui.
-# A sentinela org continua valendo (em .json/.jsonl/.csv, como no pre-commit guard).
-_SYNTHETIC_TREES = ("data", "tests")
+# Exact repository-root subtrees whose generated vocabulary may collide with private
+# terms. Tests and arbitrary data/ paths are intentionally not exempt.
+_SYNTHETIC_TEXT_SUBPATHS = (
+    ("data", "generators"),
+    ("data", "manifests"),
+    _SYNTHETIC_SUBPATH,
+)
 
 # Optional, gitignored file with real terms (names, units) to scan public outputs for.
 _PII_TERMS_FILE = PRIVATE_ROOT / "pii_terms.txt"
@@ -89,6 +92,17 @@ def _is_root_directory(path: Path, name: str) -> bool:
 def _is_bressay_root(path: Path) -> bool:
     """Allow only the repository-root datasets/bressay subtree, never nested aliases."""
     return path.parts[: len(_BRESSAY_SUBPATH)] == _BRESSAY_SUBPATH
+
+
+def _is_redirected(path: Path) -> bool:
+    """Detect symlinks and Windows reparse points without following them."""
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    return path.is_symlink() or bool(attributes & reparse_flag)
 
 
 def _load_extra_terms() -> list[re.Pattern[str]]:
@@ -162,6 +176,9 @@ def _iter_tree(root: Path) -> list[Path]:
     for directory, dirnames, filenames in os.walk(root, topdown=True):
         dirnames[:] = [name for name in dirnames if name not in _SKIP_DIRS]
         current = Path(directory)
+        redirected_directories = [name for name in dirnames if _is_redirected(current / name)]
+        files.extend(current / name for name in redirected_directories)
+        dirnames[:] = [name for name in dirnames if name not in redirected_directories]
         files.extend(current / name for name in filenames)
     return files
 
@@ -175,7 +192,12 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _is_root_directory(rel, _PRIVATE_DIR) or _has_subpath(rel, _SYNTHETIC_SUBPATH):
+        if _is_root_directory(rel, _PRIVATE_DIR):
+            continue
+        if _is_redirected(p):
+            violations.append(f"  redirected public path: {rel}")
+            continue
+        if _is_root_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
         if _is_bressay_root(rel):
             continue
@@ -199,6 +221,9 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_root_directory(rel, _PRIVATE_DIR):
             continue
+        if _is_redirected(p):
+            violations.append(f"  redirected public path: {rel}")
+            continue
         if _is_bressay_root(rel):
             continue
         suffix = p.suffix.lower()
@@ -207,7 +232,7 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
             include_times = True
         elif suffix in _PUBLIC_CODE_EXT:
             include_times = False  # horários são legítimos em fixtures sintéticas
-            if rel.parts and rel.parts[0] in _SYNTHETIC_TREES:
+            if any(_is_root_subpath(rel, parts) for parts in _SYNTHETIC_TEXT_SUBPATHS):
                 terms = []  # vocabulário sintético colide com termos privados por design
         else:
             continue

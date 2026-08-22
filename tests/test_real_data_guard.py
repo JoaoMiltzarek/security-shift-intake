@@ -156,12 +156,27 @@ def test_yaml_config_with_org_name_passes(tmp_path: Path) -> None:
     assert check_file(f) == []
 
 
-def test_synthetic_jsonl_with_slug_passes(tmp_path: Path) -> None:
+def test_root_synthetic_jsonl_with_org_name_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     f = _write(
-        tmp_path / "data" / "synthetic" / "records.jsonl",
-        '{"report_type": "htmicron_security_shift"}\n',
+        Path("data/synthetic/records.jsonl"),
+        '{"organization": "HT Micron"}\n',
     )
     assert check_file(f) == []
+
+
+def test_nested_synthetic_named_directory_is_not_exempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    f = _write(
+        Path("archive/data/synthetic/records.jsonl"),
+        '{"organization": "HT Micron"}\n',
+    )
+
+    assert check_file(f)
 
 
 # ---------------------------------------------------------------------------

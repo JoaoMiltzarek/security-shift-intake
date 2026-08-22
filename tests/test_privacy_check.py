@@ -168,6 +168,43 @@ def test_db_inside_private_ok(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
+def test_root_synthetic_binary_is_exempt(tmp_path: Path) -> None:
+    _write(tmp_path / "data" / "synthetic" / "generated.png", "synthetic")
+
+    assert check_no_sensitive_outside_private(tmp_path) == []
+
+
+def test_nested_synthetic_named_directory_is_not_exempt(tmp_path: Path) -> None:
+    _write(tmp_path / "archive" / "data" / "synthetic" / "leak.png", "sensitive")
+
+    assert check_no_sensitive_outside_private(tmp_path)
+
+
+def test_redirected_synthetic_path_fails_closed_portably(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    path = _write(tmp_path / "data" / "synthetic" / "generated.png", "synthetic")
+    monkeypatch.setattr(pc, "_is_redirected", lambda candidate: candidate == path)
+
+    assert "redirected public path" in "\n".join(pc.check_no_sensitive_outside_private(tmp_path))
+
+
+def test_synthetic_directory_symlink_is_never_exempt(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    _write(outside / "leak.png", "sensitive")
+    link = tmp_path / "data" / "synthetic"
+    link.parent.mkdir()
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("directory symlinks are unavailable on this platform")
+
+    assert "redirected public path" in "\n".join(check_no_sensitive_outside_private(tmp_path))
+
+
 # --- check_no_sensitive_tracked ---------------------------------------------
 # _tracked_files() shells to `git ls-files`; stub it so the check is exercised
 # hermetically on a synthetic path list.
@@ -363,12 +400,9 @@ def test_code_formats_ignore_clock_times(tmp_path: Path) -> None:
     assert check_public_no_pii(tmp_path) == []
 
 
-def test_synthetic_trees_exempt_from_private_terms_in_code(
+def test_only_contracted_synthetic_subtrees_are_exempt_from_private_terms(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """data/ e tests/ são sintéticos por contrato: o vocabulário do domínio colide com
-    termos privados por design (ex.: nome de unidade impresso na folha) — pii_terms não
-    se aplica a código/dados dessas árvores."""
     import re
 
     import scripts.privacy_check as pc
@@ -377,8 +411,23 @@ def test_synthetic_trees_exempt_from_private_terms_in_code(
         pc, "_load_extra_terms", lambda: [re.compile("NOMEREALTESTE", re.IGNORECASE)]
     )
     _write(tmp_path / "data" / "generators" / "vocab.py", "x = 'NOMEREALTESTE'")
-    _write(tmp_path / "tests" / "test_y.py", "y = 'NOMEREALTESTE'")
     assert pc.check_public_no_pii(tmp_path) == []
+
+
+@pytest.mark.parametrize("relpath", ["data/out.json", "tests/test_y.py"])
+def test_arbitrary_data_and_tests_are_not_synthetic_term_exempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relpath: str
+) -> None:
+    import re
+
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(
+        pc, "_load_extra_terms", lambda: [re.compile("NOMEREALTESTE", re.IGNORECASE)]
+    )
+    _write(tmp_path / relpath, "value = 'NOMEREALTESTE'")
+
+    assert pc.check_public_no_pii(tmp_path)
 
 
 def test_org_sentinel_still_applies_to_data_artifacts(tmp_path: Path) -> None:

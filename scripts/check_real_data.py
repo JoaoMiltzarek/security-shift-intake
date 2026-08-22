@@ -82,11 +82,9 @@ _ALLOWED_SAMPLE_SHA256: dict[Path, str] = {
 }
 
 
-def _has_subpath(path: Path, parts: tuple[str, ...]) -> bool:
-    """True if *parts* appears as a contiguous run in path.parts."""
-    p = path.parts
-    n = len(parts)
-    return any(p[i : i + n] == parts for i in range(len(p) - n + 1))
+def _is_root_subpath(path: Path, parts: tuple[str, ...]) -> bool:
+    """True only when *parts* anchors the repository-relative path."""
+    return path.parts[: len(parts)] == parts
 
 
 def _file_sha256(path: Path) -> str | None:
@@ -129,7 +127,7 @@ def _is_text_scan_exempt(path: Path) -> bool:
         return True
     if path.name in _SOURCE_DOC_EXT:  # e.g. ".gitignore" has no suffix
         return True
-    return _has_subpath(path, _SYNTHETIC_SUBPATH)
+    return _is_root_subpath(path, _SYNTHETIC_SUBPATH)
 
 
 def _logical_path(path: Path) -> Path:
