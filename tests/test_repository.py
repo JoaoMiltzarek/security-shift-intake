@@ -24,6 +24,7 @@ from src.api.repository import (
     list_draft_page,
     list_drafts,
     set_status,
+    state_sha256,
 )
 from src.schema.extraction import NormalizedIncidentModel, NormalizedShift
 from src.schema.loader import config_fingerprint, load_config
@@ -43,7 +44,16 @@ def simulate_draft(
     recorder: SimulationRecorder,
     actor: str,
 ) -> Draft:
-    return _simulate_draft(session, draft_id, recorder, CONFIG, actor=actor)
+    draft = get_draft(session, draft_id)
+    return _simulate_draft(
+        session,
+        draft_id,
+        recorder,
+        CONFIG,
+        actor=actor,
+        expected_revision=draft.revision if draft is not None else 1,
+        expected_state_sha256=(state_sha256(draft.state_json) if draft is not None else "0" * 64),
+    )
 
 
 @pytest.fixture

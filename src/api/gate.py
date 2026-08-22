@@ -131,9 +131,11 @@ def simulate_draft(
     config: ReportConfig,
     actor: str = "reviewer",
     *,
+    expected_revision: int,
+    expected_state_sha256: str,
     page_root: Path | None = None,
 ) -> Draft:
-    """Serialize and record one terminal simulation for an approved snapshot."""
+    """Serialize and record only the approved snapshot requested by the reviewer."""
     with draft_operation_lock(session, draft_id, wait=True):
         session.expire_all()
         return _simulate_draft_once(
@@ -142,6 +144,8 @@ def simulate_draft(
             recorder,
             config,
             actor,
+            expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
             page_root=page_root,
         )
 
@@ -153,11 +157,30 @@ def _simulate_draft_once(
     config: ReportConfig,
     actor: str,
     *,
+    expected_revision: int,
+    expected_state_sha256: str,
     page_root: Path | None,
 ) -> Draft:
     draft = get_draft(session, draft_id)
     if draft is None:
         raise KeyError(f"Draft {draft_id} not found")
+
+    digest = state_sha256(draft.state_json)
+    if draft.revision != expected_revision or not hmac.compare_digest(
+        digest, expected_state_sha256
+    ):
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="simulation_blocked",
+            detail=(
+                f"snapshot_changed expected_rev={expected_revision} current_rev={draft.revision}"
+            ),
+        )
+        raise DraftNotApprovedError(
+            "Draft changed after this review page was loaded. Reload before continuing."
+        )
 
     if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(
@@ -182,7 +205,6 @@ def _simulate_draft_once(
         )
 
     state = PipelineState.from_persisted_json(draft.state_json)
-    digest = state_sha256(draft.state_json)
     readiness = evaluate_readiness(
         state,
         config,

@@ -43,7 +43,18 @@ def simulate_draft(
     recorder: SimulationRecorder,
     actor: str,
 ) -> Draft:
-    return _simulate_draft(session, draft_id, recorder, CONFIG, actor=actor)
+    draft = repository.get_draft(session, draft_id)
+    return _simulate_draft(
+        session,
+        draft_id,
+        recorder,
+        CONFIG,
+        actor=actor,
+        expected_revision=draft.revision if draft is not None else 1,
+        expected_state_sha256=(
+            repository.state_sha256(draft.state_json) if draft is not None else "0" * 64
+        ),
+    )
 
 
 @pytest.fixture
@@ -216,6 +227,36 @@ def test_simulation_reruns_assert_reviewable_on_current_state(session: Session) 
     recorder = MemorySimulationRecorder()
     with pytest.raises(DraftNotApprovedError):
         simulate_draft(session, draft.id, recorder, actor="r")
+    assert recorder.call_count == 0
+
+
+def test_simulation_rejects_a_superseded_requested_snapshot(session: Session) -> None:
+    original = create_draft(session, _state())
+    assert original.id is not None
+    approved = set_status(session, original.id, ApprovalStatus.APPROVED, actor="r")
+    requested_revision = approved.revision
+    requested_sha256 = repository.state_sha256(approved.state_json)
+
+    replacement = _state().model_copy(update={"transcription": "new reviewed snapshot"})
+    edited = repository.update_state(session, original.id, replacement, actor="editor")
+    set_status(session, original.id, ApprovalStatus.APPROVED, actor="r")
+    recorder = MemorySimulationRecorder()
+
+    with pytest.raises(DraftNotApprovedError, match="changed after this review page"):
+        _simulate_draft(
+            session,
+            original.id,
+            recorder,
+            CONFIG,
+            actor="r",
+            expected_revision=requested_revision,
+            expected_state_sha256=requested_sha256,
+        )
+
+    current = repository.get_draft(session, original.id)
+    assert current is not None
+    assert current.revision == edited.revision
+    assert current.status == ApprovalStatus.APPROVED
     assert recorder.call_count == 0
 
 

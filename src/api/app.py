@@ -1066,6 +1066,8 @@ def create_app(
                 active_recorder,
                 active_config,
                 actor=_LOCAL_ACTOR,
+                expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
                 page_root=active_page_root,
             )
         except KeyError as exc:
@@ -1332,6 +1334,8 @@ def create_app(
                 active_recorder,
                 active_config,
                 actor=_LOCAL_ACTOR,
+                expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
                 page_root=active_page_root,
             )
             return _status_panel(
