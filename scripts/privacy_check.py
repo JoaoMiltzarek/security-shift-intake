@@ -31,6 +31,15 @@ from scripts.check_real_data import (
     _is_allowed_sample_binary,
     _is_root_subpath,
     _is_text_scan_exempt,
+    check_staged,
+)
+from scripts.privacy_policy import (
+    AuthenticatedSafetyCorpus,
+    CorpusPrivacyError,
+    authenticate_index_safety_corpus,
+    authenticate_worktree_safety_corpus,
+    corpus_path_exists,
+    is_safety_corpus_path,
 )
 from src.paths import PRIVATE_ROOT, REPO_ROOT
 
@@ -159,6 +168,31 @@ def _tracked_files() -> list[Path]:
     return [Path(p) for p in out.splitlines() if p.strip()]
 
 
+def _authenticated_member(
+    authenticated: AuthenticatedSafetyCorpus | None,
+    relative: Path,
+    physical: Path,
+) -> bool:
+    if authenticated is None or relative not in authenticated.members:
+        return False
+    try:
+        content = physical.read_bytes()
+    except OSError:
+        return False
+    return authenticated.accepts(relative, content)
+
+
+def _authenticate_worktree_if_present(
+    root: Path,
+) -> tuple[AuthenticatedSafetyCorpus | None, list[str]]:
+    if not corpus_path_exists(root):
+        return None, []
+    try:
+        return authenticate_worktree_safety_corpus(root), []
+    except CorpusPrivacyError:
+        return None, ["  canonical safety corpus could not be authenticated"]
+
+
 def check_no_sensitive_tracked() -> list[str]:
     """(1) No git-tracked file has a sensitive binary/DB extension (except sample images).
 
@@ -167,10 +201,21 @@ def check_no_sensitive_tracked() -> list[str]:
     DB test lives here, unconditional on path, not only in the outside-private scan.
     """
     violations: list[str] = []
-    for path in _tracked_files():
+    tracked = _tracked_files()
+    authenticated: AuthenticatedSafetyCorpus | None = None
+    if any(is_safety_corpus_path(path) for path in tracked):
+        try:
+            authenticated = authenticate_index_safety_corpus(REPO_ROOT)
+        except CorpusPrivacyError:
+            violations.append("  tracked safety corpus could not be authenticated")
+    for path in tracked:
         if _DB_EXT.search(path.name):
             violations.append(f"  tracked database: {path}")
-        if _BINARY_EXT.search(path.name) and not _is_allowed_sample_binary(path):
+        if (
+            _BINARY_EXT.search(path.name)
+            and not _is_allowed_sample_binary(path)
+            and not _authenticated_member(authenticated, path, REPO_ROOT / path)
+        ):
             violations.append(f"  tracked sensitive file: {path}")
     return violations
 
@@ -204,7 +249,7 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
     Allowed: synthetic sample images under samples/ and generated synthetic artifacts
     under data/synthetic/ (both synthetic by construction, the latter gitignored).
     """
-    violations: list[str] = []
+    authenticated, violations = _authenticate_worktree_if_present(root)
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
         if _is_redirected(p):
@@ -216,8 +261,10 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
             continue
         if _DB_EXT.search(p.name):
             violations.append(f"  database outside {_PRIVATE_DIR}/: {rel}")
-        if _BINARY_EXT.search(p.name) and not _is_allowed_sample_binary(
-            p, repository_relative_path=rel
+        if (
+            _BINARY_EXT.search(p.name)
+            and not _is_allowed_sample_binary(p, repository_relative_path=rel)
+            and not _authenticated_member(authenticated, rel, p)
         ):
             violations.append(f"  sensitive file outside {_PRIVATE_DIR}/: {rel}")
     return violations
@@ -225,7 +272,7 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
 
 def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
     """(3) No committable public text file contains obvious PII."""
-    violations: list[str] = []
+    authenticated, violations = _authenticate_worktree_if_present(root)
     try:
         extra = _load_extra_terms()
         synthetic_collisions = _synthetic_term_collisions(root, extra)
@@ -258,6 +305,8 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
         except UnicodeError:
             violations.append(f"  {rel}: public text is not valid UTF-8")
             continue
+        if _authenticated_member(authenticated, rel, p):
+            terms = []
         # Source/docs/config legitimately name the org (it is the project's subject);
         # exempt them from the org sentinel exactly like the pre-commit guard does.
         include_org = not _is_text_scan_exempt(rel)
@@ -270,7 +319,8 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
 
 def run_all(root: Path = REPO_ROOT) -> list[str]:
     return (
-        check_no_sensitive_tracked()
+        check_staged(root)
+        + check_no_sensitive_tracked()
         + check_no_sensitive_outside_private(root)
         + check_public_no_pii(root)
     )

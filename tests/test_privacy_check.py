@@ -6,6 +6,7 @@ is exercised indirectly via the pure helpers on tmp trees (no git state needed).
 
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,11 @@ from scripts.privacy_check import (
     check_no_sensitive_outside_private,
     check_public_no_pii,
     scan_text_for_pii,
+)
+from scripts.privacy_policy import (
+    SAFETY_CORPUS_RELATIVE,
+    AuthenticatedSafetyCorpus,
+    CorpusPrivacyError,
 )
 
 
@@ -211,6 +217,66 @@ def test_redirected_synthetic_path_fails_closed_portably(
     assert "redirected public path" in "\n".join(pc.check_no_sensitive_outside_private(tmp_path))
 
 
+def test_authenticated_canonical_corpus_binary_is_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    relative = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    content = b"authenticated synthetic PNG"
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_bytes(content)
+    authenticated = AuthenticatedSafetyCorpus({relative: sha256(content).hexdigest()})
+    monkeypatch.setattr(pc, "authenticate_worktree_safety_corpus", lambda _root: authenticated)
+
+    assert pc.check_no_sensitive_outside_private(tmp_path) == []
+
+
+def test_invalid_canonical_corpus_remains_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    relative = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"untrusted PNG")
+
+    def reject(_root: Path) -> AuthenticatedSafetyCorpus:
+        raise CorpusPrivacyError("partial corpus")
+
+    monkeypatch.setattr(pc, "authenticate_worktree_safety_corpus", reject)
+
+    violations = pc.check_no_sensitive_outside_private(tmp_path)
+
+    assert any("could not be authenticated" in violation for violation in violations)
+    assert any("sensitive file outside" in violation for violation in violations)
+
+
+def test_authenticated_corpus_does_not_exempt_extra_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    allowed = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    extra = SAFETY_CORPUS_RELATIVE / "pngs" / "extra.png"
+    allowed_content = b"authenticated synthetic PNG"
+    for relative, content in ((allowed, allowed_content), (extra, b"extra")):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    authenticated = AuthenticatedSafetyCorpus({allowed: sha256(allowed_content).hexdigest()})
+    monkeypatch.setattr(pc, "authenticate_worktree_safety_corpus", lambda _root: authenticated)
+
+    violations = pc.check_no_sensitive_outside_private(tmp_path)
+
+    assert (
+        len([violation for violation in violations if "sensitive file outside" in violation]) == 1
+    )
+    assert str(extra) in "\n".join(violations)
+
+
 def test_synthetic_directory_symlink_is_never_exempt(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -253,6 +319,43 @@ def test_tracked_source_files_ok(monkeypatch) -> None:  # type: ignore[no-untype
     assert pc.check_no_sensitive_tracked() == []
 
 
+def test_tracked_corpus_binary_requires_matching_authenticated_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    relative = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    content = b"authenticated synthetic PNG"
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_bytes(content)
+    authenticated = AuthenticatedSafetyCorpus({relative: sha256(content).hexdigest()})
+    monkeypatch.setattr(pc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(pc, "_tracked_files", lambda: [relative])
+    monkeypatch.setattr(pc, "authenticate_index_safety_corpus", lambda _root: authenticated)
+
+    assert pc.check_no_sensitive_tracked() == []
+
+
+def test_tracked_corpus_authentication_failure_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.privacy_check as pc
+
+    relative = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
+    monkeypatch.setattr(pc, "_tracked_files", lambda: [relative])
+
+    def reject(_root: Path) -> AuthenticatedSafetyCorpus:
+        raise CorpusPrivacyError("pin mismatch")
+
+    monkeypatch.setattr(pc, "authenticate_index_safety_corpus", reject)
+
+    violations = pc.check_no_sensitive_tracked()
+
+    assert any("could not be authenticated" in violation for violation in violations)
+    assert any("tracked sensitive file" in violation for violation in violations)
+
+
 def test_default_privacy_scan_and_private_terms_are_repo_anchored(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -260,22 +363,39 @@ def test_default_privacy_scan_and_private_terms_are_repo_anchored(
     from src.paths import PRIVATE_ROOT, REPO_ROOT
 
     observed_roots: list[Path] = []
+    staged_roots: list[Path] = []
+
+    def observe_staged(root: Path) -> list[str]:
+        staged_roots.append(root)
+        return []
+
+    def observe_public(root: Path) -> list[str]:
+        observed_roots.append(root)
+        return []
+
+    monkeypatch.setattr(pc, "check_staged", observe_staged)
     monkeypatch.setattr(pc, "check_no_sensitive_tracked", lambda: [])
-    monkeypatch.setattr(
-        pc,
-        "check_no_sensitive_outside_private",
-        lambda root: observed_roots.append(root) or [],
-    )
-    monkeypatch.setattr(
-        pc,
-        "check_public_no_pii",
-        lambda root: observed_roots.append(root) or [],
-    )
+    monkeypatch.setattr(pc, "check_no_sensitive_outside_private", observe_public)
+    monkeypatch.setattr(pc, "check_public_no_pii", observe_public)
     monkeypatch.chdir(tmp_path)
 
     assert pc.run_all() == []
     assert observed_roots == [REPO_ROOT, REPO_ROOT]
+    assert staged_roots == [REPO_ROOT]
     assert pc._PII_TERMS_FILE == PRIVATE_ROOT / "pii_terms.txt"
+
+
+def test_full_privacy_gate_preserves_staged_guard_findings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.privacy_check as pc
+
+    monkeypatch.setattr(pc, "check_staged", lambda _root: ["  staged finding"])
+    monkeypatch.setattr(pc, "check_no_sensitive_tracked", lambda: [])
+    monkeypatch.setattr(pc, "check_no_sensitive_outside_private", lambda _root: [])
+    monkeypatch.setattr(pc, "check_public_no_pii", lambda _root: [])
+
+    assert pc.run_all() == ["  staged finding"]
 
 
 def test_tracked_showcase_gif_is_allowed_only_at_repo_root(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -318,10 +438,14 @@ def test_unreadable_public_text_fails_closed(
     path = _write(tmp_path / "docs" / "report.md", "clean\n")
     original = Path.read_text
 
-    def read_text(candidate: Path, *args: object, **kwargs: object) -> str:
+    def read_text(
+        candidate: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
         if candidate == path:
             raise PermissionError("denied")
-        return original(candidate, *args, **kwargs)
+        return original(candidate, encoding=encoding, errors=errors)
 
     monkeypatch.setattr(Path, "read_text", read_text)
     monkeypatch.setattr(pc, "_load_extra_terms", lambda: [])
@@ -399,6 +523,54 @@ def test_public_code_formats_scanned_for_private_terms(
     )
     _write(tmp_path / relpath, "valor com NOMEREALTESTE dentro")
     assert pc.check_public_no_pii(tmp_path)
+
+
+def test_authenticated_corpus_text_uses_narrow_synthetic_term_exemption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import re
+
+    import scripts.privacy_check as pc
+
+    relative = SAFETY_CORPUS_RELATIVE / "gt" / "tc-000000.json"
+    content = b'{"guard":"SYNTHETIC_COLLISION"}\n'
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_bytes(content)
+    pattern = re.compile("SYNTHETIC_COLLISION", re.IGNORECASE)
+    authenticated = AuthenticatedSafetyCorpus({relative: sha256(content).hexdigest()})
+    monkeypatch.setattr(pc, "_load_extra_terms", lambda: [pattern])
+    monkeypatch.setattr(pc, "authenticate_worktree_safety_corpus", lambda _root: authenticated)
+
+    assert pc.check_public_no_pii(tmp_path) == []
+
+
+def test_authenticated_corpus_does_not_exempt_extra_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import re
+
+    import scripts.privacy_check as pc
+
+    allowed = SAFETY_CORPUS_RELATIVE / "gt" / "tc-000000.json"
+    extra = SAFETY_CORPUS_RELATIVE / "gt" / "extra.json"
+    allowed_content = b'{"guard":"synthetic"}\n'
+    for relative, content in (
+        (allowed, allowed_content),
+        (extra, b'{"guard":"NOMEREALTESTE"}\n'),
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    authenticated = AuthenticatedSafetyCorpus({allowed: sha256(allowed_content).hexdigest()})
+    monkeypatch.setattr(
+        pc,
+        "_load_extra_terms",
+        lambda: [re.compile("NOMEREALTESTE", re.IGNORECASE)],
+    )
+    monkeypatch.setattr(pc, "authenticate_worktree_safety_corpus", lambda _root: authenticated)
+
+    assert "private-term" in "\n".join(pc.check_public_no_pii(tmp_path))
 
 
 def test_code_formats_ignore_clock_times(tmp_path: Path) -> None:
