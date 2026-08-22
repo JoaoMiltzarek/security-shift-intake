@@ -1,0 +1,75 @@
+name: Build v1.1 safety corpus
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-safety-corpus-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: "1"
+  TZ: UTC
+  UV_VERSION: "0.11.28"
+
+jobs:
+  build:
+    name: canonical Ubuntu 24.04 corpus
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout the measured commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned OCR reference packages
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install -y --no-install-recommends
+          tesseract-ocr=5.3.4-1build5
+          tesseract-ocr-por=1:4.1.0-2
+
+      - name: Verify the OCR package identities
+        run: |
+          set -euo pipefail
+          test "$(dpkg-query -W -f='${Version}' tesseract-ocr)" = "5.3.4-1build5"
+          test "$(dpkg-query -W -f='${Version}' tesseract-ocr-por)" = "1:4.1.0-2"
+          tesseract --version
+          tesseract --list-langs | tee /tmp/tesseract-langs.txt
+          grep -qx por /tmp/tesseract-langs.txt
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python 3.11.15
+        run: uv python install 3.11.15
+
+      - name: Sync the exact locked environment
+        run: uv sync --locked --python 3.11.15
+
+      - name: Verify the generator runtime
+        run: |
+          set -euo pipefail
+          test "$(uv --version)" = "uv ${UV_VERSION}"
+          uv run --locked --python 3.11.15 python -c \
+            "import sys; assert sys.version_info[:3] == (3, 11, 15)"
+
+      - name: Build and authenticate the corpus
+        run: >-
+          uv run --locked --python 3.11.15 python -m scripts.build_safety_corpus
+          --output /tmp/security-shift-intake-v1.1-safety-corpus
+
+      - name: Upload the canonical corpus checkpoint
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: security-shift-intake-v1.1-safety-corpus-${{ github.sha }}
+          path: /tmp/security-shift-intake-v1.1-safety-corpus/
+          if-no-files-found: error
+          retention-days: 14
