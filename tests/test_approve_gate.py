@@ -217,3 +217,37 @@ def test_failed_ocr_draft_cannot_be_approved_or_sent(client: TestClient) -> None
         client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id)).status_code
         == 409
     )
+
+
+@pytest.mark.parametrize("mutation", ["changed", "deleted"])
+def test_changed_page_artifact_blocks_approval(tmp_path: Path, mutation: str) -> None:
+    app = create_app(
+        engine=make_engine("sqlite://"),
+        simulation_recorder=MemorySimulationRecorder(),
+        config=_TABLE_CONFIG,
+        page_images_root=tmp_path,
+        enable_test_state_submission=True,
+    )
+    with TestClient(app) as client:
+        draft_id = client.post("/drafts", json=_CLEAN_BODY).json()["id"]
+        detail = client.get(f"/drafts/{draft_id}").json()
+        page_path = tmp_path / detail["state"]["page_artifacts"][0]["storage_key"]
+        if mutation == "changed":
+            page_path.write_bytes(page_path.read_bytes() + b"changed")
+        else:
+            page_path.unlink()
+
+        detail = client.get(f"/drafts/{draft_id}").json()
+        assert detail["readiness"]["approvable"] is False
+        assert "evidence_changed" in {
+            blocker["code"] for blocker in detail["readiness"]["blockers"]
+        }
+        response = client.post(
+            f"/drafts/{draft_id}/approve",
+            params={
+                "expected_revision": detail["revision"],
+                "expected_state_sha256": detail["state_sha256"],
+            },
+        )
+        assert response.status_code == 409
+        assert "page artifact" in response.json()["detail"].lower()
