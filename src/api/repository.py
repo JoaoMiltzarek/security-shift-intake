@@ -12,6 +12,7 @@ aprovação silenciosamente.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -315,7 +316,10 @@ def set_status(
     actor: str,
     *,
     expected_revision: int | None = None,
+    expected_state_sha256: str | None = None,
 ) -> Draft:
+    if (expected_revision is None) != (expected_state_sha256 is None):
+        raise ValueError("expected revision and state hash must be provided together")
     with draft_operation_lock(session, draft_id, wait=False):
         session.expire_all()
         return _set_status_locked(
@@ -324,6 +328,7 @@ def set_status(
             status,
             actor,
             expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
         )
 
 
@@ -334,6 +339,7 @@ def _set_status_locked(
     actor: str,
     *,
     expected_revision: int | None,
+    expected_state_sha256: str | None,
 ) -> Draft:
     """Update a draft's status and write an audit row.
 
@@ -345,6 +351,11 @@ def _set_status_locked(
         raise DraftOperationConflictError(
             f"Draft {draft_id} changed from revision {expected_revision} to "
             f"{draft.revision} — reload before changing status."
+        )
+    digest = state_sha256(draft.state_json)
+    if expected_state_sha256 is not None and not hmac.compare_digest(digest, expected_state_sha256):
+        raise DraftOperationConflictError(
+            f"Draft {draft_id} content changed — reload before changing status."
         )
     if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(
@@ -362,7 +373,7 @@ def _set_status_locked(
         if status == ApprovalStatus.APPROVED:
             _ensure_revision_snapshot(session, draft)
             draft.approved_revision = draft.revision
-            draft.approved_state_sha256 = state_sha256(draft.state_json)
+            draft.approved_state_sha256 = digest
             detail = f"rev={draft.revision} sha256={draft.approved_state_sha256[:12]}"
         else:
             draft.approved_revision = None
@@ -377,7 +388,7 @@ def _set_status_locked(
             action=f"status:{status}",
             detail=detail,
             revision=draft.revision,
-            snapshot_sha256=state_sha256(draft.state_json),
+            snapshot_sha256=digest,
         )
         session.commit()
     except Exception:

@@ -98,6 +98,7 @@ def approve_draft(
             ApprovalStatus.APPROVED,
             actor,
             expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
         )
 
 

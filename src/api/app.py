@@ -1041,6 +1041,7 @@ def create_app(
             ApprovalStatus.REJECTED,
             _LOCAL_ACTOR,
             expected_revision=expected_revision,
+            expected_state_sha256=expected_state_sha256,
         )
 
     @app.post("/drafts/{draft_id}/simulate")
@@ -1084,6 +1085,7 @@ def create_app(
         actor: str,
         *,
         expected_revision: int,
+        expected_state_sha256: str,
     ) -> dict[str, Any]:
         try:
             draft = repository.set_status(
@@ -1092,6 +1094,7 @@ def create_app(
                 status,
                 actor,
                 expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1304,6 +1307,7 @@ def create_app(
                 ApprovalStatus.REJECTED,
                 _LOCAL_ACTOR,
                 expected_revision=expected_revision,
+                expected_state_sha256=expected_state_sha256,
             )
         except (
             repository.DraftAlreadySimulatedError,

@@ -567,6 +567,7 @@ def test_status_compare_and_swap_rejects_stale_revision(session: Session) -> Non
 
     draft = create_draft(session, _state())
     assert draft.id is not None
+    original_sha256 = state_sha256(draft.state_json)
     update_state(session, draft.id, _state(), actor="first", expected_revision=1)
 
     with pytest.raises(DraftOperationConflictError, match="reload"):
@@ -576,6 +577,32 @@ def test_status_compare_and_swap_rejects_stale_revision(session: Session) -> Non
             ApprovalStatus.APPROVED,
             actor="stale",
             expected_revision=1,
+            expected_state_sha256=original_sha256,
+        )
+
+    refreshed = get_draft(session, draft.id)
+    assert refreshed is not None
+    assert refreshed.status == ApprovalStatus.PENDING
+
+
+def test_status_compare_and_swap_rejects_changed_content_at_same_revision(
+    session: Session,
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    expected_sha256 = state_sha256(draft.state_json)
+    draft.state_json = _state().model_copy(update={"transcription": "tampered"}).model_dump_json()
+    session.add(draft)
+    session.commit()
+
+    with pytest.raises(DraftOperationConflictError, match="content changed"):
+        set_status(
+            session,
+            draft.id,
+            ApprovalStatus.REJECTED,
+            actor="reviewer",
+            expected_revision=draft.revision,
+            expected_state_sha256=expected_sha256,
         )
 
     refreshed = get_draft(session, draft.id)
