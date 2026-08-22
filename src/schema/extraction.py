@@ -22,13 +22,14 @@ from src.schema.evidence import BBox
 # De onde veio o valor de um campo e em que estado de confiança ele está (plano R2).
 FieldSource = Literal["ocr", "rule", "human"]
 FieldStatus = Literal["accepted", "must_review", "missing", "ambiguous"]
+EvidenceMethod = Literal["exact", "token_window", "none", "human_edit"]
 Disposition = Literal["unknown", "none", "present"]
 
 
 class AuditedField(BaseModel):
     """Um campo/célula com metadados de auditoria — explica de onde veio e se confia (R2)."""
 
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(extra="forbid")
 
     value: str | list[str] | None = None
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -39,12 +40,14 @@ class AuditedField(BaseModel):
     # Evidência visual (PR2): região provável na imagem (frações 0..1), nunca prova.
     bbox: BBox | None = None
     page: int | None = None
-    evidence_method: str | None = None  # exact | token_window | none | human_edit
+    evidence_method: EvidenceMethod | None = None
     evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class RawHeader(BaseModel):
     """Cabeçalho da folha como lido (Data e Turno / Vigilantes / Unidade)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     data_turno: AuditedField = Field(default_factory=AuditedField)
     vigilantes: AuditedField = Field(default_factory=AuditedField)
@@ -59,6 +62,8 @@ def _has_text_value(field: AuditedField) -> bool:
 
 class RawRow(BaseModel):
     """Uma linha da tabela como lida (Item / Hora / Descrição / Ação / Resolvido)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     item: AuditedField = Field(default_factory=AuditedField)
     hora: AuditedField = Field(default_factory=AuditedField)
@@ -79,7 +84,9 @@ class RawRow(BaseModel):
 class RawDocumentExtraction(BaseModel):
     """O que foi lido da folha (acoplado ao layout)."""
 
-    schema_version: str = "1.0"
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1.0"] = "1.0"
     report_type: str
     header: RawHeader = Field(default_factory=RawHeader)
     # False distingue falha estrutural (header de colunas ausente) de tabela encontrada e vazia.
@@ -90,6 +97,8 @@ class RawDocumentExtraction(BaseModel):
 class NormalizedShift(BaseModel):
     """Cabeçalho normalizado (domínio estável)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     date: str | None = None
     period: str | None = None
     guards: list[str] = Field(default_factory=list)
@@ -98,6 +107,8 @@ class NormalizedShift(BaseModel):
 
 class NormalizedOccurrence(BaseModel):
     """Uma ocorrência operacional normalizada."""
+
+    model_config = ConfigDict(extra="forbid")
 
     category: str | None = None  # 'item' na folha (crachá, acesso, alarme, portão...)
     entry_time: str | None = None
@@ -111,6 +122,8 @@ class NormalizedOccurrence(BaseModel):
 
 class NormalizedIncidentModel(BaseModel):
     """O que o domínio entende da folha (estável a mudanças de layout)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["1.1"] = "1.1"
     shift: NormalizedShift = Field(default_factory=NormalizedShift)

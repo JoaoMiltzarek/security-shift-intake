@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.api.readiness import ReadinessBlockerCode, evaluate_readiness
+from src.schema.extraction import NormalizedIncidentModel
 from src.schema.state import (
     ApprovalStatus,
     Classification,
@@ -59,6 +60,19 @@ def test_extracted_field_source_status_set() -> None:
     )
     assert f.source == "rule"
     assert f.status == "must_review"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("source", "model"),
+        ("status", "trusted"),
+        ("evidence_method", "fuzzy"),
+    ],
+)
+def test_extracted_field_rejects_unknown_provenance(field: str, value: str) -> None:
+    with pytest.raises(ValidationError):
+        ExtractedField.model_validate({"name": "unidade", "confidence": 0.5, field: value})
 
 
 def test_extracted_field_low_confidence_flag() -> None:
@@ -122,6 +136,10 @@ def test_state_with_populated_fields() -> None:
         source_pdf=Path("scan.pdf"),
         transcription="Guard: João. Date: 2026-01-15. No incident.",
         transcription_confidence=0.91,
+        normalized=NormalizedIncidentModel(
+            disposition="none",
+            disposition_confirmed=True,
+        ),
         extracted_fields=[
             ExtractedField(name="guard_name", value="João", confidence=0.91),
         ],
@@ -129,11 +147,61 @@ def test_state_with_populated_fields() -> None:
             incident_type="routine",
             urgency="low",
             sector="general_support",
-            source="human",
+            source="rule",
             review_status="confirmed",
+            classification_rule_id="disposition.none",
         ),
     )
     assert len(state.extracted_fields) == 1
+
+
+def test_v2_classification_requires_normalized_state() -> None:
+    with pytest.raises(ValidationError, match="requires normalized"):
+        PipelineState(
+            source_pdf=Path("scan.pdf"),
+            classification=Classification(
+                incident_type="routine",
+                urgency="low",
+                sector="general_support",
+                source="rule",
+                review_status="suggested",
+                classification_rule_id="classification.default",
+            ),
+        )
+
+
+def test_v2_unknown_disposition_rejects_classification() -> None:
+    with pytest.raises(ValidationError, match="unknown disposition"):
+        PipelineState(
+            source_pdf=Path("scan.pdf"),
+            normalized=NormalizedIncidentModel(disposition="unknown"),
+            classification=Classification(
+                incident_type="routine",
+                urgency="low",
+                sector="general_support",
+                source="rule",
+                review_status="suggested",
+                classification_rule_id="classification.default",
+            ),
+        )
+
+
+def test_v2_no_change_requires_the_canonical_classification() -> None:
+    with pytest.raises(ValidationError, match="disposition.none"):
+        PipelineState(
+            source_pdf=Path("scan.pdf"),
+            normalized=NormalizedIncidentModel(
+                disposition="none",
+                disposition_confirmed=True,
+            ),
+            classification=Classification(
+                incident_type="safety",
+                urgency="critical",
+                sector="facilities",
+                source="human",
+                review_status="confirmed",
+            ),
+        )
 
 
 def test_approval_status_values() -> None:

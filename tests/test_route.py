@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from src.pipeline.route import route, select_recipients, select_route
+from src.schema.extraction import NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config
 from src.schema.state import Classification, PipelineState
 
@@ -76,6 +77,10 @@ def test_routing_is_deterministic() -> None:
 def test_route_stage_sets_recipients() -> None:
     state = PipelineState(
         source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(
+            disposition="present",
+            occurrences=[NormalizedOccurrence(description="Material subtraído")],
+        ),
         classification=_cls("theft", "high", "tech_security"),
     )
     result = route(state, CONFIG)

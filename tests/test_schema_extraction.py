@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from src.schema.extraction import (
     AuditedField,
@@ -17,6 +17,7 @@ from src.schema.extraction import (
     NormalizedOccurrence,
     NormalizedShift,
     RawDocumentExtraction,
+    RawHeader,
     RawRow,
 )
 from src.schema.state import PipelineState
@@ -38,6 +39,18 @@ def test_audited_field_accepts_list_value() -> None:
 def test_audited_field_rejects_bad_status() -> None:
     with pytest.raises(ValidationError):
         AuditedField(status="weird")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("source", "model"),
+        ("evidence_method", "fuzzy"),
+    ],
+)
+def test_audited_field_rejects_unknown_provenance(field: str, value: str) -> None:
+    with pytest.raises(ValidationError):
+        AuditedField.model_validate({field: value})
 
 
 def test_audited_field_confidence_bounds() -> None:
@@ -73,6 +86,33 @@ def test_raw_document_roundtrip() -> None:
     )
     again = RawDocumentExtraction.model_validate_json(raw.model_dump_json())
     assert again.rows[0].sem_alteracao is True
+
+
+def test_raw_document_rejects_unknown_schema_version() -> None:
+    with pytest.raises(ValidationError, match="schema_version"):
+        RawDocumentExtraction(
+            schema_version="2.0",  # type: ignore[arg-type]
+            report_type="controle_ocorrencias",
+        )
+
+
+@pytest.mark.parametrize(
+    ("model", "payload"),
+    [
+        (AuditedField, {"typo": True}),
+        (RawHeader, {"typo": True}),
+        (RawRow, {"typo": True}),
+        (RawDocumentExtraction, {"report_type": "controle_ocorrencias", "typo": True}),
+        (NormalizedShift, {"typo": True}),
+        (NormalizedOccurrence, {"typo": True}),
+        (NormalizedIncidentModel, {"typo": True}),
+    ],
+)
+def test_persisted_extraction_models_reject_unknown_keys(
+    model: type[BaseModel], payload: dict[str, object]
+) -> None:
+    with pytest.raises(ValidationError, match="typo"):
+        model.model_validate(payload)
 
 
 def test_normalized_no_occurrence() -> None:

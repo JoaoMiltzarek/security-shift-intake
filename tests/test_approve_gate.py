@@ -30,14 +30,6 @@ _PENDING_BODY = {
     **_IDENTITY,
     "source_pdf": "report.pdf",
     "transcription": "x",
-    "classification": {
-        "incident_type": "routine",
-        "urgency": "low",
-        "sector": "general_support",
-        "source": "rule",
-        "review_status": "confirmed",
-        "classification_rule_id": "disposition.none",
-    },
     "extracted_fields": [
         {"name": "data_turno", "value": None, "confidence": 0.0, "must_review": True}
     ],
@@ -55,6 +47,14 @@ _CLEAN_BODY = {
         {"name": "ocorrencias", "value": "(sem alteracao)", "confidence": 1.0},
     ],
     "must_review_fields": [],
+    "classification": {
+        "incident_type": "routine",
+        "urgency": "low",
+        "sector": "general_support",
+        "source": "rule",
+        "review_status": "confirmed",
+        "classification_rule_id": "disposition.none",
+    },
     "normalized": {
         "shift": {
             "date": "15/01/2026",

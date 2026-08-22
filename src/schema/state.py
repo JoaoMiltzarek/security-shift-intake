@@ -25,6 +25,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from src.clients.base import WordBox
 from src.schema.evidence import BBox, PageArtifactRef
 from src.schema.extraction import (
+    EvidenceMethod,
+    FieldSource,
+    FieldStatus,
     NormalizedIncidentModel,
     RawDocumentExtraction,
 )
@@ -56,15 +59,15 @@ class ExtractedField(BaseModel):
     # (ocr | rule | human) and the critic's status (accepted | must_review |
     # missing | ambiguous). Populated from the AuditedField on the table path;
     # None on the scalar path, where no AuditedField backs the field.
-    source: str | None = None
-    status: str | None = None
+    source: FieldSource | None = None
+    status: FieldStatus | None = None
     # Evidence (PR2): where on the page this value most likely came from. bbox is a
     # *probable* region (fractions 0..1), never proof. None when the locator found no
     # match, the reader emitted no geometry, or a human edited the value.
     bbox: BBox | None = None
     page: int | None = None
     evidence_text: str | None = None
-    evidence_method: str | None = None  # exact | token_window | none | human_edit
+    evidence_method: EvidenceMethod | None = None
     evidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
@@ -194,6 +197,27 @@ class PipelineState(BaseModel):
             raise ValueError("legacy_source_version cannot identify the current schema")
         if self.legacy_evidence is not None and not self.is_legacy:
             raise ValueError("legacy_evidence requires a legacy_source_version")
+        if not self.is_legacy and self.classification is not None:
+            if self.normalized is None:
+                raise ValueError("classification requires normalized incident state")
+            if self.normalized.disposition == "unknown":
+                raise ValueError("unknown disposition cannot have a classification")
+            if self.normalized.disposition == "none" and (
+                self.classification.incident_type,
+                self.classification.urgency,
+                self.classification.sector,
+                self.classification.source,
+                self.classification.review_status,
+                self.classification.classification_rule_id,
+            ) != (
+                "routine",
+                "low",
+                "general_support",
+                "rule",
+                "confirmed",
+                "disposition.none",
+            ):
+                raise ValueError("no-change state requires the confirmed disposition.none decision")
         return self
 
     @property

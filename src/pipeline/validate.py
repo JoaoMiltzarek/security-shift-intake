@@ -10,7 +10,7 @@ from typing import Any
 from src.paths import PRIVATE_ROOT, resolve_private_path
 from src.pipeline.locate import attach_evidence
 from src.schema.config import ReportConfig
-from src.schema.extraction import AuditedField, RawRow
+from src.schema.extraction import AuditedField, FieldStatus, RawRow
 from src.schema.state import ExtractedField, PipelineState
 
 # Confidence at/above which a field is trusted without review (spec §6: tune so
@@ -73,7 +73,9 @@ def validate_table(
                 flagged = True
         elif (cell is not None and cell.status != "accepted") or confidence < threshold:
             flagged = True
-        status = "missing" if _is_blank(value) else ("must_review" if flagged else "accepted")
+        status: FieldStatus = (
+            "missing" if _is_blank(value) else ("must_review" if flagged else "accepted")
+        )
         fields.append(
             ExtractedField(
                 name=field.name,
