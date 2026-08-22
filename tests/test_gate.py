@@ -15,8 +15,10 @@ from src.api import repository
 from src.api.db import init_db, make_engine
 from src.api.gate import (
     DraftNotApprovedError,
+    DraftNotReviewableError,
     MemorySimulationRecorder,
     SimulationRecorder,
+    approve_draft,
 )
 from src.api.gate import (
     simulate_draft as _simulate_draft,
@@ -123,6 +125,27 @@ def test_rejected_draft_cannot_be_simulated(session: Session) -> None:
     with pytest.raises(DraftNotApprovedError):
         simulate_draft(session, draft.id, recorder, actor="r")
     assert recorder.call_count == 0
+
+
+def test_rejected_draft_cannot_be_reapproved_without_a_saved_edit(
+    session: Session, tmp_path: Path
+) -> None:
+    draft = create_draft(session, _state())
+    assert draft.id is not None
+    rejected = set_status(session, draft.id, ApprovalStatus.REJECTED, actor="r")
+
+    with pytest.raises(DraftNotReviewableError, match="saved correction"):
+        approve_draft(
+            session,
+            draft.id,
+            CONFIG,
+            tmp_path,
+            expected_revision=rejected.revision,
+            expected_state_sha256=repository.state_sha256(rejected.state_json),
+            actor="r",
+        )
+
+    assert repository.get_draft(session, draft.id).status == ApprovalStatus.REJECTED
 
 
 def test_simulated_draft_cannot_be_simulated_again(session: Session) -> None:

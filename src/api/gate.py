@@ -84,6 +84,10 @@ def approve_draft(
             raise DraftNotReviewableError(
                 "Draft changed after this review page was loaded. Reload before continuing."
             )
+        if draft.status == ApprovalStatus.REJECTED:
+            raise DraftNotReviewableError(
+                "Rejected draft requires a saved correction before approval."
+            )
         state = PipelineState.from_persisted_json(draft.state_json)
         report = evaluate_readiness(state, config, page_root=page_root)
         if not report.approvable:

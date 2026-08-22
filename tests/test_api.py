@@ -150,6 +150,35 @@ def test_rejected_draft_simulation_is_blocked(
     assert recorder.call_count == 0
 
 
+def test_rejected_draft_requires_a_saved_edit_before_reapproval(
+    client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
+) -> None:
+    client, _ = client_and_recorder
+    draft_id = client.post("/drafts", json=_SUBMIT_BODY).json()["id"]
+    snapshot = _snapshot(client, draft_id)
+
+    assert client.post(f"/drafts/{draft_id}/reject", params=snapshot).status_code == 200
+    blocked = client.post(
+        f"/drafts/{draft_id}/approve",
+        params=_snapshot(client, draft_id),
+    )
+    assert blocked.status_code == 409
+    assert "saved correction" in blocked.json()["detail"]
+    assert client.get(f"/drafts/{draft_id}").json()["status"] == "rejected"
+
+    assert _edit(client, draft_id).status_code == 200
+    edited = client.get(f"/drafts/{draft_id}").json()
+    assert edited["status"] == "pending"
+    assert edited["revision"] == 2
+
+    approved = client.post(
+        f"/drafts/{draft_id}/approve",
+        params=_snapshot(client, draft_id),
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "approved"
+
+
 def test_get_missing_draft_404(
     client_and_recorder: tuple[TestClient, MemorySimulationRecorder],
 ) -> None:
