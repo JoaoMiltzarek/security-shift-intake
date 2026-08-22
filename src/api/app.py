@@ -861,6 +861,7 @@ def create_app(
             expected_revision=expected_revision,
             expected_state_sha256=expected_state_sha256,
         )
+        _compatible_state(draft)
         try:
             draft = approve_draft(
                 session,
@@ -1046,10 +1047,8 @@ def create_app(
                     expected_revision=expected_revision,
                     expected_state_sha256=expected_state_sha256,
                 )
+                _compatible_state(draft)
                 state = PipelineState.from_persisted_json(draft.state_json)
-                derived = derive_operational_outputs(state, active_config)
-                if not derived.spreadsheet_rows:
-                    raise HTTPException(status_code=404, detail="no spreadsheet to export")
                 readiness = _readiness(draft)
                 if not readiness.exportable:
                     blocker = readiness.blockers[0]
@@ -1057,6 +1056,10 @@ def create_app(
                         status_code=409,
                         detail=f"export blocked — {blocker.code}: {blocker.detail}",
                     )
+
+                derived = derive_operational_outputs(state, active_config)
+                if not derived.spreadsheet_rows:
+                    raise HTTPException(status_code=404, detail="no spreadsheet to export")
 
                 buffer = io.StringIO()
                 writer = csv.writer(buffer)
@@ -1107,6 +1110,7 @@ def create_app(
             expected_revision=expected_revision,
             expected_state_sha256=expected_state_sha256,
         )
+        _compatible_state(draft)
         try:
             draft = approve_draft(
                 session,

@@ -94,13 +94,14 @@ def test_export_blocked_while_pending(client: TestClient) -> None:
     )
 
 
-def test_scalar_path_has_nothing_to_export(client: TestClient) -> None:
-    # A draft with no spreadsheet rows (scalar path shape) → 404, not an empty CSV.
+def test_unsupported_scalar_path_cannot_export(client: TestClient) -> None:
+    # The public v1 export contract accepts only a reviewable table state.
     draft_id = int(client.post("/drafts", json={"source_pdf": "x.pdf"}).json()["id"])
-    assert (
-        client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)).status_code
-        == 404
+    response = client.post(
+        f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)
     )
+    assert response.status_code == 409
+    assert "disposition_unconfirmed" in response.json()["detail"]
 
 
 def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> None:
