@@ -38,7 +38,7 @@ _BODY = {
         "shift": {"guards": ["A. Souza"], "unit": "Portaria 1"},
         "disposition": "present",
         "disposition_confirmed": True,
-        "occurrences": [{"category": "Furto", "description": "Material subtraÃ­do"}],
+        "occurrences": [{"category": "Furto", "description": "Material subtraído"}],
     },
 }
 
