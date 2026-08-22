@@ -203,3 +203,33 @@ def test_readme_does_not_present_unpublished_release_metrics() -> None:
     assert "The official safety evaluation is based on" not in readme
     assert "Validated v1 release evidence: PENDING" not in readme
     assert "Authenticated v1 release evidence" not in readme
+
+
+def test_roadmap_contains_product_next_steps_not_ticket_archaeology() -> None:
+    roadmap = _read("docs/ROADMAP.md")
+
+    required = (
+        "Near-term v1.x improvements",
+        "Multi-sheet aggregation",
+        "XLSX export",
+        "Per-occurrence triage",
+        "Real delivery adapters",
+        "Separate deployment project",
+        "Non-goals for the v1 line",
+    )
+    assert all(value in roadmap for value in required)
+    assert "PR-" not in roadmap
+    assert "SSI-" not in roadmap
+    assert "G1-S" not in roadmap
+
+
+def test_roadmap_preserves_the_current_product_boundary() -> None:
+    roadmap = " ".join(_read("docs/ROADMAP.md").split())
+
+    required = (
+        "Simulation remains the v1.1 limit",
+        "one process, one operator, and loopback only",
+        "configuration-only support for arbitrary form types",
+        "human-confirmation contracts",
+    )
+    assert all(value in roadmap for value in required)
