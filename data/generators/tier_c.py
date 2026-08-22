@@ -188,9 +188,6 @@ def _build_tier_c_into(
     published_root: Path | None = None,
 ) -> TierCMeta:
     """Gera o dataset (PDF+PNG+gt+manifests+meta). `dataset` resolve da tabela §4."""
-    if dataset is not None:
-        spec = CANONICAL_DATASETS[dataset]
-        n, seed, profile = spec.n, spec.seed, spec.profile
     if n <= 0:
         raise ValueError("n must be positive")
 
@@ -323,14 +320,39 @@ def _publish_fresh_tree(staged: Path, destination: Path) -> None:
 def build_tier_c(
     out_dir: Path,
     dataset: str | None = None,
-    seed: int = 42,
-    n: int = 50,
-    profile: Profile = "balanced",
-    split_seed: int = DEFAULT_SPLIT_SEED,
+    seed: int | None = None,
+    n: int | None = None,
+    profile: Profile | None = None,
+    split_seed: int | None = None,
     n_samples: int = 0,
     samples_dir: Path | None = None,
 ) -> TierCMeta:
     """Generate and publish a complete dataset without retaining stale prior files."""
+    if dataset is not None:
+        try:
+            spec = CANONICAL_DATASETS[dataset]
+        except KeyError as exc:
+            raise ValueError(f"unknown canonical Tier C dataset: {dataset}") from exc
+        overrides = [
+            name
+            for name, value in (
+                ("seed", seed),
+                ("n", n),
+                ("profile", profile),
+                ("split_seed", split_seed),
+            )
+            if value is not None
+        ]
+        if overrides:
+            joined = ", ".join(overrides)
+            raise ValueError(f"canonical dataset {dataset!r} forbids overrides: {joined}")
+        seed, n, profile, split_seed = spec.seed, spec.n, spec.profile, DEFAULT_SPLIT_SEED
+    else:
+        seed = 42 if seed is None else seed
+        n = 50 if n is None else n
+        profile = "balanced" if profile is None else profile
+        split_seed = DEFAULT_SPLIT_SEED if split_seed is None else split_seed
+
     destination = out_dir.expanduser().absolute()
     destination.parent.mkdir(parents=True, exist_ok=True)
     staged = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))

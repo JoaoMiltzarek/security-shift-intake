@@ -28,25 +28,28 @@ DEFAULT_SAMPLES_DIR = REPO_ROOT / "samples"
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Generate Tier C occurrence-table sheets.")
     parser.add_argument("--dataset", choices=sorted(CANONICAL_DATASETS), default=None)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--n", type=int, default=50)
-    parser.add_argument("--profile", choices=["balanced", "operational"], default="balanced")
-    parser.add_argument("--split-seed", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--n", type=int, default=None)
+    parser.add_argument("--profile", choices=["balanced", "operational"], default=None)
+    parser.add_argument("--split-seed", type=int, default=None)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--samples", type=Path, default=DEFAULT_SAMPLES_DIR)
     parser.add_argument("--n-samples", type=int, default=0)
     args = parser.parse_args(argv)
 
-    meta = build_tier_c(
-        out_dir=args.out,
-        dataset=args.dataset,
-        seed=args.seed,
-        n=args.n,
-        profile=args.profile,
-        split_seed=args.split_seed,
-        n_samples=args.n_samples,
-        samples_dir=args.samples,
-    )
+    try:
+        meta = build_tier_c(
+            out_dir=args.out,
+            dataset=args.dataset,
+            seed=args.seed,
+            n=args.n,
+            profile=args.profile,
+            split_seed=args.split_seed,
+            n_samples=args.n_samples,
+            samples_dir=args.samples,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
     print(
         f"Wrote {meta.n} sheets to {args.out} (dataset={meta.dataset}, "

@@ -195,3 +195,21 @@ def test_canonical_table_matches_contract() -> None:
     for name in ("bench-balanced", "bench-operational"):
         frozen = CANONICAL_DATASETS[name].frozen_manifest
         assert frozen is not None and name.replace("-", "_") in frozen
+
+
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+        ("seed", 42),
+        ("n", 50),
+        ("profile", "balanced"),
+        ("split_seed", 0),
+    ],
+)
+def test_named_canonical_dataset_rejects_every_generation_override(
+    tmp_path: Path, option: str, value: object
+) -> None:
+    with pytest.raises(ValueError, match=rf"forbids overrides: {option}"):
+        build_tier_c(tmp_path / "tier_c", dataset="smoke", **{option: value})  # type: ignore[arg-type]
+
+    assert not (tmp_path / "tier_c").exists()
