@@ -96,6 +96,15 @@ class ClassificationDecision(BaseModel):
 Classification = ClassificationDecision
 
 
+class RoutingDecision(BaseModel):
+    """Server-derived recipient selection tied to one stable config rule."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rule_id: str = Field(min_length=1)
+    recipients: list[str] = Field(min_length=1)
+
+
 class PipelineState(BaseModel):
     """Typed state object passed through every stage of the pipeline."""
 

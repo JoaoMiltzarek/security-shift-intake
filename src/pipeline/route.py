@@ -9,7 +9,7 @@ last by the config validator — is the fallback.
 from __future__ import annotations
 
 from src.schema.config import ReportConfig, RoutingCondition
-from src.schema.state import Classification, PipelineState
+from src.schema.state import Classification, PipelineState, RoutingDecision
 
 
 def _matches(condition: RoutingCondition, classification: Classification) -> bool:
@@ -22,18 +22,23 @@ def _matches(condition: RoutingCondition, classification: Classification) -> boo
     return all(expected is None or expected == actual for expected, actual in checks)
 
 
-def select_recipients(classification: Classification, config: ReportConfig) -> list[str]:
-    """Return the recipients for *classification* per the config routing rules."""
+def select_route(classification: Classification, config: ReportConfig) -> RoutingDecision:
+    """Return the first matching server-side routing decision."""
     for rule in config.routing:
         # A None `when` is the catch-all; reaching it means nothing earlier matched.
         if rule.when is None or _matches(rule.when, classification):
-            return list(rule.recipients)
-    return []  # unreachable: config requires a default rule
+            return RoutingDecision(rule_id=rule.id, recipients=list(rule.recipients))
+    raise ValueError("validated routing config did not contain a fallback")
+
+
+def select_recipients(classification: Classification, config: ReportConfig) -> list[str]:
+    """Compatibility projection for callers that only need recipient groups."""
+    return select_route(classification, config).recipients
 
 
 def route(state: PipelineState, config: ReportConfig) -> PipelineState:
     """Set recipients on the state from the classification. Requires classification."""
     if state.classification is None:
         raise ValueError("route() requires a classification; run classify first.")
-    recipients = select_recipients(state.classification, config)
+    recipients = select_route(state.classification, config).recipients
     return state.model_copy(update={"recipients": recipients})

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.pipeline.route import route, select_recipients
+from src.pipeline.route import route, select_recipients, select_route
 from src.schema.loader import load_config
 from src.schema.state import Classification, PipelineState
 
@@ -15,7 +15,11 @@ CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
 
 def _cls(incident_type: str, urgency: str, sector: str) -> Classification:
     return Classification(
-        incident_type=incident_type, urgency=urgency, sector=sector, confidence=0.9
+        incident_type=incident_type,
+        urgency=urgency,
+        sector=sector,
+        source="human",
+        review_status="confirmed",
     )
 
 
@@ -29,9 +33,23 @@ def test_theft_routes_to_tech_and_support() -> None:
     assert r == ["tech_security", "general_support"]
 
 
+def test_routing_decision_exposes_stable_rule_id() -> None:
+    decision = select_route(_cls("theft", "high", "tech_security"), CONFIG)
+
+    assert decision.rule_id == "routing.theft"
+    assert decision.recipients == ["tech_security", "general_support"]
+
+
 def test_equipment_routes_to_facilities() -> None:
     r = select_recipients(_cls("equipment", "medium", "facilities"), CONFIG)
     assert r == ["facilities"]
+
+
+def test_safety_routes_to_facilities() -> None:
+    decision = select_route(_cls("safety", "high", "facilities"), CONFIG)
+
+    assert decision.rule_id == "routing.safety"
+    assert decision.recipients == ["facilities"]
 
 
 def test_access_violation_routes_to_tech_security() -> None:
