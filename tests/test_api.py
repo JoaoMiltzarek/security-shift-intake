@@ -123,6 +123,7 @@ def test_submit_review_approve_simulate_flow(
     # Simulation after approval records the approved snapshot exactly once.
     r = client.post(f"/drafts/{draft_id}/simulate", params=_snapshot(client, draft_id))
     assert r.status_code == 200
+    assert r.json()["status"] == "simulated"
     assert r.json()["sent_at"] is not None
     assert r.json()["delivery_mode"] == "simulated"
     assert recorder.call_count == 1
@@ -289,4 +290,4 @@ def test_simulated_draft_is_terminal_at_http_boundary(
     response = client.post(f"/drafts/{draft_id}/{action}", params=_snapshot(client, draft_id))
 
     assert response.status_code == 409
-    assert client.get(f"/drafts/{draft_id}").json()["status"] == "approved"
+    assert client.get(f"/drafts/{draft_id}").json()["status"] == "simulated"

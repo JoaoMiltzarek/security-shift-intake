@@ -34,6 +34,7 @@ class ApprovalStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    SIMULATED = "simulated"
 
 
 class UnsupportedPipelineStateVersionError(ValueError):

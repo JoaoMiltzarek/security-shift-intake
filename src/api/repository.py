@@ -346,7 +346,7 @@ def _set_status_locked(
             f"Draft {draft_id} changed from revision {expected_revision} to "
             f"{draft.revision} — reload before changing status."
         )
-    if draft.sent_at is not None:
+    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
         add_audit(
             session,
             draft_id,
@@ -400,16 +400,17 @@ def _mark_simulated_locked(
     """
     draft = _require(session, draft_id)
     digest = state_sha256(draft.state_json)
+    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
+        raise DraftAlreadySimulatedError(f"Draft {draft_id} was already simulated.")
     if draft.status != ApprovalStatus.APPROVED:
         raise DraftOperationConflictError(f"Draft {draft_id} is not approved.")
     if draft.approved_revision != draft.revision or draft.approved_state_sha256 != digest:
         raise DraftOperationConflictError(
             f"Draft {draft_id} approval does not match its current revision and content."
         )
-    if draft.sent_at is not None:
-        raise DraftAlreadySimulatedError(f"Draft {draft_id} was already simulated.")
     try:
         now = utcnow()
+        draft.status = ApprovalStatus.SIMULATED
         draft.sent_at = now
         draft.delivery_mode = "simulated"
         draft.updated_at = now
@@ -477,7 +478,7 @@ def _update_state_locked(
             f"Draft {draft_id} changed from revision {expected_revision} to "
             f"{draft.revision} â€” reload before saving."
         )
-    if draft.sent_at is not None:
+    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
         add_audit(
             session,
             draft_id,

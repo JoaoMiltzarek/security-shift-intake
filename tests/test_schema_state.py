@@ -125,6 +125,7 @@ def test_approval_status_values() -> None:
     assert ApprovalStatus.PENDING == "pending"
     assert ApprovalStatus.APPROVED == "approved"
     assert ApprovalStatus.REJECTED == "rejected"
+    assert ApprovalStatus.SIMULATED == "simulated"
 
 
 def test_persisted_unversioned_state_is_readable_but_marked_legacy() -> None:

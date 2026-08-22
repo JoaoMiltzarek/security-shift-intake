@@ -239,6 +239,7 @@ def test_concurrent_simulations_invoke_recorder_exactly_once(tmp_path: Path) -> 
     with Session(engine) as verify:
         persisted = verify.get(Draft, draft_id)
         assert persisted is not None
+        assert persisted.status == ApprovalStatus.SIMULATED
         assert persisted.delivery_mode == "simulated"
         assert [entry.action for entry in get_audit(verify, draft_id)].count(
             "simulation_completed"

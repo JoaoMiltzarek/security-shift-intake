@@ -158,6 +158,16 @@ def _simulate_draft_once(
     if draft is None:
         raise KeyError(f"Draft {draft_id} not found")
 
+    if draft.status == ApprovalStatus.SIMULATED or draft.sent_at is not None:
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="simulation_blocked",
+            detail="already_simulated",
+        )
+        raise DraftNotApprovedError(f"Draft {draft_id} was already simulated.")
+
     if draft.status != ApprovalStatus.APPROVED:
         add_audit(
             session,
@@ -169,16 +179,6 @@ def _simulate_draft_once(
         raise DraftNotApprovedError(
             f"Draft {draft_id} is '{draft.status}', not approved — simulation blocked."
         )
-
-    if draft.sent_at is not None:
-        add_audit(
-            session,
-            draft_id,
-            actor=actor,
-            action="simulation_blocked",
-            detail="already_simulated",
-        )
-        raise DraftNotApprovedError(f"Draft {draft_id} was already simulated.")
 
     state = PipelineState.from_persisted_json(draft.state_json)
     digest = state_sha256(draft.state_json)

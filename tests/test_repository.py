@@ -116,6 +116,7 @@ def test_simulation_persists_terminal_mode_and_audit(session: Session) -> None:
 
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None and refreshed.sent_at is not None
+    assert refreshed.status == ApprovalStatus.SIMULATED
     assert refreshed.delivery_mode == "simulated"
     audit = get_audit(session, draft.id)
     assert "simulation_completed" in [a.action for a in audit]
@@ -402,7 +403,7 @@ def test_sent_draft_rejects_later_status_changes(session: Session, status: Appro
 
     refreshed = get_draft(session, draft.id)
     assert refreshed is not None
-    assert refreshed.status == ApprovalStatus.APPROVED
+    assert refreshed.status == ApprovalStatus.SIMULATED
     assert refreshed.sent_at is not None
     assert get_audit(session, draft.id)[-1].action == "status_blocked"
 
