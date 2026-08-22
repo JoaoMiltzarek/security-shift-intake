@@ -104,7 +104,7 @@ def test_pipeline_persists_reader_and_raster_settings(sample_pdf: Path) -> None:
     state = run_pipeline(
         sample_pdf,
         AttestedReader(text=_OCC),
-        _llm(),
+        _classifier(),
         CONFIG,
         dpi=120,
     ).state
@@ -162,7 +162,9 @@ def test_pre_extraction_timeout_preserves_completed_transcription(
 
     monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_extraction)
 
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+    ).state
 
     assert state.transcription == _OCC
     assert state.transcription_confidence == pytest.approx(0.9)
@@ -186,7 +188,9 @@ def test_pre_classification_timeout_preserves_validated_ocr_state(
 
     monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_classification)
 
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+    ).state
 
     assert state.transcription == _OCC
     assert state.raw_extraction is not None and state.raw_extraction.tabela_encontrada
