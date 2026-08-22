@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
+import src.api.page_images as page_images
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MemorySimulationRecorder
@@ -105,3 +106,21 @@ def test_page_artifact_directory_is_promoted_without_staging_debris(tmp_path: Pa
 
 def test_default_page_root_is_validated_under_private() -> None:
     assert PAGE_IMAGES_ROOT == PRIVATE_ROOT / "page_images"
+
+
+def test_default_page_root_is_created_on_first_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "private" / "page_images"
+
+    def resolve_for_test(path: Path, *, create_root: bool = False) -> Path:
+        assert path in {PAGE_IMAGES_ROOT, root}
+        if create_root:
+            root.parent.mkdir(parents=True, exist_ok=True)
+        return root
+
+    monkeypatch.setattr(page_images, "resolve_private_path", resolve_for_test)
+
+    rel = save_page_artifacts([_artifact()])
+
+    assert (root / rel[0]).is_file()

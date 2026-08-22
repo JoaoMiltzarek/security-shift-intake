@@ -27,7 +27,9 @@ PAGE_IMAGES_ROOT = PRIVATE_ROOT / "page_images"
 def _page_root(root: Path) -> Path:
     """Validate the release default; explicit alternate roots are test injection."""
     if root == PAGE_IMAGES_ROOT:
-        return resolve_private_path(root, create_root=True)
+        resolved = resolve_private_path(root, create_root=True)
+        resolved.mkdir(exist_ok=True)
+        return resolve_private_path(resolved)
     resolved = root.resolve(strict=False)
     resolved.mkdir(parents=True, exist_ok=True)
     return resolved
