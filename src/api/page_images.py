@@ -10,6 +10,8 @@ can never read an arbitrary file.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import os
 import shutil
 import tempfile
@@ -17,8 +19,11 @@ import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
+from PIL import Image, UnidentifiedImageError
+
 from src.paths import PRIVATE_ROOT, resolve_private_path
 from src.pipeline.ingest import PageArtifact
+from src.schema.evidence import PageArtifactRef
 
 # Default root for persisted page images — inside the gitignored private/ tree.
 PAGE_IMAGES_ROOT = PRIVATE_ROOT / "page_images"
@@ -38,7 +43,7 @@ def _page_root(root: Path) -> Path:
 def save_page_artifacts(
     pages: Sequence[PageArtifact],
     root: Path = PAGE_IMAGES_ROOT,
-) -> list[str]:
+) -> list[PageArtifactRef]:
     """Atomically persist the exact PNG bytes read by the document reader.
 
     Paths are relative to *root* (e.g. ``"<uuid>/page_0.png"``) so the stored state is
@@ -59,22 +64,63 @@ def save_page_artifacts(
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    return [(Path(key) / f"page_{index}.png").as_posix() for index in range(len(pages))]
+    return [
+        PageArtifactRef(
+            storage_key=(Path(key) / f"page_{page.page_index}.png").as_posix(),
+            sha256=page.sha256,
+            width=page.width,
+            height=page.height,
+        )
+        for page in pages
+    ]
 
 
-def resolve_page_image(rel_paths: list[str], n: int, root: Path = PAGE_IMAGES_ROOT) -> Path:
+class PageArtifactIntegrityError(RuntimeError):
+    """Stored evidence no longer matches the identity captured at ingestion."""
+
+
+def _resolve_page_path(refs: list[PageArtifactRef], n: int, root: Path) -> Path:
+    root = _page_root(root)
+    if n < 0 or n >= len(refs):
+        raise FileNotFoundError(f"page index {n} out of range")
+    candidate = (root / refs[n].storage_key).resolve()
+    if not candidate.is_relative_to(root.resolve()):
+        raise PermissionError(f"page path escapes root: {refs[n].storage_key!r}")
+    if not candidate.is_file():
+        raise FileNotFoundError(f"page image not found: {candidate}")
+    return candidate
+
+
+def read_page_image(
+    refs: list[PageArtifactRef], n: int, root: Path = PAGE_IMAGES_ROOT
+) -> bytes:
+    """Return bytes only after validating their hash, format, and dimensions."""
+    path = _resolve_page_path(refs, n, root)
+    payload = path.read_bytes()
+    ref = refs[n]
+    if hashlib.sha256(payload).hexdigest() != ref.sha256:
+        raise PageArtifactIntegrityError("page image hash does not match persisted evidence")
+    try:
+        with Image.open(io.BytesIO(payload)) as image:
+            image.load()
+            if image.format != "PNG" or image.size != (ref.width, ref.height):
+                raise PageArtifactIntegrityError(
+                    "page image format or dimensions do not match persisted evidence"
+                )
+    except (UnidentifiedImageError, OSError) as exc:
+        raise PageArtifactIntegrityError("page image is not a valid PNG") from exc
+    return payload
+
+
+def resolve_page_image(
+    refs: list[PageArtifactRef], n: int, root: Path = PAGE_IMAGES_ROOT
+) -> Path:
     """Resolve page *n* to an absolute file path, rejecting bad indexes and traversal.
 
     Raises FileNotFoundError for an out-of-range index or a missing file, and
     PermissionError if the stored path resolves outside *root* (defense in depth
     against a tampered state_json). Both map to a 404 at the endpoint.
     """
-    root = _page_root(root)
-    if n < 0 or n >= len(rel_paths):
-        raise FileNotFoundError(f"page index {n} out of range")
-    candidate = (root / rel_paths[n]).resolve()
-    if not candidate.is_relative_to(root.resolve()):
-        raise PermissionError(f"page path escapes root: {rel_paths[n]!r}")
-    if not candidate.is_file():
-        raise FileNotFoundError(f"page image not found: {candidate}")
-    return candidate
+    path = _resolve_page_path(refs, n, root)
+    read_page_image(refs, n, root)
+    return path

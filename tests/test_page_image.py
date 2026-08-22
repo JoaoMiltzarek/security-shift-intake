@@ -17,9 +17,16 @@ import src.api.page_images as page_images
 from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MemorySimulationRecorder
-from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image, save_page_artifacts
+from src.api.page_images import (
+    PAGE_IMAGES_ROOT,
+    PageArtifactIntegrityError,
+    read_page_image,
+    resolve_page_image,
+    save_page_artifacts,
+)
 from src.paths import PRIVATE_ROOT
 from src.pipeline.ingest import PageArtifact
+from src.schema.evidence import PageArtifactRef
 
 
 def _artifact(size: tuple[int, int] = (8, 8), *, index: int = 0) -> PageArtifact:
@@ -37,12 +44,15 @@ def test_resolve_rejects_out_of_range_index(tmp_path: Path) -> None:
 
 def test_resolve_blocks_path_traversal(tmp_path: Path) -> None:
     # A tampered state_json with a climbing path must never resolve outside root.
+    ref = PageArtifactRef.model_construct(
+        storage_key="../../etc/passwd", sha256="a" * 64, width=1, height=1
+    )
     with pytest.raises(PermissionError):
-        resolve_page_image(["../../etc/passwd"], 0, root=tmp_path)
+        resolve_page_image([ref], 0, root=tmp_path)
 
 
 @pytest.fixture
-def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[str]]]:
+def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[PageArtifactRef]]]:
     rel = save_page_artifacts([_artifact((12, 10))], root=tmp_path)
     app = create_app(
         engine=make_engine("sqlite://"),
@@ -55,23 +65,25 @@ def served(tmp_path: Path) -> Iterator[tuple[TestClient, list[str]]]:
 
 
 def test_endpoint_serves_png_at_valid_index(
-    served: tuple[TestClient, list[str]],
+    served: tuple[TestClient, list[PageArtifactRef]],
 ) -> None:
     client, rel = served
-    draft_id = client.post("/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}).json()[
-        "id"
-    ]
+    draft_id = client.post(
+        "/drafts",
+        json={"source_pdf": "x.pdf", "page_artifacts": [ref.model_dump() for ref in rel]},
+    ).json()["id"]
     resp = client.get(f"/drafts/{draft_id}/page/0")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/png"
     assert resp.content[:8] == b"\x89PNG\r\n\x1a\n"  # real PNG signature
 
 
-def test_endpoint_404_on_bad_index(served: tuple[TestClient, list[str]]) -> None:
+def test_endpoint_404_on_bad_index(served: tuple[TestClient, list[PageArtifactRef]]) -> None:
     client, rel = served
-    draft_id = client.post("/drafts", json={"source_pdf": "x.pdf", "page_image_paths": rel}).json()[
-        "id"
-    ]
+    draft_id = client.post(
+        "/drafts",
+        json={"source_pdf": "x.pdf", "page_artifacts": [ref.model_dump() for ref in rel]},
+    ).json()["id"]
     assert client.get(f"/drafts/{draft_id}/page/9").status_code == 404
 
 
@@ -87,20 +99,30 @@ def test_resolve_blocks_symlink_escape(tmp_path: Path) -> None:
     except (OSError, NotImplementedError):
         pytest.skip("symlinks not permitted on this platform")
     with pytest.raises(PermissionError):
-        resolve_page_image(["escape.png"], 0, root=root)
+        resolve_page_image(
+            [
+                PageArtifactRef(
+                    storage_key="escape.png", sha256="a" * 64, width=1, height=1
+                )
+            ],
+            0,
+            root=root,
+        )
 
 
 def test_saved_page_image_matches_ocr_dims(tmp_path: Path) -> None:
     page = _artifact((1800, 750))
     rel = save_page_artifacts([page], root=tmp_path)
 
-    assert (tmp_path / rel[0]).read_bytes() == page.png_bytes
+    assert (tmp_path / rel[0].storage_key).read_bytes() == page.png_bytes
+    assert rel[0].sha256 == page.sha256
+    assert (rel[0].width, rel[0].height) == (1800, 750)
 
 
 def test_page_artifact_directory_is_promoted_without_staging_debris(tmp_path: Path) -> None:
     rel = save_page_artifacts([_artifact()], root=tmp_path)
 
-    assert (tmp_path / rel[0]).is_file()
+    assert (tmp_path / rel[0].storage_key).is_file()
     assert not list(tmp_path.glob(".*-*"))
 
 
@@ -123,4 +145,20 @@ def test_default_page_root_is_created_on_first_write(
 
     rel = save_page_artifacts([_artifact()])
 
-    assert (root / rel[0]).is_file()
+    assert (root / rel[0].storage_key).is_file()
+
+
+def test_read_rejects_changed_page_bytes(tmp_path: Path) -> None:
+    refs = save_page_artifacts([_artifact()], root=tmp_path)
+    (tmp_path / refs[0].storage_key).write_bytes(b"changed")
+
+    with pytest.raises(PageArtifactIntegrityError, match="hash"):
+        read_page_image(refs, 0, root=tmp_path)
+
+
+def test_read_rejects_dimensions_that_do_not_match_reference(tmp_path: Path) -> None:
+    refs = save_page_artifacts([_artifact((8, 8))], root=tmp_path)
+    forged = refs[0].model_copy(update={"width": 9})
+
+    with pytest.raises(PageArtifactIntegrityError, match="dimensions"):
+        read_page_image([forged], 0, root=tmp_path)

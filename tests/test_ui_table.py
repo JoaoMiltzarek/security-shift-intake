@@ -419,7 +419,14 @@ _XSS = "</script><svg/onload=alert(1)>"
 
 _COCKPIT_BODY = {
     "source_pdf": "x.pdf",
-    "page_image_paths": ["abc123/page_0.png"],
+    "page_artifacts": [
+        {
+            "storage_key": "abc123/page_0.png",
+            "sha256": "a" * 64,
+            "width": 100,
+            "height": 100,
+        }
+    ],
     "extracted_fields": [
         {
             "name": "unidade",

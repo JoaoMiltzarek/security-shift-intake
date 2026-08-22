@@ -103,9 +103,9 @@ def _seed_draft() -> int:
     vision = MockVisionClient(text=_OCR_INCIDENT, confidence=0.95)
     classifier = RuleBasedIncidentClassifier()
     result = run_pipeline(SAMPLE, vision, classifier, config, dpi=OCR_DPI)
-    page_paths = save_page_artifacts(result.pages)
+    page_refs = save_page_artifacts(result.pages)
     payload: dict[str, Any] = result.state.model_copy(
-        update={"page_image_paths": page_paths}
+        update={"page_artifacts": page_refs}
     ).model_dump(mode="json")
 
     # Inject a probable-region bbox on one field so the overlay has something to draw.

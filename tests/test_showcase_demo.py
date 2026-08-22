@@ -359,8 +359,8 @@ def test_committed_showcase_fixture_persists_real_ocr_geometry(
     located_fields = [field for field in state.extracted_fields if field.bbox is not None]
     assert located_fields
     assert all(field.evidence_method in {"exact", "token_window"} for field in located_fields)
-    assert state.page_image_paths
-    assert all((page_images_root / rel).is_file() for rel in state.page_image_paths)
+    assert state.page_artifacts
+    assert all((page_images_root / ref.storage_key).is_file() for ref in state.page_artifacts)
     assert state.normalized is not None
     assert state.normalized.disposition != "none"
 

@@ -27,7 +27,7 @@ from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
@@ -49,7 +49,11 @@ from src.api.gate import (
     simulate_draft,
 )
 from src.api.models import Draft, utc_rfc3339
-from src.api.page_images import PAGE_IMAGES_ROOT, resolve_page_image
+from src.api.page_images import (
+    PAGE_IMAGES_ROOT,
+    PageArtifactIntegrityError,
+    read_page_image,
+)
 from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
@@ -459,7 +463,7 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         "document_status": _document_status(state),
         # Cockpit overlay only renders when a page image was persisted; otherwise the
         # review degrades to the single-column layout (invariant 5).
-        "has_image": bool(state.page_image_paths),
+        "has_image": bool(state.page_artifacts),
         # Pending items that block a clean CSV export (empty = exportable). Drives the
         # export button's disabled state + reason (invariants 2 and 8).
         "export_blockers": export_blockers(state),
@@ -896,15 +900,15 @@ def create_app(
         return _render(request, "review.html", ctx)
 
     @app.get("/drafts/{draft_id}/page/{n}")
-    def page_image(draft_id: int, n: int, session: Session = Depends(get_session)) -> FileResponse:
+    def page_image(draft_id: int, n: int, session: Session = Depends(get_session)) -> Response:
         """Serve the persisted OCR page image the cockpit overlay draws on (path-safe)."""
         draft = _require_draft(session, draft_id)
         state = PipelineState.from_persisted_json(draft.state_json)
         try:
-            path = resolve_page_image(state.page_image_paths, n, active_page_root)
-        except (FileNotFoundError, PermissionError) as exc:
+            payload = read_page_image(state.page_artifacts, n, active_page_root)
+        except (FileNotFoundError, PermissionError, PageArtifactIntegrityError) as exc:
             raise HTTPException(status_code=404, detail="page image not found") from exc
-        return FileResponse(path, media_type="image/png")
+        return Response(content=payload, media_type="image/png")
 
     @app.post("/drafts/{draft_id}/export.csv")
     def export_csv(

@@ -124,7 +124,7 @@ def test_assert_reviewable_blocks_unknown_without_pending_fields() -> None:
 @pytest.mark.parametrize(
     "state",
     [
-        PipelineState(source_pdf=Path("x.pdf"), page_image_paths=["p1.png", "p2.png"]),
+        PipelineState(source_pdf=Path("x.pdf"), image_paths=[Path("p1.png"), Path("p2.png")]),
         PipelineState(source_pdf=Path("x.pdf"), transcription="page one\n\f\npage two"),
     ],
 )

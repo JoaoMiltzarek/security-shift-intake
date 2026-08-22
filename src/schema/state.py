@@ -25,7 +25,7 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.clients.base import WordBox
-from src.schema.evidence import BBox
+from src.schema.evidence import BBox, PageArtifactRef
 from src.schema.extraction import (
     NormalizedIncidentModel,
     RawDocumentExtraction,
@@ -95,10 +95,8 @@ class PipelineState(BaseModel):
     # --- Stage 0: ingest ---
     source_pdf: Path
     image_paths: list[Path] = Field(default_factory=list)
-    # Persisted OCR page images for the cockpit overlay, as POSIX paths relative to the
-    # page-images root (the *same* downscaled image the words were measured on, so the
-    # normalized boxes line up). Empty on paths that never persisted images.
-    page_image_paths: list[str] = Field(default_factory=list)
+    # Immutable identity of the exact reader-sized images used for OCR and review.
+    page_artifacts: list[PageArtifactRef] = Field(default_factory=list, max_length=1)
 
     # --- Stage 1: transcribe ---
     transcription: str | None = None
@@ -167,12 +165,15 @@ class PipelineState(BaseModel):
         if version != "2.0":
             raw["legacy_source_version"] = str(version or "unversioned")
             raw["schema_version"] = "2.0"
+            # A path alone cannot establish evidence integrity. Legacy images remain
+            # on disk but are deliberately not promoted into trusted v2 references.
+            raw.pop("page_image_paths", None)
         return cls.model_validate(raw)
 
     def exceeds_v1_page_scope(self) -> bool:
         """Detect persisted legacy states that predate the single-page v1 contract."""
         return (
             len(self.image_paths) > 1
-            or len(self.page_image_paths) > 1
+            or len(self.page_artifacts) > 1
             or "\f" in (self.transcription or "")
         )
