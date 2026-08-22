@@ -70,7 +70,8 @@ def test_dependency_audit_is_locked_and_available_through_make() -> None:
     assert any(dependency.startswith("pip-audit") for dependency in dev_dependencies)
     assert "pip-audit" in locked_names
     assert "audit-deps:" in makefile
-    assert "uv run --locked pip-audit --local --strict --progress-spinner off" in makefile
+    assert "uv run --locked python -m scripts.audit_locked_dependencies" in makefile
+    assert "pip-audit --local" not in makefile
 
 
 def test_clean_environment_guard_checks_sync_without_mutating_it() -> None:

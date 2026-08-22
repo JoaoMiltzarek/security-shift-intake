@@ -90,7 +90,7 @@ test:
 check: format-check lint typecheck test
 
 audit-deps:
-	uv run --locked pip-audit --local --strict --progress-spinner off
+	uv run --locked python -m scripts.audit_locked_dependencies
 
 # --- Not implemented yet: fail loudly until the owning milestone lands. ---
 
