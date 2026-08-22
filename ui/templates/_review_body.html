@@ -46,7 +46,7 @@
               {% if classification %}
               <span class="mono">{{ classification.incident_type }}</span> ·
               urgência {% if classification.urgency == 'high' %}alta{% elif classification.urgency == 'medium' %}média{% else %}baixa{% endif %} ·
-              confiança {{ "%.0f%%"|format(classification.confidence * 100) }}
+              {% if classification.review_status == 'confirmed' %}confirmada pelo revisor{% else %}sugestão a confirmar{% endif %}
               {% else %}Não classificado{% endif %}
             </dd>
           </div>
@@ -54,12 +54,6 @@
             <dt>Roteamento previsto</dt>
             <dd>{{ recipients | join(", ") if recipients else "Nenhum destinatário derivado" }}</dd>
           </div>
-          {% if classification and classification.reason %}
-          <div class="context-wide">
-            <dt>Justificativa</dt>
-            <dd>{{ classification.reason }}</dd>
-          </div>
-          {% endif %}
         </dl>
       </section>
 

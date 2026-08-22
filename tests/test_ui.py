@@ -106,6 +106,8 @@ def test_review_page_shows_all_panels(
     text = r.text
     assert "Furto no patio." in text  # transcription
     assert "theft" in text  # classification
+    assert "confirmada pelo revisor" in text
+    assert "confiança 90%" not in text
     assert "tech_security, general_support" in text  # recipients
     assert "body text" in text  # email draft
     assert "REVISÃO OBRIGATÓRIA" in text  # flagged field
