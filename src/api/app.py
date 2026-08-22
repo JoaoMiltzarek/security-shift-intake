@@ -425,7 +425,7 @@ def _document_status(state: PipelineState) -> str:
 
 def _review_context(draft: Draft) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
-    state = PipelineState.model_validate_json(draft.state_json)
+    state = PipelineState.from_persisted_json(draft.state_json)
     normalized = state.normalized
     occurrence_rows: list[dict[str, str]] = []
     if normalized is not None:
@@ -622,7 +622,7 @@ def create_app(
             yield session
 
     def _compatible_state(draft: Draft) -> PipelineState:
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = PipelineState.from_persisted_json(draft.state_json)
         _assert_config_compatible(state, active_config)
         return state
 
@@ -637,7 +637,7 @@ def create_app(
         config_error = _config_blocker(draft)
         if config_error is not None:
             return config_error
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = PipelineState.from_persisted_json(draft.state_json)
         try:
             assert_reviewable(state)
         except DraftNotReviewableError as exc:
@@ -899,7 +899,7 @@ def create_app(
     def page_image(draft_id: int, n: int, session: Session = Depends(get_session)) -> FileResponse:
         """Serve the persisted OCR page image the cockpit overlay draws on (path-safe)."""
         draft = _require_draft(session, draft_id)
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = PipelineState.from_persisted_json(draft.state_json)
         try:
             path = resolve_page_image(state.page_image_paths, n, active_page_root)
         except (FileNotFoundError, PermissionError) as exc:
@@ -1067,7 +1067,7 @@ def create_app(
                 status_code=409,
                 detail=f"Draft {draft_id} was already simulated — edit blocked.",
             )
-        state = PipelineState.model_validate_json(draft.state_json)
+        state = PipelineState.from_persisted_json(draft.state_json)
         _assert_config_compatible(state, active_config)
         form = await _bounded_review_form(request)
         expected_revision, _ = _expected_form_snapshot(form, draft)

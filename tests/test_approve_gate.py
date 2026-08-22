@@ -133,6 +133,13 @@ def test_assert_reviewable_blocks_legacy_multi_page_state(state: PipelineState) 
         assert_reviewable(state)
 
 
+def test_assert_reviewable_blocks_unversioned_persisted_state() -> None:
+    state = PipelineState.from_persisted_json('{"source_pdf":"x.pdf"}')
+
+    with pytest.raises(DraftNotReviewableError, match="Legacy state"):
+        assert_reviewable(state)
+
+
 def test_api_approve_blocked_when_pending(client: TestClient) -> None:
     draft_id = client.post("/drafts", json=_PENDING_BODY).json()["id"]
     r = client.post(f"/drafts/{draft_id}/approve", params=_snapshot(client, draft_id))

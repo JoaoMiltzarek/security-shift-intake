@@ -28,6 +28,10 @@ class DraftNotReviewableError(RuntimeError):
 
 def assert_reviewable(state: PipelineState) -> None:
     """Fail closed unless the occurrence-sheet state is explicitly reviewable."""
+    if state.is_legacy:
+        raise DraftNotReviewableError(
+            "Legacy state has no v2 evidence contract; re-ingest the source document."
+        )
     if state.exceeds_v1_page_scope():
         raise DraftNotReviewableError(
             "Legacy multi-page state exceeds the supported single-page v1 contract."
@@ -133,7 +137,7 @@ def _simulate_draft_once(
             "re-approve the current content."
         )
 
-    state = PipelineState.model_validate_json(draft.state_json)
+    state = PipelineState.from_persisted_json(draft.state_json)
     try:
         assert_reviewable(state)
     except DraftNotReviewableError as exc:
