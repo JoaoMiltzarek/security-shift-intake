@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -62,6 +63,25 @@ def test_catalog_hashes_and_sizes_match_worktree_bytes() -> None:
     for entry in _entries():
         path = Path(str(entry["path"]))
         content = path.read_bytes()
+        assert entry["bytes"] == len(content)
+        assert entry["sha256"] == hashlib.sha256(content).hexdigest()
+
+
+def test_catalog_hashes_and_sizes_match_index_blobs() -> None:
+    """Validate the canonical Git bytes, independent of checkout line endings."""
+    for entry in _entries():
+        path = str(entry["path"])
+        object_id = subprocess.run(
+            ["git", "rev-parse", f":{path}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        content = subprocess.run(
+            ["git", "cat-file", "blob", object_id],
+            check=True,
+            capture_output=True,
+        ).stdout
         assert entry["bytes"] == len(content)
         assert entry["sha256"] == hashlib.sha256(content).hexdigest()
 
