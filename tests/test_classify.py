@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from src.classifier.contracts import ClassificationResult
-from src.clients.mock import MockLLMClient
+from src.clients.mock import FakeIncidentClassifier
 from src.pipeline.classify import classify
 from src.schema.extraction import NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config
@@ -28,7 +28,7 @@ def _present(*occurrences: NormalizedOccurrence) -> PipelineState:
 
 
 def test_classify_populates_a_rule_suggestion() -> None:
-    client = MockLLMClient(
+    client = FakeIncidentClassifier(
         classification=ClassificationResult(
             incident_type="theft",
             urgency="high",
@@ -49,7 +49,7 @@ def test_classify_populates_a_rule_suggestion() -> None:
 
 
 def test_classify_passes_only_normalized_occurrence_content() -> None:
-    client = MockLLMClient()
+    client = FakeIncidentClassifier()
     state = _present(
         NormalizedOccurrence(
             category="Portão",
@@ -65,12 +65,12 @@ def test_classify_passes_only_normalized_occurrence_content() -> None:
 
 def test_classify_does_not_mutate_input() -> None:
     state = _present(NormalizedOccurrence(description="Rotina"))
-    classify(state, MockLLMClient(), CONFIG)
+    classify(state, FakeIncidentClassifier(), CONFIG)
     assert state.classification is None
 
 
 def test_classify_skips_unknown_and_failed_content() -> None:
-    client = MockLLMClient()
+    client = FakeIncidentClassifier()
     unknown = PipelineState(
         source_pdf=Path("x.pdf"), normalized=NormalizedIncidentModel(disposition="unknown")
     )
@@ -89,7 +89,7 @@ def test_confirmed_no_occurrence_derives_confirmed_routine() -> None:
         normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
     )
 
-    result = classify(state, MockLLMClient(), CONFIG)
+    result = classify(state, FakeIncidentClassifier(), CONFIG)
 
     assert result.classification is not None
     assert result.classification.incident_type == "routine"
@@ -103,7 +103,7 @@ def test_unconfirmed_no_occurrence_has_no_classification() -> None:
         normalized=NormalizedIncidentModel(disposition="none"),
     )
 
-    assert classify(state, MockLLMClient(), CONFIG).classification is None
+    assert classify(state, FakeIncidentClassifier(), CONFIG).classification is None
 
 
 @pytest.mark.parametrize(
@@ -126,7 +126,7 @@ def test_unconfirmed_no_occurrence_has_no_classification() -> None:
 def test_classify_rejects_output_that_disagrees_with_config(
     classification: ClassificationResult,
 ) -> None:
-    client = MockLLMClient(classification=classification)
+    client = FakeIncidentClassifier(classification=classification)
     state = _present(NormalizedOccurrence(description="Furto"))
 
     with pytest.raises(ValueError, match="classification output"):

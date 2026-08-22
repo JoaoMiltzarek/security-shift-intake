@@ -1,4 +1,4 @@
-"""MockVisionClient — deterministic, offline, $0 stand-in for tests.
+"""Deterministic, offline reader and classifier fakes for tests.
 
 MOCK: this performs no model inference. It returns a canned TranscriptionResult so
 pipeline tests are deterministic and cost nothing (spec §8.4, §8.8). Never present
@@ -7,7 +7,8 @@ it as working transcription functionality.
 
 from __future__ import annotations
 
-from src.clients.base import ClassificationResult, ExtractedFieldRaw, TranscriptionResult
+from src.classifier.contracts import ClassificationResult
+from src.clients.base import TranscriptionResult
 from src.pipeline.ingest import Deadline, PageArtifact
 from src.schema.config import ClassificationRule
 
@@ -40,36 +41,21 @@ class MockVisionClient:
         )
 
 
-class MockLLMClient:
-    """Returns canned extracted fields and records how it was called.
-
-    MOCK: no model inference. Configure with a list of ExtractedFieldRaw; only the
-    requested field names are returned (missing ones come back as null/0.0).
-    """
+class FakeIncidentClassifier:
+    """Return one canned classification and record the reviewed content."""
 
     def __init__(
         self,
-        fields: list[ExtractedFieldRaw] | None = None,
         classification: ClassificationResult | None = None,
     ) -> None:
-        self._by_name = {f.name: f for f in (fields or [])}
         self._classification = classification or ClassificationResult(
             incident_type="other",
             urgency="medium",
             sector="general_support",
             rule_id="incident.other",
         )
-        self.call_count = 0
         self.classify_count = 0
         self.last_transcription: str | None = None
-
-    def extract_fields(self, transcription: str, field_names: list[str]) -> list[ExtractedFieldRaw]:
-        self.call_count += 1
-        self.last_transcription = transcription
-        return [
-            self._by_name.get(name, ExtractedFieldRaw(name=name, value=None, confidence=0.0))
-            for name in field_names
-        ]
 
     def classify(
         self,

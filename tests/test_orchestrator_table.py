@@ -8,7 +8,7 @@ import pytest
 
 from data.generators.tier_c import build_tier_c
 from src.clients.base import ClassificationResult, TranscriptionResult
-from src.clients.mock import MockLLMClient, MockVisionClient
+from src.clients.mock import FakeIncidentClassifier, MockVisionClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
 from src.schema.loader import load_config
@@ -41,8 +41,8 @@ def sample_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return next((out / "pdfs").glob("*.pdf"))
 
 
-def _llm() -> MockLLMClient:
-    return MockLLMClient(
+def _classifier() -> FakeIncidentClassifier:
+    return FakeIncidentClassifier(
         classification=ClassificationResult(
             incident_type="other",
             urgency="medium",
@@ -53,7 +53,9 @@ def _llm() -> MockLLMClient:
 
 
 def test_table_path_populates_normalized(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+    ).state
     assert state.report_type == CONFIG.report_type
     assert state.config_sha256 is not None and len(state.config_sha256) == 64
     assert state.raw_extraction is not None
@@ -63,14 +65,18 @@ def test_table_path_populates_normalized(sample_pdf: Path) -> None:
 
 
 def test_table_path_outputs_spreadsheet_and_message(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+    ).state
     assert state.email_draft is not None
     assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in state.email_draft  # Output 2 (copy-ready)
     assert state.spreadsheet_rows  # Output 1 populated
 
 
 def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_SA), _llm(), CONFIG, dpi=120).state
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_SA), _classifier(), CONFIG, dpi=120
+    ).state
     assert state.normalized is not None and state.normalized.no_occurrence is True
     assert len(state.spreadsheet_rows) == 1
     assert state.spreadsheet_rows[0].objeto == "Sem alteração"
@@ -78,7 +84,9 @@ def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
 
 
 def test_table_path_header_fields_must_review(sample_pdf: Path) -> None:
-    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
+    state = run_pipeline(
+        sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
+    ).state
     names = {f.name for f in state.extracted_fields}
     assert {"data_turno", "vigilantes", "unidade"} <= names
 
@@ -90,7 +98,7 @@ def test_reader_deadline_becomes_blocked_unknown_draft(sample_pdf: Path) -> None
                 "Processing deadline exceeded during test; manual review is required."
             )
 
-    result = run_pipeline(sample_pdf, TimedOutReader(), _llm(), CONFIG, dpi=120)
+    result = run_pipeline(sample_pdf, TimedOutReader(), _classifier(), CONFIG, dpi=120)
 
     assert len(result.pages) == 1
     assert result.state.ocr_quality == "failed"
@@ -113,7 +121,7 @@ def test_ingest_deadline_failure_preserves_empty_evidence_set(
 
     monkeypatch.setattr(orchestrator, "load_page_artifacts", timeout)
 
-    result = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120)
+    result = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120)
 
     assert result.pages == ()
     assert result.state.ocr_quality == "failed"
