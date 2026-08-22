@@ -206,9 +206,9 @@ def read_bounded_source(path: Path) -> bytes:
         with path.open("rb") as handle:
             content = handle.read(MAX_SOURCE_BYTES + 1)
     except OSError as exc:
-        raise EvidenceValidationError("fonte da evidÃªncia nÃ£o pÃ´de ser lida") from exc
+        raise EvidenceValidationError("fonte da evidência não pôde ser lida") from exc
     if len(content) > MAX_SOURCE_BYTES:
-        raise EvidenceValidationError("evidÃªncia excede o tamanho mÃ¡ximo permitido")
+        raise EvidenceValidationError("evidência excede o tamanho máximo permitido")
     return content
 
 

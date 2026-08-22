@@ -43,7 +43,7 @@ _SUBMIT_BODY = {
         },
         "disposition": "present",
         "disposition_confirmed": True,
-        "occurrences": [{"category": "Furto", "description": "Material subtraÃ­do"}],
+        "occurrences": [{"category": "Furto", "description": "Material subtraído"}],
     },
 }
 

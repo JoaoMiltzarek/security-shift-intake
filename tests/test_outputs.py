@@ -100,7 +100,7 @@ def test_blockers_include_failed_ocr() -> None:
 def test_legacy_multi_page_state_blocks_clean_export() -> None:
     state = _state(no_review=True).model_copy(update={"image_paths": [Path("1"), Path("2")]})
 
-    assert "documento multipÃ¡gina incompatÃ­vel com v1" in export_blockers(state)
+    assert "documento multipágina incompatível com v1" in export_blockers(state)
 
 
 def test_operational_outputs_are_derived_from_current_state() -> None:

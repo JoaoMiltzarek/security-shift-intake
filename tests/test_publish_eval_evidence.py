@@ -143,7 +143,7 @@ def test_source_reader_stops_at_the_public_evidence_limit(tmp_path: Path) -> Non
     source = tmp_path / "oversized.json"
     source.write_bytes(b"x" * (publisher.MAX_SOURCE_BYTES + 1))
 
-    with pytest.raises(publisher.EvidenceValidationError, match="tamanho mÃ¡ximo"):
+    with pytest.raises(publisher.EvidenceValidationError, match="tamanho máximo"):
         publisher.read_bounded_source(source)
 
 

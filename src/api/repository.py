@@ -476,7 +476,7 @@ def _update_state_locked(
     if expected_revision is not None and draft.revision != expected_revision:
         raise DraftOperationConflictError(
             f"Draft {draft_id} changed from revision {expected_revision} to "
-            f"{draft.revision} â€” reload before saving."
+            f"{draft.revision} — reload before saving."
         )
     if draft.status == ApprovalStatus.SIMULATED or draft.simulated_at is not None:
         add_audit(
