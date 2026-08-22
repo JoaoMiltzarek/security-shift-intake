@@ -186,6 +186,11 @@ def _iter_tree(root: Path) -> list[Path]:
     for directory, dirnames, filenames in os.walk(root, topdown=True):
         dirnames[:] = [name for name in dirnames if name not in _SKIP_DIRS]
         current = Path(directory)
+        if current == root and _PRIVATE_DIR in dirnames:
+            private_root = current / _PRIVATE_DIR
+            if _is_redirected(private_root):
+                files.append(private_root)
+            dirnames.remove(_PRIVATE_DIR)
         redirected_directories = [name for name in dirnames if _is_redirected(current / name)]
         files.extend(current / name for name in redirected_directories)
         dirnames[:] = [name for name in dirnames if name not in redirected_directories]
@@ -202,10 +207,10 @@ def check_no_sensitive_outside_private(root: Path = REPO_ROOT) -> list[str]:
     violations: list[str] = []
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _is_root_directory(rel, _PRIVATE_DIR):
-            continue
         if _is_redirected(p):
             violations.append(f"  redirected public path: {rel}")
+            continue
+        if _is_root_directory(rel, _PRIVATE_DIR):
             continue
         if _is_root_subpath(rel, _SYNTHETIC_SUBPATH):
             continue
@@ -229,10 +234,10 @@ def check_public_no_pii(root: Path = REPO_ROOT) -> list[str]:
     code_terms = [pattern for pattern in extra if pattern not in synthetic_collisions]
     for p in _iter_tree(root):
         rel = p.relative_to(root) if p.is_absolute() else p
-        if _is_root_directory(rel, _PRIVATE_DIR):
-            continue
         if _is_redirected(p):
             violations.append(f"  redirected public path: {rel}")
+            continue
+        if _is_root_directory(rel, _PRIVATE_DIR):
             continue
         suffix = p.suffix.lower()
         terms = extra

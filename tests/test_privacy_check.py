@@ -115,6 +115,26 @@ def test_pdf_inside_private_ok(tmp_path: Path) -> None:
     assert check_no_sensitive_outside_private(tmp_path) == []
 
 
+def test_root_private_tree_is_pruned_from_public_enumeration(tmp_path: Path) -> None:
+    import scripts.privacy_check as pc
+
+    private_file = _write(tmp_path / "private" / "reais" / "folha.pdf", "%PDF")
+
+    assert private_file not in pc._iter_tree(tmp_path)
+
+
+def test_redirected_private_root_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.privacy_check as pc
+
+    private_root = tmp_path / "private"
+    private_root.mkdir()
+    monkeypatch.setattr(pc, "_is_redirected", lambda candidate: candidate == private_root)
+
+    assert "redirected public path" in "\n".join(pc.check_no_sensitive_outside_private(tmp_path))
+
+
 @pytest.mark.parametrize("prefix", ["docs", "archive", "foo"])
 def test_nested_private_directory_is_not_exempt(tmp_path: Path, prefix: str) -> None:
     _write(tmp_path / prefix / "private" / "folha.pdf", "%PDF")
