@@ -170,6 +170,27 @@ def test_edit_marks_fields_human_sourced(client: TestClient) -> None:
     assert state["raw_extraction"]["header"]["unidade"]["source"] == "rule"
 
 
+def test_edit_recalculates_stale_validation_blockers(client: TestClient) -> None:
+    state = run_pipeline(
+        SAMPLE, FakeDocumentReader(text=OCR_INCIDENT), RuleBasedIncidentClassifier(), CFG
+    ).state.model_copy(update={"validation_errors": ["classification: timed out"]})
+    draft_id = int(client.post("/drafts", json=state.model_dump(mode="json")).json()["id"])
+    form = {
+        **_headers_form(),
+        **_classification_form("safety", "high", "facilities"),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__descricao": "Alarme confirmado no setor B",
+    }
+
+    assert _edit(client, draft_id, form).status_code == 200
+
+    detail = client.get(f"/drafts/{draft_id}").json()
+    assert detail["state"]["validation_errors"] == []
+    assert detail["readiness"]["approvable"] is True
+    assert _approve(client, draft_id).status_code == 200
+
+
 def test_approve_blocked_until_fields_resolved(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     # Pending fields -> approval blocked (R4).

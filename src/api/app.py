@@ -349,12 +349,16 @@ def _edit_table(
 
     fields: list[ExtractedField] = []
     must_review: list[str] = []
+    validation_errors: list[str] = []
+    required_headers = {
+        field.name for field in config.fields if field.type != "table" and field.required
+    }
     for name, value in [
         ("data_turno", norm.shift.date),
         ("vigilantes", ", ".join(norm.shift.guards) or None),
         ("unidade", norm.shift.unit),
     ]:
-        flagged = value is None  # required header field still blank
+        flagged = name in required_headers and value is None
         fields.append(
             ExtractedField(
                 name=name,
@@ -368,6 +372,7 @@ def _edit_table(
         )
         if flagged:
             must_review.append(name)
+            validation_errors.append(f"{name}: required field is missing")
     if norm.disposition == "none":
         # "(sem alteração)" humano SÓ nasce da confirmação explícita via radio — nunca
         # da mera ausência de linhas, para que falhas de parse continuem bloqueadas.
@@ -447,6 +452,7 @@ def _edit_table(
         "normalized": norm,
         "extracted_fields": fields,
         "must_review_fields": must_review,
+        "validation_errors": validation_errors,
     }
     # Human transcription clears the OCR-failed block (the data is now confirmed).
     if state.ocr_quality == "failed":
