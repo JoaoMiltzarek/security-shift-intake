@@ -51,6 +51,12 @@ class RawHeader(BaseModel):
     unidade: AuditedField = Field(default_factory=AuditedField)
 
 
+def _has_text_value(field: AuditedField) -> bool:
+    if isinstance(field.value, list):
+        return any(str(item).strip() for item in field.value)
+    return field.value is not None and bool(str(field.value).strip())
+
+
 class RawRow(BaseModel):
     """Uma linha da tabela como lida (Item / Hora / Descrição / Ação / Resolvido)."""
 
@@ -61,6 +67,13 @@ class RawRow(BaseModel):
     resolvido: AuditedField = Field(default_factory=AuditedField)
     # True se a linha está marcada S/A ou riscada (= sem ocorrência nesta linha).
     sem_alteracao: bool = False
+
+    @model_validator(mode="after")
+    def _reject_contradictory_no_change(self) -> Self:
+        cells = (self.item, self.hora, self.descricao, self.acao, self.resolvido)
+        if self.sem_alteracao and any(_has_text_value(cell) for cell in cells):
+            raise ValueError("a no-change row cannot also contain occurrence content")
+        return self
 
 
 class RawDocumentExtraction(BaseModel):

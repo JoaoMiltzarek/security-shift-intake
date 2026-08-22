@@ -51,6 +51,14 @@ def test_raw_row_defaults_all_cells_missing() -> None:
     assert row.sem_alteracao is False
 
 
+def test_raw_row_rejects_no_change_with_occurrence_content() -> None:
+    with pytest.raises(ValidationError, match="no-change row"):
+        RawRow(
+            sem_alteracao=True,
+            descricao=AuditedField(value="Alarme disparou", status="must_review"),
+        )
+
+
 def test_raw_document_minimal() -> None:
     raw = RawDocumentExtraction(report_type="controle_ocorrencias")
     assert raw.schema_version == "1.0"
