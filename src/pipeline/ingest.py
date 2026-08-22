@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 # ~250 DPI balances legibility of handwriting against image size/cost (spec §2 stage 0).
 DEFAULT_DPI = 250
@@ -320,6 +320,8 @@ def load_source_images(
                 return [image]
         except Image.DecompressionBombError:
             raise IngestLimitError("Image exceeds the local pixel budget.") from None
+        except (UnidentifiedImageError, OSError, SyntaxError):
+            raise IngestDocumentError("Image could not be decoded safely.") from None
     raise ValueError(
         f"Unsupported source type '{path.suffix}'. Use a PDF or an image "
         f"({', '.join(sorted(_IMAGE_SUFFIXES))})."

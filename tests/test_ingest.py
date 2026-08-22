@@ -352,6 +352,20 @@ def test_invalid_pdf_raises_sanitized_document_error(tmp_path: Path) -> None:
     assert str(source) not in message
 
 
+def test_corrupt_image_raises_sanitized_document_error(tmp_path: Path) -> None:
+    secret = "PERSON-NAME-private-sheet"
+    source = tmp_path / f"{secret}.png"
+    source.write_bytes(f"not an image: {secret}".encode())
+
+    with pytest.raises(IngestDocumentError) as exc_info:
+        load_source_images(source)
+
+    message = str(exc_info.value)
+    assert message == "Image could not be decoded safely."
+    assert secret not in message
+    assert str(source) not in message
+
+
 def test_pdfium_document_and_pages_close_when_render_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
