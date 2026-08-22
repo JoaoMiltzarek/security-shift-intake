@@ -22,7 +22,7 @@ def test_health_returns_ok() -> None:
 
 
 def test_app_version_matches_package() -> None:
-    assert app.version == __version__ == "1.0.0"
+    assert app.version == __version__ == "1.1.0"
 
 
 def test_pyproject_version_matches_package() -> None:
