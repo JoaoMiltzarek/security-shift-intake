@@ -55,6 +55,24 @@ def test_every_vendored_font_has_a_linked_license_notice() -> None:
     assert "assets/fonts/FONTS.md" in notices
 
 
+def test_font_registry_authenticates_every_vendored_font() -> None:
+    registry = Path("assets/fonts/FONTS.md").read_text(encoding="utf-8")
+    font_dir = Path("assets/fonts")
+
+    font_files = sorted(font_dir.glob("*.ttf"))
+    assert len(font_files) == 5
+    for font_file in font_files:
+        digest = hashlib.sha256(font_file.read_bytes()).hexdigest()
+        license_name = f"{font_file.stem}.OFL.txt"
+        assert font_file.name in registry
+        assert digest in registry
+        assert license_name in registry
+
+    normalized = " ".join(registry.split())
+    assert "github.com/google/fonts/tree/main/ofl/" in normalized
+    assert "SIL Open Font License 1.1" in normalized
+
+
 def test_commercial_offer_excludes_third_party_license_rights() -> None:
     offer = Path("COMMERCIAL-LICENSE.md").read_text(encoding="utf-8")
 

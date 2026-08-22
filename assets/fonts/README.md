@@ -1,16 +1,18 @@
-# Handwriting fonts
+# Vendored handwriting fonts
 
-**Bundladas desde a PR-D1** (mudança deliberada da política no-binary anterior,
-registrada em `docs/DATASET_CONTRACT.md` §3): cinco fontes handwriting **SIL OFL 1.1**
-vivem neste diretório, cada uma com seu `<Fonte>.OFL.txt` ao lado. Proveniência,
-atribuição e sha256 de cada arquivo: [`FONTS.md`](FONTS.md). Cobertura dos acentos
-PT-BR é garantida por `tests/test_fonts_coverage.py` — fonte nova só entra passando
-nesse teste e ganhando linha no registro.
+This directory contains five font files used only to render synthetic occurrence sheets. Every
+font is distributed under the SIL Open Font License 1.1 and has its own adjacent `*.OFL.txt`
+license copy.
 
-Se este diretório estiver vazio (ex.: checkout parcial), o renderer cai no fallback da
-fonte default do Pillow — o pipeline segue rodando fim a fim, só que o output parece
-digitado em vez de manuscrito (`data/generators/fonts.py`).
+[`FONTS.md`](FONTS.md) records the upstream project, attribution, committed SHA-256, and local
+license for every font. [`../../THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) explains
+how these licenses relate to the project's separate PolyForm terms.
 
-> **Honesty caveat (também no README principal):** "manuscrito" renderizado por fonte é
-> *mais fácil* de ler que manuscrito humano real, então scores de transcrição/extração
-> sobre folhas sintéticas são um **limite superior otimista** do desempenho real.
+Tests verify that the bundle is present, each font has its matching license file, recorded hashes
+match the committed bytes, and the PT-BR characters used by the generator render as real glyphs.
+A new or replaced font requires all of those checks and an updated notice in the same commit.
+
+The synthetic renderer can fall back to Pillow's default font in a partial developer checkout,
+but such output is not eligible for the authenticated release corpus. Font-rendered handwriting
+is also easier and less varied than human cursive; synthetic OCR results are not a claim of
+real-handwriting accuracy.
