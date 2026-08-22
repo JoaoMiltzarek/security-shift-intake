@@ -218,6 +218,55 @@ def test_field_names_must_be_unique(tmp_path: Path) -> None:
         load_config(path)
 
 
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda config: config.update(report_type=" "), "report_type"),
+        (lambda config: config["fields"][0].update(name=" "), "field names"),
+        (
+            lambda config: config["fields"][2]["columns"][0].update(name=" "),
+            "column names",
+        ),
+        (
+            lambda config: config["classification"]["type"].update(
+                labels=["routine", "Routine"]
+            ),
+            "classification.type.labels",
+        ),
+        (
+            lambda config: config["classification"]["rules"][0].update(
+                id=" classification.default"
+            ),
+            "classification rule ids",
+        ),
+        (lambda config: config["routing"][0].update(id=" "), "routing rule ids"),
+        (
+            lambda config: config["routing"][0].update(
+                recipients=["tech_security", "TECH_SECURITY"]
+            ),
+            r"routing\[0\].recipients",
+        ),
+    ],
+    ids=[
+        "report-type",
+        "field-name",
+        "column-name",
+        "taxonomy-label",
+        "classification-id",
+        "routing-id",
+        "recipient-id",
+    ],
+)
+def test_contract_identifiers_are_nonblank_trimmed_and_unique(
+    tmp_path: Path, mutate: Any, message: str
+) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    mutate(bad)
+
+    with pytest.raises(ValidationError, match=message):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
 def test_only_one_repeating_table_is_supported(tmp_path: Path) -> None:
     bad = copy.deepcopy(VALID_CONFIG)
     table = {

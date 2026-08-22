@@ -27,6 +27,16 @@ ScalarFieldType = Literal["date", "string", "enum", "bool", "text"]
 FieldType = Literal["date", "string", "enum", "bool", "text", "table"]
 
 
+def _validate_identifiers(values: list[str], location: str) -> None:
+    stripped = [value.strip() for value in values]
+    if any(not value for value in stripped):
+        raise ValueError(f"{location} cannot contain blanks")
+    if values != stripped:
+        raise ValueError(f"{location} cannot contain surrounding whitespace")
+    if len(stripped) != len({value.casefold() for value in stripped}):
+        raise ValueError(f"{location} must be unique")
+
+
 class StrictConfigModel(BaseModel):
     """Reject configuration keys that are not part of the executable contract."""
 
@@ -174,17 +184,17 @@ class ReportConfig(StrictConfigModel):
     @model_validator(mode="after")
     def routing_has_default(self) -> ReportConfig:
         """Close the executable config contract before any document is processed."""
+        _validate_identifiers([self.report_type], "report_type")
+
         field_names = [field.name for field in self.fields]
-        if len(field_names) != len(set(field_names)):
-            raise ValueError("field names must be unique")
+        _validate_identifiers(field_names, "field names")
 
         table_fields = [field for field in self.fields if field.type == "table"]
         if len(table_fields) != 1:
             raise ValueError("v1 requires exactly one table field per report config")
         for table in table_fields:
             column_names = [column.name for column in table.columns or []]
-            if len(column_names) != len(set(column_names)):
-                raise ValueError(f"table '{table.name}' column names must be unique")
+            _validate_identifiers(column_names, f"table '{table.name}' column names")
 
         default_indexes = [index for index, rule in enumerate(self.routing) if rule.when is None]
         if default_indexes != [len(self.routing) - 1]:
@@ -195,20 +205,14 @@ class ReportConfig(StrictConfigModel):
             "urgency": set(self.classification.urgency.labels),
             "sector": set(self.classification.sector.labels),
         }
-        for dimension, labels in taxonomy.items():
+        for dimension in taxonomy:
             configured = getattr(self.classification, dimension).labels
-            if len(labels) != len(configured):
-                raise ValueError(f"classification.{dimension}.labels must be unique")
-            if any(not label.strip() for label in configured):
-                raise ValueError(f"classification.{dimension}.labels cannot contain blanks")
+            _validate_identifiers(configured, f"classification.{dimension}.labels")
 
         classification_ids = [
             classification_rule.id for classification_rule in self.classification.rules
         ]
-        if any(not rule_id.strip() for rule_id in classification_ids):
-            raise ValueError("classification rule ids cannot be blank")
-        if len(classification_ids) != len(set(classification_ids)):
-            raise ValueError("classification rule ids must be unique")
+        _validate_identifiers(classification_ids, "classification rule ids")
         fallback_indexes = [
             index
             for index, classification_rule in enumerate(self.classification.rules)
@@ -236,12 +240,10 @@ class ReportConfig(StrictConfigModel):
             seen_keywords.update(normalized_keywords)
 
         routing_ids = [routing_rule.id for routing_rule in self.routing]
-        if any(not rule_id.strip() for rule_id in routing_ids):
-            raise ValueError("routing rule ids cannot be blank")
-        if len(routing_ids) != len(set(routing_ids)):
-            raise ValueError("routing rule ids must be unique")
+        _validate_identifiers(routing_ids, "routing rule ids")
         prior_conditions: list[tuple[int, dict[str, str]]] = []
         for index, routing_rule in enumerate(self.routing):
+            _validate_identifiers(routing_rule.recipients, f"routing[{index}].recipients")
             if routing_rule.when is None:
                 continue
             condition = {
