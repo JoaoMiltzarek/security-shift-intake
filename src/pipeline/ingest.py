@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from PIL import Image
+from PIL import Image, ImageOps
 
 # ~250 DPI balances legibility of handwriting against image size/cost (spec §2 stage 0).
 DEFAULT_DPI = 250
@@ -295,9 +295,14 @@ def load_source_images(
             with Image.open(path) as img:
                 if getattr(img, "n_frames", 1) != 1:
                     raise IngestLimitError("Image must be a single-page v1 document.")
-                if img.width * img.height > MAX_PIXELS_PER_PAGE:
-                    raise IngestLimitError("Image exceeds the local pixel budget.")
-                image = img.convert("RGB")
+                oriented = ImageOps.exif_transpose(img)
+                try:
+                    if oriented.width * oriented.height > MAX_PIXELS_PER_PAGE:
+                        raise IngestLimitError("Image exceeds the local pixel budget.")
+                    image = oriented.convert("RGB")
+                finally:
+                    if oriented is not img:
+                        oriented.close()
                 if deadline is not None:
                     try:
                         deadline.remaining_seconds(stage="image decoding")

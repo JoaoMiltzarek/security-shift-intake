@@ -161,6 +161,20 @@ def test_load_source_images_jpg(tmp_path: Path) -> None:
     assert len(load_source_images(jpg)) == 1
 
 
+def test_load_source_images_applies_exif_orientation(tmp_path: Path) -> None:
+    photo = tmp_path / "rotated.jpg"
+    exif = Image.Exif()
+    exif[274] = 6  # Rotate 90 degrees clockwise for display.
+    with Image.new("RGB", (40, 20), "white") as image:
+        image.save(photo, exif=exif)
+
+    (loaded,) = load_source_images(photo)
+    try:
+        assert loaded.size == (20, 40)
+    finally:
+        loaded.close()
+
+
 def test_multiframe_image_is_rejected_for_the_single_page_v1_contract(tmp_path: Path) -> None:
     tiff = tmp_path / "multipage.tiff"
     first = Image.new("RGB", (30, 30), "white")
