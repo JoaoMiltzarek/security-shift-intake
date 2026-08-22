@@ -43,6 +43,7 @@ _SUBMIT_BODY = {
             "unit": "Portaria 1",
         },
         "disposition": "present",
+        "disposition_confirmed": True,
         "occurrences": [{"category": "Furto", "description": "Material subtraÃ­do"}],
     },
 }

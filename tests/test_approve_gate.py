@@ -50,7 +50,7 @@ _CLEAN_BODY = {
     **_PENDING_BODY,
     "extracted_fields": [{"name": "data_turno", "value": "15/01/2026", "confidence": 1.0}],
     "must_review_fields": [],
-    "normalized": {"disposition": "none"},
+    "normalized": {"disposition": "none", "disposition_confirmed": True},
 }
 
 # Body where OCR failed but the critic left no pending field — must still be blocked.
@@ -90,7 +90,7 @@ def test_assert_reviewable_raises_when_pending() -> None:
 def test_assert_reviewable_passes_when_clean() -> None:
     state = PipelineState(
         source_pdf=Path("x.pdf"),
-        normalized=NormalizedIncidentModel(disposition="none"),
+        normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
         must_review_fields=[],
     )
     assert_reviewable(state)  # does not raise
@@ -118,6 +118,17 @@ def test_assert_reviewable_blocks_unknown_without_pending_fields() -> None:
     )
 
     with pytest.raises(DraftNotReviewableError):
+        assert_reviewable(state)
+
+
+def test_assert_reviewable_blocks_unconfirmed_detected_disposition() -> None:
+    state = PipelineState(
+        source_pdf=Path("x.pdf"),
+        normalized=NormalizedIncidentModel(disposition="none"),
+        must_review_fields=[],
+    )
+
+    with pytest.raises(DraftNotReviewableError, match="explicit human confirmation"):
         assert_reviewable(state)
 
 

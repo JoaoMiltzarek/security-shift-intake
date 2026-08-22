@@ -197,7 +197,7 @@ class DispositionConflictError(ValueError):
 
 
 def _resolve_disposition(
-    form: Any, current: NormalizedIncidentModel, rows: list[NormalizedOccurrence]
+    form: Any, rows: list[NormalizedOccurrence]
 ) -> tuple[Disposition, list[NormalizedOccurrence]]:
     """Disposição vem de confirmação explícita; contradições nunca persistem."""
     disposicao = form.get("disposicao")
@@ -211,22 +211,15 @@ def _resolve_disposition(
             "Você marcou 'com ocorrências' mas nenhuma linha foi preenchida — "
             "preencha ao menos uma linha ou confirme 'sem alteração'."
         )
-    if disposicao is None and rows:
+    if disposicao not in {"sem_alteracao", "com_ocorrencias"}:
         raise DispositionConflictError(
-            "Há linhas preenchidas sem a confirmação da disposição — marque "
-            "'com ocorrências' (ou limpe as linhas e marque 'sem alteração')."
+            "Confirme explicitamente a disposição: 'sem alteração' ou 'com ocorrências'."
         )
     if disposicao == "sem_alteracao":
         return "none", []
     if disposicao == "com_ocorrencias":
         return "present", rows
-    # Sem radio e sem linhas: unknown/none continuam como estão; um draft 'present'
-    # sem radio é ambíguo (as linhas sumiram?) → erro em vez de adivinhar.
-    if current.disposition == "present":
-        raise DispositionConflictError(
-            "Confirme a disposição: 'sem alteração' ou 'com ocorrências'."
-        )
-    return current.disposition, []
+    raise AssertionError("validated disposition was not resolved")
 
 
 def _revised_content(norm: NormalizedIncidentModel) -> str:
@@ -260,7 +253,7 @@ def _edit_table(
         return raw.strip() if isinstance(raw, str) and raw.strip() else None
 
     rows = parse_occurrence_rows(form)
-    disposition, occurrences = _resolve_disposition(form, current, rows)
+    disposition, occurrences = _resolve_disposition(form, rows)
     guards_text = fval("vigilantes")
     norm = NormalizedIncidentModel(
         schema_version=current.schema_version,
@@ -275,6 +268,7 @@ def _edit_table(
             unit=fval("unidade"),
         ),
         disposition=disposition,
+        disposition_confirmed=True,
         occurrences=occurrences,
     )
 
@@ -450,7 +444,11 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         "state_sha256": repository.state_sha256(draft.state_json),
         # Editor 0/1/N (SSI-1007): grid de ocorrências + disposição pré-marcada.
         "table_mode": normalized is not None,
-        "disposicao": normalized.disposition if normalized is not None else None,
+        "disposicao": (
+            normalized.disposition
+            if normalized is not None and normalized.disposition_confirmed
+            else None
+        ),
         "occurrence_rows": occurrence_rows,
         "transcription": state.transcription,
         "fields": state.extracted_fields,

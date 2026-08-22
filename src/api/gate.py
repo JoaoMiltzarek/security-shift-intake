@@ -53,6 +53,10 @@ def assert_reviewable(state: PipelineState) -> None:
         raise DraftNotReviewableError(
             "Occurrence disposition is unknown — explicit human confirmation required."
         )
+    if not state.normalized.disposition_confirmed:
+        raise DraftNotReviewableError(
+            "Occurrence disposition requires explicit human confirmation."
+        )
 
 
 @runtime_checkable

@@ -115,6 +115,8 @@ class NormalizedIncidentModel(BaseModel):
     schema_version: Literal["1.1"] = "1.1"
     shift: NormalizedShift = Field(default_factory=NormalizedShift)
     disposition: Disposition = "unknown"
+    # OCR/rules may suggest a disposition, but only the review form can confirm it.
+    disposition_confirmed: bool = False
     occurrences: list[NormalizedOccurrence] = Field(default_factory=list)
 
     @model_validator(mode="before")
@@ -140,6 +142,8 @@ class NormalizedIncidentModel(BaseModel):
             raise ValueError("disposition 'present' exige ao menos uma ocorrência")
         if self.disposition != "present" and has_occurrences:
             raise ValueError(f"disposition '{self.disposition}' não aceita ocorrências")
+        if self.disposition == "unknown" and self.disposition_confirmed:
+            raise ValueError("disposition 'unknown' cannot be confirmed")
         return self
 
     @computed_field  # type: ignore[prop-decorator]

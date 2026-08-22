@@ -141,5 +141,6 @@ def normalize(raw: RawDocumentExtraction) -> NormalizedIncidentModel:
     return NormalizedIncidentModel(
         shift=shift,
         disposition=disposition,
+        disposition_confirmed=False,
         occurrences=occurrences,
     )

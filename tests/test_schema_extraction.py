@@ -76,8 +76,13 @@ def test_raw_document_roundtrip() -> None:
 
 
 def test_normalized_no_occurrence() -> None:
-    m = NormalizedIncidentModel(shift=NormalizedShift(unit="Posto"), disposition="none")
+    m = NormalizedIncidentModel(
+        shift=NormalizedShift(unit="Posto"),
+        disposition="none",
+        disposition_confirmed=True,
+    )
     assert m.no_occurrence is True
+    assert m.disposition_confirmed is True
     assert m.occurrences == []
 
 
@@ -99,6 +104,12 @@ def test_normalized_defaults_to_safe_unknown() -> None:
     assert model.schema_version == "1.1"
     assert model.disposition == "unknown"
     assert model.no_occurrence is False
+    assert model.disposition_confirmed is False
+
+
+def test_unknown_disposition_cannot_be_human_confirmed() -> None:
+    with pytest.raises(ValidationError, match="cannot be confirmed"):
+        NormalizedIncidentModel(disposition="unknown", disposition_confirmed=True)
 
 
 def test_normalized_none_derives_compatibility_flag() -> None:

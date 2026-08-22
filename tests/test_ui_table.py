@@ -184,14 +184,16 @@ def _state_of(client: TestClient, draft_id: int) -> dict:
     return client.get(f"/drafts/{draft_id}").json()["state"]
 
 
-def test_unknown_stays_unknown_without_explicit_disposition(client: TestClient) -> None:
-    """Editar só o cabeçalho não resolve a disposição: unknown continua unknown e
-    a aprovação continua bloqueada — nada de 'sem alteração' implícito (a lavagem)."""
+def test_edit_rejects_absent_disposition_confirmation(client: TestClient) -> None:
+    """A save without either radio is rejected instead of retaining an inference."""
     draft_id = _submit_unknown_draft(client)
+    before = _state_of(client, draft_id)
     r = _edit(client, draft_id, _headers_form())  # sem radio
     assert r.status_code == 200
+    assert "Confirme explicitamente" in r.text
 
     state = _state_of(client, draft_id)
+    assert state == before
     assert state["normalized"]["disposition"] == "unknown"
     occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
     assert occ["value"] != "(sem alteração)"
@@ -207,6 +209,7 @@ def test_human_confirms_sem_alteracao(client: TestClient) -> None:
 
     state = _state_of(client, draft_id)
     assert state["normalized"]["disposition"] == "none"
+    assert state["normalized"]["disposition_confirmed"] is True
     occ = next(f for f in state["extracted_fields"] if f["name"] == "ocorrencias")
     assert occ["value"] == "(sem alteração)"
     assert occ["source"] == "human"
@@ -334,6 +337,16 @@ def test_rows_without_disposition_radio_are_rejected(client: TestClient) -> None
     r = _edit(client, draft_id, form)
     assert r.status_code == 200
     assert "edit-error" in r.text
+    assert _state_of(client, draft_id) == before
+
+
+def test_unknown_disposition_form_value_is_rejected(client: TestClient) -> None:
+    draft_id = _submit_unknown_draft(client)
+    before = _state_of(client, draft_id)
+
+    response = _edit(client, draft_id, {**_headers_form(), "disposicao": "unknown"})
+
+    assert "Confirme explicitamente" in response.text
     assert _state_of(client, draft_id) == before
 
 

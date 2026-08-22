@@ -38,7 +38,7 @@ def _state() -> PipelineState:
         source_pdf=Path("r.pdf"),
         recipients=["tech_security", "general_support"],
         email_draft="Subject: ...\n\nbody",
-        normalized=NormalizedIncidentModel(disposition="none"),
+        normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
     )
 
 
