@@ -1,100 +1,137 @@
-# Contributing to Security Shift Intake
+# Contributing
 
-Security Shift Intake is an evidence-review system for sensitive operational documents.
-Changes are welcome when they preserve its conservative trust model: extraction is evidence,
-uncertainty stays visible, and a human remains responsible for every consequential decision.
+Security Shift Intake handles sensitive operational documents through a conservative review
+workflow. Contributions are welcome when they keep uncertainty visible, preserve evidence, and
+leave consequential decisions with the human operator.
 
-## Supported product boundary
+## Product boundary
 
-The supported v1 path processes one single-page `controle_ocorrencias` PDF or image on the
-operator's machine. It provides a local, single-user review cockpit, standardized CSV output,
-a copy-ready message, and a terminal **delivery simulation**.
+The supported v1.1 path processes one single-page **Controle de Ocorrências** PDF or image on a
+trusted workstation. It provides local OCR evidence, a single-operator review desk,
+human-confirmed triage, CSV export, and a terminal delivery simulation.
 
-Authentication, network deployment, real delivery adapters, multi-page aggregation, advanced
-XLSX, agent loops, RAG, and model training are separate future projects. Do not introduce them
-as incidental changes.
+Authentication, network deployment, multiple workers, real delivery, arbitrary form types,
+multi-page aggregation, cloud readers, and model training are separate projects. Do not add one
+as an incidental dependency or undocumented option.
 
-## Non-negotiable invariants
+## Non-negotiable domain rules
 
-1. Missing or ambiguous evidence remains `unknown`; it must never become “no occurrence.”
+1. Missing or ambiguous occurrence evidence remains `unknown`; it never becomes no change.
 2. `none` requires explicit human confirmation and zero occurrence rows.
-3. `present` requires one to ten structurally valid occurrence rows.
-4. Every edit records human provenance and advances the revision.
-5. Approval, export, and simulation bind to the current revision, content hash, report type,
-   and configuration fingerprint.
-6. Editing approved content revokes the previous approval.
-7. CSV cells beginning with formula-control characters remain neutralized.
-8. The unauthenticated web application is loopback-only. Network exposure is unsupported.
-9. Repository fixtures and public artifacts are synthetic. Real sheets stay under the
-   gitignored `private/` boundary.
-10. Metrics and product claims must be reproducible from catalogued evidence; a mock is never
-    presented as a measured reader result.
+3. `present` requires explicit human confirmation and one to ten valid occurrence rows.
+4. A rule classification is a suggestion. Type, urgency, and sector must be confirmed or
+   overridden by a human before approval.
+5. Classification values must belong to the active taxonomy. A human override carries human
+   provenance and cannot claim a rule identifier.
+6. Routing and recipients are server-derived. A client never supplies or persists trusted
+   recipients.
+7. Every mutation requires the revision and state hash loaded by the reviewer, records human
+   provenance, advances the revision, and invalidates an older approval.
+8. Approval requires the centralized readiness contract: verified evidence, matching config,
+   confirmed disposition and classification, no pending fields or validation errors, and a
+   non-empty route.
+9. CSV export and simulation require an approval matching the current revision and state hash.
+10. Page use requires the stored key, bytes, hash, width, and height to match. Historical states
+    without that identity remain viewable but fail closed until re-ingestion.
+11. CSV cells that begin with formula-control characters remain neutralized.
+12. `simulated` is terminal and means only that the local recorder accepted a simulation. It is
+    not evidence of external delivery or receipt.
 
-## Development setup
+If a change weakens one of these rules, it needs a new product contract, threat analysis, and
+versioned migration rather than a compatibility shortcut.
 
-Use the pinned Python release and the checked-in lockfile:
+## Set up the development environment
+
+Use Python 3.11.15 and the checked-in lockfile:
 
 ```console
-uv sync --locked --python 3.11.15 --all-groups
+uv python install 3.11.15
+uv sync --locked --python 3.11.15
+uv sync --locked --check
 ```
 
-Run the canonical local gates before requesting review:
+Run the canonical gates before committing:
 
 ```console
+make format-check
+make lint
+make typecheck
+make test
+make validate-config
+make privacy-check
+make audit-deps
+```
+
+On Windows without GNU Make, run the corresponding locked commands directly:
+
+```powershell
 uv run --locked ruff format --check .
 uv run --locked ruff check .
 uv run --locked mypy src data scripts evals
 uv run --locked pytest
+uv run --locked python -m scripts.validate_config configs/controle_ocorrencias.yaml
 uv run --locked python -m scripts.privacy_check
+uv run --locked python -m scripts.audit_locked_dependencies
 ```
 
-Run `uv run --locked pip-audit --local --strict --progress-spinner off` whenever dependency
-resolution is available. Do not claim a clean vulnerability audit when that command could not
-run.
+Do not claim a dependency audit passed when the audit could not execute or obtain its advisory
+data.
 
 ## Change discipline
 
-- Start from a clean worktree and inspect the current architecture before editing.
-- Keep changes small, independently testable, and expressed as Conventional Commits.
-- Add or update tests with the behavior they protect. Prefer deterministic local fixtures.
-- Keep business rules out of route handlers and templates. Web adapters parse and present;
-  application services orchestrate; domain modules decide; infrastructure performs I/O.
-- Treat OCR/VLM output as untrusted, layout-coupled evidence. Preserve source, method,
-  confidence, probable page region, and correction history where available.
-- Use the lockfile. Do not invent library APIs or model identifiers; verify installed versions
-  and official documentation first.
-- Never weaken CSP, same-origin checks, request limits, TrustedHost, path confinement, escaping,
-  or `no-store` protections to make a test pass.
-- Never add `innerHTML`, `eval`, inline event handlers, sensitive browser storage, remote fonts,
-  analytics, CDNs, or hidden outbound requests.
-- Never push, rewrite history, or move release tags on another contributor's behalf.
+- Start from a clean worktree and read the active contracts before editing.
+- Keep one behavior, document, or removal per Conventional Commit.
+- Include the direct regression test with a code change when separating them would leave a red
+  commit.
+- Preserve unrelated worktree changes; never rewrite another contributor's history or move a
+  release tag.
+- Use the lockfile and repository-root paths. Avoid machine-specific paths, clocks, random
+  output, or network dependencies in tests.
+- Keep business rules out of route handlers and templates. HTTP adapters parse and present;
+  application services coordinate; domain modules decide; infrastructure performs I/O.
+- Treat OCR text, image metadata, browser fields, stored legacy state, and YAML as untrusted
+  inputs.
+- Do not weaken same-origin checks, CSP, TrustedHost, request limits, path confinement, escaping,
+  revision checks, or evidence hashes to make a test pass.
+- Do not add remote fonts, analytics, CDNs, browser storage for document data, inline executable
+  code, or hidden outbound requests.
 
-## Evidence and release records
+## Test the behavior that changed
 
-Files catalogued under `docs/evals/` are evidence, not marketing copy. Preserve their exact
-bytes and hashes. Publishing a new release artifact requires the repository's write-once
-publisher, the expected commit identity, and the evaluation protocol documented in
-[`docs/EVAL_RELEASE.md`](docs/EVAL_RELEASE.md).
+| Change | Minimum focused coverage |
+|---|---|
+| Ingest or evidence | Corrupt input, limits, cleanup, orientation, dimensions, bytes, hash, and confinement |
+| Normalization | `unknown`, `none`, `present`, contradictory rows, date, and period |
+| Classification | Normalized occurrence content, stable rule ID, multiple rows, confirmation, and override |
+| Routing | Stable server rule ID, non-empty recipients, fallback, and no client recipient input |
+| Review mutation | Expected revision/hash, human provenance, revalidation, and approval revocation |
+| Approval/export/simulation | Every readiness blocker, current snapshot, lock, audit, and terminal state |
+| UI | Escaping, CSP, accessibility, empty/rejected states, blockers, and real browser flow |
+| Documentation | Local links, real Make targets, locked commands, and supported runtime names |
 
-Historical reader failures remain historical. A new reader is promoted only after it passes the
-same frozen structural-safety contract. Synthetic safety gates do not prove accuracy on real
-corporate handwriting.
+Mock readers keep unit tests deterministic. A mock result must never be presented as a measured
+Tesseract or release result.
 
 ## Privacy checklist
 
-Before every commit that touches documents, fixtures, screenshots, generated outputs, or logs:
+Before committing a document, fixture, screenshot, generated output, log, or evaluation record:
 
-- confirm that every tracked sample is synthetic;
-- inspect staged filenames and content for names, identifiers, addresses, coordinates, or
-  operational details;
-- keep databases, page images, quarantine data, curation records, and real sheets under
-  `private/`;
-- run `uv run --locked python -m scripts.privacy_check`;
-- stop and exclude the material when its provenance is uncertain.
+- establish and document that every public asset is synthetic;
+- inspect staged filenames and staged Git blobs for names, identifiers, addresses, coordinates,
+  schedules, and operational details;
+- keep real sheets, page images, databases, detailed transcripts, audit output, and curation
+  records under `private/`;
+- run `make privacy-check` and inspect `git diff --cached`;
+- stop and exclude material whose provenance is uncertain.
 
-## Review checklist
+The automated privacy guard is heuristic. Passing it does not replace review of the staged
+content.
 
-A review is complete only when the relevant behavior is exercised, failure states are explicit,
-and the worktree contains no unrelated generated artifacts. For security-sensitive changes,
-include regression coverage for loopback confinement, same-origin mutation, input limits, CSP,
-escaping, traversal protection, revision/hash checks, and fail-closed occurrence semantics.
+## Evidence and release records
+
+The v1.1 safety corpus is built once in the pinned Linux checkpoint and then committed. Normal
+CI verifies and consumes those bytes. A release result becomes public only through the
+commit-bound, write-once process in [`docs/EVAL_RELEASE.md`](docs/EVAL_RELEASE.md).
+
+Historical reader results are context, not evidence for the current code. A new reader, corpus,
+runtime, threshold, or operational rule requires a new measured commit and candidate.

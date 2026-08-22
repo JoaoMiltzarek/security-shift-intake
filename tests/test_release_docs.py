@@ -233,3 +233,28 @@ def test_roadmap_preserves_the_current_product_boundary() -> None:
         "human-confirmation contracts",
     )
     assert all(value in roadmap for value in required)
+
+
+def test_contributing_requires_human_confirmation_and_server_routing() -> None:
+    guide = " ".join(_read("CONTRIBUTING.md").split())
+
+    required = (
+        "`none` requires explicit human confirmation",
+        "`present` requires explicit human confirmation",
+        "rule classification is a suggestion",
+        "confirmed or overridden by a human",
+        "Routing and recipients are server-derived",
+        "CSV export and simulation require an approval matching the current revision",
+        "`simulated` is terminal",
+    )
+    assert all(value in guide for value in required)
+
+
+def test_contributing_documents_microcommits_and_locked_gates() -> None:
+    guide = _read("CONTRIBUTING.md")
+
+    assert "one behavior, document, or removal per Conventional Commit" in guide
+    assert "uv sync --locked --check" in guide
+    assert "uv run --locked pytest" in guide
+    assert "make privacy-check" in guide
+    assert "git diff --cached" in guide
