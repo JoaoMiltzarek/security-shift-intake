@@ -380,8 +380,7 @@ def test_invalid_occurrence_edit_is_rejected_without_persisting(
 
 
 def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
-    """Mudar o conteúdo revisado muda classificação e destinatários (F-03): o texto
-    canônico revisado é reclassificado e o routing recalculado no mesmo save."""
+    """Edited occurrence content produces a new auditable routing suggestion."""
     draft_id = _submit_table_draft(client)
     form = {
         **_headers_form(),
@@ -396,8 +395,10 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
 
     state = _state_of(client, draft_id)
     assert state["classification"]["incident_type"] == "theft"
+    assert state["classification"]["source"] == "rule"
+    assert state["classification"]["review_status"] == "suggested"
+    assert state["classification"]["classification_rule_id"] == "incident.theft"
     assert "tech_security" in state["recipients"]
-    assert "revisão humana" in (state["classification"]["reason"] or "")
 
 
 def test_human_edit_preserves_raw_ocr_snapshot(client: TestClient) -> None:
