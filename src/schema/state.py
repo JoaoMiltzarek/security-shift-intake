@@ -39,6 +39,10 @@ class ApprovalStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class UnsupportedPipelineStateVersionError(ValueError):
+    """A persisted snapshot uses a schema this build must not reinterpret."""
+
+
 class ExtractedField(BaseModel):
     """One extracted field with its value and source-specific confidence signal.
 
@@ -163,6 +167,10 @@ class PipelineState(BaseModel):
             raise ValueError("persisted pipeline state must be a JSON object")
         version = raw.get("schema_version")
         if version != "2.0":
+            if version not in {None, "1.0", "1.1"}:
+                raise UnsupportedPipelineStateVersionError(
+                    f"unsupported persisted pipeline schema version: {version!r}"
+                )
             raw["legacy_source_version"] = str(version or "unversioned")
             raw["schema_version"] = "2.0"
             # A path alone cannot establish evidence integrity. Legacy images remain

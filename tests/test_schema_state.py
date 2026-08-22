@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.schema.state import ApprovalStatus, Classification, ExtractedField, PipelineState
+from src.schema.state import (
+    ApprovalStatus,
+    Classification,
+    ExtractedField,
+    PipelineState,
+    UnsupportedPipelineStateVersionError,
+)
 
 
 def test_initial_state_defaults() -> None:
@@ -108,3 +114,13 @@ def test_legacy_marker_survives_a_new_snapshot() -> None:
 def test_pipeline_state_rejects_partial_config_identity() -> None:
     with pytest.raises(ValidationError, match="report_type and config_sha256"):
         PipelineState(source_pdf=Path("report.pdf"), report_type="controle_ocorrencias")
+
+
+@pytest.mark.parametrize("version", ["3.0", "future", 3])
+def test_persisted_state_rejects_unknown_schema_version(version: object) -> None:
+    payload = f'{{"schema_version": {version!r}, "source_pdf": "report.pdf"}}'
+    if isinstance(version, str):
+        payload = payload.replace(f"'{version}'", f'"{version}"')
+
+    with pytest.raises(UnsupportedPipelineStateVersionError, match="unsupported"):
+        PipelineState.from_persisted_json(payload)
