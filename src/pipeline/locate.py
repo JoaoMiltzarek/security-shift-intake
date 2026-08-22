@@ -75,6 +75,8 @@ def locate_value(value: object, words: list[WordBox], page: int = 0) -> Evidence
     for i in range(len(page_words) - n + 1):
         if norms[i : i + n] == value_tokens:
             run = page_words[i : i + n]
+            if len({word.line_key for word in run}) != 1:
+                continue
             return EvidenceMatch(
                 bbox=_union([w.bbox for w in run]),
                 method="exact",

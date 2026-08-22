@@ -26,6 +26,18 @@ def test_exact_contiguous_run() -> None:
     assert match.bbox == pytest.approx((0.1, 0.0, 0.3, 0.1))  # union of both
 
 
+def test_exact_match_never_crosses_ocr_lines() -> None:
+    words = [
+        _wb("Ana", x0=0.1, line_key="1:1:1"),
+        _wb("Souza", x0=0.2, line_key="1:1:2"),
+    ]
+
+    match = locate_value("Ana Souza", words)
+
+    assert match.method == "token_window"
+    assert match.score == 0.5
+
+
 # --- time-format normalization: documents the exact (and asymmetric) behaviour ---
 
 
