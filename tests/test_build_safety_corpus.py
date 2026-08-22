@@ -173,7 +173,7 @@ def test_publish_corpus_copies_exactly_45_sheets_and_replaces_stale_tree(
         assert len((root / "SHA256SUMS").read_text(encoding="utf-8").splitlines()) == 93
         return object()
 
-    monkeypatch.setattr(builder, "load_verified_safety_corpus", accept_staged)
+    monkeypatch.setattr(builder, "load_built_safety_corpus", accept_staged)
 
     builder.publish_corpus(
         generated,

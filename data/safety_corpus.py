@@ -31,6 +31,14 @@ SAFETY_CORPUS_DIR = (
 )
 PROVENANCE_NAME = "provenance.json"
 INVENTORY_NAME = "SHA256SUMS"
+SAFETY_CORPUS_PIN_RELATIVE = Path(
+    "data",
+    "manifests",
+    "safety_corpus_v1.1",
+    "bench-balanced.val.inventory.sha256",
+)
+SAFETY_CORPUS_PIN = REPO_ROOT / SAFETY_CORPUS_PIN_RELATIVE
+INVENTORY_PIN_TARGET = (SAFETY_CORPUS_DIR / INVENTORY_NAME).relative_to(REPO_ROOT).as_posix()
 EXPECTED_PYTHON = "3.11.15"
 EXPECTED_UV = "0.11.28"
 EXPECTED_UBUNTU = "24.04"
@@ -186,6 +194,25 @@ def inventory_bytes(files: dict[str, str]) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def inventory_pin_bytes(inventory_sha256: str) -> bytes:
+    """Serialize the external, reviewable pin for one corpus inventory."""
+    if _SHA256_RE.fullmatch(inventory_sha256) is None:
+        raise ValueError("invalid safety corpus inventory pin")
+    return f"{inventory_sha256}  {INVENTORY_PIN_TARGET}\n".encode()
+
+
+def _read_inventory_pin(path: Path) -> str:
+    try:
+        content = path.read_bytes()
+        line = content.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise TierCContractError("external safety corpus inventory pin is unavailable") from exc
+    match = re.fullmatch(rf"([0-9a-f]{{64}})  {re.escape(INVENTORY_PIN_TARGET)}\n", line)
+    if match is None or inventory_pin_bytes(match.group(1)) != content:
+        raise TierCContractError("external safety corpus inventory pin is invalid")
+    return match.group(1)
+
+
 def _read_strict_json(path: Path) -> dict[str, Any]:
     def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -233,8 +260,8 @@ def _expected_members(entries: tuple[TierCManifestEntry, ...]) -> set[str]:
     }
 
 
-def load_verified_safety_corpus(root: Path = SAFETY_CORPUS_DIR) -> VerifiedSafetyCorpus:
-    """Load the committed 45-sheet corpus or fail with an actionable checkpoint."""
+def _load_inventory_verified_safety_corpus(root: Path) -> VerifiedSafetyCorpus:
+    """Validate the self-contained builder artifact before publication."""
     if not root.is_dir():
         raise TierCContractError(
             "committed v1.1 safety corpus is missing at "
@@ -284,3 +311,30 @@ def load_verified_safety_corpus(root: Path = SAFETY_CORPUS_DIR) -> VerifiedSafet
     if current_font_identities() != provenance.font_files:
         raise TierCContractError("safety corpus font identities differ from this checkout")
     return VerifiedSafetyCorpus(split=verified, provenance=provenance)
+
+
+def load_built_safety_corpus(root: Path) -> VerifiedSafetyCorpus:
+    """Validate a fresh builder artifact before an external pin can exist."""
+    return _load_inventory_verified_safety_corpus(root)
+
+
+def load_verified_safety_corpus(
+    root: Path = SAFETY_CORPUS_DIR,
+    *,
+    pin_path: Path = SAFETY_CORPUS_PIN,
+) -> VerifiedSafetyCorpus:
+    """Load the committed corpus only when its external inventory pin agrees."""
+    if not root.is_dir():
+        raise TierCContractError(
+            "committed v1.1 safety corpus is missing at "
+            f"{root}; run the manual build-safety-corpus workflow and import its artifact"
+        )
+    pinned_inventory = _read_inventory_pin(pin_path)
+    inventory_path = root / INVENTORY_NAME
+    try:
+        observed_inventory = sha256_file(inventory_path)
+    except OSError as exc:
+        raise TierCContractError("safety corpus inventory is unavailable") from exc
+    if observed_inventory != pinned_inventory:
+        raise TierCContractError("safety corpus inventory differs from its external pin")
+    return _load_inventory_verified_safety_corpus(root)

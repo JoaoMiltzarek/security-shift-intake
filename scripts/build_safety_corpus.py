@@ -32,7 +32,7 @@ from data.safety_corpus import (
     SafetyCorpusProvenance,
     current_font_identities,
     inventory_bytes,
-    load_verified_safety_corpus,
+    load_built_safety_corpus,
 )
 from data.tier_c_contract import (
     TierCContractError,
@@ -201,7 +201,7 @@ def publish_corpus(
     staged = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
     try:
         _copy_verified_payload(generated, staged, verified, provenance)
-        load_verified_safety_corpus(staged)
+        load_built_safety_corpus(staged)
         _publish_fresh_tree(staged, destination)
     finally:
         if staged.exists():

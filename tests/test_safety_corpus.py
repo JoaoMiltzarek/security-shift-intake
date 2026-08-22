@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -16,12 +18,14 @@ from data.safety_corpus import (
     EXPECTED_TESSERACT_POR_PACKAGE,
     EXPECTED_UBUNTU,
     EXPECTED_UV,
+    INVENTORY_PIN_TARGET,
     RELEASE_LINE,
     SAFETY_COUNT,
     SAFETY_DATASET,
     SAFETY_SPLIT,
     SafetyCorpusProvenance,
     inventory_bytes,
+    inventory_pin_bytes,
     load_verified_safety_corpus,
 )
 from data.tier_c_contract import TierCContractError
@@ -91,6 +95,55 @@ def test_inventory_is_utf8_lf_sorted_and_rejects_escape() -> None:
     assert paths == sorted(paths)
     with pytest.raises(ValueError, match="invalid corpus inventory member"):
         inventory_bytes({"../escape": "a" * 64})
+
+
+def test_external_inventory_pin_is_canonical_and_rejects_invalid_hash() -> None:
+    digest = "a" * 64
+
+    assert inventory_pin_bytes(digest) == f"{digest}  {INVENTORY_PIN_TARGET}\n".encode()
+    with pytest.raises(ValueError, match="invalid safety corpus inventory pin"):
+        inventory_pin_bytes("A" * 64)
+
+
+def test_public_loader_requires_matching_external_inventory_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import data.safety_corpus as corpus
+
+    root = tmp_path / "bench-balanced-val"
+    root.mkdir()
+    inventory = b"authenticated inventory\n"
+    (root / "SHA256SUMS").write_bytes(inventory)
+    pin = tmp_path / "bench-balanced-val.SHA256SUMS.sha256"
+    pin.write_bytes(inventory_pin_bytes(hashlib.sha256(inventory).hexdigest()))
+    verified: Any = SimpleNamespace(split=object(), provenance=object())
+    monkeypatch.setattr(corpus, "_load_inventory_verified_safety_corpus", lambda _root: verified)
+
+    assert load_verified_safety_corpus(root, pin_path=pin) is verified
+
+
+def test_public_loader_rejects_inventory_not_bound_by_external_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import data.safety_corpus as corpus
+
+    root = tmp_path / "bench-balanced-val"
+    root.mkdir()
+    (root / "SHA256SUMS").write_bytes(b"changed inventory\n")
+    pin = tmp_path / "bench-balanced-val.SHA256SUMS.sha256"
+    pin.write_bytes(inventory_pin_bytes(hashlib.sha256(b"expected inventory\n").hexdigest()))
+    called = False
+
+    def unpinned_loader(_root: Path) -> object:
+        nonlocal called
+        called = True
+        return object()
+
+    monkeypatch.setattr(corpus, "_load_inventory_verified_safety_corpus", unpinned_loader)
+
+    with pytest.raises(TierCContractError, match="differs from its external pin"):
+        load_verified_safety_corpus(root, pin_path=pin)
+    assert not called
 
 
 def test_missing_committed_corpus_reports_the_external_checkpoint(tmp_path: Path) -> None:
