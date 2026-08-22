@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.schema.config import ClassificationConfig, LabelSet, RoutingCondition, RoutingRule
+from src.schema.config import (
+    ClassificationConfig,
+    ClassificationRule,
+    LabelSet,
+    RoutingCondition,
+    RoutingRule,
+)
 
 # ---------------------------------------------------------------------------
 # ClassificationConfig
@@ -17,6 +23,14 @@ def test_valid_classification_config() -> None:
         type=LabelSet(labels=["routine", "theft", "safety"]),
         urgency=LabelSet(labels=["low", "medium", "high", "critical"]),
         sector=LabelSet(labels=["tech_security", "general_support", "facilities"]),
+        rules=[
+            ClassificationRule(
+                id="classification.default",
+                type="routine",
+                urgency="low",
+                sector="general_support",
+            )
+        ],
     )
     assert "routine" in cfg.type.labels
     assert "critical" in cfg.urgency.labels
@@ -52,6 +66,7 @@ def test_routing_condition_partial() -> None:
 
 def test_routing_rule_with_condition() -> None:
     rule = RoutingRule(
+        id="routing.critical",
         when=RoutingCondition(urgency="critical"),
         recipients=["tech_security_oncall", "general_support"],
     )
@@ -60,10 +75,10 @@ def test_routing_rule_with_condition() -> None:
 
 
 def test_routing_rule_default_catch_all() -> None:
-    rule = RoutingRule(when=None, recipients=["general_support"])
+    rule = RoutingRule(id="routing.default", when=None, recipients=["general_support"])
     assert rule.when is None
 
 
 def test_routing_rule_empty_recipients_raises() -> None:
     with pytest.raises(ValidationError):
-        RoutingRule(when=None, recipients=[])
+        RoutingRule(id="routing.default", when=None, recipients=[])

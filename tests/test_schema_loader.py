@@ -43,10 +43,23 @@ VALID_CONFIG: dict = {
         "type": {"labels": ["routine", "safety"]},
         "urgency": {"labels": ["low", "high"]},
         "sector": {"labels": ["general_support"]},
+        "rules": [
+            {
+                "id": "classification.default",
+                "keywords": [],
+                "type": "routine",
+                "urgency": "low",
+                "sector": "general_support",
+            }
+        ],
     },
     "routing": [
-        {"when": {"urgency": "high"}, "recipients": ["tech_security"]},
-        {"recipients": ["general_support"]},  # default (when omitted)
+        {
+            "id": "routing.high",
+            "when": {"urgency": "high"},
+            "recipients": ["tech_security"],
+        },
+        {"id": "routing.default", "recipients": ["general_support"]},
     ],
 }
 
@@ -96,7 +109,13 @@ def test_enum_field_missing_values_raises(tmp_path: Path) -> None:
 
 def test_routing_without_default_raises(tmp_path: Path) -> None:
     bad = dict(VALID_CONFIG)
-    bad["routing"] = [{"when": {"urgency": "high"}, "recipients": ["tech_security"]}]
+    bad["routing"] = [
+        {
+            "id": "routing.high",
+            "when": {"urgency": "high"},
+            "recipients": ["tech_security"],
+        }
+    ]
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError, match="default"):
         load_config(path)
@@ -105,9 +124,13 @@ def test_routing_without_default_raises(tmp_path: Path) -> None:
 def test_routing_default_must_be_unique_and_last(tmp_path: Path) -> None:
     bad = copy.deepcopy(VALID_CONFIG)
     bad["routing"] = [
-        {"recipients": ["general_support"]},
-        {"when": {"urgency": "high"}, "recipients": ["tech_security"]},
-        {"recipients": ["other"]},
+        {"id": "routing.first", "recipients": ["general_support"]},
+        {
+            "id": "routing.high",
+            "when": {"urgency": "high"},
+            "recipients": ["tech_security"],
+        },
+        {"id": "routing.last", "recipients": ["other"]},
     ]
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError, match="exactly one default.*last"):
@@ -120,6 +143,40 @@ def test_routing_conditions_must_reference_taxonomy(tmp_path: Path) -> None:
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError, match="not-in-taxonomy"):
         load_config(path)
+
+
+def test_classification_rule_ids_must_be_unique(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    fallback = copy.deepcopy(bad["classification"]["rules"][0])
+    fallback["keywords"] = ["alarme"]
+    bad["classification"]["rules"].insert(0, fallback)
+
+    with pytest.raises(ValidationError, match="rule ids must be unique"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+def test_classification_requires_one_final_fallback(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["classification"]["rules"][0]["keywords"] = ["alarme"]
+
+    with pytest.raises(ValidationError, match="fallback"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+def test_classification_rules_must_reference_taxonomy(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["classification"]["rules"][0]["type"] = "invented"
+
+    with pytest.raises(ValidationError, match="not-in-taxonomy"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+def test_routing_rule_ids_must_be_unique(tmp_path: Path) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["routing"][1]["id"] = bad["routing"][0]["id"]
+
+    with pytest.raises(ValidationError, match="routing rule ids must be unique"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
 
 
 def test_field_names_must_be_unique(tmp_path: Path) -> None:
@@ -165,6 +222,7 @@ def test_empty_label_set_raises(tmp_path: Path) -> None:
         "type": {"labels": []},  # empty → should fail
         "urgency": {"labels": ["low"]},
         "sector": {"labels": ["support"]},
+        "rules": [],
     }
     path = _write_yaml(tmp_path, "bad.yaml", bad)
     with pytest.raises(ValidationError):

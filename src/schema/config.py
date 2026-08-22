@@ -94,12 +94,23 @@ class LabelSet(BaseModel):
     labels: Annotated[list[str], Field(min_length=1)]
 
 
+class ClassificationRule(BaseModel):
+    """Ordered keyword rule; an empty keyword list is the final fallback."""
+
+    id: str
+    keywords: list[str] = Field(default_factory=list)
+    type: str
+    urgency: str
+    sector: str
+
+
 class ClassificationConfig(BaseModel):
     """Taxonomy for incident classification (type / urgency / sector)."""
 
     type: LabelSet
     urgency: LabelSet
     sector: LabelSet
+    rules: Annotated[list[ClassificationRule], Field(min_length=1)]
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +129,7 @@ class RoutingCondition(BaseModel):
 class RoutingRule(BaseModel):
     """Maps a condition to the list of recipient groups."""
 
+    id: str
     when: RoutingCondition | None = None  # None → default / catch-all rule
     recipients: Annotated[list[str], Field(min_length=1)]
 
@@ -173,6 +185,45 @@ class ReportConfig(BaseModel):
             "urgency": set(self.classification.urgency.labels),
             "sector": set(self.classification.sector.labels),
         }
+        for dimension, labels in taxonomy.items():
+            configured = getattr(self.classification, dimension).labels
+            if len(labels) != len(configured):
+                raise ValueError(f"classification.{dimension}.labels must be unique")
+            if any(not label.strip() for label in configured):
+                raise ValueError(f"classification.{dimension}.labels cannot contain blanks")
+
+        classification_ids = [rule.id for rule in self.classification.rules]
+        if any(not rule_id.strip() for rule_id in classification_ids):
+            raise ValueError("classification rule ids cannot be blank")
+        if len(classification_ids) != len(set(classification_ids)):
+            raise ValueError("classification rule ids must be unique")
+        fallback_indexes = [
+            index for index, rule in enumerate(self.classification.rules) if not rule.keywords
+        ]
+        if fallback_indexes != [len(self.classification.rules) - 1]:
+            raise ValueError(
+                "classification rules require exactly one empty-keyword fallback, last"
+            )
+        seen_keywords: set[str] = set()
+        for index, rule in enumerate(self.classification.rules):
+            for dimension, allowed in taxonomy.items():
+                value = getattr(rule, dimension)
+                if value not in allowed:
+                    raise ValueError(
+                        f"classification.rules[{index}].{dimension}={value!r} is not-in-taxonomy"
+                    )
+            normalized_keywords = [keyword.strip().casefold() for keyword in rule.keywords]
+            if any(not keyword for keyword in normalized_keywords):
+                raise ValueError(f"classification.rules[{index}].keywords cannot contain blanks")
+            if seen_keywords.intersection(normalized_keywords):
+                raise ValueError("classification rule keywords must be unique")
+            seen_keywords.update(normalized_keywords)
+
+        routing_ids = [rule.id for rule in self.routing]
+        if any(not rule_id.strip() for rule_id in routing_ids):
+            raise ValueError("routing rule ids cannot be blank")
+        if len(routing_ids) != len(set(routing_ids)):
+            raise ValueError("routing rule ids must be unique")
         for index, rule in enumerate(self.routing):
             if rule.when is None:
                 continue

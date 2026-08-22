@@ -57,26 +57,62 @@ classification:
     labels: [low, medium, high, critical]
   sector:
     labels: [tech_security, general_support, facilities]
+  rules:
+    - id: incident.theft
+      keywords: [furto, subtracao, subtração]
+      type: theft
+      urgency: high
+      sector: tech_security
+    - id: incident.access_violation
+      keywords: [acesso, cracha, crachá]
+      type: access_violation
+      urgency: medium
+      sector: tech_security
+    - id: incident.safety
+      keywords: [incendio, incêndio, alarme, vazamento, risco]
+      type: safety
+      urgency: high
+      sector: facilities
+    - id: incident.equipment
+      keywords: [equipamento, camera, câmera, portao, portão, monitoramento]
+      type: equipment
+      urgency: medium
+      sector: facilities
+    - id: incident.other
+      keywords: []
+      type: other
+      urgency: medium
+      sector: general_support
 
 routing:
-  - when:
+  - id: routing.critical
+    when:
       urgency: critical
     recipients: [tech_security_oncall, general_support]
 
-  - when:
+  - id: routing.theft
+    when:
       type: theft
     recipients: [tech_security, general_support]
 
-  - when:
+  - id: routing.safety
+    when:
+      type: safety
+    recipients: [facilities]
+
+  - id: routing.equipment
+    when:
       type: equipment
     recipients: [facilities]
 
-  - when:
+  - id: routing.access_violation
+    when:
       type: access_violation
     recipients: [tech_security]
 
   # Default catch-all — must be last.
-  - recipients: [general_support]
+  - id: routing.default
+    recipients: [general_support]
 
 performance:
   max_seconds_per_sheet: 300  # SLO oficial congelado — ver EVAL_PROTOCOL §5
