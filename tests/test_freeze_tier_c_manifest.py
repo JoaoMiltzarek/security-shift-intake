@@ -132,3 +132,37 @@ def test_freeze_does_not_write_when_source_contract_fails(
     )
     assert not destination.exists()
     assert "CONTRATO TIER C INVÁLIDO" in capsys.readouterr().err
+
+
+def test_atomic_publish_never_exposes_a_partial_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "freeze.jsonl"
+
+    def fail_fsync(_descriptor: int) -> None:
+        raise OSError("injected disk failure")
+
+    monkeypatch.setattr(freeze.os, "fsync", fail_fsync)
+
+    with pytest.raises(TierCContractError, match="não publicado"):
+        freeze._persist_once(destination, b"complete\n")
+
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".freeze.jsonl.*"))
+
+
+def test_atomic_publish_validates_a_concurrent_winner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "freeze.jsonl"
+    content = b"complete\n"
+
+    def concurrent_link(_source: Path, target: Path) -> None:
+        target.write_bytes(content)
+        raise FileExistsError
+
+    monkeypatch.setattr(freeze.os, "link", concurrent_link)
+
+    assert freeze._persist_once(destination, content) == "verified"
+    assert destination.read_bytes() == content
+    assert not list(tmp_path.glob(".freeze.jsonl.*"))

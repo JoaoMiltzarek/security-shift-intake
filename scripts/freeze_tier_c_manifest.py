@@ -8,7 +8,9 @@ Existing bytes are accepted only when they are identical.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from data.generators.occurrences import Split
@@ -31,16 +33,26 @@ def _persist_once(destination: Path, content: bytes) -> str:
             raise TierCContractError(f"RECUSADO: freeze existente diverge: {destination}")
         return "verified"
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    parent = destination.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=parent)
+    temporary = Path(temporary_name)
     try:
-        with destination.open("xb") as handle:
+        with os.fdopen(descriptor, "wb") as handle:
             handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, destination)
     except FileExistsError:
         if destination.read_bytes() != content:
             raise TierCContractError(
                 f"RECUSADO: freeze concorrente diverge: {destination}"
             ) from None
         return "verified"
+    except OSError as exc:
+        raise TierCContractError(f"RECUSADO: freeze não publicado: {destination}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
     return "created"
 
 
