@@ -61,7 +61,7 @@ def valid_release_payload() -> dict[str, Any]:
             "runtime_attested": True,
             "dataset": "bench-balanced",
             "split": "val",
-            "dataset_version": "tier_c/v1",
+            "dataset_version": "tier_c/v2",
             "manifest_schema": "tier_c-manifest/v2",
             "manifest_sha256": hashlib.sha256(manifest).hexdigest(),
             "input_artifact": "canonical_png",

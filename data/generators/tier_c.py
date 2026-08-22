@@ -46,7 +46,7 @@ from data.generators.templates.controle_ocorrencias import (
 )
 from src.paths import REPO_ROOT
 
-DATASET_VERSION = "tier_c/v1"
+DATASET_VERSION = "tier_c/v2"
 MANIFEST_SCHEMA: Literal["tier_c-manifest/v2"] = "tier_c-manifest/v2"
 DEFAULT_SPLIT_SEED = 0
 _SPLIT_RATIOS = (0.70, 0.15, 0.15)

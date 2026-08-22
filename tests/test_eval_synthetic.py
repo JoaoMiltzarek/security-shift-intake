@@ -293,11 +293,7 @@ def test_safety_rejects_disconnected_operational_gates_even_when_old_proxy_is_sa
 ) -> None:
     """A disposition `unknown` made the historical F-01 proxy green. If the real
     approval/export guards are disconnected, the release gate must still fail."""
-    cur = next(
-        sheet
-        for sheet in load_curadoria(smoke_dir / "gt", valid_status={"synthetic_ground_truth"})
-        if sheet.get("ocorrencias")
-    )
+    cur = next(sheet for sheet in ev.load_generated_sheets(smoke_dir) if sheet.get("ocorrencias"))
     config = load_config(TABLE_CONFIG_PATH)
     monkeypatch.setattr(real_ev, "assert_reviewable", lambda _state: None)
     monkeypatch.setattr(real_ev, "export_blockers", lambda _state: [])
@@ -443,7 +439,7 @@ def test_release_gate_rejects_incomplete_runtime_before_evaluation(
         manifest_sha256="a" * 64,
         meta=SimpleNamespace(
             dataset="bench-balanced",
-            version="tier_c/v1",
+            version="tier_c/v2",
             manifest_schema="tier_c-manifest/v2",
             counts={"train": 0, "val": 1, "test": 0},
         ),
@@ -562,7 +558,7 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
         manifest_sha256="a" * 64,
         meta=SimpleNamespace(
             dataset="bench-balanced",
-            version="tier_c/v1",
+            version="tier_c/v2",
             manifest_schema="tier_c-manifest/v2",
             counts={"train": 210, "val": 45, "test": 45},
         ),

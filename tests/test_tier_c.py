@@ -32,7 +32,7 @@ def test_build_writes_expected_files(tmp_path: Path) -> None:
     assert len(list((out / "pngs").glob("*.png"))) == 8
     assert len(list((out / "gt").glob("*.json"))) == 8
     assert sum(meta.counts.values()) == 8
-    assert meta.version == "tier_c/v1"
+    assert meta.version == "tier_c/v2"
     assert meta.manifest_schema == "tier_c-manifest/v2"
     assert meta.heldout_bands == {"train": "lower80", "val": "lower80", "test": "upper20"}
     saved = json.loads((out / "meta.json").read_text(encoding="utf-8"))
