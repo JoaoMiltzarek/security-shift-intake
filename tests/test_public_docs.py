@@ -1,0 +1,112 @@
+"""Executable contracts for the active portfolio documentation."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+ACTIVE_DOCS = (
+    Path("README.md"),
+    Path("CONTRIBUTING.md"),
+    Path("SECURITY.md"),
+    Path("COMMERCIAL-LICENSE.md"),
+    Path("THIRD_PARTY_NOTICES.md"),
+    Path("docs/ARCHITECTURE.md"),
+    Path("docs/DATASET_CONTRACT.md"),
+    Path("docs/EVAL_RELEASE.md"),
+    Path("docs/PRIVACY.md"),
+    Path("docs/ROADMAP.md"),
+    Path("docs/READER_DECISION.md"),
+    Path("samples/README.md"),
+    Path("assets/fonts/README.md"),
+    Path("assets/fonts/FONTS.md"),
+)
+
+_MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\((?P<target>[^)]+)\)")
+_MAKE_LINE = re.compile(r"(?m)^\s*(?:[$>]\s*)?make\s+(?P<target>[A-Za-z0-9_.-]+)\b")
+_MAKE_INLINE = re.compile(r"`make\s+(?P<target>[A-Za-z0-9_.-]+)\b[^`]*`")
+_PYTHON_MODULE = re.compile(r"uv run --locked python -m (?P<module>[a-zA-Z0-9_.]+)")
+_PYTHON_FILE = re.compile(r"(?:uv run --locked )?python\s+(?P<path>[a-zA-Z0-9_./-]+\.py)\b")
+
+
+def _documents() -> dict[Path, str]:
+    return {path: path.read_text(encoding="utf-8") for path in ACTIVE_DOCS}
+
+
+def _local_link_path(document: Path, raw_target: str) -> Path | None:
+    target = raw_target.strip()
+    if target.startswith("<") and ">" in target:
+        target = target[1 : target.index(">")]
+    else:
+        target = target.split(maxsplit=1)[0]
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc or target.startswith("#"):
+        return None
+    relative = unquote(parsed.path)
+    if not relative:
+        return None
+    return (document.parent / Path(relative)).resolve(strict=False)
+
+
+def test_every_active_document_exists() -> None:
+    missing = [path.as_posix() for path in ACTIVE_DOCS if not path.is_file()]
+    assert not missing
+
+
+def test_active_markdown_has_no_broken_local_link() -> None:
+    root = Path.cwd().resolve(strict=True)
+    broken: list[str] = []
+    escaped: list[str] = []
+    for document, text in _documents().items():
+        for match in _MARKDOWN_LINK.finditer(text):
+            target = _local_link_path(document, match.group("target"))
+            if target is None:
+                continue
+            if not target.is_relative_to(root):
+                escaped.append(f"{document.as_posix()} -> {target}")
+            elif not target.exists():
+                broken.append(f"{document.as_posix()} -> {target.relative_to(root).as_posix()}")
+    assert not escaped
+    assert not broken
+
+
+def test_documented_make_commands_name_real_targets() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    targets = set(re.findall(r"(?m)^([A-Za-z0-9_.-]+):(?:\s|$)", makefile))
+    missing: list[str] = []
+    for document, text in _documents().items():
+        referenced = {
+            match.group("target")
+            for pattern in (_MAKE_LINE, _MAKE_INLINE)
+            for match in pattern.finditer(text)
+        }
+        missing.extend(
+            f"{document.as_posix()}: make {target}" for target in sorted(referenced - targets)
+        )
+    assert not missing
+
+
+def test_documented_python_entrypoints_exist() -> None:
+    missing: list[str] = []
+    for document, text in _documents().items():
+        for match in _PYTHON_MODULE.finditer(text):
+            module = match.group("module")
+            candidate = Path(*module.split(".")).with_suffix(".py")
+            package = Path(*module.split("."), "__init__.py")
+            if not candidate.is_file() and not package.is_file():
+                missing.append(f"{document.as_posix()}: {module}")
+        for match in _PYTHON_FILE.finditer(text):
+            candidate = Path(match.group("path"))
+            if not candidate.is_file():
+                missing.append(f"{document.as_posix()}: {candidate.as_posix()}")
+    assert not missing
+
+
+def test_active_uv_commands_use_the_lockfile() -> None:
+    unlocked: list[str] = []
+    for document, text in _documents().items():
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if "uv run " in line and "uv run --locked " not in line:
+                unlocked.append(f"{document.as_posix()}:{line_number}")
+    assert not unlocked
