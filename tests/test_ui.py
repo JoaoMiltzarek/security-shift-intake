@@ -125,6 +125,7 @@ def test_review_page_shows_all_panels(
     assert "Segurança técnica, Suporte geral" in text  # server-derived recipients
     assert "Bom dia," in text  # operational message is derived, not persisted
     assert "Aprovar revisão" in text and "Rejeitar" in text and "Simular entrega" in text
+    assert 'id="status-title" tabindex="-1"' in text
     assert "Prontidão desta revisão" in text
     assert 'data-blocker-code="approval_required"' in text
     assert "Aprovação necessária" in text

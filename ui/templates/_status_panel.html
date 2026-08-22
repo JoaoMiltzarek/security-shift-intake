@@ -5,7 +5,7 @@
   <div class="section-heading">
     <div>
       <p class="eyebrow">Estado da revisão</p>
-      <h2 id="status-title">
+      <h2 id="status-title" tabindex="-1">
         {% if draft.simulated_at and draft.delivery_mode == 'simulated' %}Simulação registrada
         {% elif draft.simulated_at %}Registro terminal legado
         {% elif draft.status == 'approved' %}Aprovado para simulação

@@ -131,7 +131,15 @@ document.body.addEventListener("htmx:afterRequest", function (event) {
   }
 });
 
-document.body.addEventListener("htmx:afterSwap", function () {
+document.body.addEventListener("htmx:afterSwap", function (event) {
   const error = document.getElementById("edit-error");
-  if (error) error.focus({ preventScroll: false });
+  if (error) {
+    error.focus({ preventScroll: false });
+    return;
+  }
+  if (event.detail.target?.id === "status-panel") {
+    window.setTimeout(function () {
+      document.getElementById("status-title")?.focus({ preventScroll: true });
+    }, 0);
+  }
 });

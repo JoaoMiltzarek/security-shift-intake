@@ -690,6 +690,10 @@ button:disabled,
   margin-bottom: var(--space-1);
 }
 
+#status-title:focus {
+  outline: 0;
+}
+
 .section-heading p {
   margin: 0;
   color: var(--muted-ink);
