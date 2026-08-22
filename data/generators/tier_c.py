@@ -26,7 +26,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from data.canonical_io import canonical_json_bytes
+from data.canonical_io import canonical_json_bytes, canonical_jsonl_bytes
 from data.generators.degrade import _BAND_CUT, Band, degrade_photo, degrade_scan
 from data.generators.messiness_table import build_surface
 from data.generators.occurrences import (
@@ -162,8 +162,7 @@ def check_or_write_frozen(frozen_path: Path, test_rows: list[dict[str, object]])
     The historical test freezes are preserved as evidence.  New v2 freezes are
     explicit, read-only release inputs handled by ``data.tier_c_contract``.
     """
-    lines = [json.dumps(r, sort_keys=True, ensure_ascii=False) for r in test_rows]
-    content = "\n".join(lines) + "\n"
+    content = canonical_jsonl_bytes(test_rows).decode("utf-8")
     if frozen_path.exists():
         if frozen_path.read_text(encoding="utf-8") != content:
             raise RuntimeError(
@@ -263,10 +262,7 @@ def _build_tier_c_into(
 
     for split_name, rows in manifest_rows.items():
         path = manifest_dir / f"{split_name}.jsonl"
-        with path.open("w", encoding="utf-8") as fh:
-            for row in rows:
-                fh.write(json.dumps(row, sort_keys=True, ensure_ascii=False))
-                fh.write("\n")
+        path.write_bytes(canonical_jsonl_bytes(rows, sort_key="doc_id"))
 
     meta = TierCMeta(
         manifest_schema=MANIFEST_SCHEMA,

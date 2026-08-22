@@ -21,6 +21,7 @@ from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 
+from data.canonical_io import canonical_jsonl_bytes
 from data.generators.degrade import _BAND_CUT
 from data.generators.occurrences import DEFAULT_HELDOUT_SEED, HELDOUT_FRACTION, Profile, Split
 from data.generators.tier_c import (
@@ -180,17 +181,9 @@ def sha256_file(path: Path) -> str:
 
 def canonical_manifest_bytes(entries: Sequence[TierCManifestEntry]) -> bytes:
     """Return order-independent canonical JSONL bytes for freeze comparison."""
-    ordered = sorted(entries, key=lambda entry: entry.doc_id)
-    lines = [
-        json.dumps(
-            entry.model_dump(mode="json"),
-            sort_keys=True,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-        for entry in ordered
-    ]
-    return ("\n".join(lines) + ("\n" if lines else "")).encode("utf-8")
+    return canonical_jsonl_bytes(
+        (entry.model_dump(mode="json") for entry in entries), sort_key="doc_id"
+    )
 
 
 def parse_manifest(

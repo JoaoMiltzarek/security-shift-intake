@@ -18,6 +18,7 @@ from data.generators.tier_c import (
     build_tier_c,
     check_or_write_frozen,
 )
+from data.tier_c_contract import TierCManifestEntry, canonical_manifest_bytes
 
 
 def _load_jsonl(path: Path) -> list[dict[str, object]]:
@@ -73,9 +74,12 @@ def test_regeneration_reproduces_hashes(tmp_path: Path) -> None:
     build_tier_c(a, n=6, seed=21)
     build_tier_c(b, n=6, seed=21)
     for split in ("train", "val", "test"):
-        rows_a = _load_jsonl(a / "manifests" / f"{split}.jsonl")
+        manifest_a = a / "manifests" / f"{split}.jsonl"
+        rows_a = _load_jsonl(manifest_a)
         rows_b = _load_jsonl(b / "manifests" / f"{split}.jsonl")
         assert rows_a == rows_b
+        entries = tuple(TierCManifestEntry.model_validate(row) for row in rows_a)
+        assert manifest_a.read_bytes() == canonical_manifest_bytes(entries)
     assert {path.name: path.read_bytes() for path in (a / "gt").glob("*.json")} == {
         path.name: path.read_bytes() for path in (b / "gt").glob("*.json")
     }
