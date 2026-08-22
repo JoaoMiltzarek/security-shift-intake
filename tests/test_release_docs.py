@@ -258,3 +258,29 @@ def test_contributing_documents_microcommits_and_locked_gates() -> None:
     assert "uv run --locked pytest" in guide
     assert "make privacy-check" in guide
     assert "git diff --cached" in guide
+
+
+def test_privacy_guide_describes_checks_as_heuristics() -> None:
+    privacy = " ".join(_read("docs/PRIVACY.md").split())
+
+    required = (
+        "cannot prove that arbitrary sensitive information is absent",
+        "project-controlled path",
+        "inspect staged Git blobs",
+        "fail closed when staged or scanned text cannot be decoded",
+        "synthetic exemption is intentionally narrow",
+        "A human must review every staged path and diff",
+    )
+    assert all(value in privacy for value in required)
+
+
+def test_privacy_guide_defines_the_public_evidence_allowlist() -> None:
+    privacy = " ".join(_read("docs/PRIVACY.md").split())
+
+    required = (
+        "explicit schema, not by deleting fields",
+        "aggregate metrics from the committed synthetic corpus",
+        "pseudonymous per-sheet counters and paired outcome labels",
+        "must not contain source values, OCR snippets, transcriptions",
+    )
+    assert all(value in privacy for value in required)
