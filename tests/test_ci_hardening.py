@@ -58,7 +58,7 @@ def test_ci_actions_are_pinned_and_checkout_drops_credentials() -> None:
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
         "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-        "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
+        "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
     }
     assert workflow.count("persist-credentials: false") == 5
     assert workflow.count('UV_VERSION: "0.11.28"') == 1
