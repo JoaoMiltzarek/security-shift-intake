@@ -192,43 +192,49 @@ class ReportConfig(BaseModel):
             if any(not label.strip() for label in configured):
                 raise ValueError(f"classification.{dimension}.labels cannot contain blanks")
 
-        classification_ids = [rule.id for rule in self.classification.rules]
+        classification_ids = [
+            classification_rule.id for classification_rule in self.classification.rules
+        ]
         if any(not rule_id.strip() for rule_id in classification_ids):
             raise ValueError("classification rule ids cannot be blank")
         if len(classification_ids) != len(set(classification_ids)):
             raise ValueError("classification rule ids must be unique")
         fallback_indexes = [
-            index for index, rule in enumerate(self.classification.rules) if not rule.keywords
+            index
+            for index, classification_rule in enumerate(self.classification.rules)
+            if not classification_rule.keywords
         ]
         if fallback_indexes != [len(self.classification.rules) - 1]:
             raise ValueError(
                 "classification rules require exactly one empty-keyword fallback, last"
             )
         seen_keywords: set[str] = set()
-        for index, rule in enumerate(self.classification.rules):
+        for index, classification_rule in enumerate(self.classification.rules):
             for dimension, allowed in taxonomy.items():
-                value = getattr(rule, dimension)
+                value = getattr(classification_rule, dimension)
                 if value not in allowed:
                     raise ValueError(
                         f"classification.rules[{index}].{dimension}={value!r} is not-in-taxonomy"
                     )
-            normalized_keywords = [keyword.strip().casefold() for keyword in rule.keywords]
+            normalized_keywords = [
+                keyword.strip().casefold() for keyword in classification_rule.keywords
+            ]
             if any(not keyword for keyword in normalized_keywords):
                 raise ValueError(f"classification.rules[{index}].keywords cannot contain blanks")
             if seen_keywords.intersection(normalized_keywords):
                 raise ValueError("classification rule keywords must be unique")
             seen_keywords.update(normalized_keywords)
 
-        routing_ids = [rule.id for rule in self.routing]
+        routing_ids = [routing_rule.id for routing_rule in self.routing]
         if any(not rule_id.strip() for rule_id in routing_ids):
             raise ValueError("routing rule ids cannot be blank")
         if len(routing_ids) != len(set(routing_ids)):
             raise ValueError("routing rule ids must be unique")
-        for index, rule in enumerate(self.routing):
-            if rule.when is None:
+        for index, routing_rule in enumerate(self.routing):
+            if routing_rule.when is None:
                 continue
             for dimension, allowed in taxonomy.items():
-                value = getattr(rule.when, dimension)
+                value = getattr(routing_rule.when, dimension)
                 if value is not None and value not in allowed:
                     raise ValueError(
                         f"routing[{index}].when.{dimension}={value!r} is not-in-taxonomy"
