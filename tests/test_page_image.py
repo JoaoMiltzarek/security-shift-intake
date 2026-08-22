@@ -100,11 +100,7 @@ def test_resolve_blocks_symlink_escape(tmp_path: Path) -> None:
         pytest.skip("symlinks not permitted on this platform")
     with pytest.raises(PermissionError):
         resolve_page_image(
-            [
-                PageArtifactRef(
-                    storage_key="escape.png", sha256="a" * 64, width=1, height=1
-                )
-            ],
+            [PageArtifactRef(storage_key="escape.png", sha256="a" * 64, width=1, height=1)],
             0,
             root=root,
         )

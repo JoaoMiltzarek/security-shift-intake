@@ -235,9 +235,7 @@ def test_field_names_must_be_unique(tmp_path: Path) -> None:
             "column names",
         ),
         (
-            lambda config: config["classification"]["type"].update(
-                labels=["routine", "Routine"]
-            ),
+            lambda config: config["classification"]["type"].update(labels=["routine", "Routine"]),
             "classification.type.labels",
         ),
         (

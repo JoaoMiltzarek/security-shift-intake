@@ -91,9 +91,7 @@ def _resolve_page_path(refs: list[PageArtifactRef], n: int, root: Path) -> Path:
     return candidate
 
 
-def read_page_image(
-    refs: list[PageArtifactRef], n: int, root: Path = PAGE_IMAGES_ROOT
-) -> bytes:
+def read_page_image(refs: list[PageArtifactRef], n: int, root: Path = PAGE_IMAGES_ROOT) -> bytes:
     """Return bytes only after validating their hash, format, and dimensions."""
     path = _resolve_page_path(refs, n, root)
     payload = path.read_bytes()
@@ -112,9 +110,7 @@ def read_page_image(
     return payload
 
 
-def resolve_page_image(
-    refs: list[PageArtifactRef], n: int, root: Path = PAGE_IMAGES_ROOT
-) -> Path:
+def resolve_page_image(refs: list[PageArtifactRef], n: int, root: Path = PAGE_IMAGES_ROOT) -> Path:
     """Resolve page *n* to an absolute file path, rejecting bad indexes and traversal.
 
     Raises FileNotFoundError for an out-of-range index or a missing file, and

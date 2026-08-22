@@ -206,9 +206,7 @@ class PipelineState(BaseModel):
                 migrated_classification.pop("reason", None)
                 migrated_classification.setdefault("source", "rule")
                 migrated_classification.setdefault("review_status", "suggested")
-                migrated_classification.setdefault(
-                    "classification_rule_id", "legacy.unverified"
-                )
+                migrated_classification.setdefault("classification_rule_id", "legacy.unverified")
                 raw["classification"] = migrated_classification
         return cls.model_validate(raw)
 

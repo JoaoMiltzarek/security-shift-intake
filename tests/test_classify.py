@@ -86,9 +86,7 @@ def test_classify_skips_unknown_and_failed_content() -> None:
 def test_confirmed_no_occurrence_derives_confirmed_routine() -> None:
     state = PipelineState(
         source_pdf=Path("x.pdf"),
-        normalized=NormalizedIncidentModel(
-            disposition="none", disposition_confirmed=True
-        ),
+        normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
     )
 
     result = classify(state, MockLLMClient(), CONFIG)
