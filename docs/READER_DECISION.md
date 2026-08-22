@@ -22,6 +22,11 @@ The release gates require all committed validation sheets to run and require:
 - `false_incident_unreviewed=0`;
 - `safe_review_recall=1.0`.
 
+The reference run must also report `operational_signal_complete_count=45` and attest
+`reader=local_ocr`, Python 3.11.15, a 64-character `uv_lock_sha256`, and
+`tesseract_language=por`. A missing or different runtime identity is a failed release
+gate, not an undocumented fallback.
+
 Reader quality metrics remain useful for understanding correction effort, but they do
 not replace those fail-closed operational gates.
 
