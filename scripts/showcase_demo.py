@@ -2,7 +2,7 @@
 """One-command, local-only showcase backed by a committed synthetic sheet.
 
 The showcase deliberately fixes its reader to Tesseract and its server to
-``127.0.0.1``. Environment variables cannot silently switch it to a remote VLM or
+``127.0.0.1``. Environment variables cannot silently switch it to a remote reader or
 expose the unauthenticated review UI. The resulting draft and page image live under
 gitignored ``private/`` and are removed by ``make purge-demo-data``.
 """
