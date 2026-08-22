@@ -166,6 +166,46 @@ def _validate_source_bytes(path: Path) -> None:
         raise IngestLimitError("Source exceeds the local byte budget.")
 
 
+def _validate_page_count(page_count: int, *, source_kind: str) -> None:
+    if page_count != MAX_PAGES:
+        raise IngestLimitError(
+            f"{source_kind} page budget is exactly {MAX_PAGES} (single-page v1 document)."
+        )
+
+
+def _accumulate_page_pixels(
+    width: int,
+    height: int,
+    total_pixels: int,
+    *,
+    source_kind: str,
+) -> int:
+    """Validate one page's dimensions and return the updated document total."""
+    if width <= 0 or height <= 0:
+        raise IngestLimitError(f"{source_kind} page dimensions must be positive.")
+    pixels = width * height
+    if pixels > MAX_PIXELS_PER_PAGE:
+        raise IngestLimitError(f"{source_kind} page exceeds the local pixel budget.")
+    updated_total = total_pixels + pixels
+    if updated_total > MAX_TOTAL_PIXELS:
+        raise IngestLimitError(f"{source_kind} exceeds the total local pixel budget.")
+    return updated_total
+
+
+def _pdf_pixel_dimensions(width_points: float, height_points: float, dpi: int) -> tuple[int, int]:
+    if (
+        not math.isfinite(width_points)
+        or not math.isfinite(height_points)
+        or width_points <= 0
+        or height_points <= 0
+    ):
+        raise IngestLimitError("PDF page dimensions must be positive and finite.")
+    return (
+        max(1, math.ceil(width_points * dpi / 72.0)),
+        max(1, math.ceil(height_points * dpi / 72.0)),
+    )
+
+
 @contextlib.contextmanager
 def _pdfium_guard(deadline: Deadline | None) -> Iterator[None]:
     """Serialize PDFium access without allowing lock contention to bypass the SLO."""
@@ -208,8 +248,7 @@ def rasterize_pdf(
 
         try:
             page_count = len(document)
-            if page_count != MAX_PAGES:
-                raise IngestLimitError("PDF page budget is exactly 1 (single-page v1 document).")
+            _validate_page_count(page_count, source_kind="PDF")
 
             expected_sizes: list[tuple[int, int]] = []
             total_pixels = 0
@@ -221,14 +260,10 @@ def rasterize_pdf(
                     page_width, page_height = page.get_size()
                 finally:
                     page.close()
-                width = max(1, math.ceil(float(page_width) * dpi / 72.0))
-                height = max(1, math.ceil(float(page_height) * dpi / 72.0))
-                pixels = width * height
-                if pixels > MAX_PIXELS_PER_PAGE:
-                    raise IngestLimitError("PDF page exceeds the local pixel budget.")
-                total_pixels += pixels
-                if total_pixels > MAX_TOTAL_PIXELS:
-                    raise IngestLimitError("PDF exceeds the total local pixel budget.")
+                width, height = _pdf_pixel_dimensions(float(page_width), float(page_height), dpi)
+                total_pixels = _accumulate_page_pixels(
+                    width, height, total_pixels, source_kind="PDF"
+                )
                 expected_sizes.append((width, height))
 
             rasterized_pixels = 0
@@ -245,12 +280,12 @@ def rasterize_pdf(
                         fill_color=(255, 255, 255, 255),
                         rev_byteorder=True,
                     )
-                    pixels = bitmap.width * bitmap.height
-                    rasterized_pixels += pixels
-                    if pixels > MAX_PIXELS_PER_PAGE or rasterized_pixels > MAX_TOTAL_PIXELS:
-                        raise IngestLimitError(
-                            "Rasterized PDF page exceeds its validated pixel budget."
-                        )
+                    rasterized_pixels = _accumulate_page_pixels(
+                        bitmap.width,
+                        bitmap.height,
+                        rasterized_pixels,
+                        source_kind="Rasterized PDF",
+                    )
                     view = bitmap.to_pil()
                     image = view.copy()
                     if image.mode != "RGB":
@@ -301,12 +336,10 @@ def load_source_images(
     if path.suffix.lower() in _IMAGE_SUFFIXES:
         try:
             with Image.open(path) as img:
-                if getattr(img, "n_frames", 1) != 1:
-                    raise IngestLimitError("Image must be a single-page v1 document.")
+                _validate_page_count(getattr(img, "n_frames", 1), source_kind="Image")
                 oriented = ImageOps.exif_transpose(img)
                 try:
-                    if oriented.width * oriented.height > MAX_PIXELS_PER_PAGE:
-                        raise IngestLimitError("Image exceeds the local pixel budget.")
+                    _accumulate_page_pixels(oriented.width, oriented.height, 0, source_kind="Image")
                     image = _rgb_on_white(oriented)
                 finally:
                     if oriented is not img:

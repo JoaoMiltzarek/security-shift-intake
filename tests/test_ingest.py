@@ -301,6 +301,39 @@ def test_pdf_pixel_budget_is_rejected_before_get_pixmap(
         rasterize_pdf(source, dpi=300)
 
 
+def test_invalid_pdf_dimensions_are_rejected_before_rasterization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "invalid-dimensions.pdf"
+    source.write_bytes(b"synthetic")
+
+    class FakePage:
+        def get_size(self) -> tuple[float, float]:
+            return float("nan"), 100.0
+
+        def render(self, **kwargs: Any) -> object:
+            pytest.fail("invalid dimensions must fail before rasterization")
+
+        def close(self) -> None:
+            pass
+
+    class FakeDocument:
+        def __len__(self) -> int:
+            return 1
+
+        def __getitem__(self, index: int) -> FakePage:
+            assert index == 0
+            return FakePage()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(pdfium, "PdfDocument", lambda path: FakeDocument())
+
+    with pytest.raises(IngestLimitError, match="positive and finite"):
+        rasterize_pdf(source, dpi=150)
+
+
 def test_pdf_total_pixel_budget_is_checked_before_any_render(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
