@@ -12,6 +12,8 @@ from src.schema.state import ApprovalStatus, Classification, ExtractedField, Pip
 
 def test_initial_state_defaults() -> None:
     state = PipelineState(source_pdf=Path("report.pdf"))
+    assert state.schema_version == "2.0"
+    assert state.is_legacy is False
     assert state.image_paths == []
     assert state.transcription is None
     assert state.extracted_fields == []
@@ -86,3 +88,23 @@ def test_approval_status_values() -> None:
     assert ApprovalStatus.PENDING == "pending"
     assert ApprovalStatus.APPROVED == "approved"
     assert ApprovalStatus.REJECTED == "rejected"
+
+
+def test_persisted_unversioned_state_is_readable_but_marked_legacy() -> None:
+    state = PipelineState.from_persisted_json('{"source_pdf":"report.pdf"}')
+
+    assert state.schema_version == "2.0"
+    assert state.legacy_source_version == "unversioned"
+    assert state.is_legacy is True
+
+
+def test_legacy_marker_survives_a_new_snapshot() -> None:
+    state = PipelineState.from_persisted_json('{"source_pdf":"report.pdf"}')
+    restored = PipelineState.from_persisted_json(state.model_dump_json())
+
+    assert restored.legacy_source_version == "unversioned"
+
+
+def test_pipeline_state_rejects_partial_config_identity() -> None:
+    with pytest.raises(ValidationError, match="report_type and config_sha256"):
+        PipelineState(source_pdf=Path("report.pdf"), report_type="controle_ocorrencias")

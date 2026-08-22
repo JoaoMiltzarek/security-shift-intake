@@ -17,11 +17,12 @@ time and enriched by each stage without forward-referencing incomplete data.
 
 from __future__ import annotations
 
+import json
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.clients.base import WordBox
 from src.schema.evidence import BBox
@@ -80,6 +81,12 @@ class Classification(BaseModel):
 class PipelineState(BaseModel):
     """Typed state object passed through every stage of the pipeline."""
 
+    schema_version: Literal["2.0"] = "2.0"
+    # Set only by ``from_persisted_json`` when an unversioned/v1 snapshot is opened.
+    # Keeping the marker in subsequent snapshots prevents an edit from laundering
+    # legacy evidence into a state that can be approved.
+    legacy_source_version: str | None = None
+
     # Identity of the validated report config that produced this state. The cockpit
     # rejects edits under a different config instead of silently reinterpreting data.
     report_type: str | None = None
@@ -130,7 +137,37 @@ class PipelineState(BaseModel):
     # Audit trail — list of {actor, action, timestamp} dicts.
     audit_log: list[dict[str, str]] = Field(default_factory=list)
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    @model_validator(mode="after")
+    def _validate_identity(self) -> Self:
+        if (self.report_type is None) != (self.config_sha256 is None):
+            raise ValueError("report_type and config_sha256 must be set together")
+        if self.legacy_source_version == self.schema_version:
+            raise ValueError("legacy_source_version cannot identify the current schema")
+        return self
+
+    @property
+    def is_legacy(self) -> bool:
+        """Whether this state originated before the strict v2 contract."""
+        return self.legacy_source_version is not None
+
+    @classmethod
+    def from_persisted_json(cls, payload: str) -> PipelineState:
+        """Load a stored snapshot without silently upgrading its trust level.
+
+        Historical snapshots were unversioned. Their known fields remain readable
+        for the review UI, while ``legacy_source_version`` keeps every operational
+        gate fail-closed until the source document is ingested again.
+        """
+        raw = json.loads(payload)
+        if not isinstance(raw, dict):
+            raise ValueError("persisted pipeline state must be a JSON object")
+        version = raw.get("schema_version")
+        if version != "2.0":
+            raw["legacy_source_version"] = str(version or "unversioned")
+            raw["schema_version"] = "2.0"
+        return cls.model_validate(raw)
 
     def exceeds_v1_page_scope(self) -> bool:
         """Detect persisted legacy states that predate the single-page v1 contract."""
