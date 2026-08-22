@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
+import src.api.app as app_module
 from src.api.app import _default_config_path, create_app
 from src.api.db import make_engine
 from src.paths import REPO_ROOT
@@ -43,3 +46,28 @@ def test_v1_app_exposes_no_delivery_adapter_boundary() -> None:
 
     assert "sender" not in parameters
     assert "simulation_recorder" in parameters
+
+
+def test_invalid_config_is_rejected_before_store_initialization(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    invalid = tmp_path / "invalid.yaml"
+    invalid.write_text("report_type: [", encoding="utf-8")
+    monkeypatch.setenv("INTAKE_CONFIG", str(invalid))
+    store_calls: list[str] = []
+
+    def unexpected_make_engine(*args: Any, **kwargs: Any) -> Any:
+        store_calls.append("make_engine")
+        raise AssertionError("store engine must not be created")
+
+    def unexpected_init_db(*args: Any, **kwargs: Any) -> None:
+        store_calls.append("init_db")
+        raise AssertionError("store must not be initialized")
+
+    monkeypatch.setattr(app_module, "make_engine", unexpected_make_engine)
+    monkeypatch.setattr(app_module, "init_db", unexpected_init_db)
+
+    with pytest.raises(yaml.YAMLError):
+        create_app()
+
+    assert store_calls == []

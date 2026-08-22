@@ -548,10 +548,10 @@ def create_app(
     *,
     enable_test_state_submission: bool = False,
 ) -> FastAPI:
+    active_config: ReportConfig = config or load_config(_default_config_path())
     engine = engine or make_engine()
     init_db(engine)
     active_recorder = simulation_recorder or MemorySimulationRecorder()
-    active_config: ReportConfig = config or load_config(_default_config_path())
     active_page_root: Path = page_images_root or PAGE_IMAGES_ROOT
     # Reclassificação pós-edição (SSI-1007): determinística/offline por default.
     active_classifier = classifier or RuleBasedIncidentClassifier()
