@@ -123,6 +123,37 @@
             {% endfor %}
           </div>
 
+          {% if table_mode and classification %}
+          <fieldset class="occurrence-editor">
+            <legend>Classificação operacional</legend>
+            <p class="form-help">Confirme a sugestão determinística ou corrija as três dimensões. O roteamento será recalculado pelo servidor.</p>
+            <div class="occurrence-grid">
+              <div class="form-field">
+                <label for="classification_type">Tipo</label>
+                <select id="classification_type" name="classification_type"{% if draft.sent_at %} disabled{% endif %}>
+                  {% for value in classification_types %}<option value="{{ value }}"{{ ' selected' if value == classification.incident_type else '' }}>{{ value }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="classification_urgency">Urgência</label>
+                <select id="classification_urgency" name="classification_urgency"{% if draft.sent_at %} disabled{% endif %}>
+                  {% for value in classification_urgencies %}<option value="{{ value }}"{{ ' selected' if value == classification.urgency else '' }}>{{ value }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="classification_sector">Setor</label>
+                <select id="classification_sector" name="classification_sector"{% if draft.sent_at %} disabled{% endif %}>
+                  {% for value in classification_sectors %}<option value="{{ value }}"{{ ' selected' if value == classification.sector else '' }}>{{ value }}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+            <label class="choice-card">
+              <input type="checkbox" name="classification_confirmed" value="yes"{{ ' checked' if classification.review_status == 'confirmed' else '' }}{% if draft.sent_at %} disabled{% endif %}>
+              Confirmo esta classificação para a revisão atual
+            </label>
+          </fieldset>
+          {% endif %}
+
           {% if table_mode %}
           <fieldset class="occurrence-editor">
             <legend>Cardinalidade de ocorrências</legend>

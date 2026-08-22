@@ -22,7 +22,7 @@ from src.api.gate import (
 from src.api.models import Draft
 from src.api.repository import create_draft, get_audit, set_status
 from src.schema.extraction import NormalizedIncidentModel
-from src.schema.state import ApprovalStatus, PipelineState
+from src.schema.state import ApprovalStatus, ClassificationDecision, PipelineState
 
 
 @pytest.fixture
@@ -39,6 +39,14 @@ def _state() -> PipelineState:
         recipients=["tech_security", "general_support"],
         email_draft="Subject: ...\n\nbody",
         normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
+        classification=ClassificationDecision(
+            incident_type="routine",
+            urgency="low",
+            sector="general_support",
+            source="rule",
+            review_status="confirmed",
+            classification_rule_id="disposition.none",
+        ),
     )
 
 

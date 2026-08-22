@@ -57,6 +57,10 @@ def assert_reviewable(state: PipelineState) -> None:
         raise DraftNotReviewableError(
             "Occurrence disposition requires explicit human confirmation."
         )
+    if state.classification is None:
+        raise DraftNotReviewableError("Classification is unresolved.")
+    if state.classification.review_status != "confirmed":
+        raise DraftNotReviewableError("Classification requires explicit human confirmation.")
 
 
 @runtime_checkable

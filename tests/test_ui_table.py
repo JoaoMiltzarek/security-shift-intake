@@ -173,6 +173,19 @@ def _headers_form() -> dict[str, str]:
     }
 
 
+def _classification_form(
+    incident_type: str,
+    urgency: str,
+    sector: str,
+) -> dict[str, str]:
+    return {
+        "classification_type": incident_type,
+        "classification_urgency": urgency,
+        "classification_sector": sector,
+        "classification_confirmed": "yes",
+    }
+
+
 def _submit_unknown_draft(client: TestClient) -> int:
     state = run_pipeline(
         SAMPLE, MockVisionClient(text=_OCR_UNKNOWN), RuleBasedIncidentClassifier(), CFG
@@ -384,6 +397,7 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
     draft_id = _submit_table_draft(client)
     form = {
         **_headers_form(),
+        **_classification_form("theft", "high", "tech_security"),
         "disposicao": "com_ocorrencias",
         "occ__1__item": "Furto",
         "occ__1__hora": "14:32",
@@ -396,9 +410,48 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
     state = _state_of(client, draft_id)
     assert state["classification"]["incident_type"] == "theft"
     assert state["classification"]["source"] == "rule"
-    assert state["classification"]["review_status"] == "suggested"
+    assert state["classification"]["review_status"] == "confirmed"
     assert state["classification"]["classification_rule_id"] == "incident.theft"
     assert "tech_security" in state["recipients"]
+
+
+def test_rule_suggestion_blocks_approval_until_confirmed(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__descricao": "Alarme disparou no setor B",
+    }
+
+    assert _edit(client, draft_id, form).status_code == 200
+    state = _state_of(client, draft_id)
+    assert state["classification"]["review_status"] == "suggested"
+    assert _approve(client, draft_id).status_code == 409
+
+
+def test_human_override_can_set_critical_and_reroutes(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {
+        **_headers_form(),
+        **_classification_form("safety", "critical", "facilities"),
+        "disposicao": "com_ocorrencias",
+        "occ__1__item": "Alarme",
+        "occ__1__descricao": "Alarme disparou no setor B",
+    }
+
+    assert _edit(client, draft_id, form).status_code == 200
+    state = _state_of(client, draft_id)
+    assert state["classification"] == {
+        "incident_type": "safety",
+        "urgency": "critical",
+        "sector": "facilities",
+        "source": "human",
+        "review_status": "confirmed",
+        "classification_rule_id": None,
+    }
+    assert state["recipients"] == ["tech_security_oncall", "general_support"]
+    assert _approve(client, draft_id).status_code == 200
 
 
 def test_human_edit_preserves_raw_ocr_snapshot(client: TestClient) -> None:

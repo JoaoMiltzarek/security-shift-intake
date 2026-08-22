@@ -68,7 +68,12 @@ from src.schema.extraction import (
     NormalizedShift,
 )
 from src.schema.loader import config_fingerprint, load_config
-from src.schema.state import ApprovalStatus, ExtractedField, PipelineState
+from src.schema.state import (
+    ApprovalStatus,
+    ClassificationDecision,
+    ExtractedField,
+    PipelineState,
+)
 
 _GUARD_SPLIT = re.compile(r"[;,]| e ")
 
@@ -196,6 +201,10 @@ class DispositionConflictError(ValueError):
     """O input humano se contradiz (radio vs linhas) — nada é persistido."""
 
 
+class ClassificationReviewError(ValueError):
+    """Human classification input is incomplete or outside the active taxonomy."""
+
+
 def _resolve_disposition(
     form: Any, rows: list[NormalizedOccurrence]
 ) -> tuple[Disposition, list[NormalizedOccurrence]]:
@@ -220,6 +229,74 @@ def _resolve_disposition(
     if disposicao == "com_ocorrencias":
         return "present", rows
     raise AssertionError("validated disposition was not resolved")
+
+
+def _review_classification(
+    state: PipelineState,
+    form: Any,
+    config: ReportConfig,
+) -> PipelineState:
+    decision = state.classification
+    normalized = state.normalized
+    if decision is None or normalized is None or normalized.disposition != "present":
+        return state
+
+    selected: dict[str, str] = {}
+    for form_name, dimension in (
+        ("classification_type", "incident_type"),
+        ("classification_urgency", "urgency"),
+        ("classification_sector", "sector"),
+    ):
+        values = form.getlist(form_name)
+        if len(values) > 1:
+            raise ClassificationReviewError(f"Campo de classificação duplicado: {form_name}.")
+        if values:
+            value = values[0]
+            if not isinstance(value, str):
+                raise ClassificationReviewError("Valor de classificação inválido.")
+            selected[dimension] = value.strip()
+
+    confirmations = form.getlist("classification_confirmed")
+    if len(confirmations) > 1 or any(value != "yes" for value in confirmations):
+        raise ClassificationReviewError("Confirmação de classificação inválida.")
+    confirmed = confirmations == ["yes"]
+    if not selected and not confirmed:
+        return state
+    if set(selected) != {"incident_type", "urgency", "sector"}:
+        raise ClassificationReviewError("Preencha as três dimensões da classificação.")
+
+    allowed = {
+        "incident_type": config.classification.type.labels,
+        "urgency": config.classification.urgency.labels,
+        "sector": config.classification.sector.labels,
+    }
+    for dimension, value in selected.items():
+        if value not in allowed[dimension]:
+            raise ClassificationReviewError(f"Classificação {dimension} fora da taxonomia ativa.")
+
+    current_values = {
+        "incident_type": decision.incident_type,
+        "urgency": decision.urgency,
+        "sector": decision.sector,
+    }
+    if not confirmed:
+        if selected != current_values:
+            raise ClassificationReviewError(
+                "Marque a confirmação para aplicar uma alteração de classificação."
+            )
+        return state
+    if selected == current_values:
+        confirmed_decision = decision.model_copy(update={"review_status": "confirmed"})
+    else:
+        confirmed_decision = ClassificationDecision(
+            incident_type=selected["incident_type"],
+            urgency=selected["urgency"],
+            sector=selected["sector"],
+            source="human",
+            review_status="confirmed",
+            classification_rule_id=None,
+        )
+    return state.model_copy(update={"classification": confirmed_decision})
 
 
 def _edit_table(
@@ -377,6 +454,7 @@ def _edit_table(
             classifier,
             config,
         )
+        new_state = _review_classification(new_state, form, config)
         new_state = route(new_state, config)
     return build_outputs(new_state, config)
 
@@ -409,7 +487,7 @@ def _document_status(state: PipelineState) -> str:
     return "Pronto para gerar/aprovar"
 
 
-def _review_context(draft: Draft) -> dict[str, Any]:
+def _review_context(draft: Draft, config: ReportConfig) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
     state = PipelineState.from_persisted_json(draft.state_json)
     normalized = state.normalized
@@ -441,6 +519,9 @@ def _review_context(draft: Draft) -> dict[str, Any]:
         "transcription": state.transcription,
         "fields": state.extracted_fields,
         "classification": state.classification,
+        "classification_types": config.classification.type.labels,
+        "classification_urgencies": config.classification.urgency.labels,
+        "classification_sectors": config.classification.sector.labels,
         "recipients": state.recipients,
         "email_draft": state.email_draft,
         "ocr_quality": state.ocr_quality,
@@ -882,7 +963,7 @@ def create_app(
             "config_blocker": _config_blocker(draft),
             "approval_blocker": _approval_blocker(draft),
         }
-        ctx.update(_review_context(draft))
+        ctx.update(_review_context(draft, active_config))
         return _render(request, "review.html", ctx)
 
     @app.get("/drafts/{draft_id}/page/{n}")
@@ -1066,14 +1147,18 @@ def create_app(
             # Table path: edit the normalized model + regenerate the planilha/mensagem.
             try:
                 state = _edit_table(state, form, active_config, active_classifier)
-            except (DispositionConflictError, ReviewFormError) as exc:
+            except (
+                ClassificationReviewError,
+                DispositionConflictError,
+                ReviewFormError,
+            ) as exc:
                 # Contradição no input: NADA persiste; re-renderiza com o erro visível.
                 ctx_err: dict[str, Any] = {
                     "audit": repository.get_audit(session, draft_id),
                     "status_oob": True,
                     "edit_error": str(exc),
                 }
-                ctx_err.update(_review_context(draft))
+                ctx_err.update(_review_context(draft, active_config))
                 return _render(request, "_review_body.html", ctx_err)
         else:
             raise HTTPException(
@@ -1103,7 +1188,7 @@ def create_app(
             "audit": repository.get_audit(session, draft_id),
             "status_oob": True,
         }
-        ctx.update(_review_context(updated))
+        ctx.update(_review_context(updated, active_config))
         return _render(request, "_review_body.html", ctx)
 
     return app

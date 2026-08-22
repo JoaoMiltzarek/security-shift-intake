@@ -16,7 +16,7 @@ from src.api.db import make_engine
 from src.api.gate import DraftNotReviewableError, MemorySimulationRecorder, assert_reviewable
 from src.schema.extraction import NormalizedIncidentModel
 from src.schema.loader import config_fingerprint, load_config
-from src.schema.state import PipelineState
+from src.schema.state import ClassificationDecision, PipelineState
 
 # Corpo do formulário ESCALAR legado — config explícita, não o default tabular.
 _TABLE_CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
@@ -93,6 +93,14 @@ def test_assert_reviewable_passes_when_clean() -> None:
     state = PipelineState(
         source_pdf=Path("x.pdf"),
         normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
+        classification=ClassificationDecision(
+            incident_type="routine",
+            urgency="low",
+            sector="general_support",
+            source="rule",
+            review_status="confirmed",
+            classification_rule_id="disposition.none",
+        ),
         must_review_fields=[],
     )
     assert_reviewable(state)  # does not raise
