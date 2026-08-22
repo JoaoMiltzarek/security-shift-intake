@@ -105,4 +105,4 @@ def test_transcribe_carries_words_with_page_index(tmp_path: Path) -> None:
 
 def test_transcribe_leaves_words_none_for_readers_without_geometry(tmp_path: Path) -> None:
     out = transcribe(_state_for(tmp_path), _FakeReader(None))
-    assert out.words is None  # mock/VLM path unaffected
+    assert out.words is None  # readers without word geometry remain supported

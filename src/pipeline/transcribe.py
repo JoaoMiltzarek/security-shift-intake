@@ -2,7 +2,7 @@
 
 Kept as a separate stage from extraction (spec §2) for auditability and a
 separable HTR eval. Ingestion already created the canonical PNG bytes, so this
-stage only invokes the provider-agnostic DocumentReader and aggregates results.
+stage only invokes the local ``DocumentReader`` contract and aggregates results.
 """
 
 from __future__ import annotations

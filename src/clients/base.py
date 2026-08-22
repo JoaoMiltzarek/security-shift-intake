@@ -1,8 +1,8 @@
-"""Local document-reader contracts and result types.
+"""Local document-reader contracts and auditable OCR result types.
 
-Every model call in the pipeline goes through this interface so the provider is
-swappable and, crucially, **mockable in tests** (spec §2 provider abstraction,
-§8.4 mock the model layer). No raw API calls scattered through the codebase.
+The product passes one canonical ``PageArtifact`` to a ``DocumentReader`` under the
+sheet-wide deadline. Readers return text plus any geometry they can prove against
+those exact bytes; deterministic fakes exercise the same boundary in tests.
 """
 
 from __future__ import annotations
@@ -41,18 +41,15 @@ class WordBox(BaseModel):
 class TranscriptionResult(BaseModel):
     """Verbatim transcription of one page image, with model-reported confidence.
 
-    `words` is optional and provider-specific: the local OCR path fills it (geometry
-    from Tesseract); the mock/VLM paths leave it None and the evidence locator simply
-    does not run (backward compatible).
+    ``words`` is optional: Tesseract fills it with measured geometry, while readers
+    without word geometry leave it ``None`` and the evidence locator does not run.
     """
 
     text: str
     confidence: float = Field(ge=0.0, le=1.0)
-    # Where `confidence` came from — filled by the client that KNOWS, never inferred
-    # downstream (EVAL_PROTOCOL §2.4/G3): "logprobs" = derived from real token
-    # logprobs; "placeholder" = conservative default (no calibration signal);
-    # "tesseract" = mean per-word OCR confidence; "paddleocr" = mean recognition
-    # score reported by PaddleOCR; "mock" = canned test value.
+    # Where ``confidence`` came from, copied from the reader rather than inferred
+    # downstream. Production uses Tesseract; other labels keep historical evaluation
+    # snapshots readable, and ``mock`` identifies deterministic test data.
     confidence_source: (
         Literal["logprobs", "placeholder", "tesseract", "paddleocr", "mock"] | None
     ) = None

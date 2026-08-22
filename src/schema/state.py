@@ -151,7 +151,8 @@ class PipelineState(BaseModel):
     # Origin of the confidence, copied verbatim from TranscriptionResult (logprobs |
     # placeholder | tesseract | mock); the eval reads it here — never inferred.
     transcription_confidence_source: str | None = None
-    # OCR word geometry (fractions 0..1) for the evidence locator; None on mock/VLM paths.
+    # OCR word geometry (fractions 0..1) for the evidence locator; absent when a reader
+    # cannot provide measured word boxes.
     words: list[WordBox] | None = None
     # --- OCR quality gate (table path) ---  good | low | failed
     ocr_quality: str | None = None

@@ -11,7 +11,7 @@ the value came from. Three levels, weakest-but-honest last:
 The bbox is a *probable* region, not proof: matching is normalized (accent/case/
 punctuation-insensitive) so OCR noise still lines up, but a match is a hint for the
 human reviewer, never a guarantee. When the reader emits no geometry
-(`state.words is None`, e.g. mock/VLM), the locator simply does not run.
+(`state.words is None`), the locator simply does not run.
 """
 
 from __future__ import annotations
