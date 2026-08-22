@@ -25,6 +25,8 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +34,6 @@ from typing import Any
 # put the repo root (parent of scripts/) on sys.path so `import src...` resolves either way.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import httpx  # noqa: E402
 from sqlmodel import Session  # noqa: E402
 
 from src.api.db import init_db, make_engine  # noqa: E402
@@ -50,6 +51,7 @@ CONFIG = Path("configs/controle_ocorrencias.yaml")
 SAMPLE = Path("samples/sample_tc-000000.png")
 SCREENSHOT = PRIVATE_ROOT / "audit" / "browser_smoke.png"
 DEFAULT_URL = "http://127.0.0.1:8000"
+_urlopen = urllib.request.urlopen
 
 # Synthetic, fully legible "OCR" of a controle_ocorrencias sheet with one incident.
 _OCR_INCIDENT = """Controle de ocorrencias
@@ -146,9 +148,12 @@ def _seed_unknown_draft() -> int:
 
 def _wait_for_server(base_url: str) -> None:
     try:
-        httpx.get(f"{base_url}/health", timeout=5).raise_for_status()
-    except (httpx.HTTPError, OSError) as exc:
+        with _urlopen(f"{base_url}/health", timeout=5) as response:
+            status = response.status
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         raise EnvUnavailable(f"server not reachable at {base_url}: {exc}") from exc
+    if status is None or not 200 <= status < 300:
+        raise EnvUnavailable(f"server returned HTTP {status} at {base_url}")
 
 
 def run_smoke(base_url: str) -> dict[str, Any]:
