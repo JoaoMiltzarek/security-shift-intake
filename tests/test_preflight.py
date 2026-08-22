@@ -206,9 +206,20 @@ def test_precommit_hook_uses_the_active_worktree_git_path(
     hook = tmp_path / "common-git-dir" / "hooks" / "pre-commit"
     hook.parent.mkdir(parents=True)
     hook.write_text("#!/bin/sh\n", encoding="utf-8")
+    hook.chmod(0o700)
     monkeypatch.setattr(preflight, "_run_git", lambda *_args: str(hook))
 
     assert preflight.precommit_hook_active(tmp_path) is True
+
+
+def test_precommit_hook_must_be_executable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    hook = tmp_path / "hooks" / "pre-commit"
+    hook.parent.mkdir()
+    hook.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(preflight, "_run_git", lambda *_args: str(hook))
+    monkeypatch.setattr(preflight.os, "access", lambda *_args: False)
+
+    assert preflight.precommit_hook_active(tmp_path) is False
 
 
 def test_test_baseline_is_locked_no_sync_and_cache_free(

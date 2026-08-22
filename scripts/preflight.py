@@ -249,7 +249,7 @@ def precommit_hook_active(root: Path) -> bool:
     if not hook.is_absolute():
         hook = root / hook
     try:
-        return hook.is_file() and hook.stat().st_size > 0
+        return hook.is_file() and hook.stat().st_size > 0 and os.access(hook, os.X_OK)
     except OSError:
         return False
 
