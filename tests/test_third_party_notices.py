@@ -75,11 +75,24 @@ def test_font_registry_authenticates_every_vendored_font() -> None:
 
 def test_commercial_offer_excludes_third_party_license_rights() -> None:
     offer = Path("COMMERCIAL-LICENSE.md").read_text(encoding="utf-8")
+    normalized = " ".join(offer.split())
 
     assert "open-source license" in offer
-    assert "requires a separate,\nwritten agreement" in offer
-    assert "grant commercial rights" in offer
+    assert "plain-language contact notice" in offer
+    assert "does not replace or modify those terms" in normalized
+    assert "separate written license" in normalized
+    assert "grant commercial rights" in normalized
     assert "João Miltzarek" in offer
     assert "project-owned code only" in offer
-    assert "Third-party components remain under their own licenses" in offer
+    assert "Third-party components" in normalized
+    assert "remain under their own licenses" in normalized
     assert "THIRD_PARTY_NOTICES.md" in offer
+
+
+def test_commercial_notice_does_not_narrow_polyform_permissions() -> None:
+    offer = " ".join(Path("COMMERCIAL-LICENSE.md").read_text(encoding="utf-8").split())
+
+    assert "full license text controls" in offer
+    assert "personal and noncommercial-organization uses" in offer
+    assert "illustrative, not a new license definition" in offer
+    assert "No commercial support, warranty, service level" in offer

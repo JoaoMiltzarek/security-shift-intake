@@ -284,3 +284,14 @@ def test_privacy_guide_defines_the_public_evidence_allowlist() -> None:
         "must not contain source values, OCR snippets, transcriptions",
     )
     assert all(value in privacy for value in required)
+
+
+def test_public_license_language_is_source_available_and_precise() -> None:
+    readme = " ".join(_read("README.md").split())
+    commercial = " ".join(_read("COMMERCIAL-LICENSE.md").split())
+
+    assert "source-available under the" in readme
+    assert "PolyForm Noncommercial License 1.0.0" in readme
+    assert "Commercial use requires a separate written license" in readme
+    assert "not offered under an open-source license" in commercial
+    assert "project-owned code only" in commercial
