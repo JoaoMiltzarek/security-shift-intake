@@ -26,6 +26,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
+from data.canonical_io import canonical_json_bytes
 from data.generators.degrade import _BAND_CUT, Band, degrade_photo, degrade_scan
 from data.generators.messiness_table import build_surface
 from data.generators.occurrences import (
@@ -247,7 +248,7 @@ def _build_tier_c_into(
             },
         }
         gt_path = gt_dir / f"{doc_id}.json"
-        gt_path.write_text(json.dumps(gt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        gt_path.write_bytes(canonical_json_bytes(gt, pretty=True))
 
         manifest_rows[split].append(
             {
@@ -286,9 +287,8 @@ def _build_tier_c_into(
         heldout_bands={"train": "lower80", "val": "lower80", "test": "upper20"},
         git_commit=_git_commit(),
     )
-    (out_dir / "meta.json").write_text(
-        json.dumps(meta.model_dump(mode="json"), ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    (out_dir / "meta.json").write_bytes(
+        canonical_json_bytes(meta.model_dump(mode="json"), pretty=True)
     )
     return meta
 

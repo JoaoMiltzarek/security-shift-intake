@@ -52,6 +52,20 @@ def test_build_writes_expected_files(tmp_path: Path) -> None:
             assert row["gt"] == f"gt/{row['doc_id']}.json"
 
 
+def test_metadata_is_canonical_utf8_with_lf_newlines(tmp_path: Path) -> None:
+    out = tmp_path / "tier_c"
+    build_tier_c(out, n=1, seed=11)
+
+    for path in [out / "meta.json", *sorted((out / "gt").glob("*.json"))]:
+        content = path.read_bytes()
+        assert content.endswith(b"\n")
+        assert b"\r\n" not in content
+        decoded = content.decode("utf-8")
+        assert decoded == decoded.replace("\r", "")
+        payload = json.loads(decoded)
+        assert list(payload) == sorted(payload)
+
+
 def test_regeneration_reproduces_hashes(tmp_path: Path) -> None:
     """Mesma seed ⇒ mesmos sha256 (a base do manifesto congelado, contrato §3)."""
     a = tmp_path / "a"
