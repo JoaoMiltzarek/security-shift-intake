@@ -36,9 +36,8 @@ def select_recipients(classification: Classification, config: ReportConfig) -> l
     return select_route(classification, config).recipients
 
 
-def route(state: PipelineState, config: ReportConfig) -> PipelineState:
-    """Set recipients on the state from the classification. Requires classification."""
+def route(state: PipelineState, config: ReportConfig) -> RoutingDecision:
+    """Derive a route without persisting client-forgeable recipients."""
     if state.classification is None:
         raise ValueError("route() requires a classification; run classify first.")
-    recipients = select_route(state.classification, config).recipients
-    return state.model_copy(update={"recipients": recipients})
+    return select_route(state.classification, config)

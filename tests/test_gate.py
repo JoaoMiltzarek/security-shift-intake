@@ -17,12 +17,26 @@ from src.api.gate import (
     DraftNotApprovedError,
     MemorySimulationRecorder,
     SimulationRecorder,
-    simulate_draft,
+)
+from src.api.gate import (
+    simulate_draft as _simulate_draft,
 )
 from src.api.models import Draft
 from src.api.repository import create_draft, get_audit, set_status
 from src.schema.extraction import NormalizedIncidentModel
+from src.schema.loader import load_config
 from src.schema.state import ApprovalStatus, ClassificationDecision, PipelineState
+
+CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
+
+
+def simulate_draft(
+    session: Session,
+    draft_id: int,
+    recorder: SimulationRecorder,
+    actor: str,
+) -> Draft:
+    return _simulate_draft(session, draft_id, recorder, CONFIG, actor=actor)
 
 
 @pytest.fixture
@@ -36,8 +50,6 @@ def session() -> Iterator[Session]:
 def _state() -> PipelineState:
     return PipelineState(
         source_pdf=Path("r.pdf"),
-        recipients=["tech_security", "general_support"],
-        email_draft="Subject: ...\n\nbody",
         normalized=NormalizedIncidentModel(disposition="none", disposition_confirmed=True),
         classification=ClassificationDecision(
             incident_type="routine",
@@ -64,7 +76,7 @@ def test_approved_draft_simulates_and_audits(session: Session) -> None:
     simulate_draft(session, draft.id, recorder, actor="r")
 
     assert recorder.call_count == 1
-    assert recorder.records[0][0] == ["tech_security", "general_support"]
+    assert recorder.records[0][0] == ["general_support"]
     assert "simulation_completed" in [a.action for a in get_audit(session, draft.id)]
 
 
@@ -124,7 +136,7 @@ def test_hash_tampered_state_cannot_be_simulated(session: Session) -> None:
     assert draft.id is not None
     set_status(session, draft.id, ApprovalStatus.APPROVED, actor="r")
 
-    tampered = _state().model_copy(update={"email_draft": "Subject: outro\n\ncorpo trocado"})
+    tampered = _state().model_copy(update={"transcription": "conteúdo adulterado"})
     draft.state_json = tampered.model_dump_json()  # bypass deliberado de update_state
     session.add(draft)
     session.commit()
@@ -231,7 +243,7 @@ def test_edit_cannot_interleave_with_terminal_simulation(tmp_path: Path) -> None
 
     class ReentrantEditingRecorder:
         def simulate(self, recipients: list[str], body: str) -> None:
-            edited = original.model_copy(update={"email_draft": "unapproved replacement"})
+            edited = original.model_copy(update={"transcription": "unapproved replacement"})
             with (
                 Session(engine) as editing,
                 pytest.raises(repository.DraftOperationConflictError),

@@ -9,7 +9,7 @@ import pytest
 from src.api.gate import DraftNotReviewableError, assert_reviewable
 from src.clients.base import WordBox
 from src.pipeline.extract_table import extract_table
-from src.pipeline.outputs import build_outputs, export_blockers
+from src.pipeline.outputs import derive_operational_outputs, export_blockers
 from src.pipeline.validate import validate_table
 from src.schema.loader import load_config
 from src.schema.state import PipelineState
@@ -177,4 +177,4 @@ def test_unknown_disposition_blocks_approval_and_clean_output(
     assert export_blockers(state) == ["ocorrencias"]
     with pytest.raises(DraftNotReviewableError):
         assert_reviewable(state)
-    assert "RASCUNHO INCOMPLETO" in (build_outputs(state, CONFIG).email_draft or "")
+    assert "RASCUNHO INCOMPLETO" in (derive_operational_outputs(state, CONFIG).message or "")

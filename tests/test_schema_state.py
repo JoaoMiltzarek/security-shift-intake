@@ -25,9 +25,6 @@ def test_initial_state_defaults() -> None:
     assert state.extracted_fields == []
     assert state.must_review_fields == []
     assert state.classification is None
-    assert state.email_draft is None
-    assert state.approval_status == ApprovalStatus.PENDING
-    assert state.audit_log == []
 
 
 def test_extracted_field_valid() -> None:
@@ -120,11 +117,7 @@ def test_state_with_populated_fields() -> None:
             source="human",
             review_status="confirmed",
         ),
-        recipients=["general_support"],
-        email_draft="Subject: Shift report ...",
-        approval_status=ApprovalStatus.APPROVED,
     )
-    assert state.approval_status == ApprovalStatus.APPROVED
     assert len(state.extracted_fields) == 1
 
 

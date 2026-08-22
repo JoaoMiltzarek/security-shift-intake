@@ -197,6 +197,10 @@ def _state_of(client: TestClient, draft_id: int) -> dict:
     return client.get(f"/drafts/{draft_id}").json()["state"]
 
 
+def _derived_of(client: TestClient, draft_id: int) -> dict:
+    return client.get(f"/drafts/{draft_id}").json()["derived"]
+
+
 def test_edit_rejects_absent_disposition_confirmation(client: TestClient) -> None:
     """A save without either radio is rejected instead of retaining an inference."""
     draft_id = _submit_unknown_draft(client)
@@ -410,9 +414,9 @@ def test_edit_reclassifies_and_reroutes(client: TestClient) -> None:
     state = _state_of(client, draft_id)
     assert state["classification"]["incident_type"] == "theft"
     assert state["classification"]["source"] == "rule"
+    assert "tech_security" in _derived_of(client, draft_id)["routing"]["recipients"]
     assert state["classification"]["review_status"] == "confirmed"
     assert state["classification"]["classification_rule_id"] == "incident.theft"
-    assert "tech_security" in state["recipients"]
 
 
 def test_rule_suggestion_blocks_approval_until_confirmed(client: TestClient) -> None:
@@ -450,7 +454,10 @@ def test_human_override_can_set_critical_and_reroutes(client: TestClient) -> Non
         "review_status": "confirmed",
         "classification_rule_id": None,
     }
-    assert state["recipients"] == ["tech_security_oncall", "general_support"]
+    assert _derived_of(client, draft_id)["routing"]["recipients"] == [
+        "tech_security_oncall",
+        "general_support",
+    ]
     assert _approve(client, draft_id).status_code == 200
 
 

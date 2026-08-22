@@ -21,8 +21,6 @@ _BODY = {
     "config_sha256": config_fingerprint(_TABLE_CONFIG),
     "source_pdf": "report.pdf",
     "transcription": "Vigilante: A. Souza. Furto no patio.",
-    "recipients": ["tech_security", "general_support"],
-    "email_draft": "Subject: [HIGH] theft\n\nbody text",
     "classification": {
         "incident_type": "theft",
         "urgency": "high",
@@ -31,7 +29,7 @@ _BODY = {
         "review_status": "confirmed",
     },
     "extracted_fields": [
-        {"name": "data_turno", "value": None, "confidence": 0.2, "must_review": True},
+        {"name": "data_turno", "value": "15/01/2026", "confidence": 1.0},
         {"name": "vigilantes", "value": "A. Souza", "confidence": 0.95},
         {"name": "unidade", "value": "Portaria 1", "confidence": 0.95},
         {"name": "ocorrencias", "value": "Furto", "confidence": 0.95},
@@ -109,8 +107,7 @@ def test_review_page_shows_all_panels(
     assert "confirmada pelo revisor" in text
     assert "confiança 90%" not in text
     assert "tech_security, general_support" in text  # recipients
-    assert "body text" in text  # email draft
-    assert "REVISÃO OBRIGATÓRIA" in text  # flagged field
+    assert "Bom dia," in text  # operational message is derived, not persisted
     assert "Aprovar revisão" in text and "Rejeitar" in text and "Simular entrega" in text
 
 

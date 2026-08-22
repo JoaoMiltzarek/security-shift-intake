@@ -9,6 +9,7 @@ from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ocr_quality import OCR_FAILED, OCR_GOOD, OCR_LOW, assess_ocr_quality
+from src.pipeline.outputs import derive_operational_outputs
 from src.schema.extraction import Disposition, NormalizedIncidentModel, NormalizedOccurrence
 from src.schema.loader import load_config
 from src.schema.state import PipelineState
@@ -81,8 +82,9 @@ def test_pipeline_blocks_on_failed_ocr() -> None:
     ).state
     assert state.ocr_quality == OCR_FAILED
     assert state.classification is None
-    assert state.recipients == []
-    assert state.email_draft is not None and "BLOQUEADO" in state.email_draft
+    derived = derive_operational_outputs(state, CFG)
+    assert derived.routing is None
+    assert derived.message is not None and "BLOQUEADO" in derived.message
 
 
 def test_pipeline_does_not_emit_spurious_classification() -> None:

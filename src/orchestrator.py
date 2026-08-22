@@ -17,8 +17,6 @@ from src.pipeline.ingest import (
     load_page_artifacts,
 )
 from src.pipeline.ocr_quality import OCR_FAILED, assess_ocr_quality
-from src.pipeline.outputs import blocked_draft_message, build_outputs
-from src.pipeline.route import route
 from src.pipeline.transcribe import transcribe
 from src.pipeline.validate import validate_table
 from src.schema.config import ReportConfig
@@ -51,8 +49,7 @@ def _timeout_result(
         }
     )
     blocked = validate_table(extract_table(blocked, config), config)
-    blocked = blocked.model_copy(update={"classification": None, "recipients": []})
-    blocked = blocked.model_copy(update={"email_draft": blocked_draft_message(reason)})
+    blocked = blocked.model_copy(update={"classification": None})
     return IntakeResult(state=blocked, pages=pages)
 
 
@@ -82,19 +79,11 @@ def run_pipeline(
         state = state.model_copy(update={"ocr_quality": status, "ocr_quality_reason": reason})
 
         if status == OCR_FAILED:
-            blocked = state.model_copy(
-                update={
-                    "classification": None,
-                    "recipients": [],
-                    "email_draft": blocked_draft_message(reason),
-                }
-            )
+            blocked = state.model_copy(update={"classification": None})
             return IntakeResult(state=blocked, pages=pages)
 
         deadline.remaining_seconds(stage="classification")
         state = classify(state, classifier, config)
-        if state.classification is not None:
-            state = route(state, config)
-        return IntakeResult(state=build_outputs(state, config), pages=pages)
+        return IntakeResult(state=state, pages=pages)
     except ProcessingDeadlineExceeded as exc:
         return _timeout_result(state, pages, config, str(exc))

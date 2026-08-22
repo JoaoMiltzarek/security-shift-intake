@@ -15,6 +15,8 @@ from src.api.repository import (
     state_sha256,
 )
 from src.pipeline.ocr_quality import OCR_FAILED
+from src.pipeline.outputs import derive_operational_outputs
+from src.schema.config import ReportConfig
 from src.schema.state import ApprovalStatus, PipelineState
 
 
@@ -90,18 +92,20 @@ def simulate_draft(
     session: Session,
     draft_id: int,
     recorder: SimulationRecorder,
+    config: ReportConfig,
     actor: str = "reviewer",
 ) -> Draft:
     """Serialize and record one terminal simulation for an approved snapshot."""
     with draft_operation_lock(session, draft_id, wait=True):
         session.expire_all()
-        return _simulate_draft_once(session, draft_id, recorder, actor)
+        return _simulate_draft_once(session, draft_id, recorder, config, actor)
 
 
 def _simulate_draft_once(
     session: Session,
     draft_id: int,
     recorder: SimulationRecorder,
+    config: ReportConfig,
     actor: str,
 ) -> Draft:
     draft = get_draft(session, draft_id)
@@ -158,5 +162,15 @@ def _simulate_draft_once(
         )
         raise DraftNotApprovedError(str(exc)) from exc
 
-    recorder.simulate(state.recipients, state.email_draft or "")
+    derived = derive_operational_outputs(state, config)
+    if derived.routing is None or derived.message is None:
+        add_audit(
+            session,
+            draft_id,
+            actor=actor,
+            action="simulation_blocked",
+            detail="routing_unresolved",
+        )
+        raise DraftNotApprovedError("Operational routing is unresolved.")
+    recorder.simulate(derived.routing.recipients, derived.message)
     return _mark_simulated_locked(session, draft_id, actor=actor)

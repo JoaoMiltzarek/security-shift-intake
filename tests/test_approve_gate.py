@@ -30,8 +30,6 @@ _PENDING_BODY = {
     **_IDENTITY,
     "source_pdf": "report.pdf",
     "transcription": "x",
-    "recipients": ["general_support"],
-    "email_draft": "Subject: x\n\nbody",
     "classification": {
         "incident_type": "routine",
         "urgency": "low",

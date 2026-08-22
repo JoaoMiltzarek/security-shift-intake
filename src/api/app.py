@@ -58,8 +58,7 @@ from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
 from src.pipeline.classify import classify
-from src.pipeline.outputs import build_outputs, export_blockers
-from src.pipeline.route import route
+from src.pipeline.outputs import derive_operational_outputs, export_blockers
 from src.schema.config import ReportConfig
 from src.schema.extraction import (
     Disposition,
@@ -455,8 +454,7 @@ def _edit_table(
             config,
         )
         new_state = _review_classification(new_state, form, config)
-        new_state = route(new_state, config)
-    return build_outputs(new_state, config)
+    return new_state
 
 
 _templates = Jinja2Templates(directory=REPO_ROOT / "ui" / "templates")
@@ -490,6 +488,7 @@ def _document_status(state: PipelineState) -> str:
 def _review_context(draft: Draft, config: ReportConfig) -> dict[str, Any]:
     """Parse a draft's stored PipelineState into template-friendly pieces."""
     state = PipelineState.from_persisted_json(draft.state_json)
+    derived = derive_operational_outputs(state, config)
     normalized = state.normalized
     occurrence_rows: list[dict[str, str]] = []
     if normalized is not None:
@@ -522,11 +521,12 @@ def _review_context(draft: Draft, config: ReportConfig) -> dict[str, Any]:
         "classification_types": config.classification.type.labels,
         "classification_urgencies": config.classification.urgency.labels,
         "classification_sectors": config.classification.sector.labels,
-        "recipients": state.recipients,
-        "email_draft": state.email_draft,
+        "recipients": derived.routing.recipients if derived.routing else [],
+        "routing_rule_id": derived.routing.rule_id if derived.routing else None,
+        "email_draft": derived.message,
         "ocr_quality": state.ocr_quality,
         "ocr_quality_reason": state.ocr_quality_reason,
-        "spreadsheet_rows": state.spreadsheet_rows,
+        "spreadsheet_rows": derived.spreadsheet_rows,
         "document_status": _document_status(state),
         # Cockpit overlay only renders when a page image was persisted; otherwise the
         # review degrades to the single-column layout (invariant 5).
@@ -794,7 +794,16 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
         summary = _draft_summary(draft)
         summary["state_sha256"] = repository.state_sha256(draft.state_json)
-        summary["state"] = json.loads(draft.state_json)
+        state = PipelineState.from_persisted_json(draft.state_json)
+        derived = derive_operational_outputs(state, active_config)
+        summary["state"] = state.model_dump(mode="json")
+        summary["derived"] = {
+            "routing": derived.routing.model_dump(mode="json") if derived.routing else None,
+            "spreadsheet_rows": [
+                row.model_dump(mode="json") for row in derived.spreadsheet_rows
+            ],
+            "message": derived.message,
+        }
         summary["audit"] = [
             {
                 "actor": a.actor,
@@ -877,7 +886,13 @@ def create_app(
         )
         _compatible_state(draft)
         try:
-            draft = simulate_draft(session, draft_id, active_recorder, actor=_LOCAL_ACTOR)
+            draft = simulate_draft(
+                session,
+                draft_id,
+                active_recorder,
+                active_config,
+                actor=_LOCAL_ACTOR,
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DraftNotApprovedError as exc:
@@ -986,9 +1001,8 @@ def create_app(
     ) -> Response:
         """Export the standardized spreadsheet as CSV — only when nothing is pending.
 
-        Uses the post-review values in `state.spreadsheet_rows` (invariant 8) and refuses
-        (409) while `export_blockers` is non-empty so a draft with pending fields never
-        produces a clean operational artifact (invariant 2). Scalar path has no rows → 404.
+        Derives rows from the reviewed state and refuses a clean operational artifact
+        while any blocker remains. Scalar/invalid state has no rows and returns 404.
         """
         draft = _require_draft(session, draft_id)
         _assert_expected_snapshot(
@@ -997,7 +1011,8 @@ def create_app(
             expected_state_sha256=expected_state_sha256,
         )
         state = _compatible_state(draft)
-        if not state.spreadsheet_rows:
+        derived = derive_operational_outputs(state, active_config)
+        if not derived.spreadsheet_rows:
             raise HTTPException(status_code=404, detail="no spreadsheet to export")
         blockers = export_blockers(state)
         if blockers:
@@ -1007,7 +1022,7 @@ def create_app(
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(["DIA", "UNIDADE", "OBJETO", "DESCRICAO"])
-        for row in state.spreadsheet_rows:
+        for row in derived.spreadsheet_rows:
             writer.writerow(
                 [
                     _csv_safe(row.dia),
@@ -1116,7 +1131,13 @@ def create_app(
         )
         _compatible_state(current)
         try:
-            draft = simulate_draft(session, draft_id, active_recorder, actor=_LOCAL_ACTOR)
+            draft = simulate_draft(
+                session,
+                draft_id,
+                active_recorder,
+                active_config,
+                actor=_LOCAL_ACTOR,
+            )
             return _status_panel(
                 request,
                 draft,

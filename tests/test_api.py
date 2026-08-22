@@ -22,8 +22,6 @@ _SUBMIT_BODY = {
     "config_sha256": config_fingerprint(_TABLE_CONFIG),
     "source_pdf": "report.pdf",
     "transcription": "Vigilante: A. Souza ...",
-    "recipients": ["tech_security", "general_support"],
-    "email_draft": "Subject: [HIGH] theft\n\nbody",
     "classification": {
         "incident_type": "theft",
         "urgency": "high",

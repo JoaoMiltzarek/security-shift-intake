@@ -6,12 +6,14 @@ from scripts.demo_pipeline_mock import CONFIG, OCR_INCIDENT, OCR_NO_CHANGE, SAMP
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import MockVisionClient
 from src.orchestrator import run_pipeline
+from src.pipeline.outputs import derive_operational_outputs
 from src.schema.loader import load_config
+from src.schema.state import PipelineState
 
 _CFG = load_config(CONFIG)
 
 
-def _run(text: str) -> object:
+def _run(text: str) -> PipelineState:
     return run_pipeline(
         SAMPLE, MockVisionClient(text=text), RuleBasedIncidentClassifier(), _CFG
     ).state
@@ -26,9 +28,10 @@ def test_incident_scenario_has_occurrence() -> None:
     assert state.normalized is not None
     assert state.normalized.no_occurrence is False
     assert state.normalized.shift.unit == "1"
-    assert state.spreadsheet_rows  # Output 1 (planilha) populated
-    assert state.email_draft is not None
-    assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in state.email_draft  # Output 2 (copy-ready)
+    derived = derive_operational_outputs(state, _CFG)
+    assert derived.spreadsheet_rows
+    assert derived.message is not None
+    assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in derived.message
 
 
 def test_no_change_scenario_is_no_occurrence() -> None:

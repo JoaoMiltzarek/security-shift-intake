@@ -103,9 +103,10 @@ def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> No
     assert rows[0] == ["DIA", "UNIDADE", "OBJETO", "DESCRICAO"]
 
     detail = client.get(f"/drafts/{draft_id}").json()
-    state = detail["state"]
+    derived = detail["derived"]
     expected = [
-        [r["dia"], r["unidade"], r["objeto"], r["descricao"]] for r in state["spreadsheet_rows"]
+        [r["dia"], r["unidade"], r["objeto"], r["descricao"]]
+        for r in derived["spreadsheet_rows"]
     ]
     assert rows[1:] == expected
     # Post-review value present (human entered "1"), raw "(revisar)" placeholder gone.

@@ -12,6 +12,7 @@ from src.clients.base import TranscriptionResult
 from src.clients.mock import FakeIncidentClassifier, MockVisionClient
 from src.orchestrator import run_pipeline
 from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceeded
+from src.pipeline.outputs import derive_operational_outputs
 from src.schema.loader import load_config
 
 CONFIG = load_config(Path("configs/controle_ocorrencias.yaml"))
@@ -69,19 +70,21 @@ def test_table_path_outputs_spreadsheet_and_message(sample_pdf: Path) -> None:
     state = run_pipeline(
         sample_pdf, MockVisionClient(text=_OCC), _classifier(), CONFIG, dpi=120
     ).state
-    assert state.email_draft is not None
-    assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in state.email_draft  # Output 2 (copy-ready)
-    assert state.spreadsheet_rows  # Output 1 populated
+    derived = derive_operational_outputs(state, CONFIG)
+    assert derived.message is not None
+    assert "DIA | UNIDADE | OBJETO | DESCRIÇÃO" in derived.message
+    assert derived.spreadsheet_rows
 
 
 def test_table_path_sa_outputs_sem_alteracao_row(sample_pdf: Path) -> None:
     state = run_pipeline(
         sample_pdf, MockVisionClient(text=_SA), _classifier(), CONFIG, dpi=120
     ).state
+    derived = derive_operational_outputs(state, CONFIG)
     assert state.normalized is not None and state.normalized.no_occurrence is True
-    assert len(state.spreadsheet_rows) == 1
-    assert state.spreadsheet_rows[0].objeto == "Sem alteração"
-    assert state.email_draft is not None and "Sem alteração" in state.email_draft
+    assert len(derived.spreadsheet_rows) == 1
+    assert derived.spreadsheet_rows[0].objeto == "Sem alteração"
+    assert derived.message is not None and "Sem alteração" in derived.message
 
 
 def test_table_path_header_fields_must_review(sample_pdf: Path) -> None:
@@ -106,8 +109,9 @@ def test_reader_deadline_becomes_blocked_unknown_draft(sample_pdf: Path) -> None
     assert result.state.normalized is not None
     assert result.state.normalized.disposition == "unknown"
     assert result.state.must_review_fields
-    assert result.state.email_draft is not None
-    assert "BLOQUEADO" in result.state.email_draft
+    derived = derive_operational_outputs(result.state, CONFIG)
+    assert derived.message is not None
+    assert "BLOQUEADO" in derived.message
 
 
 def test_ingest_deadline_failure_preserves_empty_evidence_set(

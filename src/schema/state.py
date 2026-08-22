@@ -7,9 +7,7 @@ Fields accumulate as the document progresses through the pipeline:
   Stage 2 (extract)   → extracted_fields populated
   Stage 3 (validate)  → validation_flags populated
   Stage 4 (classify)  → classification populated
-  Stage 5 (route)     → recipients populated
-  Stage 5 (draft)     → email_draft populated
-  Stage 6 (gate)      → approval_status updated
+  Review decisions are persisted; route and output previews are derived on demand.
 
 All Optional fields start as None so the state can be constructed at ingest
 time and enriched by each stage without forward-referencing incomplete data.
@@ -29,7 +27,6 @@ from src.schema.evidence import BBox, PageArtifactRef
 from src.schema.extraction import (
     NormalizedIncidentModel,
     RawDocumentExtraction,
-    SpreadsheetRow,
 )
 
 
@@ -151,17 +148,6 @@ class PipelineState(BaseModel):
     # --- Stage 4: classify ---
     classification: ClassificationDecision | None = None
 
-    # --- Stage 5: route + draft ---
-    recipients: list[str] = Field(default_factory=list)
-    email_draft: str | None = None
-    # --- Outputs (table path): planilha padronizada + mensagem copy-ready ---
-    spreadsheet_rows: list[SpreadsheetRow] = Field(default_factory=list)
-
-    # --- Stage 6: human gate ---
-    approval_status: ApprovalStatus = ApprovalStatus.PENDING
-    # Audit trail — list of {actor, action, timestamp} dicts.
-    audit_log: list[dict[str, str]] = Field(default_factory=list)
-
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     @model_validator(mode="after")
@@ -199,6 +185,11 @@ class PipelineState(BaseModel):
             # A path alone cannot establish evidence integrity. Legacy images remain
             # on disk but are deliberately not promoted into trusted v2 references.
             raw.pop("page_image_paths", None)
+            raw.pop("recipients", None)
+            raw.pop("email_draft", None)
+            raw.pop("spreadsheet_rows", None)
+            raw.pop("approval_status", None)
+            raw.pop("audit_log", None)
             classification = raw.get("classification")
             if isinstance(classification, dict):
                 migrated_classification = dict(classification)
