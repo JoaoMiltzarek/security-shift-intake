@@ -19,7 +19,7 @@ from sqlmodel import Session
 
 from src.api.db import make_engine
 from src.api.repository import get_draft
-from src.clients.local_ocr import LocalOCRVisionClient, tesseract_available
+from src.clients.local_ocr import TesseractReader, tesseract_available
 from src.paths import REPO_ROOT
 from src.schema.state import ApprovalStatus, PipelineState
 
@@ -36,7 +36,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
 
     def fake_build_and_store(
         file: Path,
-        vision: object,
+        reader: object,
         llm: object,
         config_path: Path,
         engine: object,
@@ -45,7 +45,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
     ) -> int:
         captured.update(
             file=file,
-            vision=vision,
+            reader=reader,
             llm=llm,
             config_path=config_path,
             engine=engine,
@@ -64,7 +64,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
     assert captured["config_path"] == demo.DEFAULT_CONFIG
     assert captured["engine"] is sentinel_engine
     assert captured["page_images_root"] == demo.PAGE_IMAGES_ROOT
-    assert isinstance(captured["vision"], LocalOCRVisionClient)
+    assert isinstance(captured["reader"], TesseractReader)
 
 
 def test_no_serve_seeds_and_prints_exact_loopback_review_url(

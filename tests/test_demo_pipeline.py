@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from scripts import demo_pipeline
-from src.clients.local_ocr import LocalOCRVisionClient
+from src.clients.local_ocr import TesseractReader
 
 
 def test_real_input_must_resolve_under_private_reais(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_real_entrypoint_forces_local_ocr_despite_hostile_env(
 
     config = Path("configs/controle_ocorrencias.yaml")
     assert demo_pipeline.main(["--file", str(source), "--config", str(config)]) == 0
-    assert isinstance(captured["reader"], LocalOCRVisionClient)
+    assert isinstance(captured["reader"], TesseractReader)
     assert captured["file"] == source.resolve()
     assert captured["config_path"] == config
     output = capsys.readouterr().out

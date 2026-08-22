@@ -17,9 +17,9 @@ def get_document_reader(name: str | None = None) -> DocumentReader:
     name = (name or _DEFAULT_READER).strip().lower()
 
     if name == "local_ocr":
-        from src.clients.local_ocr import LocalOCRVisionClient
+        from src.clients.local_ocr import TesseractReader
 
-        return LocalOCRVisionClient()
+        return TesseractReader()
     if name == "mock":
         from src.clients.mock import FakeDocumentReader
 

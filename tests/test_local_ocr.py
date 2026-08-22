@@ -1,4 +1,4 @@
-"""M9.b: LocalOCRVisionClient — line reconstruction + graceful behaviour."""
+"""TesseractReader line reconstruction and graceful failure behavior."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from PIL import Image
 
 from src.clients.base import DocumentReader, TranscriptionResult
 from src.clients.local_ocr import (
-    LocalOCRVisionClient,
+    TesseractReader,
     _collect_words,
     _reconstruct,
     tesseract_available,
@@ -22,7 +22,7 @@ from src.pipeline.ingest import Deadline, PageArtifact, ProcessingDeadlineExceed
 
 
 def test_client_satisfies_protocol() -> None:
-    assert isinstance(LocalOCRVisionClient(), DocumentReader)
+    assert isinstance(TesseractReader(), DocumentReader)
 
 
 def test_runtime_metadata_attests_version_and_caches_effective_language(
@@ -37,7 +37,7 @@ def test_runtime_metadata_attests_version_and_caches_effective_language(
 
     monkeypatch.setattr(pytesseract, "get_languages", available_languages)
     monkeypatch.setattr(pytesseract, "get_tesseract_version", lambda: "5.4.0")
-    client = LocalOCRVisionClient()
+    client = TesseractReader()
 
     assert client.runtime_metadata() == {
         "tesseract_version": "5.4.0",
@@ -89,7 +89,7 @@ def _page(image: Image.Image | None = None) -> PageArtifact:
 
 
 def test_transcribe_real_or_clear_error() -> None:
-    client = LocalOCRVisionClient()
+    client = TesseractReader()
     if tesseract_available():
         result = client.read(_page(), Deadline.after(10.0))
         assert isinstance(result, TranscriptionResult)
@@ -131,7 +131,7 @@ def test_tesseract_temp_and_subprocess_environment_stay_in_private_root(
 
     monkeypatch.setattr(pytesseract, "image_to_data", fake_image_to_data)
 
-    LocalOCRVisionClient(temp_root=temp_root).read(_page(), Deadline.after(130.0))
+    TesseractReader(temp_root=temp_root).read(_page(), Deadline.after(130.0))
 
     assert captured["tempdir"] == temp_root.resolve()
     assert set(captured["env"].values()) == {str(temp_root.resolve())}
@@ -151,7 +151,7 @@ def test_tesseract_timeout_is_finite_and_sanitized(
         raise RuntimeError("Tesseract process timeout")
 
     monkeypatch.setattr(pytesseract, "image_to_data", timeout)
-    client = LocalOCRVisionClient(temp_root=tmp_path / "tesseract", timeout=3.5)
+    client = TesseractReader(temp_root=tmp_path / "tesseract", timeout=3.5)
 
     with pytest.raises(ProcessingDeadlineExceeded, match="timed out") as exc_info:
         client.read(_page(), Deadline.after(10.0))
@@ -172,7 +172,7 @@ def test_sheet_deadline_clamps_tesseract_timeout(
     monkeypatch.setattr(pytesseract, "image_to_data", record_timeout)
     deadline = Deadline.after(1.25, clock=lambda: 10.0)
 
-    LocalOCRVisionClient(temp_root=tmp_path / "tesseract", timeout=120.0).read(_page(), deadline)
+    TesseractReader(temp_root=tmp_path / "tesseract", timeout=120.0).read(_page(), deadline)
 
     assert captured["timeout"] == 1.25
 
@@ -195,7 +195,7 @@ def test_default_tesseract_temp_creates_validated_nested_directory(
         lambda image, **kwargs: _empty_tesseract_data(),
     )
 
-    LocalOCRVisionClient().read(_page(), Deadline.after(130.0))
+    TesseractReader().read(_page(), Deadline.after(130.0))
 
     assert isolated.is_dir()
 
@@ -232,7 +232,7 @@ def test_real_ocr_multi_occurrence_sheet_never_claims_none() -> None:
     )
     result = render_sheet(random.Random(7), record, build_surface(rng, record))
 
-    transcription = LocalOCRVisionClient().read(_page(result.image), Deadline.after(130.0))
+    transcription = TesseractReader().read(_page(result.image), Deadline.after(130.0))
     normalized = normalize(RuleBasedTableExtractor(config).extract(transcription.text))
 
     assert normalized.disposition != "none"  # nunca afirma ausência numa folha com ocorrências

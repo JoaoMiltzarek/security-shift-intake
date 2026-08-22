@@ -249,5 +249,5 @@ class TesseractReader:
         )
 
 
-# Preserve the public import while callers migrate to the capability-based name.
+# Temporary compatibility for the pre-checkpoint real-sheet evaluation harness.
 LocalOCRVisionClient = TesseractReader

@@ -27,7 +27,7 @@ from scripts.demo_pipeline import build_and_store
 from src.api.db import DEFAULT_DB_URL, make_engine
 from src.api.page_images import PAGE_IMAGES_ROOT
 from src.classifier.rules import RuleBasedIncidentClassifier
-from src.clients.local_ocr import LocalOCRVisionClient
+from src.clients.local_ocr import TesseractReader
 from src.paths import REPO_ROOT
 
 DEFAULT_SAMPLE = REPO_ROOT / "samples" / "sample_tc-000000.png"
@@ -59,7 +59,7 @@ def _seed_demo(
     """Persist one synthetic draft using the explicitly local OCR reader."""
     return build_and_store(
         sample,
-        LocalOCRVisionClient(),
+        TesseractReader(),
         RuleBasedIncidentClassifier(),
         config_path,
         engine,
