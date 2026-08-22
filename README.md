@@ -72,6 +72,40 @@ uv run --locked python -m scripts.showcase_demo
 uv run --locked python -m scripts.purge_demo_data demo
 ```
 
+## Windows setup
+
+Run these commands in PowerShell from a trusted local checkout:
+
+```powershell
+winget install --exact --id astral-sh.uv
+winget install --exact --id UB-Mannheim.TesseractOCR
+uv python install 3.11.15
+uv sync --locked --python 3.11.15
+tesseract --list-langs
+uv run --locked python scripts/preflight.py --json
+uv run --locked python -m scripts.showcase_demo
+```
+
+The language list should contain `por`. Restart PowerShell after installing Tesseract if the
+executable is not yet on `PATH`.
+
+## Ubuntu setup
+
+The reference Linux environment is Ubuntu 24.04:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y make tesseract-ocr tesseract-ocr-por
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.11.15
+uv sync --locked --python 3.11.15
+tesseract --list-langs
+make demo
+```
+
+Release evidence uses stricter package and runtime identities documented in
+[`docs/EVAL_RELEASE.md`](docs/EVAL_RELEASE.md); a developer demo is not release evidence.
+
 ## Review and approval contract
 
 The normalized disposition is `unknown`, `none`, or `present`. OCR and rules may suggest a

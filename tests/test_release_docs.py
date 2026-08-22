@@ -78,5 +78,8 @@ def test_readme_does_not_present_unpublished_release_metrics() -> None:
     readme = _read("README.md")
 
     assert "No historical or mock result substitutes" in readme
+    assert "developer demo is not release evidence" in readme
+    assert "This README does not claim a validated release result" in readme
+    assert "The official safety evaluation is based on" not in readme
     assert "Validated v1 release evidence: PENDING" not in readme
     assert "Authenticated v1 release evidence" not in readme

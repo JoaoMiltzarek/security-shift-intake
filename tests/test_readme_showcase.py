@@ -87,6 +87,18 @@ def test_readme_quick_demo_uses_the_locked_python_runtime() -> None:
     assert "uv run --locked python -m scripts.showcase_demo" in readme
 
 
+def test_readme_documents_executable_windows_and_ubuntu_setup() -> None:
+    readme = _readme()
+
+    assert "## Windows setup" in readme
+    assert "winget install --exact --id astral-sh.uv" in readme
+    assert "winget install --exact --id UB-Mannheim.TesseractOCR" in readme
+    assert "## Ubuntu setup" in readme
+    assert "sudo apt-get install -y make tesseract-ocr tesseract-ocr-por" in readme
+    assert "tesseract --list-langs" in readme
+    assert "developer demo is not release evidence" in readme
+
+
 def test_readme_is_compact_and_avoids_ephemeral_counts() -> None:
     readme = _readme()
 
