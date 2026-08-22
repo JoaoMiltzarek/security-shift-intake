@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -27,7 +28,7 @@ def _write_yaml(tmp_path: Path, name: str, data: object) -> Path:
 # Minimal valid config structure (enough to pass ReportConfig validation)
 # ---------------------------------------------------------------------------
 
-VALID_CONFIG: dict = {
+VALID_CONFIG: dict[str, Any] = {
     "report_type": "test_report",
     "fields": [
         {"name": "guard_name", "type": "string", "required": True},
@@ -211,6 +212,34 @@ def test_config_without_occurrence_table_is_rejected(tmp_path: Path) -> None:
 def test_scalar_email_template_is_rejected(tmp_path: Path) -> None:
     bad = copy.deepcopy(VALID_CONFIG)
     bad["email_template"] = "templates/legacy.j2"
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        load_config(_write_yaml(tmp_path, "bad.yaml", bad))
+
+
+@pytest.mark.parametrize(
+    ("path", "unknown_key"),
+    [
+        (("fields", 0), "requiredd"),
+        (("fields", 2, "columns", 0), "ocr_aliasses"),
+        (("classification",), "urgenc"),
+        (("classification", "type"), "label"),
+        (("classification", "rules", 0), "keyword"),
+        (("routing", 0), "recipient"),
+        (("routing", 0, "when"), "urgenc"),
+        (("performance",), "max_second_per_sheet"),
+    ],
+)
+def test_unknown_nested_keys_are_rejected(
+    tmp_path: Path, path: tuple[str | int, ...], unknown_key: str
+) -> None:
+    bad = copy.deepcopy(VALID_CONFIG)
+    bad["performance"] = {"max_seconds_per_sheet": 300}
+    target: object = bad
+    for member in path:
+        target = target[member]  # type: ignore[index]
+    assert isinstance(target, dict)
+    target[unknown_key] = "typo"
 
     with pytest.raises(ValidationError, match="extra_forbidden"):
         load_config(_write_yaml(tmp_path, "bad.yaml", bad))

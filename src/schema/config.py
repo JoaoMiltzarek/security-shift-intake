@@ -27,7 +27,13 @@ ScalarFieldType = Literal["date", "string", "enum", "bool", "text"]
 FieldType = Literal["date", "string", "enum", "bool", "text", "table"]
 
 
-class ColumnSchema(BaseModel):
+class StrictConfigModel(BaseModel):
+    """Reject configuration keys that are not part of the executable contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ColumnSchema(StrictConfigModel):
     """One column of a `table` field (e.g. Item / Hora / Descrição / Ação / Resolvido)."""
 
     name: str
@@ -44,7 +50,7 @@ class ColumnSchema(BaseModel):
         return self
 
 
-class FieldSchema(BaseModel):
+class FieldSchema(StrictConfigModel):
     """Schema for a single field in the handwritten report form.
 
     A field is scalar (date/string/enum/bool/text) or a `table` of repeating rows
@@ -88,13 +94,13 @@ class FieldSchema(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class LabelSet(BaseModel):
+class LabelSet(StrictConfigModel):
     """A named set of allowed labels for one classification dimension."""
 
     labels: Annotated[list[str], Field(min_length=1)]
 
 
-class ClassificationRule(BaseModel):
+class ClassificationRule(StrictConfigModel):
     """Ordered keyword rule; an empty keyword list is the final fallback."""
 
     id: str
@@ -104,7 +110,7 @@ class ClassificationRule(BaseModel):
     sector: str
 
 
-class ClassificationConfig(BaseModel):
+class ClassificationConfig(StrictConfigModel):
     """Taxonomy for incident classification (type / urgency / sector)."""
 
     type: LabelSet
@@ -118,7 +124,7 @@ class ClassificationConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class RoutingCondition(BaseModel):
+class RoutingCondition(StrictConfigModel):
     """One `when` clause — a partial match on classification fields."""
 
     urgency: str | None = None
@@ -126,7 +132,7 @@ class RoutingCondition(BaseModel):
     sector: str | None = None
 
 
-class RoutingRule(BaseModel):
+class RoutingRule(StrictConfigModel):
     """Maps a condition to the list of recipient groups."""
 
     id: str
@@ -139,7 +145,7 @@ class RoutingRule(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class PerformanceConfig(BaseModel):
+class PerformanceConfig(StrictConfigModel):
     """SLO and throughput knobs for the pipeline."""
 
     max_seconds_per_sheet: int = 300
@@ -150,10 +156,8 @@ class PerformanceConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ReportConfig(BaseModel):
+class ReportConfig(StrictConfigModel):
     """The complete occurrence-sheet config loaded from ``configs/*.yaml``."""
-
-    model_config = ConfigDict(extra="forbid")
 
     report_type: str
     fields: Annotated[list[FieldSchema], Field(min_length=1)]
