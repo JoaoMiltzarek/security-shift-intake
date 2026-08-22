@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from scripts.demo_pipeline_mock import OCR_INCIDENT, SAMPLE
 from src.api.app import create_app
 from src.api.db import make_engine
+from src.api.forms import MAX_OCCURRENCES
 from src.api.gate import MemorySimulationRecorder
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.clients.mock import FakeDocumentReader
@@ -322,6 +323,20 @@ def test_add_row_with_all_five_columns(client: TestClient) -> None:
     assert added["exit_time"] == "16:00"
     assert added["action"] == "Fechado e registrado"
     assert added["resolved"] is False
+
+
+def test_editor_and_parser_share_the_occurrence_limit(client: TestClient) -> None:
+    draft_id = _submit_table_draft(client)
+    form = {**_headers_form(), "disposicao": "com_ocorrencias"}
+    for index in range(1, MAX_OCCURRENCES + 1):
+        form[f"occ__{index}__item"] = f"Item {index}"
+        form[f"occ__{index}__descricao"] = f"Descrição sintética {index}"
+
+    assert _edit(client, draft_id, form).status_code == 200
+
+    html = client.get(f"/drafts/{draft_id}/review").text
+    assert f"Com ocorrências (1–{MAX_OCCURRENCES})" in html
+    assert f"Adicionar ocorrência {MAX_OCCURRENCES + 1}" not in html
 
 
 def test_human_edit_audits_all_five_occurrence_cells(client: TestClient) -> None:

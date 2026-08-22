@@ -177,7 +177,7 @@
               </label>
               <label class="choice-card">
                 <input type="radio" name="disposicao" value="com_ocorrencias" {{ 'checked' if disposicao == 'present' else '' }}{% if draft.simulated_at %} disabled{% endif %}>
-                Com ocorrências (1–10)
+                Com ocorrências (1–{{ max_occurrences }})
               </label>
             </div>
             {% if disposicao == 'unknown' %}
@@ -219,7 +219,7 @@
               </fieldset>
               {% endfor %}
 
-              {% if not draft.simulated_at and occurrence_rows | length < 10 %}
+              {% if not draft.simulated_at and occurrence_rows | length < max_occurrences %}
               {% set spare = occurrence_rows | length + 1 %}
               <fieldset class="occurrence-card occurrence-spare">
                 <legend>Adicionar ocorrência {{ spare }}</legend>

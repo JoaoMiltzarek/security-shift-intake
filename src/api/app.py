@@ -35,7 +35,7 @@ from sqlmodel import Session
 from src import __version__
 from src.api import repository
 from src.api.db import init_db, make_engine
-from src.api.forms import ReviewFormError
+from src.api.forms import MAX_OCCURRENCES, ReviewFormError
 from src.api.gate import (
     DraftNotApprovedError,
     DraftNotReviewableError,
@@ -272,6 +272,7 @@ def _review_context(
             else None
         ),
         "occurrence_rows": occurrence_rows,
+        "max_occurrences": MAX_OCCURRENCES,
         "transcription": state.transcription,
         "fields": state.extracted_fields,
         "classification": state.classification,
