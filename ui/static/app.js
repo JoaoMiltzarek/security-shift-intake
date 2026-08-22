@@ -137,9 +137,11 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
     error.focus({ preventScroll: false });
     return;
   }
-  if (event.detail.target?.id === "status-panel") {
-    window.setTimeout(function () {
-      document.getElementById("status-title")?.focus({ preventScroll: true });
-    }, 0);
+});
+
+document.body.addEventListener("htmx:afterSettle", function (event) {
+  const target = event.detail.target || event.target;
+  if (target instanceof Element && target.id === "status-panel") {
+    document.getElementById("status-title")?.focus({ preventScroll: true });
   }
 });
