@@ -10,8 +10,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import MAX_REQUEST_BODY_BYTES, RequestBodyLimitMiddleware, create_app
+from src.api.app import create_app
 from src.api.db import make_engine
+from src.api.request_security import MAX_REQUEST_BODY_BYTES, RequestBodyLimitMiddleware
 
 
 @pytest.fixture

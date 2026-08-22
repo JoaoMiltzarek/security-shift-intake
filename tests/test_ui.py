@@ -8,9 +8,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import MAX_FORM_VALUE_CHARS, MAX_REQUEST_BODY_BYTES, create_app
+from src.api.app import create_app
 from src.api.db import make_engine
 from src.api.gate import MemorySimulationRecorder
+from src.api.request_security import MAX_FORM_VALUE_CHARS, MAX_REQUEST_BODY_BYTES
 from src.schema.loader import config_fingerprint, load_config
 
 # Corpo do formulário ESCALAR legado — config explícita, não o default tabular.

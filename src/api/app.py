@@ -15,7 +15,6 @@ import binascii
 import csv
 import hmac
 import io
-import ipaddress
 import json
 import os
 import re
@@ -24,7 +23,6 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
-from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
@@ -33,9 +31,6 @@ from fastapi.templating import Jinja2Templates
 from PIL import Image
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
-from starlette.middleware.base import RequestResponseEndpoint
-from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src import __version__
 from src.api import repository
@@ -62,6 +57,7 @@ from src.api.readiness import (
     ReadinessReport,
     evaluate_readiness,
 )
+from src.api.request_security import bounded_review_form, install_request_security
 from src.classifier.contracts import IncidentClassifier
 from src.classifier.rules import RuleBasedIncidentClassifier
 from src.paths import REPO_ROOT
@@ -85,111 +81,7 @@ from src.schema.state import (
 
 _GUARD_SPLIT = re.compile(r"[;,]| e ")
 
-_UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _LOCAL_ACTOR = "local_operator"
-MAX_REQUEST_BODY_BYTES = 256 * 1024
-MAX_FORM_FIELDS = 600
-MAX_FORM_VALUE_CHARS = 4_000
-
-
-class RequestBodyLimitMiddleware:
-    """Bound unsafe request bodies even when Content-Length is absent or false."""
-
-    def __init__(self, app: ASGIApp, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
-        self.app = app
-        self.max_bytes = max_bytes
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope.get("method") not in _UNSAFE_HTTP_METHODS:
-            await self.app(scope, receive, send)
-            return
-
-        headers = dict(scope.get("headers", []))
-        raw_length = headers.get(b"content-length")
-        if raw_length is not None:
-            try:
-                declared_length = int(raw_length)
-            except ValueError:
-                response = Response("Invalid Content-Length.", status_code=400)
-                await response(scope, receive, send)
-                return
-            if declared_length > self.max_bytes:
-                response = Response("Request body too large.", status_code=413)
-                await response(scope, receive, send)
-                return
-
-        body = bytearray()
-        while True:
-            message = await receive()
-            if message["type"] == "http.disconnect":
-                response = Response("Request interrupted.", status_code=400)
-                await response(scope, receive, send)
-                return
-            if message["type"] != "http.request":
-                continue
-            body.extend(message.get("body", b""))
-            if len(body) > self.max_bytes:
-                response = Response("Request body too large.", status_code=413)
-                await response(scope, receive, send)
-                return
-            if not message.get("more_body", False):
-                break
-
-        replayed = False
-
-        async def replay_receive() -> Message:
-            nonlocal replayed
-            if replayed:
-                return {"type": "http.disconnect"}
-            replayed = True
-            return {"type": "http.request", "body": bytes(body), "more_body": False}
-
-        await self.app(scope, replay_receive, send)
-
-
-async def _bounded_review_form(request: Request) -> Any:
-    """Parse the edit form with finite field, upload and per-value budgets."""
-    form = await request.form(
-        max_files=0,
-        max_fields=MAX_FORM_FIELDS,
-        max_part_size=MAX_REQUEST_BODY_BYTES,
-    )
-    items = list(form.multi_items())
-    if len(items) > MAX_FORM_FIELDS:
-        raise HTTPException(status_code=422, detail="Review form has too many fields.")
-    for key, value in items:
-        if not isinstance(value, str) or len(str(key)) > 128 or len(value) > MAX_FORM_VALUE_CHARS:
-            raise HTTPException(status_code=422, detail="Review form field is too large.")
-    return form
-
-
-def _is_loopback_client(host: str) -> bool:
-    """Accept OS loopback addresses; ``testclient`` is Starlette's in-memory peer."""
-    if host == "testclient":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
-
-
-def _same_origin(request: Request, origin: str) -> bool:
-    """Compare scheme/host/effective port, rejecting opaque or malformed origins."""
-    if origin == "null":
-        return False
-    try:
-        parsed = urlsplit(origin)
-        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
-            return False
-        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    except ValueError:
-        return False
-    request_port = request.url.port or (443 if request.url.scheme == "https" else 80)
-    return (
-        parsed.scheme == request.url.scheme
-        and parsed.hostname.lower() == (request.url.hostname or "").lower()
-        and origin_port == request_port
-    )
 
 
 def _assert_config_compatible(state: PipelineState, config: ReportConfig) -> None:
@@ -795,51 +687,9 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"],
-        www_redirect=False,
-    )
-    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
+    install_request_security(app)
     # Serve vendored assets (htmx + tiny helpers) locally — no CDN, offline-first.
     app.mount("/static", StaticFiles(directory=REPO_ROOT / "ui" / "static"), name="static")
-
-    @app.middleware("http")
-    async def _security_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
-        """Lock the local cockpit down and keep document data out of browser caches.
-
-        Scripts and styles are vendored under ``/static``. Templates contain no inline
-        executable code or style attributes; page images remain same-origin.
-        """
-        client_host = request.client.host if request.client is not None else ""
-        fetch_site = request.headers.get("sec-fetch-site", "").lower()
-        origin = request.headers.get("origin")
-        if not _is_loopback_client(client_host):
-            response = Response("Local cockpit only.", status_code=403)
-        elif request.method in _UNSAFE_HTTP_METHODS and (
-            fetch_site == "cross-site" or (origin is not None and not _same_origin(request, origin))
-        ):
-            response = Response("Cross-site state change blocked.", status_code=403)
-        else:
-            response = await call_next(request)
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; img-src 'self' data:; script-src 'self'; "
-            "style-src 'self'; base-uri 'none'; object-src 'none'; "
-            "form-action 'self'; frame-ancestors 'none'"
-        )
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        # Native same-origin POST forms need a non-opaque Origin so the fail-closed
-        # request policy can distinguish them from hostile ``Origin: null`` requests.
-        # Draft URLs are still never disclosed to another origin.
-        response.headers["Referrer-Policy"] = "same-origin"
-        response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-        )
-        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        if not request.url.path.startswith("/static/"):
-            response.headers["Cache-Control"] = "no-store, max-age=0"
-        return response
 
     def get_session() -> Iterator[Session]:
         with Session(engine) as session:
@@ -1369,7 +1219,7 @@ def create_app(
             )
         state = PipelineState.from_persisted_json(draft.state_json)
         _assert_config_compatible(state, active_config)
-        form = await _bounded_review_form(request)
+        form = await bounded_review_form(request)
         expected_revision, expected_state_sha256 = _expected_form_snapshot(form, draft)
 
         if state.normalized is not None:
