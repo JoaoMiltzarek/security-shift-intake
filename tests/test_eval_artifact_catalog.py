@@ -59,14 +59,6 @@ def test_catalog_paths_and_ids_are_unique_and_portable() -> None:
         assert "\\" not in raw_path
 
 
-def test_catalog_hashes_and_sizes_match_worktree_bytes() -> None:
-    for entry in _entries():
-        path = Path(str(entry["path"]))
-        content = path.read_bytes()
-        assert entry["bytes"] == len(content)
-        assert entry["sha256"] == hashlib.sha256(content).hexdigest()
-
-
 def test_catalog_hashes_and_sizes_match_index_blobs() -> None:
     """Validate the canonical Git bytes, independent of checkout line endings."""
     for entry in _entries():
