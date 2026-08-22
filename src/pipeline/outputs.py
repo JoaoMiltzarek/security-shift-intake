@@ -11,9 +11,12 @@ operacional limpa. Campo ausente vira "(revisar)" na planilha (nunca inventado).
 
 from __future__ import annotations
 
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.pipeline.route import select_route
 from src.schema.config import ReportConfig
 from src.schema.extraction import NormalizedIncidentModel, SpreadsheetRow
-from src.schema.state import PipelineState
+from src.schema.state import PipelineState, RoutingDecision
 
 _PENDING = "(revisar)"
 
@@ -29,6 +32,16 @@ def blocked_draft_message(reason: str) -> str:
 
 
 _UNKNOWN_OCCURRENCES = "(ocorrências não confirmadas)"
+
+
+class OperationalOutputs(BaseModel):
+    """Non-persisted route and previews derived from the current state/config."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    routing: RoutingDecision | None = None
+    spreadsheet_rows: list[SpreadsheetRow] = Field(default_factory=list)
+    message: str | None = None
 
 
 def _format_descricao(
@@ -119,4 +132,26 @@ def build_outputs(state: PipelineState, config: ReportConfig) -> PipelineState:
             "spreadsheet_rows": build_spreadsheet(normalized),
             "email_draft": build_copy_message(state, normalized),
         }
+    )
+
+
+def derive_operational_outputs(
+    state: PipelineState,
+    config: ReportConfig,
+) -> OperationalOutputs:
+    """Derive every consequential preview without trusting persisted copies."""
+    normalized = state.normalized
+    if normalized is None:
+        return OperationalOutputs()
+    routing = (
+        select_route(state.classification, config) if state.classification is not None else None
+    )
+    if state.ocr_quality == "failed":
+        message = blocked_draft_message(state.ocr_quality_reason or "OCR insuficiente")
+    else:
+        message = build_copy_message(state, normalized)
+    return OperationalOutputs(
+        routing=routing,
+        spreadsheet_rows=build_spreadsheet(normalized),
+        message=message,
     )

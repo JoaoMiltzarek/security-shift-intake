@@ -4,13 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.pipeline.outputs import build_copy_message, build_spreadsheet, export_blockers
+from src.pipeline.outputs import (
+    build_copy_message,
+    build_spreadsheet,
+    derive_operational_outputs,
+    export_blockers,
+)
 from src.schema.extraction import (
     Disposition,
     NormalizedIncidentModel,
     NormalizedOccurrence,
     NormalizedShift,
 )
+from src.schema.loader import load_config
 from src.schema.state import PipelineState
 
 
@@ -95,3 +101,15 @@ def test_legacy_multi_page_state_blocks_clean_export() -> None:
     state = _state(no_review=True).model_copy(update={"image_paths": [Path("1"), Path("2")]})
 
     assert "documento multipÃ¡gina incompatÃ­vel com v1" in export_blockers(state)
+
+
+def test_operational_outputs_are_derived_from_current_state() -> None:
+    config = load_config(Path("configs/controle_ocorrencias.yaml"))
+    normalized = _norm([NormalizedOccurrence(description="Alarme disparado")])
+    state = PipelineState(source_pdf=Path("x.pdf"), normalized=normalized)
+
+    derived = derive_operational_outputs(state, config)
+
+    assert derived.spreadsheet_rows == build_spreadsheet(normalized)
+    assert derived.message == build_copy_message(state, normalized)
+    assert derived.routing is None
