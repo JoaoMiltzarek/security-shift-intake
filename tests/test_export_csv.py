@@ -97,9 +97,7 @@ def test_export_blocked_while_pending(client: TestClient) -> None:
 def test_unsupported_scalar_path_cannot_export(client: TestClient) -> None:
     # The public v1 export contract accepts only a reviewable table state.
     draft_id = int(client.post("/drafts", json={"source_pdf": "x.pdf"}).json()["id"])
-    response = client.post(
-        f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)
-    )
+    response = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
     assert response.status_code == 409
     assert "disposition_unconfirmed" in response.json()["detail"]
 
@@ -124,8 +122,7 @@ def test_export_after_review_matches_spreadsheet_cells(client: TestClient) -> No
     detail = client.get(f"/drafts/{draft_id}").json()
     derived = detail["derived"]
     expected = [
-        [r["dia"], r["unidade"], r["objeto"], r["descricao"]]
-        for r in derived["spreadsheet_rows"]
+        [r["dia"], r["unidade"], r["objeto"], r["descricao"]] for r in derived["spreadsheet_rows"]
     ]
     assert rows[1:] == expected
     # Post-review value present (human entered "1"), raw "(revisar)" placeholder gone.
@@ -152,9 +149,7 @@ def test_export_neutralizes_formula_injection(client: TestClient) -> None:
     assert any("'=cmd()" in cell for row in rows[1:] for cell in row)
 
 
-def test_changed_evidence_blocks_export_after_approval(
-    client: TestClient, tmp_path: Path
-) -> None:
+def test_changed_evidence_blocks_export_after_approval(client: TestClient, tmp_path: Path) -> None:
     draft_id = _submit_table_draft(client)
     _edit(client, draft_id, _CLEAN_FORM)
     _approve(client, draft_id)
@@ -162,9 +157,7 @@ def test_changed_evidence_blocks_export_after_approval(
     page_path = tmp_path / detail["state"]["page_artifacts"][0]["storage_key"]
     page_path.write_bytes(page_path.read_bytes() + b"changed")
 
-    response = client.post(
-        f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id)
-    )
+    response = client.post(f"/drafts/{draft_id}/export.csv", data=_snapshot(client, draft_id))
     assert response.status_code == 409
     assert "evidence_changed" in response.json()["detail"]
 

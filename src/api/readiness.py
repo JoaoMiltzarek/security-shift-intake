@@ -146,8 +146,7 @@ def evaluate_readiness(
         )
 
     if config is not None and (
-        state.report_type != config.report_type
-        or state.config_sha256 != config_fingerprint(config)
+        state.report_type != config.report_type or state.config_sha256 != config_fingerprint(config)
     ):
         _append_once(
             blockers,

@@ -567,9 +567,7 @@ def _draft_summary(draft: Draft | repository.DraftSummary) -> dict[str, Any]:
         "created_at": utc_rfc3339(draft.created_at),
         "updated_at": utc_rfc3339(draft.updated_at),
         "delivery_mode": draft.delivery_mode,
-        "simulated_at": (
-            utc_rfc3339(draft.simulated_at) if draft.simulated_at else None
-        ),
+        "simulated_at": (utc_rfc3339(draft.simulated_at) if draft.simulated_at else None),
     }
 
 
@@ -791,9 +789,7 @@ def create_app(
             if not state.page_artifacts:
                 with Image.new("RGB", (1, 1), "white") as image:
                     test_page = PageArtifact.from_image(image, page_index=0)
-                updates["page_artifacts"] = save_page_artifacts(
-                    [test_page], root=active_page_root
-                )
+                updates["page_artifacts"] = save_page_artifacts([test_page], root=active_page_root)
             state = state.model_copy(
                 update={
                     **updates,
@@ -827,9 +823,7 @@ def create_app(
         summary["state"] = state.model_dump(mode="json")
         summary["derived"] = {
             "routing": derived.routing.model_dump(mode="json") if derived.routing else None,
-            "spreadsheet_rows": [
-                row.model_dump(mode="json") for row in derived.spreadsheet_rows
-            ],
+            "spreadsheet_rows": [row.model_dump(mode="json") for row in derived.spreadsheet_rows],
             "message": derived.message,
         }
         summary["readiness"] = _readiness(draft).model_dump(mode="json")

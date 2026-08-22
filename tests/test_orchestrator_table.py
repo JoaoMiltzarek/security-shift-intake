@@ -156,16 +156,13 @@ def test_pre_extraction_timeout_preserves_completed_transcription(
     def timeout_before_extraction(self: Deadline, *, stage: str = "processing") -> float:
         if stage == "table extraction":
             raise ProcessingDeadlineExceeded(
-                "Processing deadline exceeded during table extraction; "
-                "manual review is required."
+                "Processing deadline exceeded during table extraction; manual review is required."
             )
         return original(self, stage=stage)
 
     monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_extraction)
 
-    state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120
-    ).state
+    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
 
     assert state.transcription == _OCC
     assert state.transcription_confidence == pytest.approx(0.9)
@@ -183,16 +180,13 @@ def test_pre_classification_timeout_preserves_validated_ocr_state(
     def timeout_before_classification(self: Deadline, *, stage: str = "processing") -> float:
         if stage == "classification":
             raise ProcessingDeadlineExceeded(
-                "Processing deadline exceeded during classification; "
-                "manual review is required."
+                "Processing deadline exceeded during classification; manual review is required."
             )
         return original(self, stage=stage)
 
     monkeypatch.setattr(Deadline, "remaining_seconds", timeout_before_classification)
 
-    state = run_pipeline(
-        sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120
-    ).state
+    state = run_pipeline(sample_pdf, MockVisionClient(text=_OCC), _llm(), CONFIG, dpi=120).state
 
     assert state.transcription == _OCC
     assert state.raw_extraction is not None and state.raw_extraction.tabela_encontrada

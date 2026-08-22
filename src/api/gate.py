@@ -42,10 +42,7 @@ def _reviewability_error(report: ReadinessReport) -> DraftNotReviewableError:
         ReadinessBlockerCode.ROUTING_UNRESOLVED,
     )
     blocker = next(
-        item
-        for code in blocker_priority
-        for item in report.blockers
-        if item.code == code
+        item for code in blocker_priority for item in report.blockers if item.code == code
     )
     suffix = f" Fields: {', '.join(blocker.fields)}." if blocker.fields else ""
     return DraftNotReviewableError(f"{blocker.detail}{suffix}")
@@ -193,15 +190,11 @@ def _simulate_draft_once(
         approved_state_sha256=draft.approved_state_sha256,
     )
     if not readiness.simulatable:
-        blocker = (
-            readiness.blocker(ReadinessBlockerCode.APPROVAL_STALE)
-            or readiness.blockers[0]
-        )
+        blocker = readiness.blocker(ReadinessBlockerCode.APPROVAL_STALE) or readiness.blockers[0]
         audit_detail: str = str(blocker.code)
         if blocker.code == ReadinessBlockerCode.APPROVAL_STALE:
             audit_detail = (
-                f"stale_approval rev={draft.revision} "
-                f"approved_rev={draft.approved_revision}"
+                f"stale_approval rev={draft.revision} approved_rev={draft.approved_revision}"
             )
         add_audit(
             session,

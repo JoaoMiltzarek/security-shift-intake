@@ -86,9 +86,7 @@ def test_simulated_at_maps_to_historical_sqlite_column() -> None:
     engine = make_engine("sqlite://")
     init_db(engine)
     with engine.connect() as connection:
-        columns = {
-            str(row[1]) for row in connection.exec_driver_sql("PRAGMA table_info(draft)")
-        }
+        columns = {str(row[1]) for row in connection.exec_driver_sql("PRAGMA table_info(draft)")}
 
     assert "sent_at" in columns
     assert "simulated_at" not in columns
