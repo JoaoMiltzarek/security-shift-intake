@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -86,23 +87,29 @@ def locate_value(value: object, words: list[WordBox], page: int = 0) -> Evidence
             )
 
     # Level 2 — token_window: value tokens matched within a single OCR line.
-    wanted = set(value_tokens)
+    wanted = Counter(value_tokens)
     best: tuple[int, list[WordBox]] | None = None
     by_line: dict[str, list[WordBox]] = {}
     for w, wn in zip(page_words, norms, strict=True):
         if wn in wanted:
             by_line.setdefault(w.line_key, []).append(w)
     for line_words in by_line.values():
-        matched_tokens = {_norm(w.text) for w in line_words}
-        count = len(matched_tokens & wanted)
+        remaining = wanted.copy()
+        selected: list[WordBox] = []
+        for word in line_words:
+            token = _norm(word.text)
+            if remaining[token] > 0:
+                selected.append(word)
+                remaining[token] -= 1
+        count = len(selected)
         if best is None or count > best[0]:
-            best = (count, line_words)
+            best = (count, selected)
     if best is not None and best[0] > 0:
         line_words = best[1]
         return EvidenceMatch(
             bbox=_union([w.bbox for w in line_words]),
             method="token_window",
-            score=best[0] / len(wanted),
+            score=best[0] / len(value_tokens),
             evidence_text=" ".join(w.text for w in line_words),
             matched_words=[w.text for w in line_words],
         )

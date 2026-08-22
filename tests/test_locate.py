@@ -70,6 +70,16 @@ def test_token_window_partial_match_same_line() -> None:
     assert match.bbox is not None
 
 
+def test_token_window_counts_repeated_tokens_individually() -> None:
+    words = [_wb("Ana", x0=0.1, line_key="1:1:1")]
+
+    match = locate_value("Ana Ana", words)
+
+    assert match.method == "token_window"
+    assert match.score == 0.5
+    assert match.matched_words == ["Ana"]
+
+
 def test_absent_value_is_none() -> None:
     words = [_wb("Portaria", x0=0.0)]
     match = locate_value("Inexistente", words)
