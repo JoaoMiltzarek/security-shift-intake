@@ -142,6 +142,7 @@ def _canonical_builder_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "GITHUB_ACTIONS": "true",
         "RUNNER_OS": "Linux",
         "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REF": "refs/heads/main",
         "GITHUB_REPOSITORY": builder.REPOSITORY_IDENTITY,
         "GITHUB_WORKFLOW_REF": (
             f"{builder.REPOSITORY_IDENTITY}/.github/workflows/"
@@ -166,6 +167,17 @@ def test_builder_requires_workflow_dispatch_from_the_exact_workflow(
     builder.require_canonical_builder_workflow()
 
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    with pytest.raises(TierCContractError, match="requires workflow_dispatch"):
+        builder.require_canonical_builder_workflow()
+
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        (
+            f"{builder.REPOSITORY_IDENTITY}/.github/workflows/"
+            f"{builder.BUILD_WORKFLOW_FILE}@refs/heads/main"
+        ),
+    )
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/other")
     with pytest.raises(TierCContractError, match="requires workflow_dispatch"):
         builder.require_canonical_builder_workflow()
 

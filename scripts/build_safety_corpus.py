@@ -111,12 +111,15 @@ def require_canonical_builder_environment() -> dict[str, str]:
 
 def require_canonical_builder_workflow() -> None:
     """Require the exact manual event and workflow that may publish corpus artifacts."""
-    workflow_prefix = f"{REPOSITORY_IDENTITY}/.github/workflows/{BUILD_WORKFLOW_FILE}@"
+    github_ref = os.environ.get("GITHUB_REF", "")
+    expected_workflow_ref = (
+        f"{REPOSITORY_IDENTITY}/.github/workflows/{BUILD_WORKFLOW_FILE}@{github_ref}"
+    )
     workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
     if (
         os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
-        or not workflow_ref.startswith(workflow_prefix)
-        or workflow_ref == workflow_prefix
+        or not github_ref
+        or workflow_ref != expected_workflow_ref
     ):
         raise TierCContractError(
             "canonical safety corpus requires workflow_dispatch from build-safety-corpus.yml"
