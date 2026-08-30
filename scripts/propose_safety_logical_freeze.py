@@ -34,6 +34,8 @@ from src.paths import REPO_ROOT
 CANDIDATE_SCHEMA = "ssi-logical-freeze-candidate/v1"
 CANDIDATE_STATUS = "UNTRUSTED_NOT_RELEASE_EVIDENCE"
 PROVENANCE_NAME = "candidate-provenance.json"
+EXPECTED_REPOSITORY = "JoaoMiltzarek/security-shift-intake"
+PROPOSAL_WORKFLOW_PATH = ".github/workflows/propose-safety-logical-freeze.yml"
 
 
 def _git_commit() -> str:
@@ -49,6 +51,22 @@ def _git_commit() -> str:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise TierCContractError("cannot identify the logical-freeze candidate commit") from exc
     return completed.stdout.strip()
+
+
+def require_proposal_environment() -> dict[str, str]:
+    """Require the exact manual workflow before an untrusted proposal can run."""
+    release = require_canonical_builder_environment()
+    event_name = os.environ.get("GITHUB_EVENT_NAME")
+    github_ref = os.environ.get("GITHUB_REF")
+    workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF")
+    if event_name != "workflow_dispatch":
+        raise TierCContractError("logical-freeze proposals require workflow_dispatch")
+    if not github_ref:
+        raise TierCContractError("logical-freeze proposal ref is unavailable")
+    expected_workflow_ref = f"{EXPECTED_REPOSITORY}/{PROPOSAL_WORKFLOW_PATH}@{github_ref}"
+    if workflow_ref != expected_workflow_ref:
+        raise TierCContractError("logical-freeze proposal workflow identity is invalid")
+    return release
 
 
 def _outside_repository(path: Path) -> Path:
@@ -116,6 +134,8 @@ def build_candidate(output: Path) -> str:
                 "generator_commit": commit,
                 "github_sha": github_sha,
                 "github_repository": os.environ["GITHUB_REPOSITORY"],
+                "github_event_name": os.environ["GITHUB_EVENT_NAME"],
+                "github_ref": os.environ["GITHUB_REF"],
                 "github_workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
                 "github_run_id": os.environ["GITHUB_RUN_ID"],
                 "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
@@ -134,7 +154,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        require_canonical_builder_environment()
+        require_proposal_environment()
         digest = build_candidate(args.output)
     except (KeyError, OSError, TierCContractError, ValueError) as exc:
         print(f"UNTRUSTED LOGICAL FREEZE CANDIDATE REFUSED: {exc}", file=sys.stderr)
