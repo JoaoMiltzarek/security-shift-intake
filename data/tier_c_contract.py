@@ -71,7 +71,14 @@ def _strict_json_object(text: str) -> dict[str, Any]:
             result[key] = value
         return result
 
-    payload = json.loads(text, object_pairs_hook=reject_duplicate_keys)
+    def reject_nonfinite(value: str) -> None:
+        raise ValueError(f"non-finite JSON constant is forbidden: {value}")
+
+    payload = json.loads(
+        text,
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=reject_nonfinite,
+    )
     if not isinstance(payload, dict):
         raise ValueError("JSON value must be an object")
     return payload

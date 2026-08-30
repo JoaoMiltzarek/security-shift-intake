@@ -291,6 +291,54 @@ def test_logical_freeze_parser_rejects_complete_or_ambiguous_entries(tmp_path: P
         parse_logical_freeze(freeze, expected_split="val")
 
 
+def test_logical_freeze_parser_rejects_noncanonical_and_ambiguous_bytes(
+    tmp_path: Path,
+) -> None:
+    first = {
+        "doc_id": "tc-000001",
+        "split": "val",
+        "image": "pngs/tc-000001.png",
+        "gt": "gt/tc-000001.json",
+        "sha256_gt": "1" * 64,
+    }
+    second = {
+        "doc_id": "tc-000002",
+        "split": "val",
+        "image": "pngs/tc-000002.png",
+        "gt": "gt/tc-000002.json",
+        "sha256_gt": "2" * 64,
+    }
+
+    def row(payload: dict[str, object]) -> bytes:
+        return (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+    missing_field = dict(first)
+    missing_field.pop("gt")
+    invalid_path = {**first, "gt": "gt/../tc-000001.json"}
+    nonfinite = {**first, "sha256_gt": float("nan")}
+    infinity = {**first, "sha256_gt": float("inf")}
+    duplicate_key = (
+        '{"doc_id":"tc-000001","doc_id":"tc-000002","gt":"gt/tc-000002.json",'
+        '"image":"pngs/tc-000002.png","sha256_gt":"' + "2" * 64 + '","split":"val"}\n'
+    ).encode()
+    mutations = (
+        row(second) + row(first),
+        duplicate_key,
+        row(missing_field),
+        row(invalid_path),
+        row(first).removesuffix(b"\n"),
+        row(first)[:-2] + b"\xff\n",
+        row(nonfinite),
+        row(infinity),
+    )
+    freeze = tmp_path / "logical.jsonl"
+
+    for content in mutations:
+        freeze.write_bytes(content)
+        with pytest.raises(TierCContractError):
+            parse_logical_freeze(freeze, expected_split="val")
+
+
 def test_logical_freeze_authenticates_identity_and_gt_but_not_png_digest(
     tmp_path: Path,
 ) -> None:
