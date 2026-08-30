@@ -12,12 +12,14 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, mo
 from data.generators.fonts import discover_handwriting_fonts
 from data.generators.tier_c import DATASET_VERSION, MANIFEST_SCHEMA
 from data.tier_c_contract import (
+    SAFETY_LOGICAL_FREEZE,
     TierCContractError,
     TierCManifestEntry,
     VerifiedCanonicalSplit,
-    load_verified_canonical_split,
+    load_verified_generated_split,
     parse_manifest,
     sha256_file,
+    verify_logical_freeze,
 )
 from src.paths import REPO_ROOT
 
@@ -268,7 +270,11 @@ def _expected_members(entries: tuple[TierCManifestEntry, ...]) -> set[str]:
     }
 
 
-def _load_inventory_verified_safety_corpus(root: Path) -> VerifiedSafetyCorpus:
+def _load_inventory_verified_safety_corpus(
+    root: Path,
+    *,
+    logical_freeze_path: Path,
+) -> VerifiedSafetyCorpus:
     """Validate the self-contained builder artifact before publication."""
     if not root.is_dir():
         raise TierCContractError(
@@ -302,10 +308,15 @@ def _load_inventory_verified_safety_corpus(root: Path) -> VerifiedSafetyCorpus:
         if sha256_file(root.joinpath(*PurePosixPath(relative).parts)) != expected_hash:
             raise TierCContractError(f"safety corpus inventory hash mismatch: {relative}")
 
-    verified = load_verified_canonical_split(
+    verified = load_verified_generated_split(
         root,
         SAFETY_DATASET,
         SAFETY_SPLIT,
+    )
+    verify_logical_freeze(
+        verified.entries,
+        logical_freeze_path,
+        expected_split=SAFETY_SPLIT,
     )
     if (
         verified.manifest_sha256 != provenance.manifest_sha256
@@ -321,15 +332,23 @@ def _load_inventory_verified_safety_corpus(root: Path) -> VerifiedSafetyCorpus:
     return VerifiedSafetyCorpus(split=verified, provenance=provenance)
 
 
-def load_built_safety_corpus(root: Path) -> VerifiedSafetyCorpus:
+def load_built_safety_corpus(
+    root: Path,
+    *,
+    logical_freeze_path: Path = SAFETY_LOGICAL_FREEZE,
+) -> VerifiedSafetyCorpus:
     """Validate a fresh builder artifact before an external pin can exist."""
-    return _load_inventory_verified_safety_corpus(root)
+    return _load_inventory_verified_safety_corpus(
+        root,
+        logical_freeze_path=logical_freeze_path,
+    )
 
 
 def load_verified_safety_corpus(
     root: Path = SAFETY_CORPUS_DIR,
     *,
     pin_path: Path = SAFETY_CORPUS_PIN,
+    logical_freeze_path: Path = SAFETY_LOGICAL_FREEZE,
 ) -> VerifiedSafetyCorpus:
     """Load the committed corpus only when its external inventory pin agrees."""
     if not root.is_dir():
@@ -345,4 +364,7 @@ def load_verified_safety_corpus(
         raise TierCContractError("safety corpus inventory is unavailable") from exc
     if observed_inventory != pinned_inventory:
         raise TierCContractError("safety corpus inventory differs from its external pin")
-    return _load_inventory_verified_safety_corpus(root)
+    return _load_inventory_verified_safety_corpus(
+        root,
+        logical_freeze_path=logical_freeze_path,
+    )

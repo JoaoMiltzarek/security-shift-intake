@@ -34,7 +34,14 @@ from data.generators.tier_c import (
 from src.paths import REPO_ROOT
 
 V2_FROZEN_ROOT = REPO_ROOT / "data" / "manifests" / "tier_c_manifest_v2"
-SAFETY_LOGICAL_FREEZE_ROOT = REPO_ROOT / "data" / "manifests" / "safety_corpus_v1.1"
+SAFETY_LOGICAL_FREEZE_RELATIVE = Path(
+    "data",
+    "manifests",
+    "safety_corpus_v1.1",
+    "bench-balanced.val.logical.jsonl",
+)
+SAFETY_LOGICAL_FREEZE = REPO_ROOT / SAFETY_LOGICAL_FREEZE_RELATIVE
+SAFETY_LOGICAL_FREEZE_ROOT = SAFETY_LOGICAL_FREEZE.parent
 
 _DOC_ID_RE = re.compile(r"tc-\d{6}\Z")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")

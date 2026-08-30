@@ -120,10 +120,25 @@ def test_public_loader_requires_matching_external_inventory_pin(
     (root / "SHA256SUMS").write_bytes(inventory)
     pin = tmp_path / "bench-balanced-val.SHA256SUMS.sha256"
     pin.write_bytes(inventory_pin_bytes(hashlib.sha256(inventory).hexdigest()))
+    logical_freeze = tmp_path / "bench-balanced.val.logical.jsonl"
     verified: Any = SimpleNamespace(split=object(), provenance=object())
-    monkeypatch.setattr(corpus, "_load_inventory_verified_safety_corpus", lambda _root: verified)
+    observed: list[tuple[Path, Path]] = []
 
-    assert load_verified_safety_corpus(root, pin_path=pin) is verified
+    def load_with_freeze(_root: Path, *, logical_freeze_path: Path) -> Any:
+        observed.append((_root, logical_freeze_path))
+        return verified
+
+    monkeypatch.setattr(corpus, "_load_inventory_verified_safety_corpus", load_with_freeze)
+
+    assert (
+        load_verified_safety_corpus(
+            root,
+            pin_path=pin,
+            logical_freeze_path=logical_freeze,
+        )
+        is verified
+    )
+    assert observed == [(root, logical_freeze)]
 
 
 def test_public_loader_rejects_inventory_not_bound_by_external_pin(
@@ -138,8 +153,9 @@ def test_public_loader_rejects_inventory_not_bound_by_external_pin(
     pin.write_bytes(inventory_pin_bytes(hashlib.sha256(b"expected inventory\n").hexdigest()))
     called = False
 
-    def unpinned_loader(_root: Path) -> object:
+    def unpinned_loader(_root: Path, *, logical_freeze_path: Path) -> object:
         nonlocal called
+        del logical_freeze_path
         called = True
         return object()
 
