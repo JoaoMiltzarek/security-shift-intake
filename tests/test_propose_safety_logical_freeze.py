@@ -2,16 +2,33 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from data.safety_corpus import SAFETY_COUNT
+from data.safety_corpus import SAFETY_COUNT, CorpusFontIdentity
 from data.tier_c_contract import TierCContractError, TierCManifestEntry
 from scripts import propose_safety_logical_freeze as proposal
 from src.paths import REPO_ROOT
+
+
+def _runtime() -> proposal.CandidateRuntimeAttestation:
+    return proposal.CandidateRuntimeAttestation(
+        uv_version="0.11.28",
+        pillow_version="12.2.0",
+        uv_lock_sha256="f" * 64,
+        ubuntu_id="ubuntu",
+        ubuntu_version="24.04",
+        runner_image="ubuntu24",
+        runner_image_version="20260817.1",
+        font_files=(
+            CorpusFontIdentity(path="assets/fonts/First.ttf", sha256="1" * 64),
+            CorpusFontIdentity(path="assets/fonts/Second.ttf", sha256="2" * 64),
+        ),
+    )
 
 
 def _verified(
@@ -52,7 +69,7 @@ def _candidate_environment(monkeypatch: pytest.MonkeyPatch, commit: str) -> None
 
 def test_candidate_output_must_stay_outside_the_repository() -> None:
     with pytest.raises(TierCContractError, match="outside the repository"):
-        proposal.build_candidate(REPO_ROOT / "candidate-output")
+        proposal.build_candidate(REPO_ROOT / "candidate-output", runtime_attestation=_runtime())
 
 
 def test_candidate_requires_two_identical_logical_generations(
@@ -69,7 +86,7 @@ def test_candidate_requires_two_identical_logical_generations(
     monkeypatch.setattr(proposal, "_build_verified_copy", lambda _root: next(generated))
 
     with pytest.raises(TierCContractError, match="generations differ"):
-        proposal.build_candidate(tmp_path / "candidate")
+        proposal.build_candidate(tmp_path / "candidate", runtime_attestation=_runtime())
 
     assert not (tmp_path / "candidate").exists()
 
@@ -81,7 +98,7 @@ def test_candidate_rejects_checkout_commit_mismatch(
     monkeypatch.setattr(proposal, "_git_commit", lambda: "b" * 40)
 
     with pytest.raises(TierCContractError, match="does not match GITHUB_SHA"):
-        proposal.build_candidate(tmp_path / "candidate")
+        proposal.build_candidate(tmp_path / "candidate", runtime_attestation=_runtime())
 
 
 @pytest.mark.parametrize("invalid_copy", ["first", "second"])
@@ -99,7 +116,7 @@ def test_candidate_rejects_generated_metadata_commit_mismatch(
     monkeypatch.setattr(proposal, "_build_verified_copy", lambda _root: next(generated))
 
     with pytest.raises(TierCContractError, match="metadata does not match"):
-        proposal.build_candidate(tmp_path / "candidate")
+        proposal.build_candidate(tmp_path / "candidate", runtime_attestation=_runtime())
 
 
 @pytest.mark.parametrize("invalid_copy", ["first", "second"])
@@ -122,7 +139,7 @@ def test_candidate_rejects_wrong_split_count(
     monkeypatch.setattr(proposal, "_build_verified_copy", lambda _root: next(generated))
 
     with pytest.raises(TierCContractError, match="exactly 45 entries"):
-        proposal.build_candidate(tmp_path / "candidate")
+        proposal.build_candidate(tmp_path / "candidate", runtime_attestation=_runtime())
 
 
 def test_candidate_publishes_only_untrusted_projection_and_provenance(
@@ -145,7 +162,7 @@ def test_candidate_publishes_only_untrusted_projection_and_provenance(
     monkeypatch.setattr(proposal, "_build_verified_copy", generate)
     output = tmp_path / "candidate"
 
-    digest = proposal.build_candidate(output)
+    digest = proposal.build_candidate(output, runtime_attestation=_runtime())
 
     assert [root.name for root in roots] == ["first", "second"]
     assert {path.name for path in output.iterdir()} == {
@@ -161,6 +178,59 @@ def test_candidate_publishes_only_untrusted_projection_and_provenance(
     assert provenance["generator_commit"] == commit
     assert provenance["github_event_name"] == "workflow_dispatch"
     assert provenance["github_ref"] == "refs/heads/main"
+    assert provenance["uv_version"] == "0.11.28"
+    assert provenance["pillow_version"] == "12.2.0"
+    assert provenance["uv_lock_sha256"] == "f" * 64
+    assert provenance["ubuntu_id"] == "ubuntu"
+    assert provenance["ubuntu_version"] == "24.04"
+    assert provenance["runner_image"] == "ubuntu24"
+    assert provenance["runner_image_version"] == "20260817.1"
+    assert provenance["font_files"] == [
+        {"path": "assets/fonts/First.ttf", "sha256": "1" * 64},
+        {"path": "assets/fonts/Second.ttf", "sha256": "2" * 64},
+    ]
+
+
+def test_candidate_runtime_attests_locked_tools_and_assets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ImageOS", "ubuntu24")
+    monkeypatch.setenv("ImageVersion", "20260817.1")
+    monkeypatch.setattr(proposal, "_command_output", lambda _args: "uv 0.11.28")
+    monkeypatch.setattr(importlib.metadata, "version", lambda _package: "12.2.0")
+    monkeypatch.setattr(proposal, "sha256_file", lambda _path: "f" * 64)
+    monkeypatch.setattr(
+        proposal,
+        "current_font_identities",
+        lambda: list(_runtime().font_files),
+    )
+
+    attestation = proposal.collect_candidate_runtime({"ID": "ubuntu", "VERSION_ID": "24.04"})
+
+    assert attestation == _runtime()
+
+
+@pytest.mark.parametrize("output", ["uv 0.11.27", "0.11.28"])
+def test_candidate_runtime_rejects_wrong_uv(output: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(proposal, "_command_output", lambda _args: output)
+
+    with pytest.raises(TierCContractError, match="requires uv 0.11.28"):
+        proposal.collect_candidate_runtime({"ID": "ubuntu", "VERSION_ID": "24.04"})
+
+
+def test_candidate_runtime_rejects_unordered_fonts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ImageOS", "ubuntu24")
+    monkeypatch.setenv("ImageVersion", "20260817.1")
+    monkeypatch.setattr(proposal, "_command_output", lambda _args: "uv 0.11.28")
+    monkeypatch.setattr(importlib.metadata, "version", lambda _package: "12.2.0")
+    monkeypatch.setattr(
+        proposal,
+        "current_font_identities",
+        lambda: list(reversed(_runtime().font_files)),
+    )
+
+    with pytest.raises(TierCContractError, match="font identities"):
+        proposal.collect_candidate_runtime({"ID": "ubuntu", "VERSION_ID": "24.04"})
 
 
 def test_proposal_environment_requires_exact_manual_workflow(

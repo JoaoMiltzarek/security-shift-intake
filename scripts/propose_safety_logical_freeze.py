@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import os
 import platform
 import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from data.canonical_io import canonical_json_bytes
@@ -18,7 +20,15 @@ from data.generators.tier_c import (
     _publish_fresh_tree,
     build_tier_c,
 )
-from data.safety_corpus import EXPECTED_PYTHON, SAFETY_COUNT, SAFETY_DATASET, SAFETY_SPLIT
+from data.safety_corpus import (
+    EXPECTED_PYTHON,
+    EXPECTED_UV,
+    SAFETY_COUNT,
+    SAFETY_DATASET,
+    SAFETY_SPLIT,
+    CorpusFontIdentity,
+    current_font_identities,
+)
 from data.tier_c_contract import (
     TierCContractError,
     VerifiedCanonicalSplit,
@@ -27,6 +37,7 @@ from data.tier_c_contract import (
     load_verified_generated_split,
     logical_freeze_projection,
     logical_freeze_sha256,
+    sha256_file,
 )
 from scripts.build_safety_corpus import require_canonical_builder_environment
 from src.paths import REPO_ROOT
@@ -38,10 +49,36 @@ EXPECTED_REPOSITORY = "JoaoMiltzarek/security-shift-intake"
 PROPOSAL_WORKFLOW_PATH = ".github/workflows/propose-safety-logical-freeze.yml"
 
 
-def _git_commit() -> str:
+@dataclass(frozen=True)
+class CandidateRuntimeAttestation:
+    """Runtime identities carried beside an explicitly untrusted candidate."""
+
+    uv_version: str
+    pillow_version: str
+    uv_lock_sha256: str
+    ubuntu_id: str
+    ubuntu_version: str
+    runner_image: str
+    runner_image_version: str
+    font_files: tuple[CorpusFontIdentity, ...]
+
+    def provenance_fields(self) -> dict[str, object]:
+        return {
+            "uv_version": self.uv_version,
+            "pillow_version": self.pillow_version,
+            "uv_lock_sha256": self.uv_lock_sha256,
+            "ubuntu_id": self.ubuntu_id,
+            "ubuntu_version": self.ubuntu_version,
+            "runner_image": self.runner_image,
+            "runner_image_version": self.runner_image_version,
+            "font_files": [font.model_dump(mode="json") for font in self.font_files],
+        }
+
+
+def _command_output(args: list[str]) -> str:
     try:
         completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            args,
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,
@@ -49,8 +86,15 @@ def _git_commit() -> str:
             encoding="utf-8",
         )
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise TierCContractError("cannot identify the logical-freeze candidate commit") from exc
+        raise TierCContractError(f"candidate attestation command failed: {args[0]}") from exc
     return completed.stdout.strip()
+
+
+def _git_commit() -> str:
+    try:
+        return _command_output(["git", "rev-parse", "HEAD"])
+    except TierCContractError as exc:
+        raise TierCContractError("cannot identify the logical-freeze candidate commit") from exc
 
 
 def require_proposal_environment() -> dict[str, str]:
@@ -69,6 +113,49 @@ def require_proposal_environment() -> dict[str, str]:
     return release
 
 
+def _environment(name: str) -> str:
+    return os.environ[name].strip()
+
+
+def collect_candidate_runtime(release: dict[str, str]) -> CandidateRuntimeAttestation:
+    """Collect identities that can affect a logical-freeze proposal."""
+    uv_output = _command_output(["uv", "--version"])
+    if uv_output != f"uv {EXPECTED_UV}":
+        raise TierCContractError(f"logical-freeze candidate requires uv {EXPECTED_UV}")
+    try:
+        pillow_version = importlib.metadata.version("pillow")
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise TierCContractError("logical-freeze candidate requires Pillow") from exc
+    runner_image = _environment("ImageOS")
+    runner_image_version = _environment("ImageVersion")
+    ubuntu_id = release.get("ID", "").strip()
+    ubuntu_version = release.get("VERSION_ID", "").strip()
+    runtime_values = (
+        pillow_version.strip(),
+        runner_image,
+        runner_image_version,
+        ubuntu_id,
+        ubuntu_version,
+    )
+    if not all(runtime_values):
+        raise TierCContractError("logical-freeze candidate runtime attestation is incomplete")
+    font_files = tuple(current_font_identities())
+    font_paths = [font.path for font in font_files]
+    fonts_are_unique_and_sorted = font_paths == sorted(set(font_paths))
+    if not font_paths or not fonts_are_unique_and_sorted:
+        raise TierCContractError("logical-freeze candidate font identities are invalid")
+    return CandidateRuntimeAttestation(
+        uv_version=EXPECTED_UV,
+        pillow_version=pillow_version,
+        uv_lock_sha256=sha256_file(REPO_ROOT / "uv.lock"),
+        ubuntu_id=ubuntu_id,
+        ubuntu_version=ubuntu_version,
+        runner_image=runner_image,
+        runner_image_version=runner_image_version,
+        font_files=font_files,
+    )
+
+
 def _outside_repository(path: Path) -> Path:
     destination = path.expanduser().absolute()
     if destination.resolve(strict=False).is_relative_to(REPO_ROOT.resolve(strict=True)):
@@ -83,7 +170,7 @@ def _build_verified_copy(root: Path) -> VerifiedCanonicalSplit:
     return load_verified_generated_split(root, SAFETY_DATASET, SAFETY_SPLIT)
 
 
-def build_candidate(output: Path) -> str:
+def build_candidate(output: Path, *, runtime_attestation: CandidateRuntimeAttestation) -> str:
     """Generate twice and publish only a deterministic, untrusted logical projection."""
     destination = _outside_repository(output)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +227,7 @@ def build_candidate(output: Path) -> str:
                 "github_run_id": os.environ["GITHUB_RUN_ID"],
                 "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
                 "python_version": platform.python_version(),
+                **runtime_attestation.provenance_fields(),
             }
             (staged / PROVENANCE_NAME).write_bytes(canonical_json_bytes(provenance, pretty=True))
             _publish_fresh_tree(staged, destination)
@@ -154,8 +242,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        require_proposal_environment()
-        digest = build_candidate(args.output)
+        release = require_proposal_environment()
+        runtime_attestation = collect_candidate_runtime(release)
+        digest = build_candidate(args.output, runtime_attestation=runtime_attestation)
     except (KeyError, OSError, TierCContractError, ValueError) as exc:
         print(f"UNTRUSTED LOGICAL FREEZE CANDIDATE REFUSED: {exc}", file=sys.stderr)
         return 1
