@@ -83,8 +83,25 @@ def test_dataset_checkpoint_separates_freeze_proposal_from_corpus_build() -> Non
         "Commit only the unchanged logical JSONL",
         "independently regenerates and authenticates the corpus",
         "requires equality with the already versioned logical freeze",
+        "bench-balanced.val.inventory.sha256",
+        "pin-only commit",
+        "Do not stage any corpus member with this commit",
+        "corpus-only commit",
+        "external pin must already exist in `HEAD`",
+        "Without regenerating or redownloading anything",
     )
     assert all(value in contract for value in required)
+
+
+def test_dataset_checkpoint_commits_and_pushes_the_pin_before_the_corpus() -> None:
+    contract = " ".join(_read("docs/DATASET_CONTRACT.md").split())
+
+    pin_commit = contract.index("dedicated pin-only commit `P`")
+    pin_push = contract.index("push `P`")
+    corpus_commit = contract.index("dedicated corpus-only commit `D`")
+    corpus_push = contract.index("Push `D`")
+
+    assert pin_commit < pin_push < corpus_commit < corpus_push
 
 
 def test_dataset_checkpoint_forbids_local_release_regeneration() -> None:

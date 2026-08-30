@@ -194,19 +194,39 @@ The second execution independently regenerates and authenticates the corpus:
 6. Push `F`, dispatch `build-safety-corpus.yml` for that ref, and confirm its `headSha` is
    exactly `F`.
 7. The builder regenerates from a fresh directory, requires equality with the already versioned
-   logical freeze, and only then assembles the complete manifest and inventory.
+   logical freeze, and only then assembles the complete manifest, inventory, and external pin.
 8. Download `security-shift-intake-v1.1-safety-corpus-F` under
    `private/checkpoints/F/safety-corpus/`.
-9. Load it with `load_verified_safety_corpus` and confirm 45 sheets plus matching provenance.
-10. Import the unchanged tree into `data/eval_corpora/v1.1/bench-balanced-val/` in one dedicated
-    corpus commit.
-11. Let normal CI verify and evaluate the committed bytes. Normal CI never rebuilds the exam it
-    is scoring.
+9. Confirm that the downloaded artifact has exactly this checkpoint shape:
 
-The artifact contains only `pngs/`, `gt/`, `manifests/val.jsonl`, `meta.json`,
-`provenance.json`, and `SHA256SUMS`. Its inventory must cover every file exactly once. The loader
-rejects a missing, extra, unreadable, moved, or hash-mismatched member; a different lockfile or
-font bundle also invalidates the corpus.
+   ```text
+   safety-corpus/
+   ├── corpus/
+   │   ├── pngs/
+   │   ├── gt/
+   │   ├── manifests/val.jsonl
+   │   ├── meta.json
+   │   ├── provenance.json
+   │   └── SHA256SUMS
+   └── bench-balanced.val.inventory.sha256
+   ```
+
+10. Load `corpus/` with `load_verified_safety_corpus`, passing the downloaded sibling pin, and
+    confirm 45 sheets plus matching provenance.
+11. Copy only `bench-balanced.val.inventory.sha256` to
+    `data/manifests/safety_corpus_v1.1/`, commit that one pin in a dedicated pin-only commit `P`,
+    run the privacy gate, and push `P`. Do not stage any corpus member with this commit.
+12. Without regenerating or redownloading anything, import the unchanged `corpus/` directory from
+    that same artifact into `data/eval_corpora/v1.1/bench-balanced-val/`. Commit only that tree in
+    a dedicated corpus-only commit `D`; the external pin must already exist in `HEAD`.
+13. Push `D` and let normal CI verify and evaluate the committed bytes. Normal CI never rebuilds
+    the exam it is scoring.
+
+The `corpus/` subtree contains only `pngs/`, `gt/`, `manifests/val.jsonl`, `meta.json`,
+`provenance.json`, and `SHA256SUMS`. Its inventory must cover every file exactly once. The sibling
+pin authenticates that inventory before the corpus is admitted to Git. The loader rejects a
+missing, extra, unreadable, moved, or hash-mismatched member; a different lockfile or font bundle
+also invalidates the corpus.
 
 Do not generate replacement release images on Windows, copy selected files by hand, edit the
 inventory, or update hashes to make a changed tree pass. Repeat the versioned Linux checkpoint
