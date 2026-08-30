@@ -47,6 +47,9 @@ from data.tier_c_contract import (
 )
 from src.paths import REPO_ROOT
 
+REPOSITORY_IDENTITY = "JoaoMiltzarek/security-shift-intake"
+BUILD_WORKFLOW_FILE = "build-safety-corpus.yml"
+
 
 def _command_output(args: list[str]) -> str:
     try:
@@ -101,9 +104,23 @@ def require_canonical_builder_environment() -> dict[str, str]:
         raise TierCContractError(
             "canonical safety corpus may only be built by the manual Ubuntu 24.04 workflow"
         )
-    if os.environ["GITHUB_REPOSITORY"] != "JoaoMiltzarek/security-shift-intake":
+    if os.environ["GITHUB_REPOSITORY"] != REPOSITORY_IDENTITY:
         raise TierCContractError("canonical safety corpus repository identity is invalid")
     return release
+
+
+def require_canonical_builder_workflow() -> None:
+    """Require the exact manual event and workflow that may publish corpus artifacts."""
+    workflow_prefix = f"{REPOSITORY_IDENTITY}/.github/workflows/{BUILD_WORKFLOW_FILE}@"
+    workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
+    if (
+        os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+        or not workflow_ref.startswith(workflow_prefix)
+        or workflow_ref == workflow_prefix
+    ):
+        raise TierCContractError(
+            "canonical safety corpus requires workflow_dispatch from build-safety-corpus.yml"
+        )
 
 
 def _package_version(package: str) -> str:
@@ -240,6 +257,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     try:
         release = require_canonical_builder_environment()
+        require_canonical_builder_workflow()
         with tempfile.TemporaryDirectory(prefix="ssi-safety-source-") as temporary:
             generated = Path(temporary) / "tier_c"
             build_tier_c(generated, dataset=SAFETY_DATASET)

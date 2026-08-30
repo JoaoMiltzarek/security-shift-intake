@@ -136,6 +136,48 @@ def test_builder_refuses_noncanonical_environment(monkeypatch: pytest.MonkeyPatc
         builder.require_canonical_builder_environment()
 
 
+def _canonical_builder_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(builder, "_os_release", lambda: {"ID": "ubuntu", "VERSION_ID": "24.04"})
+    values = {
+        "GITHUB_ACTIONS": "true",
+        "RUNNER_OS": "Linux",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": builder.REPOSITORY_IDENTITY,
+        "GITHUB_WORKFLOW_REF": (
+            f"{builder.REPOSITORY_IDENTITY}/.github/workflows/"
+            f"{builder.BUILD_WORKFLOW_FILE}@refs/heads/main"
+        ),
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "ImageOS": "ubuntu24",
+        "ImageVersion": "20260817.1",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_builder_requires_workflow_dispatch_from_the_exact_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _canonical_builder_environment(monkeypatch)
+
+    assert builder.require_canonical_builder_environment()["VERSION_ID"] == "24.04"
+    builder.require_canonical_builder_workflow()
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    with pytest.raises(TierCContractError, match="requires workflow_dispatch"):
+        builder.require_canonical_builder_workflow()
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        (f"{builder.REPOSITORY_IDENTITY}/.github/workflows/another-workflow.yml@refs/heads/main"),
+    )
+    with pytest.raises(TierCContractError, match="requires workflow_dispatch"):
+        builder.require_canonical_builder_workflow()
+
+
 def test_builder_requires_the_precommitted_logical_freeze(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -145,6 +187,7 @@ def test_builder_requires_the_precommitted_logical_freeze(
     logical_freeze = tmp_path / "precommitted.logical.jsonl"
 
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
 
     def verify_generated(root: Path, dataset: str, split: str) -> SimpleNamespace:
@@ -184,6 +227,7 @@ def test_builder_never_creates_a_missing_logical_freeze(
     missing = tmp_path / "missing.logical.jsonl"
     verified = SimpleNamespace(entries=(), manifest_sha256="a" * 64)
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
     monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: missing)
@@ -285,6 +329,7 @@ def test_builder_publishes_the_corpus_before_its_external_pin(
     calls: list[tuple[str, Path, Path | None]] = []
 
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
     monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: logical_freeze)
