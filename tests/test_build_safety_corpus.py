@@ -21,11 +21,13 @@ from data.safety_corpus import (
     EXPECTED_TESSERACT_POR_PACKAGE,
     EXPECTED_UBUNTU,
     EXPECTED_UV,
+    INVENTORY_NAME,
     RELEASE_LINE,
     SAFETY_COUNT,
     SAFETY_DATASET,
     SAFETY_SPLIT,
     SafetyCorpusProvenance,
+    inventory_pin_bytes,
 )
 from data.tier_c_contract import (
     TierCContractError,
@@ -158,8 +160,19 @@ def test_builder_requires_the_precommitted_logical_freeze(
     monkeypatch.setattr(builder, "verify_logical_freeze", verify_freeze)
     monkeypatch.setattr(builder, "collect_provenance", lambda *_args: verified)
     monkeypatch.setattr(builder, "publish_corpus", lambda *_args: None)
+    monkeypatch.setattr(builder, "publish_inventory_pin", lambda *_args: None)
 
-    assert builder.main(["--output", str(tmp_path / "corpus")]) == 0
+    assert (
+        builder.main(
+            [
+                "--output",
+                str(tmp_path / "corpus"),
+                "--inventory-pin-output",
+                str(tmp_path / "inventory.sha256"),
+            ]
+        )
+        == 0
+    )
     assert len(load_calls) == 1
     assert load_calls[0][1:] == (SAFETY_DATASET, SAFETY_SPLIT)
     assert freeze_calls == [(verified.entries, logical_freeze, SAFETY_SPLIT)]
@@ -175,7 +188,17 @@ def test_builder_never_creates_a_missing_logical_freeze(
     monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
     monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: missing)
 
-    assert builder.main(["--output", str(tmp_path / "corpus")]) == 1
+    assert (
+        builder.main(
+            [
+                "--output",
+                str(tmp_path / "corpus"),
+                "--inventory-pin-output",
+                str(tmp_path / "inventory.sha256"),
+            ]
+        )
+        == 1
+    )
     assert not missing.exists()
     assert "cannot read Tier C logical freeze" in capsys.readouterr().err
 
@@ -212,3 +235,81 @@ def test_publish_corpus_copies_exactly_45_sheets_and_replaces_stale_tree(
     assert (output / "provenance.json").is_file()
     assert (output / "SHA256SUMS").is_file()
     assert not list(tmp_path.glob(".artifact.staging-*"))
+
+
+def test_publish_inventory_pin_writes_canonical_bytes_outside_the_corpus(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    inventory = b"authenticated inventory\n"
+    (corpus / INVENTORY_NAME).write_bytes(inventory)
+    output = tmp_path / "bench-balanced.val.inventory.sha256"
+
+    builder.publish_inventory_pin(corpus, output)
+
+    expected = inventory_pin_bytes(hashlib.sha256(inventory).hexdigest())
+    assert output.read_bytes() == expected
+
+
+def test_publish_inventory_pin_refuses_a_destination_inside_the_corpus(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / INVENTORY_NAME).write_bytes(b"authenticated inventory\n")
+
+    with pytest.raises(TierCContractError, match="outside the corpus tree"):
+        builder.publish_inventory_pin(corpus, corpus / "inventory.sha256")
+
+    assert not (corpus / "inventory.sha256").exists()
+
+
+def test_publish_inventory_pin_never_overwrites_an_existing_file(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / INVENTORY_NAME).write_bytes(b"authenticated inventory\n")
+    output = tmp_path / "inventory.sha256"
+    output.write_bytes(b"reviewed pin\n")
+
+    with pytest.raises(TierCContractError, match="already exists"):
+        builder.publish_inventory_pin(corpus, output)
+
+    assert output.read_bytes() == b"reviewed pin\n"
+
+
+def test_builder_publishes_the_corpus_before_its_external_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verified = SimpleNamespace(entries=(), manifest_sha256="a" * 64)
+    provenance = SimpleNamespace(manifest_sha256="b" * 64)
+    logical_freeze = tmp_path / "precommitted.logical.jsonl"
+    corpus = tmp_path / "corpus"
+    pin = tmp_path / "inventory.sha256"
+    calls: list[tuple[str, Path, Path | None]] = []
+
+    monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
+    monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: logical_freeze)
+    monkeypatch.setattr(builder, "verify_logical_freeze", lambda *_args, **_kwargs: "c" * 64)
+    monkeypatch.setattr(builder, "collect_provenance", lambda *_args: provenance)
+    monkeypatch.setattr(
+        builder,
+        "publish_corpus",
+        lambda _generated, output, _verified, _provenance: calls.append(("corpus", output, None)),
+    )
+    monkeypatch.setattr(
+        builder,
+        "publish_inventory_pin",
+        lambda output, pin_output: calls.append(("pin", output, pin_output)),
+    )
+
+    assert (
+        builder.main(
+            [
+                "--output",
+                str(corpus),
+                "--inventory-pin-output",
+                str(pin),
+            ]
+        )
+        == 0
+    )
+    assert calls == [("corpus", corpus, None), ("pin", corpus, pin)]

@@ -32,7 +32,9 @@ from data.safety_corpus import (
     SafetyCorpusProvenance,
     current_font_identities,
     inventory_bytes,
+    inventory_pin_bytes,
     load_built_safety_corpus,
+    parse_inventory_pin,
 )
 from data.tier_c_contract import (
     TierCContractError,
@@ -210,9 +212,31 @@ def publish_corpus(
             shutil.rmtree(staged)
 
 
+def publish_inventory_pin(corpus: Path, output: Path) -> None:
+    """Create the external inventory pin once and never place it in the corpus tree."""
+    corpus_root = corpus.expanduser().absolute().resolve(strict=False)
+    destination = output.expanduser().absolute().resolve(strict=False)
+    if destination == corpus_root or destination.is_relative_to(corpus_root):
+        raise TierCContractError("external inventory pin must stay outside the corpus tree")
+    try:
+        content = inventory_pin_bytes(sha256_file(corpus_root / INVENTORY_NAME))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as exc:
+        raise TierCContractError(f"external inventory pin already exists: {destination}") from exc
+    except OSError as exc:
+        raise TierCContractError("external inventory pin could not be published") from exc
+    if parse_inventory_pin(destination.read_bytes()) != sha256_file(corpus_root / INVENTORY_NAME):
+        raise TierCContractError("external inventory pin verification failed")
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Build the canonical v1.1 safety corpus.")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--inventory-pin-output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         release = require_canonical_builder_environment()
@@ -234,12 +258,14 @@ def main(argv: list[str]) -> int:
             )
             provenance = collect_provenance(verified, release)
             publish_corpus(generated, args.output, verified, provenance)
+            publish_inventory_pin(args.output, args.inventory_pin_output)
     except (OSError, TierCContractError, ValueError) as exc:
         print(f"SAFETY CORPUS REFUSED: {exc}", file=sys.stderr)
         return 1
     print(
         f"Safety corpus built: {SAFETY_COUNT} sheets, "
-        f"manifest={provenance.manifest_sha256}, output={args.output}"
+        f"manifest={provenance.manifest_sha256}, output={args.output}, "
+        f"inventory_pin={args.inventory_pin_output}"
     )
     return 0
 
