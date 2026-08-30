@@ -14,6 +14,7 @@ env:
   PYTHONUTF8: "1"
   TZ: UTC
   UV_VERSION: "0.11.28"
+  UV_PROJECT_ENVIRONMENT: /tmp/security-shift-intake-v1.1-builder-venv
 
 jobs:
   build:
@@ -64,12 +65,14 @@ jobs:
       - name: Build and authenticate the corpus
         run: >-
           uv run --locked --python 3.11.15 python -m scripts.build_safety_corpus
-          --output /tmp/security-shift-intake-v1.1-safety-corpus
+          --output /tmp/security-shift-intake-v1.1-checkpoint/corpus
+          --inventory-pin-output
+          /tmp/security-shift-intake-v1.1-checkpoint/bench-balanced.val.inventory.sha256
 
       - name: Upload the canonical corpus checkpoint
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: security-shift-intake-v1.1-safety-corpus-${{ github.sha }}
-          path: /tmp/security-shift-intake-v1.1-safety-corpus/
+          path: /tmp/security-shift-intake-v1.1-checkpoint/
           if-no-files-found: error
           retention-days: 14
