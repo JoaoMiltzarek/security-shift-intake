@@ -13,6 +13,7 @@ concurrency:
 env:
   PYTHONUTF8: "1"
   TZ: UTC
+  UV_PROJECT_ENVIRONMENT: /tmp/security-shift-intake-logical-freeze-venv
   UV_VERSION: "0.11.28"
 
 jobs:
@@ -41,6 +42,13 @@ jobs:
       - name: Verify the candidate runtime and checkout
         run: |
           set -euo pipefail
+          case "${UV_PROJECT_ENVIRONMENT}/" in
+            "${GITHUB_WORKSPACE}/"*)
+              echo "candidate environment must stay outside the checkout" >&2
+              exit 1
+              ;;
+          esac
+          test -x "${UV_PROJECT_ENVIRONMENT}/bin/python"
           test "$(uv --version)" = "uv ${UV_VERSION}"
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           uv run --locked --python 3.11.15 python -c \
