@@ -42,6 +42,7 @@ def _provenance() -> dict[str, object]:
         "count": SAFETY_COUNT,
         "dataset_version": DATASET_VERSION,
         "manifest_schema": MANIFEST_SCHEMA,
+        "logical_freeze_sha256": "e" * 64,
         "manifest_sha256": "b" * 64,
         "generator_commit": commit,
         "generated_meta_commit": commit,
@@ -73,6 +74,7 @@ def _provenance() -> dict[str, object]:
 def test_provenance_is_closed_and_binds_all_build_commits() -> None:
     provenance = SafetyCorpusProvenance.model_validate(_provenance())
     assert provenance.generator_commit == provenance.github_sha
+    assert provenance.logical_freeze_sha256 != provenance.manifest_sha256
 
     extra = {**_provenance(), "unreviewed": True}
     with pytest.raises(ValidationError, match="extra_forbidden"):
@@ -80,6 +82,10 @@ def test_provenance_is_closed_and_binds_all_build_commits() -> None:
     divergent = {**_provenance(), "github_sha": "e" * 40}
     with pytest.raises(ValidationError, match="commits must agree"):
         SafetyCorpusProvenance.model_validate(divergent)
+    missing_freeze = _provenance()
+    missing_freeze.pop("logical_freeze_sha256")
+    with pytest.raises(ValidationError, match="Field required"):
+        SafetyCorpusProvenance.model_validate(missing_freeze)
 
 
 def test_inventory_is_utf8_lf_sorted_and_rejects_escape() -> None:
@@ -164,6 +170,43 @@ def test_public_loader_rejects_inventory_not_bound_by_external_pin(
     with pytest.raises(TierCContractError, match="differs from its external pin"):
         load_verified_safety_corpus(root, pin_path=pin)
     assert not called
+
+
+def test_inventory_loader_rejects_a_different_logical_freeze_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import data.safety_corpus as corpus
+
+    root = tmp_path / "bench-balanced-val"
+    root.mkdir()
+    entries = tuple(
+        SimpleNamespace(
+            image=f"pngs/tc-{index:06d}.png",
+            gt=f"gt/tc-{index:06d}.json",
+        )
+        for index in range(SAFETY_COUNT)
+    )
+    verified = SimpleNamespace(
+        entries=entries,
+        manifest_sha256="b" * 64,
+        meta=SimpleNamespace(
+            git_commit="a" * 40,
+            version=DATASET_VERSION,
+            manifest_schema=MANIFEST_SCHEMA,
+        ),
+    )
+    monkeypatch.setattr(corpus, "_read_strict_json", lambda _path: _provenance())
+    monkeypatch.setattr(corpus, "parse_manifest", lambda *_args, **_kwargs: entries)
+    monkeypatch.setattr(corpus, "_parse_inventory", lambda _path: {})
+    monkeypatch.setattr(corpus, "_expected_members", lambda _entries: set())
+    monkeypatch.setattr(corpus, "load_verified_generated_split", lambda *_args: verified)
+    monkeypatch.setattr(corpus, "verify_logical_freeze", lambda *_args, **_kwargs: "f" * 64)
+
+    with pytest.raises(TierCContractError, match="provenance does not match"):
+        corpus._load_inventory_verified_safety_corpus(
+            root,
+            logical_freeze_path=tmp_path / "logical.jsonl",
+        )
 
 
 def test_missing_committed_corpus_reports_the_external_checkpoint(tmp_path: Path) -> None:

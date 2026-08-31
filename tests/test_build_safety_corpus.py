@@ -50,6 +50,7 @@ def _provenance(manifest_sha256: str) -> SafetyCorpusProvenance:
             "count": SAFETY_COUNT,
             "dataset_version": DATASET_VERSION,
             "manifest_schema": MANIFEST_SCHEMA,
+            "logical_freeze_sha256": "d" * 64,
             "manifest_sha256": manifest_sha256,
             "generator_commit": commit,
             "generated_meta_commit": commit,
@@ -196,7 +197,12 @@ def test_builder_requires_the_precommitted_logical_freeze(
     verified = SimpleNamespace(entries=(object(),), manifest_sha256="a" * 64)
     load_calls: list[tuple[Path, str, str]] = []
     freeze_calls: list[tuple[object, Path, str]] = []
+    provenance_freezes: list[str] = []
     logical_freeze = tmp_path / "precommitted.logical.jsonl"
+    collected = SimpleNamespace(
+        logical_freeze_sha256="b" * 64,
+        manifest_sha256="a" * 64,
+    )
 
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
     monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
@@ -213,7 +219,12 @@ def test_builder_requires_the_precommitted_logical_freeze(
     monkeypatch.setattr(builder, "load_verified_generated_split", verify_generated)
     monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: logical_freeze)
     monkeypatch.setattr(builder, "verify_logical_freeze", verify_freeze)
-    monkeypatch.setattr(builder, "collect_provenance", lambda *_args: verified)
+
+    def collect(_verified: object, _release: object, freeze_sha256: str) -> object:
+        provenance_freezes.append(freeze_sha256)
+        return collected
+
+    monkeypatch.setattr(builder, "collect_provenance", collect)
     monkeypatch.setattr(builder, "publish_corpus", lambda *_args: None)
     monkeypatch.setattr(builder, "publish_inventory_pin", lambda *_args: None)
 
@@ -231,6 +242,7 @@ def test_builder_requires_the_precommitted_logical_freeze(
     assert len(load_calls) == 1
     assert load_calls[0][1:] == (SAFETY_DATASET, SAFETY_SPLIT)
     assert freeze_calls == [(verified.entries, logical_freeze, SAFETY_SPLIT)]
+    assert provenance_freezes == ["b" * 64]
 
 
 def test_builder_never_creates_a_missing_logical_freeze(
@@ -334,7 +346,10 @@ def test_builder_publishes_the_corpus_before_its_external_pin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     verified = SimpleNamespace(entries=(), manifest_sha256="a" * 64)
-    provenance = SimpleNamespace(manifest_sha256="b" * 64)
+    provenance = SimpleNamespace(
+        logical_freeze_sha256="c" * 64,
+        manifest_sha256="b" * 64,
+    )
     logical_freeze = tmp_path / "precommitted.logical.jsonl"
     corpus = tmp_path / "corpus"
     pin = tmp_path / "inventory.sha256"

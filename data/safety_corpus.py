@@ -93,6 +93,7 @@ class SafetyCorpusProvenance(BaseModel):
     count: Literal[45]
     dataset_version: str
     manifest_schema: Literal["tier_c-manifest/v2"]
+    logical_freeze_sha256: str
     manifest_sha256: str
     generator_commit: str
     generated_meta_commit: str
@@ -117,6 +118,7 @@ class SafetyCorpusProvenance(BaseModel):
     font_files: list[CorpusFontIdentity]
 
     @field_validator(
+        "logical_freeze_sha256",
         "manifest_sha256",
         "uv_lock_sha256",
     )
@@ -313,13 +315,14 @@ def _load_inventory_verified_safety_corpus(
         SAFETY_DATASET,
         SAFETY_SPLIT,
     )
-    verify_logical_freeze(
+    observed_logical_freeze = verify_logical_freeze(
         verified.entries,
         logical_freeze_path,
         expected_split=SAFETY_SPLIT,
     )
     if (
-        verified.manifest_sha256 != provenance.manifest_sha256
+        observed_logical_freeze != provenance.logical_freeze_sha256
+        or verified.manifest_sha256 != provenance.manifest_sha256
         or verified.meta.git_commit != provenance.generated_meta_commit
         or verified.meta.version != provenance.dataset_version
         or verified.meta.manifest_schema != provenance.manifest_schema
