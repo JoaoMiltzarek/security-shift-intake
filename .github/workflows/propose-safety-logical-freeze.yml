@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  PYTHONDONTWRITEBYTECODE: "1"
   PYTHONUTF8: "1"
   TZ: UTC
   UV_PROJECT_ENVIRONMENT: /tmp/security-shift-intake-logical-freeze-venv

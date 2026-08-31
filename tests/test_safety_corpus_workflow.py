@@ -25,6 +25,7 @@ def test_builder_is_manual_read_only_and_bounded() -> None:
 def test_builder_pins_the_complete_generation_and_ocr_runtime() -> None:
     workflow = _workflow()
 
+    assert 'PYTHONDONTWRITEBYTECODE: "1"' in workflow
     assert 'UV_VERSION: "0.11.28"' in workflow
     assert "UV_PROJECT_ENVIRONMENT: /tmp/security-shift-intake-v1.1-builder-venv" in workflow
     assert "uv python install 3.11.15" in workflow
