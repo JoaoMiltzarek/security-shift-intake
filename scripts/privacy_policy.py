@@ -210,7 +210,7 @@ def _authenticate_files(
 
 def authenticate_worktree_safety_corpus(repository_root: Path) -> AuthenticatedSafetyCorpus:
     """Authenticate the exact corpus files present in a public worktree."""
-    _require_committed_logical_freeze(repository_root)
+    require_committed_logical_freeze(repository_root)
     _require_committed_inventory_pin(repository_root)
     files = _collect_plain_worktree_files(repository_root)
     return _authenticate_files(
@@ -423,7 +423,8 @@ def _validate_logical_freeze_content(content: bytes) -> None:
         )
 
 
-def _require_committed_logical_freeze(repository_root: Path) -> bytes:
+def require_committed_logical_freeze(repository_root: Path) -> bytes:
+    """Return the canonical freeze only when HEAD, index, and worktree agree."""
     label = "logical safety freeze"
     head_content = _head_regular_blob(
         repository_root,
@@ -564,7 +565,7 @@ def validate_staged_inventory_pin(
         raise CorpusPrivacyError("logical safety freeze and pin must use separate commits")
     if _staged_delta_paths(repository_root) != frozenset({SAFETY_CORPUS_PIN_RELATIVE}):
         raise CorpusPrivacyError("external corpus pin must be the only staged delta")
-    _require_committed_logical_freeze(repository_root)
+    require_committed_logical_freeze(repository_root)
     if _head_pin_exists(repository_root):
         raise CorpusPrivacyError("external corpus pin is write-once")
     try:
@@ -578,7 +579,7 @@ def validate_staged_inventory_pin(
 
 def authenticate_index_safety_corpus(repository_root: Path) -> AuthenticatedSafetyCorpus:
     """Authenticate a complete index snapshot and require identical worktree bytes."""
-    head_freeze = _require_committed_logical_freeze(repository_root)
+    head_freeze = require_committed_logical_freeze(repository_root)
     records = _index_records(repository_root)
     worktree_files = _collect_plain_worktree_files(repository_root)
     head_pin = _require_committed_inventory_pin(repository_root)
