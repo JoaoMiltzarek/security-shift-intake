@@ -32,10 +32,12 @@ if __package__ in {None, ""}:
 from scripts.privacy_policy import (  # noqa: E402
     SAFETY_CORPUS_PIN_RELATIVE,
     SAFETY_CORPUS_RELATIVE,
+    SAFETY_LOGICAL_FREEZE_RELATIVE,
     AuthenticatedSafetyCorpus,
     CorpusPrivacyError,
     authenticate_index_safety_corpus,
     validate_staged_inventory_pin,
+    validate_staged_logical_freeze,
 )
 
 # Binary / attachment extensions that should never be committed (real scans etc.).
@@ -253,16 +255,30 @@ def check_staged(repo_root: Path = _REPO_ROOT) -> list[str]:
         paths = staged_paths(repo_root)
         corpus_changed = _has_staged_change(SAFETY_CORPUS_RELATIVE, repo_root)
         pin_changed = _has_staged_change(SAFETY_CORPUS_PIN_RELATIVE, repo_root)
+        freeze_changed = _has_staged_change(SAFETY_LOGICAL_FREEZE_RELATIVE, repo_root)
     except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return ["  Git index could not be enumerated safely"]
 
     authenticated_corpus: AuthenticatedSafetyCorpus | None = None
+    if freeze_changed:
+        try:
+            validate_staged_logical_freeze(
+                repo_root,
+                pin_changed=pin_changed,
+                corpus_changed=corpus_changed,
+            )
+        except CorpusPrivacyError:
+            violations.append("  logical safety freeze change was refused")
     if pin_changed:
         try:
-            validate_staged_inventory_pin(repo_root, corpus_changed=corpus_changed)
+            validate_staged_inventory_pin(
+                repo_root,
+                corpus_changed=corpus_changed,
+                freeze_changed=freeze_changed,
+            )
         except CorpusPrivacyError:
             violations.append("  external safety corpus pin change was refused")
-    if corpus_changed and not pin_changed:
+    if corpus_changed and not pin_changed and not freeze_changed:
         try:
             authenticated_corpus = authenticate_index_safety_corpus(repo_root)
         except CorpusPrivacyError:

@@ -345,10 +345,17 @@ def test_pin_and_corpus_in_same_delta_never_authenticate_members(
 
     path = SAFETY_CORPUS_RELATIVE / "pngs" / "tc-000000.png"
     monkeypatch.setattr(guard, "staged_paths", lambda _root: [path])
-    monkeypatch.setattr(guard, "_has_staged_change", lambda _path, _root: True)
+    monkeypatch.setattr(
+        guard,
+        "_has_staged_change",
+        lambda candidate, _root: (
+            candidate in {guard.SAFETY_CORPUS_RELATIVE, guard.SAFETY_CORPUS_PIN_RELATIVE}
+        ),
+    )
 
-    def reject_pin(_root: Path, *, corpus_changed: bool) -> None:
+    def reject_pin(_root: Path, *, corpus_changed: bool, freeze_changed: bool) -> None:
         assert corpus_changed
+        assert not freeze_changed
         raise CorpusPrivacyError("same delta")
 
     monkeypatch.setattr(guard, "validate_staged_inventory_pin", reject_pin)
@@ -363,6 +370,30 @@ def test_pin_and_corpus_in_same_delta_never_authenticate_members(
 
     assert any("pin change was refused" in violation for violation in violations)
     assert any("binary/attachment" in violation for violation in violations)
+
+
+def test_staged_logical_freeze_is_checked_as_a_trust_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import scripts.check_real_data as guard
+
+    freeze = guard.SAFETY_LOGICAL_FREEZE_RELATIVE
+    observed: list[tuple[bool, bool]] = []
+    monkeypatch.setattr(guard, "staged_paths", lambda _root: [freeze])
+    monkeypatch.setattr(
+        guard,
+        "_has_staged_change",
+        lambda candidate, _root: candidate == freeze,
+    )
+
+    def accept_freeze(_root: Path, *, pin_changed: bool, corpus_changed: bool) -> None:
+        observed.append((pin_changed, corpus_changed))
+
+    monkeypatch.setattr(guard, "validate_staged_logical_freeze", accept_freeze)
+    monkeypatch.setattr(guard, "staged_blob", lambda _path, _root: b'{"synthetic":true}\n')
+
+    assert guard.check_staged(tmp_path) == []
+    assert observed == [(False, False)]
 
 
 def test_staged_sensitive_blob_wins_over_clean_worktree(tmp_path: Path) -> None:
