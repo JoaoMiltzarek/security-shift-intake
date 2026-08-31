@@ -200,12 +200,19 @@ def test_candidate_publishes_only_untrusted_projection_and_provenance(
         )
 
 
+@pytest.mark.parametrize(
+    "uv_output",
+    [
+        "uv 0.11.28",
+        "uv 0.11.28 (ebf0f43d7 2026-07-07 x86_64-unknown-linux-gnu)",
+    ],
+)
 def test_candidate_runtime_attests_locked_tools_and_assets(
-    monkeypatch: pytest.MonkeyPatch,
+    uv_output: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("ImageOS", "ubuntu24")
     monkeypatch.setenv("ImageVersion", "20260817.1")
-    monkeypatch.setattr(proposal, "_command_output", lambda _args: "uv 0.11.28")
+    monkeypatch.setattr(proposal, "_command_output", lambda _args: uv_output)
     monkeypatch.setattr(importlib.metadata, "version", lambda _package: "12.2.0")
     monkeypatch.setattr(proposal, "sha256_file", lambda _path: "f" * 64)
     monkeypatch.setattr(
@@ -219,7 +226,15 @@ def test_candidate_runtime_attests_locked_tools_and_assets(
     assert attestation == _runtime()
 
 
-@pytest.mark.parametrize("output", ["uv 0.11.27", "0.11.28"])
+@pytest.mark.parametrize(
+    "output",
+    [
+        "uv 0.11.27",
+        "0.11.28",
+        "uv 0.11.28 unexpected-suffix",
+        "uv 0.11.28 (unterminated",
+    ],
+)
 def test_candidate_runtime_rejects_wrong_uv(output: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(proposal, "_command_output", lambda _args: output)
 
