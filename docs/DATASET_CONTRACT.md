@@ -185,7 +185,14 @@ publish a corpus or release evidence:
 4. Download `UNTRUSTED-logical-freeze-candidate-C` under
    `private/checkpoints/C/logical-freeze/`. Its name and provenance deliberately state that it
    is not release evidence.
-5. Review the candidate provenance and canonical JSONL. Commit only the unchanged logical JSONL
+5. While `HEAD` is still `C`, verify the extracted two-file artifact without modifying it:
+
+   ```bash
+   uv run --locked python -m scripts.verify_logical_freeze_candidate \
+     --candidate "private/checkpoints/C/logical-freeze"
+   ```
+
+   Then review the candidate provenance and canonical JSONL. Commit only the unchanged logical JSONL
    at `data/manifests/safety_corpus_v1.1/bench-balanced.val.logical.jsonl` in a dedicated freeze
    commit `F`; do not commit the untrusted candidate provenance.
 
