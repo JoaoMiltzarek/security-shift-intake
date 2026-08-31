@@ -218,8 +218,16 @@ The second execution independently regenerates and authenticates the corpus:
    └── bench-balanced.val.inventory.sha256
    ```
 
-10. Load `corpus/` with `load_verified_safety_corpus`, passing the downloaded sibling pin, and
-    confirm 45 sheets plus matching provenance.
+10. While `HEAD` is still `F`, authenticate the exact corpus, sibling pin, logical freeze,
+    runtime provenance, lockfile, fonts, count, and generator commit:
+
+    ```bash
+    uv run --locked python -m scripts.verify_safety_corpus_checkpoint \
+      --checkpoint "private/checkpoints/F/safety-corpus"
+    ```
+
+    The verifier is read-only and must report 45 sheets plus the logical-freeze and complete
+    manifest hashes.
 11. Copy only `bench-balanced.val.inventory.sha256` to
     `data/manifests/safety_corpus_v1.1/`, commit that one pin in a dedicated pin-only commit `P`,
     run the privacy gate, and push `P`. Do not stage any corpus member with this commit.

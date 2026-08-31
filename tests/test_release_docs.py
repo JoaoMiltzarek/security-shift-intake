@@ -70,6 +70,9 @@ def test_dataset_contract_documents_the_manual_linux_checkpoint() -> None:
         '--candidate "private/checkpoints/C/logical-freeze"',
         "While `HEAD` is still `C`",
         "security-shift-intake-v1.1-safety-corpus-F",
+        "scripts.verify_safety_corpus_checkpoint",
+        '--checkpoint "private/checkpoints/F/safety-corpus"',
+        "logical-freeze and complete manifest hashes",
         "data/eval_corpora/v1.1/bench-balanced-val/",
         "Normal CI never rebuilds the exam",
     )
