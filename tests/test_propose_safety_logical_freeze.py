@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from data.safety_corpus import SAFETY_COUNT, CorpusFontIdentity
 from data.tier_c_contract import TierCContractError, TierCManifestEntry
@@ -189,6 +190,14 @@ def test_candidate_publishes_only_untrusted_projection_and_provenance(
         {"path": "assets/fonts/First.ttf", "sha256": "1" * 64},
         {"path": "assets/fonts/Second.ttf", "sha256": "2" * 64},
     ]
+    validated = proposal.CandidateProvenance.model_validate(provenance)
+    assert validated.logical_freeze_sha256 == digest
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        proposal.CandidateProvenance.model_validate({**provenance, "unreviewed": True})
+    with pytest.raises(ValidationError, match="workflow identity is incoherent"):
+        proposal.CandidateProvenance.model_validate(
+            {**provenance, "github_ref": "refs/heads/other"}
+        )
 
 
 def test_candidate_runtime_attests_locked_tools_and_assets(

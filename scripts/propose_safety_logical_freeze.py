@@ -6,12 +6,16 @@ import argparse
 import importlib.metadata
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from data.canonical_io import canonical_json_bytes
 from data.generators.tier_c import (
@@ -47,6 +51,86 @@ CANDIDATE_STATUS = "UNTRUSTED_NOT_RELEASE_EVIDENCE"
 PROVENANCE_NAME = "candidate-provenance.json"
 EXPECTED_REPOSITORY = "JoaoMiltzarek/security-shift-intake"
 PROPOSAL_WORKFLOW_PATH = ".github/workflows/propose-safety-logical-freeze.yml"
+_SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
+_COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
+
+
+class CandidateProvenance(BaseModel):
+    """Closed identity schema for an explicitly untrusted freeze proposal."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    candidate_schema: Literal["ssi-logical-freeze-candidate/v1"]
+    status: Literal["UNTRUSTED_NOT_RELEASE_EVIDENCE"]
+    dataset: Literal["bench-balanced"]
+    split: Literal["val"]
+    count: Literal[45]
+    dataset_version: str
+    manifest_schema: Literal["tier_c-manifest/v2"]
+    logical_freeze_sha256: str
+    first_manifest_sha256: str
+    second_manifest_sha256: str
+    generator_commit: str
+    github_sha: str
+    github_repository: Literal["JoaoMiltzarek/security-shift-intake"]
+    github_event_name: Literal["workflow_dispatch"]
+    github_ref: str
+    github_workflow_ref: str
+    github_run_id: str
+    github_run_attempt: str
+    python_version: Literal["3.11.15"]
+    uv_version: Literal["0.11.28"]
+    pillow_version: str
+    uv_lock_sha256: str
+    ubuntu_id: Literal["ubuntu"]
+    ubuntu_version: Literal["24.04"]
+    runner_image: str
+    runner_image_version: str
+    font_files: list[CorpusFontIdentity]
+
+    @field_validator(
+        "logical_freeze_sha256",
+        "first_manifest_sha256",
+        "second_manifest_sha256",
+        "uv_lock_sha256",
+    )
+    @classmethod
+    def _valid_hash(cls, value: str) -> str:
+        if _SHA256_RE.fullmatch(value) is None:
+            raise ValueError("candidate sha256 is invalid")
+        return value
+
+    @field_validator("generator_commit", "github_sha")
+    @classmethod
+    def _valid_commit(cls, value: str) -> str:
+        if _COMMIT_RE.fullmatch(value) is None:
+            raise ValueError("candidate commit identity is invalid")
+        return value
+
+    @model_validator(mode="after")
+    def _coherent_candidate(self) -> CandidateProvenance:
+        if self.dataset_version != DATASET_VERSION:
+            raise ValueError("candidate dataset version is not active")
+        if self.manifest_schema != MANIFEST_SCHEMA:
+            raise ValueError("candidate manifest schema is not active")
+        if self.generator_commit != self.github_sha:
+            raise ValueError("candidate commit identities differ")
+        expected_workflow = f"{EXPECTED_REPOSITORY}/{PROPOSAL_WORKFLOW_PATH}@{self.github_ref}"
+        if not self.github_ref.strip() or self.github_workflow_ref != expected_workflow:
+            raise ValueError("candidate workflow identity is incoherent")
+        strings = (
+            self.github_run_id,
+            self.github_run_attempt,
+            self.pillow_version,
+            self.runner_image,
+            self.runner_image_version,
+        )
+        if not all(value.strip() for value in strings):
+            raise ValueError("candidate provenance strings must be non-blank")
+        paths = [font.path for font in self.font_files]
+        if not paths or paths != sorted(paths) or len(paths) != len(set(paths)):
+            raise ValueError("candidate font identities must be non-empty, unique, and sorted")
+        return self
 
 
 @dataclass(frozen=True)
@@ -207,29 +291,33 @@ def build_candidate(output: Path, *, runtime_attestation: CandidateRuntimeAttest
             if freeze_path is None:
                 raise TierCContractError("logical-freeze release path is not configured")
             (staged / freeze_path.name).write_bytes(content)
-            provenance = {
-                "candidate_schema": CANDIDATE_SCHEMA,
-                "status": CANDIDATE_STATUS,
-                "dataset": SAFETY_DATASET,
-                "split": SAFETY_SPLIT,
-                "count": SAFETY_COUNT,
-                "dataset_version": DATASET_VERSION,
-                "manifest_schema": MANIFEST_SCHEMA,
-                "logical_freeze_sha256": logical_freeze_sha256(first_projection),
-                "first_manifest_sha256": first.manifest_sha256,
-                "second_manifest_sha256": second.manifest_sha256,
-                "generator_commit": commit,
-                "github_sha": github_sha,
-                "github_repository": os.environ["GITHUB_REPOSITORY"],
-                "github_event_name": os.environ["GITHUB_EVENT_NAME"],
-                "github_ref": os.environ["GITHUB_REF"],
-                "github_workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
-                "github_run_id": os.environ["GITHUB_RUN_ID"],
-                "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-                "python_version": platform.python_version(),
-                **runtime_attestation.provenance_fields(),
-            }
-            (staged / PROVENANCE_NAME).write_bytes(canonical_json_bytes(provenance, pretty=True))
+            provenance = CandidateProvenance.model_validate(
+                {
+                    "candidate_schema": CANDIDATE_SCHEMA,
+                    "status": CANDIDATE_STATUS,
+                    "dataset": SAFETY_DATASET,
+                    "split": SAFETY_SPLIT,
+                    "count": SAFETY_COUNT,
+                    "dataset_version": DATASET_VERSION,
+                    "manifest_schema": MANIFEST_SCHEMA,
+                    "logical_freeze_sha256": logical_freeze_sha256(first_projection),
+                    "first_manifest_sha256": first.manifest_sha256,
+                    "second_manifest_sha256": second.manifest_sha256,
+                    "generator_commit": commit,
+                    "github_sha": github_sha,
+                    "github_repository": os.environ["GITHUB_REPOSITORY"],
+                    "github_event_name": os.environ["GITHUB_EVENT_NAME"],
+                    "github_ref": os.environ["GITHUB_REF"],
+                    "github_workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
+                    "github_run_id": os.environ["GITHUB_RUN_ID"],
+                    "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                    "python_version": platform.python_version(),
+                    **runtime_attestation.provenance_fields(),
+                }
+            )
+            (staged / PROVENANCE_NAME).write_bytes(
+                canonical_json_bytes(provenance.model_dump(mode="json"), pretty=True)
+            )
             _publish_fresh_tree(staged, destination)
         finally:
             if staged.exists():
