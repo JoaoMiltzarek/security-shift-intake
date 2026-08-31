@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
+import platform
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -26,6 +29,7 @@ from data.safety_corpus import (
     SAFETY_COUNT,
     SAFETY_DATASET,
     SAFETY_SPLIT,
+    CorpusFontIdentity,
     SafetyCorpusProvenance,
     inventory_pin_bytes,
 )
@@ -158,6 +162,53 @@ def _canonical_builder_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
+
+
+def test_builder_provenance_normalizes_uv_build_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _canonical_builder_environment(monkeypatch)
+    commit = "a" * 40
+    verified = cast(
+        VerifiedCanonicalSplit,
+        SimpleNamespace(
+            manifest_sha256="b" * 64,
+            meta=SimpleNamespace(git_commit=commit),
+        ),
+    )
+
+    def command_output(args: list[str]) -> str:
+        if args == ["git", "rev-parse", "HEAD"]:
+            return commit
+        if args == ["uv", "--version"]:
+            return "uv 0.11.28 (ebf0f43d7 2026-07-07 x86_64-unknown-linux-gnu)"
+        if args == ["tesseract", "--version"]:
+            return "tesseract 5.3.4\n leptonica-1.82.0"
+        if args == ["tesseract", "--list-langs"]:
+            return "List of available languages in /usr/share/tesseract-ocr/5/tessdata/:\npor"
+        if args[-1] == "tesseract-ocr":
+            return EXPECTED_TESSERACT_PACKAGE
+        if args[-1] == "tesseract-ocr-por":
+            return EXPECTED_TESSERACT_POR_PACKAGE
+        raise AssertionError(f"unexpected command: {args}")
+
+    monkeypatch.setattr(builder, "_command_output", command_output)
+    monkeypatch.setattr(platform, "python_version", lambda: EXPECTED_PYTHON)
+    monkeypatch.setattr(importlib.metadata, "version", lambda _package: "12.2.0")
+    monkeypatch.setattr(builder, "sha256_file", lambda _path: "c" * 64)
+    monkeypatch.setattr(
+        builder,
+        "current_font_identities",
+        lambda: [CorpusFontIdentity(path="assets/fonts/Fake.ttf", sha256="d" * 64)],
+    )
+
+    provenance = builder.collect_provenance(
+        verified,
+        {"ID": "ubuntu", "VERSION_ID": EXPECTED_UBUNTU},
+        "e" * 64,
+    )
+
+    assert provenance.uv_version == EXPECTED_UV
 
 
 def test_builder_requires_workflow_dispatch_from_the_exact_workflow(

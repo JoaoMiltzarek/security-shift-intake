@@ -28,6 +28,7 @@ from data.safety_corpus import (
     inventory_pin_bytes,
     load_verified_safety_corpus,
     parse_inventory_pin,
+    uv_release_version,
 )
 from data.tier_c_contract import TierCContractError
 
@@ -69,6 +70,27 @@ def _provenance() -> dict[str, object]:
         "github_run_attempt": "1",
         "font_files": [{"path": "assets/fonts/Hand.ttf", "sha256": "d" * 64}],
     }
+
+
+@pytest.mark.parametrize(
+    ("output", "expected"),
+    [
+        ("uv 0.11.28", "0.11.28"),
+        (
+            "uv 0.11.28 (ebf0f43d7 2026-07-07 x86_64-unknown-linux-gnu)",
+            "0.11.28",
+        ),
+        ("uv 0.11.28 unexpected-suffix", None),
+        ("uv 0.11.28 ()", None),
+        ("uv 0.11.28 (unterminated", None),
+        ("uv 0.11.28 (metadata\ncontinued)", None),
+        ("0.11.28", None),
+    ],
+)
+def test_uv_release_version_accepts_only_supported_cli_shapes(
+    output: str, expected: str | None
+) -> None:
+    assert uv_release_version(output) == expected
 
 
 def test_provenance_is_closed_and_binds_all_build_commits() -> None:

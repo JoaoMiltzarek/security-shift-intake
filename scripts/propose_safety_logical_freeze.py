@@ -32,6 +32,7 @@ from data.safety_corpus import (
     SAFETY_SPLIT,
     CorpusFontIdentity,
     current_font_identities,
+    uv_release_version,
 )
 from data.tier_c_contract import (
     TierCContractError,
@@ -53,7 +54,6 @@ EXPECTED_REPOSITORY = "JoaoMiltzarek/security-shift-intake"
 PROPOSAL_WORKFLOW_PATH = ".github/workflows/propose-safety-logical-freeze.yml"
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
-_UV_VERSION_RE = re.compile(r"uv (?P<version>[0-9]+\.[0-9]+\.[0-9]+)(?: \([^\r\n()]+\))?\Z")
 
 
 class CandidateProvenance(BaseModel):
@@ -202,17 +202,10 @@ def _environment(name: str) -> str:
     return os.environ[name].strip()
 
 
-def _uv_release_version(output: str) -> str | None:
-    match = _UV_VERSION_RE.fullmatch(output)
-    if match is None:
-        return None
-    return match.group("version")
-
-
 def collect_candidate_runtime(release: dict[str, str]) -> CandidateRuntimeAttestation:
     """Collect identities that can affect a logical-freeze proposal."""
     uv_output = _command_output(["uv", "--version"])
-    if _uv_release_version(uv_output) != EXPECTED_UV:
+    if uv_release_version(uv_output) != EXPECTED_UV:
         raise TierCContractError(f"logical-freeze candidate requires uv {EXPECTED_UV}")
     try:
         pillow_version = importlib.metadata.version("pillow")

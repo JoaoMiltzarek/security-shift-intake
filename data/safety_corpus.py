@@ -50,6 +50,15 @@ EXPECTED_TESSERACT_POR_PACKAGE = "1:4.1.0-2"
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
 _TIMESTAMP_RE = re.compile(r"\d{8}T\d{6}Z\Z")
+_UV_VERSION_RE = re.compile(r"uv (?P<version>[0-9]+\.[0-9]+\.[0-9]+)(?: \([^\r\n()]+\))?\Z")
+
+
+def uv_release_version(output: str) -> str | None:
+    """Extract uv's release while rejecting malformed build metadata."""
+    match = _UV_VERSION_RE.fullmatch(output)
+    if match is None:
+        return None
+    return match.group("version")
 
 
 class CorpusFontIdentity(BaseModel):
