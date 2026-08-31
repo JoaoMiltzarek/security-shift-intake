@@ -30,6 +30,10 @@ def test_builder_pins_the_complete_generation_and_ocr_runtime() -> None:
     assert "UV_PROJECT_ENVIRONMENT: /tmp/security-shift-intake-v1.1-builder-venv" in workflow
     assert "uv python install 3.11.15" in workflow
     assert "uv sync --locked --python 3.11.15" in workflow
+    assert 'uv_output="$(uv --version)"' in workflow
+    assert '"uv ${UV_VERSION}" | "uv ${UV_VERSION} ("?*")")' in workflow
+    assert 'echo "expected uv ${UV_VERSION}, got: ${uv_output}" >&2' in workflow
+    assert 'test "$(uv --version)" = "uv ${UV_VERSION}"' not in workflow
     assert "tesseract-ocr=5.3.4-1build5" in workflow
     assert "tesseract-ocr-por=1:4.1.0-2" in workflow
     assert "dpkg-query" in workflow

@@ -50,7 +50,15 @@ jobs:
               ;;
           esac
           test -x "${UV_PROJECT_ENVIRONMENT}/bin/python"
-          test "$(uv --version)" = "uv ${UV_VERSION}"
+          uv_output="$(uv --version)"
+          case "${uv_output}" in
+            "uv ${UV_VERSION}" | "uv ${UV_VERSION} ("?*")")
+              ;;
+            *)
+              echo "expected uv ${UV_VERSION}, got: ${uv_output}" >&2
+              exit 1
+              ;;
+          esac
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           uv run --locked --python 3.11.15 python -c \
             "import sys; assert sys.version_info[:3] == (3, 11, 15)"

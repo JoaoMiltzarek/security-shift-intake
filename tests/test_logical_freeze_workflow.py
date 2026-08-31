@@ -35,6 +35,10 @@ def test_proposal_uses_the_locked_generator_runtime() -> None:
     assert 'case "${UV_PROJECT_ENVIRONMENT}/" in' in workflow
     assert '"${GITHUB_WORKSPACE}/"*' in workflow
     assert 'test -x "${UV_PROJECT_ENVIRONMENT}/bin/python"' in workflow
+    assert 'uv_output="$(uv --version)"' in workflow
+    assert '"uv ${UV_VERSION}" | "uv ${UV_VERSION} ("?*")")' in workflow
+    assert 'echo "expected uv ${UV_VERSION}, got: ${uv_output}" >&2' in workflow
+    assert 'test "$(uv --version)" = "uv ${UV_VERSION}"' not in workflow
     assert 'test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"' in workflow
     assert "python -m scripts.propose_safety_logical_freeze" in workflow
 
