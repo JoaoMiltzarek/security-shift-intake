@@ -45,6 +45,10 @@ from data.tier_c_contract import (
     sha256_file,
     verify_logical_freeze,
 )
+from scripts.privacy_policy import (
+    CorpusPrivacyError,
+    require_committed_logical_freeze,
+)
 from src.paths import REPO_ROOT
 
 REPOSITORY_IDENTITY = "JoaoMiltzarek/security-shift-intake"
@@ -264,6 +268,7 @@ def main(argv: list[str]) -> int:
     try:
         release = require_canonical_builder_environment()
         require_canonical_builder_workflow()
+        require_committed_logical_freeze(REPO_ROOT)
         with tempfile.TemporaryDirectory(prefix="ssi-safety-source-") as temporary:
             generated = Path(temporary) / "tier_c"
             build_tier_c(generated, dataset=SAFETY_DATASET)
@@ -287,7 +292,7 @@ def main(argv: list[str]) -> int:
             )
             publish_corpus(generated, args.output, verified, provenance)
             publish_inventory_pin(args.output, args.inventory_pin_output)
-    except (OSError, TierCContractError, ValueError) as exc:
+    except (CorpusPrivacyError, OSError, TierCContractError, ValueError) as exc:
         print(f"SAFETY CORPUS REFUSED: {exc}", file=sys.stderr)
         return 1
     print(

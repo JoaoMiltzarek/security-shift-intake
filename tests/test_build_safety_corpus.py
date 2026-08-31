@@ -37,6 +37,7 @@ from data.tier_c_contract import (
     canonical_manifest_bytes,
 )
 from scripts import build_safety_corpus as builder
+from scripts.privacy_policy import CorpusPrivacyError
 
 
 def _provenance(manifest_sha256: str) -> SafetyCorpusProvenance:
@@ -191,6 +192,34 @@ def test_builder_requires_workflow_dispatch_from_the_exact_workflow(
         builder.require_canonical_builder_workflow()
 
 
+def test_builder_refuses_a_logical_freeze_not_authenticated_from_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
+    monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
+
+    def reject(_root: Path) -> bytes:
+        raise CorpusPrivacyError("logical freeze is not committed")
+
+    monkeypatch.setattr(builder, "require_committed_logical_freeze", reject)
+
+    assert (
+        builder.main(
+            [
+                "--output",
+                str(tmp_path / "corpus"),
+                "--inventory-pin-output",
+                str(tmp_path / "inventory.sha256"),
+            ]
+        )
+        == 1
+    )
+    assert "logical freeze is not committed" in capsys.readouterr().err
+    assert not (tmp_path / "corpus").exists()
+
+
 def test_builder_requires_the_precommitted_logical_freeze(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -203,9 +232,15 @@ def test_builder_requires_the_precommitted_logical_freeze(
         logical_freeze_sha256="b" * 64,
         manifest_sha256="a" * 64,
     )
+    committed_checks: list[Path] = []
 
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
     monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
+    monkeypatch.setattr(
+        builder,
+        "require_committed_logical_freeze",
+        lambda root: committed_checks.append(root),
+    )
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
 
     def verify_generated(root: Path, dataset: str, split: str) -> SimpleNamespace:
@@ -243,6 +278,7 @@ def test_builder_requires_the_precommitted_logical_freeze(
     assert load_calls[0][1:] == (SAFETY_DATASET, SAFETY_SPLIT)
     assert freeze_calls == [(verified.entries, logical_freeze, SAFETY_SPLIT)]
     assert provenance_freezes == ["b" * 64]
+    assert committed_checks == [builder.REPO_ROOT]
 
 
 def test_builder_never_creates_a_missing_logical_freeze(
@@ -252,6 +288,7 @@ def test_builder_never_creates_a_missing_logical_freeze(
     verified = SimpleNamespace(entries=(), manifest_sha256="a" * 64)
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
     monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
+    monkeypatch.setattr(builder, "require_committed_logical_freeze", lambda _root: b"")
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
     monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: missing)
@@ -357,6 +394,7 @@ def test_builder_publishes_the_corpus_before_its_external_pin(
 
     monkeypatch.setattr(builder, "require_canonical_builder_environment", lambda: {})
     monkeypatch.setattr(builder, "require_canonical_builder_workflow", lambda: None)
+    monkeypatch.setattr(builder, "require_committed_logical_freeze", lambda _root: b"")
     monkeypatch.setattr(builder, "build_tier_c", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(builder, "load_verified_generated_split", lambda *_args: verified)
     monkeypatch.setattr(builder, "default_logical_freeze_path", lambda *_args: logical_freeze)
