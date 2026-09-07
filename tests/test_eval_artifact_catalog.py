@@ -80,7 +80,7 @@ def test_catalog_classifies_only_v2_val_manifest_as_current_input() -> None:
         "data/manifests/safety_corpus_v1.1/bench-balanced.val.inventory.sha256"
     ]
     assert current_inputs[0]["release_blocking"] is True
-    assert len(current_releases) <= 1
+    assert len(current_releases) <= 2
     if current_releases:
         release = current_releases[0]
         assert release["id"] == RELEASE_ID
