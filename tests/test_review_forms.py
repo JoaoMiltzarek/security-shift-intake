@@ -80,6 +80,20 @@ def test_duplicate_occurrence_cell_is_rejected() -> None:
         parse_occurrence_rows(form)
 
 
+@pytest.mark.parametrize("index", ["01", "001", "١", "１"])
+def test_occurrence_index_alias_cannot_overwrite_a_reviewed_cell(index: str) -> None:
+    form = FormData(
+        [
+            ("occ__1__item", "Alarme"),
+            ("occ__1__descricao", "Verificação"),
+            (f"occ__{index}__descricao", "Valor conflitante"),
+        ]
+    )
+
+    with pytest.raises(ReviewFormError, match="Índice"):
+        parse_occurrence_rows(form)
+
+
 def test_duplicate_disposition_is_rejected() -> None:
     form = FormData(
         [

@@ -82,6 +82,10 @@ def parse_occurrence_rows(form: Any) -> list[NormalizedOccurrence]:
         index = int(match.group(1))
         if not 1 <= index <= MAX_OCCURRENCES:
             raise ReviewFormError(f"Índice de ocorrência deve estar entre 1 e {MAX_OCCURRENCES}.")
+        if match.group(1) != str(index):
+            raise ReviewFormError(
+                "Índice de ocorrência deve usar dígitos ASCII sem zeros iniciais."
+            )
         if not isinstance(raw_value, str):
             raise ReviewFormError(f"Valor inválido em {key}.")
         value = raw_value.strip()
