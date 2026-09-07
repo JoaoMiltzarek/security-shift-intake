@@ -161,9 +161,9 @@ make audit-deps
 
 The v1.1 release-evidence path requires 45 synthetic validation inputs built by the pinned
 Ubuntu workflow, committed as immutable inputs, and then consumed without regeneration by the
-normal CI gate. This README does not claim a validated release result. Evidence is published
-only after all blocking jobs validate the same commit and the write-once publisher accepts the
-candidate. No historical or mock result substitutes for that record.
+normal CI gate. Evidence is published only after all blocking jobs validate the same commit and
+the write-once publisher accepts the candidate. No historical or mock result substitutes for
+that record.
 
 See [`docs/DATASET_CONTRACT.md`](docs/DATASET_CONTRACT.md) for the synthetic-data boundary and
 [`docs/EVAL_RELEASE.md`](docs/EVAL_RELEASE.md) for evidence publication. Tesseract remains a

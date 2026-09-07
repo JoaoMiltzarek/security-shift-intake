@@ -241,7 +241,7 @@ def test_readme_does_not_present_unpublished_release_metrics() -> None:
 
     assert "No historical or mock result substitutes" in readme
     assert "developer demo is not release evidence" in readme
-    assert "This README does not claim a validated release result" in readme
+    assert "Evidence is published only after all blocking jobs validate the same commit" in readme
     assert "The official safety evaluation is based on" not in readme
     assert "Validated v1 release evidence: PENDING" not in readme
     assert "Authenticated v1 release evidence" not in readme
@@ -342,8 +342,8 @@ def test_public_license_language_is_source_available_and_precise() -> None:
 def test_changelog_describes_v110_without_claiming_release() -> None:
     changelog = " ".join(_read("CHANGELOG.md").split())
 
-    assert "## [1.1.0] - Unreleased" in changelog
-    assert "still awaiting its promoted release evidence" in changelog
+    assert "## [1.1.0] - Release candidate" in changelog
+    assert "release candidate is frozen" in changelog
     assert "without asserting unpublished metrics" in changelog
     assert "Human-confirmed triage" in changelog
     assert "Structured readiness" in changelog

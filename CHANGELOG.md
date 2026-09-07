@@ -3,10 +3,10 @@
 This file records user-visible changes. Internal refactors and dependency maintenance appear only
 when they change the supported behavior, safety boundary, or reproducibility of the product.
 
-## [1.1.0] - Unreleased
+## [1.1.0] - Release candidate
 
-The v1.1.0 code line is still awaiting its promoted release evidence and annotated tag. This
-entry describes the intended release surface without asserting unpublished metrics.
+The v1.1.0 release candidate is frozen while the pinned Linux evidence workflow validates the
+committed safety corpus. The promoted evidence record will carry the final metrics and tag.
 
 ### Added
 
