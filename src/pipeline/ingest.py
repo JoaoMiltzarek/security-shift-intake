@@ -27,7 +27,7 @@ DEFAULT_DPI = 250
 # Local OCR path: real office scans are low-resolution, and rasterizing them high
 # upscales noise that *hurts* Tesseract. Empirically (real folhas) OCR is best near
 # ~150 DPI for A4. Used by the zero-cost local entry points (demo-pipeline, real eval);
-# the VLM path keeps DEFAULT_DPI.
+# The local OCR path keeps DEFAULT_DPI.
 OCR_DPI = 150
 
 # Fail-closed resource budget for the supported single-document local workflow.

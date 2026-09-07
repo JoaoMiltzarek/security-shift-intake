@@ -685,16 +685,6 @@ def test_run_metadata_attests_exact_local_ocr_runtime() -> None:
     assert meta["runtime_attested"] is True
 
 
-def test_run_metadata_vlm_hashes_prompt_and_degrades_model_tag(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import evals.eval_extraction_real as mod
-
-    def _no_network(*args: Any, **kwargs: Any) -> Any:
-        raise RuntimeError("no network in tests")
-
-    monkeypatch.setattr(mod.httpx, "get", _no_network)
-    meta = run_metadata("local_vlm", 250)
-    assert meta["dpi"] == 250
-    assert isinstance(meta["prompt_sha256"], str) and len(meta["prompt_sha256"]) == 64
-    assert meta["model"].endswith("unknown")  # best-effort honesto, nunca inventa digest
+def test_run_metadata_rejects_retired_reader() -> None:
+    with pytest.raises(ValueError, match="Unsupported"):
+        run_metadata("local_vlm", 250)

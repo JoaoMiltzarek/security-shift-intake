@@ -51,7 +51,7 @@ def test_readme_describes_only_the_single_table_local_product() -> None:
         "htmicron_security",
         "Two outputs",
         "two report types",
-        "local_vlm",
+        "local_ocr",
         "Anthropic",
         "PENDING",
         "SSI-",

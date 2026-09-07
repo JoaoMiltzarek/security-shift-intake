@@ -11,15 +11,7 @@ from pathlib import Path, PurePosixPath
 
 CATALOG_PATH = Path("docs/evals/catalog.json")
 EXPECTED_ARTIFACTS = {
-    "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl",
-    "data/manifests/tier_c_v1_bench_balanced_test.jsonl",
-    "data/manifests/tier_c_v1_bench_operational_test.jsonl",
-    "docs/AUDITORIA_FOLHAS_REAIS.md",
-    "docs/eval_bressay_baseline.json",
-    "docs/eval_g1s_calibration.json",
-    "docs/eval_paddle_bakeoff_val.json",
-    "docs/eval_real_summary.json",
-    "docs/eval_synthetic_summary.json",
+    "data/manifests/safety_corpus_v1.1/bench-balanced.val.inventory.sha256",
 }
 RELEASE_PATH = "docs/evals/releases/v1.1.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json"
 RELEASE_ID = "v1.1.0-eval-safety-bench-balanced-val-local-ocr-dpi150"
@@ -85,7 +77,7 @@ def test_catalog_classifies_only_v2_val_manifest_as_current_input() -> None:
     current_releases = [entry for entry in entries if entry["status"] == "current_release"]
 
     assert [entry["path"] for entry in current_inputs] == [
-        "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl"
+        "data/manifests/safety_corpus_v1.1/bench-balanced.val.inventory.sha256"
     ]
     assert current_inputs[0]["release_blocking"] is True
     assert len(current_releases) <= 1

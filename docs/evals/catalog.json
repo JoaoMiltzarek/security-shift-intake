@@ -2,107 +2,15 @@
   "schema": "ssi-eval-artifact-catalog/v1",
   "artifacts": [
     {
-      "id": "tier-c-v2-bench-balanced-val",
-      "path": "data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl",
-      "sha256": "aa317c587a71e51c7352dd1379412a1e00c222494e3e112f038256ab316986bd",
-      "bytes": 11250,
+      "id": "safety-corpus-v1.1-bench-balanced-val",
+      "path": "data/manifests/safety_corpus_v1.1/bench-balanced.val.inventory.sha256",
+      "sha256": "b1ea76d5e637915b496f0cd36b0c2aacdf71bcbf499be965594ebab5cef9a36d",
+      "bytes": 119,
       "kind": "input_contract",
       "status": "current_input",
       "release_blocking": true,
       "run_commit": null,
-      "limitations": []
-    },
-    {
-      "id": "tier-c-v1-bench-balanced-test",
-      "path": "data/manifests/tier_c_v1_bench_balanced_test.jsonl",
-      "sha256": "7839ae6c59e4815e57a146d46c845fa798ef74853973cd92f34c1e2c5d8a7d7b",
-      "bytes": 13680,
-      "kind": "input_contract",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": null,
-      "limitations": ["legacy-manifest-schema", "historical-test-split"]
-    },
-    {
-      "id": "tier-c-v1-bench-operational-test",
-      "path": "data/manifests/tier_c_v1_bench_operational_test.jsonl",
-      "sha256": "91be04636d14af435419943434c36edae4b093ced239ef0805349ca7abfecbd0",
-      "bytes": 13680,
-      "kind": "input_contract",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": null,
-      "limitations": ["legacy-manifest-schema", "historical-test-split"]
-    },
-    {
-      "id": "real-sheet-architecture-audit-2026-07",
-      "path": "docs/AUDITORIA_FOLHAS_REAIS.md",
-      "sha256": "ed7437e7de69207b5271ae39e557d46c0b3862725921e72ae343af043869dd3f",
-      "bytes": 2495,
-      "kind": "report",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": null,
-      "limitations": ["private-subset", "pre-runtime-attestation"]
-    },
-    {
-      "id": "bressay-directional-baseline",
-      "path": "docs/eval_bressay_baseline.json",
-      "sha256": "f1cd714a13baa9daa18c9e9a73a7e05d76fab21ea2d01e05889fe634dd2b470c",
-      "bytes": 1362,
-      "kind": "result",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": null,
-      "limitations": ["third-party-unversioned-input", "pre-runtime-attestation"]
-    },
-    {
-      "id": "g1s-reader-governance-cycle",
-      "path": "docs/eval_g1s_calibration.json",
-      "sha256": "1d712280ec23bb6f28afe79cce4e3d8eeb745569508699734f7e1087d55c49c9",
-      "bytes": 3727,
-      "kind": "result",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": null,
-      "limitations": ["historical-governance-cycle", "legacy-test-split"]
-    },
-    {
-      "id": "paddle-reader-bakeoff-val",
-      "path": "docs/eval_paddle_bakeoff_val.json",
-      "sha256": "a9026280db9dda679b3faef586b70764035a857bd636beffe6d0e366f7ce024a",
-      "bytes": 3748,
-      "kind": "result",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": "74f29e54fa619ba72c39ae6d0796e713f05c7a8a",
-      "limitations": ["rejected-reader-experiment", "pre-runtime-attestation"]
-    },
-    {
-      "id": "private-real-eval-directional",
-      "path": "docs/eval_real_summary.json",
-      "sha256": "52804c13ebe79bf1a1bad883415252e27e3f1257b056dfb02d3f6dc48a7c41ba",
-      "bytes": 14115,
-      "kind": "result",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": null,
-      "limitations": ["directional-private-eval", "pre-runtime-attestation"]
-    },
-    {
-      "id": "tier-c-test-tristate-2026-07-13",
-      "path": "docs/eval_synthetic_summary.json",
-      "sha256": "5ba2080912bde2efdf6711962f8957daf4261c551b478426982462a8cd8ff1ff",
-      "bytes": 4181,
-      "kind": "result",
-      "status": "historical",
-      "release_blocking": false,
-      "run_commit": "3dabd5887767f1575be820cbfcaa019cafca1e7e",
-      "limitations": [
-        "historical-test-split",
-        "legacy-refusal-metric",
-        "pre-runtime-attestation"
-      ]
+      "limitations": ["synthetic-only", "local-ocr-only"]
     }
   ]
 }

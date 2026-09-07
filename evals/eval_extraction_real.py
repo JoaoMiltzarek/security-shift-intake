@@ -3,7 +3,7 @@
 Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates):
 
 1. **Instrumentado (default)** — roda o pipeline (config de TABELA) com o leitor
-   escolhido (`--vision local_ocr|local_vlm|mock`, `--dpi`, `--n`) sobre cada folha
+   escolhido (`--vision local_ocr|mock`, `--dpi`, `--n`) sobre cada folha
    com curadoria em `private/curadoria/`, e registra por folha as métricas do
    protocolo: `parse_table_success`, esforço humano (`estimated_chars_to_type`,
    `prefilled_but_wrong_count`, `blank_field_count`, `illegible_token_count`),
@@ -20,13 +20,13 @@ Dois modos (docs/EVAL_PROTOCOL.md é o contrato normativo das fórmulas e gates)
    versionado em docs/ não é atualizado automaticamente.
 
 `--compare A.json B.json` calcula a comparação PAREADA por campo entre duas rodadas
-detalhadas (baseline × VLM) — o formato que sustenta o gate G1 com n pequeno.
+detalhadas de leitores locais — o formato que sustenta o gate G1 com n pequeno.
 
 Quality gates: curadoria sem review_status válido é ignorada; só `verified_by_user`
 conta como número oficial (senão PRELIMINAR/DIRECIONAL, EVAL_PROTOCOL §4); relatório
 público não é escrito se a varredura de PII achar algo.
 
-Uso: uv run --locked python -m evals.eval_extraction_real --vision local_vlm --dpi 150
+Uso: uv run --locked python -m evals.eval_extraction_real --vision local_ocr --dpi 150
 """
 
 from __future__ import annotations
@@ -43,12 +43,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from evals.metrics import cer, levenshtein
 from evals.readers.factory import get_evaluation_reader
-from evals.readers.local_vlm import _TRANSCRIPTION_PROMPT
-from evals.readers.settings import get_vlm_base_url, get_vlm_model
 from scripts.privacy_check import scan_text_for_pii
 from src.api.gate import DraftNotReviewableError, assert_reviewable
 from src.classifier.rules import RuleBasedIncidentClassifier
@@ -433,22 +429,12 @@ def _git_commit() -> str:
 
 
 def _model_tag(reader: str) -> str:
-    """Tag+digest do modelo do leitor (best-effort via /api/tags do Ollama)."""
+    """Identify only supported local readers."""
     if reader == "local_ocr":
         return "tesseract"
     if reader == "mock":
         return "mock"
-    model = get_vlm_model()
-    root = get_vlm_base_url().split("/v1")[0]
-    try:
-        resp = httpx.get(f"{root}/api/tags", timeout=5)
-        for m in resp.json().get("models", []):
-            if model in {m.get("name"), m.get("model")}:
-                digest = str(m.get("digest", ""))[:19]
-                return f"{model} {digest}".strip()
-    except Exception:  # noqa: BLE001 — best-effort; 'unknown' é a resposta honesta
-        pass
-    return f"{model} unknown"
+    raise ValueError("Unsupported evaluation reader")
 
 
 def _runtime_file_identity() -> tuple[str, str, str]:
@@ -472,11 +458,6 @@ def run_metadata(
     vision: DocumentReader | RuntimeMetadataProvider | None = None,
 ) -> dict[str, Any]:
     """Metadados que tornam a rodada re-executável (hash do prompt, modelo, commit)."""
-    prompt_hash = (
-        hashlib.sha256(_TRANSCRIPTION_PROMPT.encode("utf-8")).hexdigest()
-        if reader == "local_vlm"
-        else None
-    )
     actual_python, expected_python, lock_sha256 = _runtime_file_identity()
     runtime: dict[str, Any] = {}
     runtime_attested = (
@@ -510,7 +491,7 @@ def run_metadata(
         "reader": reader,
         "model": _model_tag(reader),
         "dpi": dpi,
-        "prompt_sha256": prompt_hash,
+        "prompt_sha256": None,
         "git_commit": _git_commit(),
         # Compacto (sem ':') para não colidir com o padrão de hora do gate de PII.
         "timestamp": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
@@ -913,8 +894,7 @@ def render_compare(antes: dict[str, Any], depois: dict[str, Any]) -> str:
         "estrutura (eliminou `MISSED_INCIDENT`); já variar pré-processamento "
         "(grayscale/Otsu/autocontrast × PSM 3/4/6) **não deu ganho** no manuscrito cursivo — "
         "nem os dígitos da data foram lidos. O teto de fidelidade no custo-zero é o próprio "
-        "Tesseract; subir exige um leitor melhor (VLM — sendo medido pelo modo instrumentado, "
-        "ver docs/EVAL_PROTOCOL.md) ou fonte de melhor qualidade. O sistema degrada "
+        "Tesseract; subir exige fonte de melhor qualidade. O sistema degrada "
         "corretamente: tudo vai para revisão humana.",
         "- Números preliminares até a curadoria ser `verified_by_user` (plano R4).",
         "",
@@ -1041,7 +1021,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--vision",
-        choices=["local_ocr", "local_vlm", "mock"],
+        choices=["local_ocr", "mock"],
         default="local_ocr",
         help="leitor da rodada instrumentada (resolvido via factory)",
     )
@@ -1050,7 +1030,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--compare",
         nargs=2,
-        metavar=("BASELINE_JSON", "VLM_JSON"),
+        metavar=("BASELINE_JSON", "OTHER_JSON"),
         help="compara duas rodadas detalhadas (pareado por campo, gate G1)",
     )
     parser.add_argument(

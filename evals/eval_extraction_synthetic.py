@@ -442,7 +442,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Tier C synthetic extraction eval.")
     parser.add_argument(
         "--vision",
-        choices=["mock", "local_ocr", "local_vlm"],
+        choices=["mock", "local_ocr"],
         default="mock",
     )
     parser.add_argument("--dpi", type=int, default=150)

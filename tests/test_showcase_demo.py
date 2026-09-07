@@ -54,7 +54,7 @@ def test_seed_uses_committed_fixture_and_forces_local_ocr(
         return 17
 
     sentinel_engine = object()
-    monkeypatch.setenv("INTAKE_VISION", "local_vlm")
+    monkeypatch.setenv("INTAKE_VISION", "local_ocr")
     monkeypatch.setattr(demo, "build_and_store", fake_build_and_store)
 
     assert demo._seed_demo(demo.DEFAULT_SAMPLE, demo.DEFAULT_CONFIG, sentinel_engine) == 17
