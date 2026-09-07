@@ -6,8 +6,14 @@ as proof for a different commit.
 
 ## Current status
 
-Validated v1.1 release evidence remains pending until all of these exist for the same immutable
-commit:
+Validated v1.1 release evidence is published for commit
+`4719b6712eccdb7a112d24bbac8ffec4e39facd2` from CI run
+[#81](https://github.com/JoaoMiltzarek/security-shift-intake/actions/runs/34170924957).
+The promoted record is
+[`eval-safety.bench-balanced.val.local_ocr.dpi150.json`](evals/releases/v1.1.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json),
+and its catalog entry is [`catalog.json`](evals/catalog.json).
+
+The release candidate passed these stages for the same immutable commit:
 
 1. the 45-input Linux-built corpus is committed and passes its independent integrity checks;
 2. every blocking CI job passes;
@@ -15,8 +21,12 @@ commit:
 4. the candidate passes the write-once publisher without modification; and
 5. the resulting JSON, catalog entry, and narrative are committed as the only release delta.
 
-No metric value is asserted in this guide. The final narrative must be derived from the promoted
-JSON after the external checkpoint, not copied from historical experiments or a local run.
+The 45-sheet synthetic corpus produced `unsafe_clean = 0`, `unsafe_approvable = 0`,
+`unsafe_exportable = 0`, `false_incident_unreviewed = 0`, `safe_review_recall = 1.0`, and
+`operational_signal_complete_count = 45`. The observed parse-table success rate was `0.0889`
+and mean transcription CER against the rendered surface was `0.3877`; these are workload
+measurements, not production-accuracy claims. No metric value is asserted in this guide outside
+the promoted JSON; each public value is derived from the promoted JSON.
 
 ## Evidence stages
 
