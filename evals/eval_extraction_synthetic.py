@@ -337,8 +337,8 @@ def _runtime_attestation_failures(meta: dict[str, Any]) -> list[str]:
     if re.fullmatch(r"[0-9a-f]{64}", lock_sha256) is None:
         failures.append("uv_lock_sha256 inválido ou ausente")
     tesseract_version = str(meta.get("tesseract_version") or "")
-    if tesseract_version.lower() in {"", "unknown", "unavailable"}:
-        failures.append("tesseract_version inválido ou ausente")
+    if tesseract_version != "5.3.4":
+        failures.append("tesseract_version deve ser 5.3.4")
     if meta.get("tesseract_language") != "por":
         failures.append(f"tesseract_language={meta.get('tesseract_language')!r} (exigido 'por')")
     if meta.get("runtime_attested") is not True:

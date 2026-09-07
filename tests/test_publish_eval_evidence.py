@@ -66,7 +66,7 @@ def valid_release_payload() -> dict[str, Any]:
             "python_version": "3.11.15",
             "python_version_expected": "3.11.15",
             "uv_lock_sha256": lock_sha256,
-            "tesseract_version": "5.4.0",
+            "tesseract_version": "5.3.4",
             "tesseract_language": "por",
             "runtime_attested": True,
             "dataset": "bench-balanced",

@@ -413,7 +413,7 @@ def test_release_runtime_attestation_fails_closed() -> None:
         "python_version": "3.11.15",
         "python_version_expected": "3.11.15",
         "uv_lock_sha256": "a" * 64,
-        "tesseract_version": "5.4.0",
+        "tesseract_version": "5.3.4",
         "tesseract_language": "por",
         "runtime_attested": True,
     }
@@ -423,6 +423,7 @@ def test_release_runtime_attestation_fails_closed() -> None:
     assert ev._runtime_attestation_failures({**attested, "python_version": "3.11.14"})
     assert ev._runtime_attestation_failures({**attested, "uv_lock_sha256": "invalid"})
     assert ev._runtime_attestation_failures({**attested, "tesseract_version": "unavailable"})
+    assert ev._runtime_attestation_failures({**attested, "tesseract_version": "5.4.0"})
     assert ev._runtime_attestation_failures({**attested, "tesseract_language": "eng"})
     assert ev._runtime_attestation_failures({**attested, "runtime_attested": False})
 
@@ -477,7 +478,7 @@ def test_release_gate_rejects_incomplete_runtime_before_evaluation(
     class EnglishOnlyOCR:
         def runtime_metadata(self) -> dict[str, str]:
             return {
-                "tesseract_version": "5.4.0",
+                "tesseract_version": "5.3.4",
                 "tesseract_language": "eng",
             }
 
@@ -603,7 +604,7 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
     class AttestedOCR:
         def runtime_metadata(self) -> dict[str, str]:
             return {
-                "tesseract_version": "5.4.0",
+                "tesseract_version": "5.3.4",
                 "tesseract_language": "por",
             }
 
