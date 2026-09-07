@@ -162,7 +162,6 @@ def test_output_dir_redirects_only_aggregates(
 ) -> None:
     """An external summary destination must never receive detailed OCR results."""
     out = tmp_path / "safety_out"
-    frozen = Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8")
     # smoke_dir é compartilhado entre testes: compara o eval/ do dataset antes/depois.
     eval_dir = smoke_dir / "eval"
     eval_before = set(eval_dir.glob("*")) if eval_dir.exists() else set()
@@ -176,7 +175,7 @@ def test_output_dir_redirects_only_aggregates(
     detailed_path = Path(detail_line.removeprefix("Detalhado: "))
     assert detailed_path.resolve().is_relative_to((ev.REPO_ROOT / "private").resolve())
     assert json.loads(detailed_path.read_text(encoding="utf-8"))["per_sheet"]
-    assert Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8") == frozen
+    assert not Path("docs/eval_synthetic_summary.json").exists()
     eval_after = set(eval_dir.glob("*")) if eval_dir.exists() else set()
     assert eval_after == eval_before  # dataset intocado por esta rodada
 
