@@ -10,7 +10,21 @@
       "status": "current_input",
       "release_blocking": true,
       "run_commit": null,
-      "limitations": ["synthetic-only", "local-ocr-only"]
+      "limitations": [
+        "synthetic-only",
+        "local-ocr-only"
+      ]
+    },
+    {
+      "id": "v1.1.0-eval-safety-bench-balanced-val-local-ocr-dpi150",
+      "path": "docs/evals/releases/v1.1.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json",
+      "sha256": "58dab568076d878cf0181ec61adeafe9d35771c09a9bfb572247b0a4a147e0a0",
+      "bytes": 6269,
+      "kind": "result",
+      "status": "current_release",
+      "release_blocking": true,
+      "run_commit": "f249c92e3c5b3211e01a71eae99747f75e13e459",
+      "limitations": []
     }
   ]
 }
