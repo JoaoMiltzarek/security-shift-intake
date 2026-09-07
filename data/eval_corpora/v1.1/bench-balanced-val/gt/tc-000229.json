@@ -1,0 +1,40 @@
+{
+  "cabecalho": {
+    "data": "15/05/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 01",
+    "vigilantes": [
+      "L. Ribeiro",
+      "K. Gomes",
+      "G. Rocha"
+    ]
+  },
+  "document_id": "tc-000229",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": true,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000229.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "PatrickHand-Regular",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 15/05/2026 - Noite\nVigilantes L. Ribeiro, K. Gomes, G. Rocha\nUnidade Unidade 01\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "15/05/2026 - Noite",
+      "rows": [],
+      "unidade": "Unidade 01",
+      "vigilantes": "L. Ribeiro, K. Gomes, G. Rocha"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

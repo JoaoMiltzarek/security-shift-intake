@@ -1,0 +1,60 @@
+{
+  "cabecalho": {
+    "data": "19/09/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 02",
+    "vigilantes": [
+      "I. Barbosa",
+      "G. Rocha"
+    ]
+  },
+  "document_id": "tc-000036",
+  "ocorrencias": [
+    {
+      "acao": "Mediado e dispersado.",
+      "descricao": "Discussão entre terceiros no estacionamento.",
+      "hora_entrada": "16:07",
+      "hora_saida": null,
+      "item": "Perturbação",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000036.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "Caveat",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "ambiguous:ocorrencias[0].hora",
+      "misspell:ocorrencias[0].descricao",
+      "crossout:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 19/09/2026 - Dia\nVigilante: I. Barbosa, G. Rocha\nUnidade: Unidade 02\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPerturbação  l6:07  Discussão Discussão entre terceiros  Mediado e dispersado.  sim\nno estacinoamento.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "19/09/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Mediado e dispersado.",
+          "descricao": "[risc:Discussão] Discussão entre terceiros no estacinoamento.",
+          "hora": "l6:07",
+          "item": "Perturbação",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 02",
+      "vigilantes": "I. Barbosa, G. Rocha"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

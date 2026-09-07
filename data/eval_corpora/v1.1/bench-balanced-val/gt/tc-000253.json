@@ -1,0 +1,38 @@
+{
+  "cabecalho": {
+    "data": "11/01/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Mirante",
+    "vigilantes": [
+      "K. Gomes"
+    ]
+  },
+  "document_id": "tc-000253",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000253.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 11/01/2026 - Noite\nVigilantes K. Gomes\nUnidade Posto Mirante\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "11/01/2026 - Noite",
+      "rows": [],
+      "unidade": "Posto Mirante",
+      "vigilantes": "K. Gomes"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

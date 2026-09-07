@@ -1,0 +1,59 @@
+{
+  "cabecalho": {
+    "data": "05/02/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 12",
+    "vigilantes": [
+      "N. Teixeira",
+      "F. Almeida"
+    ]
+  },
+  "document_id": "tc-000150",
+  "ocorrencias": [
+    {
+      "acao": "Responsável do setor avisado.",
+      "descricao": "Porta do doca de carga encontrada aberta durante a inspeção.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Porta aberta",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000150.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "ReenieBeanie",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[0].descricao",
+      "crossout:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 05/02/2026 - Noite\nVigilante: N. Teixeira, F. Almeida\nUnidade: Unidade 12\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPorta aberta  Porta do doca de cagra encontrada  Responsável do setor avisado.  sim\naberta durante durante a\ninspeção.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "05/02/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Responsável do setor avisado.",
+          "descricao": "Porta do doca de cagra encontrada aberta [risc:durante] durante a inspeção.",
+          "hora": null,
+          "item": "Porta aberta",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 12",
+      "vigilantes": "N. Teixeira, F. Almeida"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

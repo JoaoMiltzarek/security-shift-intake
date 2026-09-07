@@ -1,0 +1,76 @@
+{
+  "cabecalho": {
+    "data": "18/10/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Delta",
+    "vigilantes": [
+      "B. Lima"
+    ]
+  },
+  "document_id": "tc-000061",
+  "ocorrencias": [
+    {
+      "acao": "Operação manual até reparo.",
+      "descricao": "Portão da doca com sensor falhando.",
+      "hora_entrada": "01:35",
+      "hora_saida": "02:38",
+      "item": "Portão",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Brigada comunicada e sistema rearmado.",
+      "descricao": "Alarme de incêndio acionado por engano no recepção.",
+      "hora_entrada": "22:07",
+      "hora_saida": null,
+      "item": "Alarme",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000061.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "ambiguous:ocorrencias[0].hora",
+      "misspell:ocorrencias[0].descricao",
+      "crossout:ocorrencias[0].descricao",
+      "ambiguous:ocorrencias[1].hora",
+      "misspell:ocorrencias[1].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 18/10/2026 - Noite\nVigilantes B. Lima\nUnidade Posto Delta\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPortão  0l:35 - 02:38  Portão Portão da doac com  Operação manual até reparo.  sim\nsensor falhando.\n\nAlarme  22:O7  Alarme de incêdnio acionado por engano  Brigada comunicada e sistema rearmado.  sim\nno recepção.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "18/10/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Operação manual até reparo.",
+          "descricao": "[risc:Portão] Portão da doac com sensor falhando.",
+          "hora": "0l:35 - 02:38",
+          "item": "Portão",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Brigada comunicada e sistema rearmado.",
+          "descricao": "Alarme de incêdnio acionado por engano no recepção.",
+          "hora": "22:O7",
+          "item": "Alarme",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Posto Delta",
+      "vigilantes": "B. Lima"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

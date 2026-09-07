@@ -1,0 +1,58 @@
+{
+  "cabecalho": {
+    "data": "18/12/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 12",
+    "vigilantes": [
+      "H. Martins"
+    ]
+  },
+  "document_id": "tc-000234",
+  "ocorrencias": [
+    {
+      "acao": "Monitorado o restante do turno.",
+      "descricao": "Gravador reiniciou sozinho, imagens normalizadas.",
+      "hora_entrada": "05:35",
+      "hora_saida": null,
+      "item": "CFTV",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000234.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "PatrickHand-Regular",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "ambiguous:ocorrencias[0].hora",
+      "ambiguous:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 18/12/2026 - Noite\nVigilante: H. Martins\nUnidade: Unidade 12\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nCFTV  O5:35  Gravador reiniciou sozinho, imagens  Monitorado o restante do turno.  sim\nnorma1izadas.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "18/12/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Monitorado o restante do turno.",
+          "descricao": "Gravador reiniciou sozinho, imagens norma1izadas.",
+          "hora": "O5:35",
+          "item": "CFTV",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 12",
+      "vigilantes": "H. Martins"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

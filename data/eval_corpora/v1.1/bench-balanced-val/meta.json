@@ -1,0 +1,27 @@
+{
+  "counts": {
+    "test": 45,
+    "train": 210,
+    "val": 45
+  },
+  "dataset": "bench-balanced",
+  "git_commit": "3c517731dda38d13210b73aa2d11caa36af7e540",
+  "heldout_bands": {
+    "test": "upper20",
+    "train": "lower80",
+    "val": "lower80"
+  },
+  "heldout_fractions": {
+    "band_cut": 0.8,
+    "frases": 0.2,
+    "variant_c_rate_test": 0.25,
+    "vocab": 0.2
+  },
+  "heldout_vocab_seed": 7,
+  "manifest_schema": "tier_c-manifest/v2",
+  "n": 300,
+  "profile": "balanced",
+  "seed": 43,
+  "split_seed": 0,
+  "version": "tier_c/v2"
+}

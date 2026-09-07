@@ -1,0 +1,40 @@
+{
+  "cabecalho": {
+    "data": "01/01/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 02",
+    "vigilantes": [
+      "A. Souza",
+      "I. Barbosa",
+      "H. Martins"
+    ]
+  },
+  "document_id": "tc-000074",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000074.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "Caveat",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 01/01/2026 - Dia\nVigilantes A. Souza, I. Barbosa, H. Martins\nUnidade Unidade 02\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "01/01/2026 - Dia",
+      "rows": [],
+      "unidade": "Unidade 02",
+      "vigilantes": "A. Souza, I. Barbosa, H. Martins"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

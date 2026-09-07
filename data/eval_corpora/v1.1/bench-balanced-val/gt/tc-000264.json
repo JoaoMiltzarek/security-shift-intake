@@ -1,0 +1,38 @@
+{
+  "cabecalho": {
+    "data": "16/05/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 12",
+    "vigilantes": [
+      "L. Ribeiro"
+    ]
+  },
+  "document_id": "tc-000264",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000264.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 16/05/2026 - Noite\nVigilante: L. Ribeiro\nUnidade: Unidade 12\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "16/05/2026 - Noite",
+      "rows": [],
+      "unidade": "Unidade 12",
+      "vigilantes": "L. Ribeiro"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

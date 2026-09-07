@@ -1,0 +1,59 @@
+{
+  "cabecalho": {
+    "data": "31/01/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Posto Delta",
+    "vigilantes": [
+      "J. Ferreira",
+      "N. Teixeira",
+      "C. Pereira"
+    ]
+  },
+  "document_id": "tc-000114",
+  "ocorrencias": [
+    {
+      "acao": "Acesso registrado e supervisionado.",
+      "descricao": "Equipe da Grupo Vetor realiza limpeza técnica no Setor C.",
+      "hora_entrada": "11:43",
+      "hora_saida": null,
+      "item": "Prestador de serviço",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000114.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "Caveat",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 31/01/2026 - Dia\nVigilantes J. Ferreira, N. Teixeira, C. Pereira\nUnidade Posto Delta\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPrestador de serviço  11:43  Equipe da Grupo Vetor realiza ilmpeza  Acesso registrado e supervisionado.  sim\ntécnica no Setor C.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "31/01/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Acesso registrado e supervisionado.",
+          "descricao": "Equipe da Grupo Vetor realiza ilmpeza técnica no Setor C.",
+          "hora": "11:43",
+          "item": "Prestador de serviço",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Posto Delta",
+      "vigilantes": "J. Ferreira, N. Teixeira, C. Pereira"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

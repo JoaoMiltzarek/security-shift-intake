@@ -1,0 +1,58 @@
+{
+  "cabecalho": {
+    "data": "05/12/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 12",
+    "vigilantes": [
+      "A. Souza",
+      "I. Barbosa"
+    ]
+  },
+  "document_id": "tc-000098",
+  "ocorrencias": [
+    {
+      "acao": "Responsável do setor avisado.",
+      "descricao": "Porta do recepção encontrada aberta durante a inspeção.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Porta aberta",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000098.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "PatrickHand-Regular",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "partial:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 05/12/2026 - Dia\nVigilantes A. Souza, I. Barbosa\nUnidade Unidade 12\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPorta aberta  Porta do recepção encontrada  Responsável do setor avisado.  sim\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "05/12/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Responsável do setor avisado.",
+          "descricao": "Porta do recepção encontrada",
+          "hora": null,
+          "item": "Porta aberta",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 12",
+      "vigilantes": "A. Souza, I. Barbosa"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

@@ -1,0 +1,38 @@
+{
+  "cabecalho": {
+    "data": "15/10/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "C. Pereira"
+    ]
+  },
+  "document_id": "tc-000205",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000205.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 15/10/2026 - Dia\nVigilantes C. Pereira\nUnidade Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "15/10/2026 - Dia",
+      "rows": [],
+      "unidade": "Unidade 05",
+      "vigilantes": "C. Pereira"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

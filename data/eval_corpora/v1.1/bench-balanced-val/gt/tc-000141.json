@@ -1,0 +1,73 @@
+{
+  "cabecalho": {
+    "data": "09/01/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Delta",
+    "vigilantes": [
+      "A. Souza",
+      "E. Costa"
+    ]
+  },
+  "document_id": "tc-000141",
+  "ocorrencias": [
+    {
+      "acao": "Acompanhado até normalizar.",
+      "descricao": "Queda de energia no Setor C, gerador assumiu.",
+      "hora_entrada": "00:54",
+      "hora_saida": "02:13",
+      "item": "Falta de energia",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Registrado e monitorado.",
+      "descricao": "Oscilação de energia derrubou câmeras por alguns minutos.",
+      "hora_entrada": "21:29",
+      "hora_saida": null,
+      "item": "Falta de energia",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000141.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "ReenieBeanie",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 09/01/2026 - Noite\nVigilantes A. Souza, E. Costa\nUnidade Posto Delta\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nFalta de energia  00:54 - 02:13  Queda de enegria no Setor C, gerador  Acompanhado até normalizar.  sim\nassumiu.\n\nFalta de energia  21:29  Oscilação de energia derrubou câmeras  Registrado e monitorado.  sim\npor alguns minutos.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "09/01/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Acompanhado até normalizar.",
+          "descricao": "Queda de enegria no Setor C, gerador assumiu.",
+          "hora": "00:54 - 02:13",
+          "item": "Falta de energia",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Registrado e monitorado.",
+          "descricao": "Oscilação de energia derrubou câmeras por alguns minutos.",
+          "hora": "21:29",
+          "item": "Falta de energia",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Posto Delta",
+      "vigilantes": "A. Souza, E. Costa"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

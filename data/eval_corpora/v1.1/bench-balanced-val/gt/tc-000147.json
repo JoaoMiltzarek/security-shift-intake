@@ -1,0 +1,87 @@
+{
+  "cabecalho": {
+    "data": "04/04/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 01",
+    "vigilantes": [
+      "A. Souza"
+    ]
+  },
+  "document_id": "tc-000147",
+  "ocorrencias": [
+    {
+      "acao": "Fixado no mural da guarita.",
+      "descricao": "Aviso de mudança no procedimento de entrada de veículos.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Comunicado",
+      "resolvido": "nao"
+    },
+    {
+      "acao": "Brigada comunicada e sistema rearmado.",
+      "descricao": "Alarme de incêndio acionado por engano no pátio.",
+      "hora_entrada": "06:09",
+      "hora_saida": "06:19",
+      "item": "Alarme",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Equipe do turno informada.",
+      "descricao": "Comunicado recebido sobre obra programada no doca de carga.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Comunicado",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000147.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "Caveat",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[2].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 04/04/2026 - Dia\nVigilantes A. Souza\nUnidade Unidade 01\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nComunicado  Aviso de mudança no procedimento de  Fixado no mural da guarita.  não\nentrada de veículos.\n\nAlarme  06:09 - 06:19  Alarme de incêndio acionado por engano  Brigada comunicada e sistema rearmado.  sim\nno pátio.\n\nComunicado  Comunicado recebiod sobre obra  Equipe do turno informada.  sim\nprogramada no doca de carga.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "04/04/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Fixado no mural da guarita.",
+          "descricao": "Aviso de mudança no procedimento de entrada de veículos.",
+          "hora": null,
+          "item": "Comunicado",
+          "resolvido": "não"
+        },
+        {
+          "acao": "Brigada comunicada e sistema rearmado.",
+          "descricao": "Alarme de incêndio acionado por engano no pátio.",
+          "hora": "06:09 - 06:19",
+          "item": "Alarme",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Equipe do turno informada.",
+          "descricao": "Comunicado recebiod sobre obra programada no doca de carga.",
+          "hora": null,
+          "item": "Comunicado",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 01",
+      "vigilantes": "A. Souza"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

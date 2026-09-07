@@ -1,0 +1,55 @@
+{
+  "cabecalho": {
+    "data": "15/10/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 09",
+    "vigilantes": [
+      "I. Barbosa"
+    ]
+  },
+  "document_id": "tc-000224",
+  "ocorrencias": [
+    {
+      "acao": "Registrado para troca.",
+      "descricao": "Refletor piscando no estacionamento.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Iluminação",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000224.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 15/10/2026 - Noite\nVigilantes I. Barbosa\nUnidade Unidade 09\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nIluminação  Refletor piscando no estacionamento.  Registrado para troca.  sim\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "15/10/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Registrado para troca.",
+          "descricao": "Refletor piscando no estacionamento.",
+          "hora": null,
+          "item": "Iluminação",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 09",
+      "vigilantes": "I. Barbosa"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

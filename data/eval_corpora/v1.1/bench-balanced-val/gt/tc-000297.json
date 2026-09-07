@@ -1,0 +1,89 @@
+{
+  "cabecalho": {
+    "data": "14/04/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "I. Barbosa",
+      "A. Souza"
+    ]
+  },
+  "document_id": "tc-000297",
+  "ocorrencias": [
+    {
+      "acao": "Registrado em livro.",
+      "descricao": "Saída de ambulância após atendimento, sem intercorrência.",
+      "hora_entrada": "07:59",
+      "hora_saida": null,
+      "item": "Ambulância",
+      "resolvido": null
+    },
+    {
+      "acao": "Equipe do turno informada.",
+      "descricao": "Comunicado recebido sobre obra programada no recepção.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Comunicado",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Conferida e encaminhada.",
+      "descricao": "Entrega da Serviços Alfa recebida na doca.",
+      "hora_entrada": "09:13",
+      "hora_saida": "09:23",
+      "item": "Entrega de material",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000297.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ReenieBeanie",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "ambiguous:ocorrencias[0].hora",
+      "ambiguous:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 14/04/2026 - Dia\nVigilantes I. Barbosa, A. Souza\nUnidade Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nAmbulância  O7:59  Saída de ambu1ância após atendimento,  Registrado em livro.\nsem intercorrência.\n\nComunicado  Comunicado recebido sobre obra  Equipe do turno informada.  sim\nprogramada no recepção.\n\nEntrega de material  09:13 - 09:23  Entrega da Serviços Alfa recebida na  Conferida e encaminhada.  sim\ndoca.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "14/04/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Registrado em livro.",
+          "descricao": "Saída de ambu1ância após atendimento, sem intercorrência.",
+          "hora": "O7:59",
+          "item": "Ambulância",
+          "resolvido": null
+        },
+        {
+          "acao": "Equipe do turno informada.",
+          "descricao": "Comunicado recebido sobre obra programada no recepção.",
+          "hora": null,
+          "item": "Comunicado",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Conferida e encaminhada.",
+          "descricao": "Entrega da Serviços Alfa recebida na doca.",
+          "hora": "09:13 - 09:23",
+          "item": "Entrega de material",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 05",
+      "vigilantes": "I. Barbosa, A. Souza"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

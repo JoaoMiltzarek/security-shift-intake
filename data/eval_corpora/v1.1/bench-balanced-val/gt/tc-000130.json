@@ -1,0 +1,88 @@
+{
+  "cabecalho": {
+    "data": "31/07/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 07",
+    "vigilantes": [
+      "N. Teixeira",
+      "C. Pereira"
+    ]
+  },
+  "document_id": "tc-000130",
+  "ocorrencias": [
+    {
+      "acao": "Acompanhamento até o término.",
+      "descricao": "Prestador da TransNorte Ltda em manutenção no pátio, acompanhado.",
+      "hora_entrada": "12:44",
+      "hora_saida": null,
+      "item": "Prestador de serviço",
+      "resolvido": "nao"
+    },
+    {
+      "acao": "Travada e registrada.",
+      "descricao": "Janela do Setor C encontrada destravada.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Porta aberta",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Operação manual até reparo.",
+      "descricao": "Portão da doca com sensor falhando.",
+      "hora_entrada": "11:46",
+      "hora_saida": "12:26",
+      "item": "Portão",
+      "resolvido": null
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000130.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[2].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 31/07/2026 - Dia\nVigilante: N. Teixeira, C. Pereira\nUnidade: Unidade 07\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPrestador de serviço  12:44  Prestador da TransNorte Ltda em  Acompanhamento até o término.  não\nmanutenção no pátio, acompanhado.\n\nPorta aberta  Janela do Setor C encontrada  Travada e registrada.  sim\ndestravada.\n\nPortão  11:46 - 12:26  Portão da dcoa com sensor falhando.  Operação manual até reparo.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "31/07/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Acompanhamento até o término.",
+          "descricao": "Prestador da TransNorte Ltda em manutenção no pátio, acompanhado.",
+          "hora": "12:44",
+          "item": "Prestador de serviço",
+          "resolvido": "não"
+        },
+        {
+          "acao": "Travada e registrada.",
+          "descricao": "Janela do Setor C encontrada destravada.",
+          "hora": null,
+          "item": "Porta aberta",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Operação manual até reparo.",
+          "descricao": "Portão da dcoa com sensor falhando.",
+          "hora": "11:46 - 12:26",
+          "item": "Portão",
+          "resolvido": null
+        }
+      ],
+      "unidade": "Unidade 07",
+      "vigilantes": "N. Teixeira, C. Pereira"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

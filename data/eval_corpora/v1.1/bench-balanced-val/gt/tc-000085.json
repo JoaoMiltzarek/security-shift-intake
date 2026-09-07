@@ -1,0 +1,90 @@
+{
+  "cabecalho": {
+    "data": "08/12/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Delta",
+    "vigilantes": [
+      "J. Ferreira",
+      "H. Martins"
+    ]
+  },
+  "document_id": "tc-000085",
+  "ocorrencias": [
+    {
+      "acao": "Brigada comunicada e sistema rearmado.",
+      "descricao": "Alarme de incêndio acionado por engano no Setor B.",
+      "hora_entrada": "03:29",
+      "hora_saida": null,
+      "item": "Alarme",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Registrado em livro de achados.",
+      "descricao": "Celular encontrado no Setor B.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Objeto esquecido",
+      "resolvido": null
+    },
+    {
+      "acao": "Fixado no mural da guarita.",
+      "descricao": "Aviso de mudança no procedimento de entrada de veículos.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Comunicado",
+      "resolvido": null
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000085.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "ambiguous:ocorrencias[1].descricao",
+      "misspell:ocorrencias[2].descricao",
+      "ambiguous:ocorrencias[2].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 08/12/2026 - Noite\nVigilantes J. Ferreira, H. Martins\nUnidade Posto Delta\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nAlarme  03:29  Alarme de incêndio acionado por engano  Brigada comunicada e sistema rearmado.  sim\nno Setor B.\n\nObjeto esquecido  Ce1ular encontrado no Setor B.  Registrado em livro de achados.\n\nComunicado  Avios de mudança no procedimento de  Fixado no mural da guarita.\nentrada de veícu1os.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "08/12/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Brigada comunicada e sistema rearmado.",
+          "descricao": "Alarme de incêndio acionado por engano no Setor B.",
+          "hora": "03:29",
+          "item": "Alarme",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Registrado em livro de achados.",
+          "descricao": "Ce1ular encontrado no Setor B.",
+          "hora": null,
+          "item": "Objeto esquecido",
+          "resolvido": null
+        },
+        {
+          "acao": "Fixado no mural da guarita.",
+          "descricao": "Avios de mudança no procedimento de entrada de veícu1os.",
+          "hora": null,
+          "item": "Comunicado",
+          "resolvido": null
+        }
+      ],
+      "unidade": "Posto Delta",
+      "vigilantes": "J. Ferreira, H. Martins"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

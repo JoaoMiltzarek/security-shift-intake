@@ -1,0 +1,53 @@
+{
+  "corpus_schema": "ssi-safety-corpus/v1",
+  "count": 45,
+  "created_at_utc": "20260907T224431Z",
+  "dataset": "bench-balanced",
+  "dataset_version": "tier_c/v2",
+  "font_files": [
+    {
+      "path": "assets/fonts/Caveat.ttf",
+      "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988"
+    },
+    {
+      "path": "assets/fonts/JustMeAgainDownHere.ttf",
+      "sha256": "0412aa1e460666d339738991b48e9f4bd51e10b6f04e2e1341fce4d2b3244c31"
+    },
+    {
+      "path": "assets/fonts/PatrickHand-Regular.ttf",
+      "sha256": "0f173b3e6cb6d1af25babf7f0057c5ac4ee11f9992b0469bb817e967ef4ad0fc"
+    },
+    {
+      "path": "assets/fonts/ReenieBeanie.ttf",
+      "sha256": "0ea608aa325bf9e11c9590cc0b63dcf7cd215e270784f1ebbe6fad4927b31ff8"
+    },
+    {
+      "path": "assets/fonts/ShadowsIntoLight.ttf",
+      "sha256": "1347863151acdc00fa281daaba1a3543dbce5870b55f9cf7479a15bb84007681"
+    }
+  ],
+  "generated_meta_commit": "3c517731dda38d13210b73aa2d11caa36af7e540",
+  "generator_commit": "3c517731dda38d13210b73aa2d11caa36af7e540",
+  "github_repository": "JoaoMiltzarek/security-shift-intake",
+  "github_run_attempt": "1",
+  "github_run_id": "34167576097",
+  "github_sha": "3c517731dda38d13210b73aa2d11caa36af7e540",
+  "github_workflow_ref": "JoaoMiltzarek/security-shift-intake/.github/workflows/build-safety-corpus.yml@refs/heads/main",
+  "logical_freeze_sha256": "1e6561f962d13b06b98208f92e84cd40e291759090d0cca9044c0891bcebc624",
+  "manifest_schema": "tier_c-manifest/v2",
+  "manifest_sha256": "e92581ad63a671f9f0336e5d7bcb9f1086ae89052a2b15cc8e4180c841a14721",
+  "pillow_version": "12.3.0",
+  "python_version": "3.11.15",
+  "release_line": "v1.1",
+  "runner_image": "ubuntu24",
+  "runner_image_version": "20260831.293.1",
+  "split": "val",
+  "tesseract_engine_version": "5.3.4",
+  "tesseract_language": "por",
+  "tesseract_package_version": "5.3.4-1build5",
+  "tesseract_por_package_version": "1:4.1.0-2",
+  "ubuntu_id": "ubuntu",
+  "ubuntu_version": "24.04",
+  "uv_lock_sha256": "c6af2afe6e2bc6792f57e41b4aa7e9c8b68fac47c16d9d134e8364846911eb04",
+  "uv_version": "0.11.28"
+}

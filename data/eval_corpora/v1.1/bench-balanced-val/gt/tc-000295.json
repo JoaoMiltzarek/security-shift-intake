@@ -1,0 +1,39 @@
+{
+  "cabecalho": {
+    "data": "30/09/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Mirante",
+    "vigilantes": [
+      "N. Teixeira",
+      "F. Almeida"
+    ]
+  },
+  "document_id": "tc-000295",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000295.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "PatrickHand-Regular",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 30/09/2026 - Noite\nVigilantes N. Teixeira, F. Almeida\nUnidade Posto Mirante\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "30/09/2026 - Noite",
+      "rows": [],
+      "unidade": "Posto Mirante",
+      "vigilantes": "N. Teixeira, F. Almeida"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

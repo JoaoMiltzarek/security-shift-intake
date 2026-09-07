@@ -1,0 +1,56 @@
+{
+  "cabecalho": {
+    "data": "03/08/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "J. Ferreira",
+      "C. Pereira"
+    ]
+  },
+  "document_id": "tc-000125",
+  "ocorrencias": [
+    {
+      "acao": "Porta fechada e conferida.",
+      "descricao": "Porta do Setor C encontrada aberta durante a inspeção.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Porta aberta",
+      "resolvido": null
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000125.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 03/08/2026 - Noite\nVigilantes J. Ferreira, C. Pereira\nUnidade Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPorta aberta  Porta do Setor C encontrada aberta durante  Porta fechada e conferida.\na inspeção.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "03/08/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Porta fechada e conferida.",
+          "descricao": "Porta do Setor C encontrada aberta durante a inspeção.",
+          "hora": null,
+          "item": "Porta aberta",
+          "resolvido": null
+        }
+      ],
+      "unidade": "Unidade 05",
+      "vigilantes": "J. Ferreira, C. Pereira"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

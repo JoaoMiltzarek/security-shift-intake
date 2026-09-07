@@ -1,0 +1,39 @@
+{
+  "cabecalho": {
+    "data": "18/09/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "F. Almeida",
+      "L. Ribeiro"
+    ]
+  },
+  "document_id": "tc-000139",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000139.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ReenieBeanie",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 18/09/2026 - Dia\nVigilantes F. Almeida, L. Ribeiro\nUnidade Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "18/09/2026 - Dia",
+      "rows": [],
+      "unidade": "Unidade 05",
+      "vigilantes": "F. Almeida, L. Ribeiro"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

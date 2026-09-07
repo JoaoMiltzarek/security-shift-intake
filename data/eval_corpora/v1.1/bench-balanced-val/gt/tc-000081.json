@@ -1,0 +1,38 @@
+{
+  "cabecalho": {
+    "data": "14/01/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "I. Barbosa"
+    ]
+  },
+  "document_id": "tc-000081",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": true,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000081.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 14/01/2026 - Noite\nVigilantes I. Barbosa\nUnidade Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "14/01/2026 - Noite",
+      "rows": [],
+      "unidade": "Unidade 05",
+      "vigilantes": "I. Barbosa"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

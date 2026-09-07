@@ -1,0 +1,56 @@
+{
+  "cabecalho": {
+    "data": "05/02/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 02",
+    "vigilantes": [
+      "H. Martins",
+      "F. Almeida"
+    ]
+  },
+  "document_id": "tc-000208",
+  "ocorrencias": [
+    {
+      "acao": "Monitorado o restante do turno.",
+      "descricao": "Gravador reiniciou sozinho, imagens normalizadas.",
+      "hora_entrada": "00:26",
+      "hora_saida": null,
+      "item": "CFTV",
+      "resolvido": null
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000208.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "Caveat",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 05/02/2026 - Noite\nVigilantes H. Martins, F. Almeida\nUnidade Unidade 02\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nCFTV  00:26  Gravador reiniciou sozinho, imagens  Monitorado o restante do turno.\nnormalizadas.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "05/02/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Monitorado o restante do turno.",
+          "descricao": "Gravador reiniciou sozinho, imagens normalizadas.",
+          "hora": "00:26",
+          "item": "CFTV",
+          "resolvido": null
+        }
+      ],
+      "unidade": "Unidade 02",
+      "vigilantes": "H. Martins, F. Almeida"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

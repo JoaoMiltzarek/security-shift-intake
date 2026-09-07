@@ -1,0 +1,40 @@
+{
+  "cabecalho": {
+    "data": "28/12/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 12",
+    "vigilantes": [
+      "L. Ribeiro",
+      "H. Martins",
+      "B. Lima"
+    ]
+  },
+  "document_id": "tc-000180",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000180.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 28/12/2026 - Noite\nVigilantes L. Ribeiro, H. Martins, B. Lima\nUnidade Unidade 12\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "28/12/2026 - Noite",
+      "rows": [],
+      "unidade": "Unidade 12",
+      "vigilantes": "L. Ribeiro, H. Martins, B. Lima"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

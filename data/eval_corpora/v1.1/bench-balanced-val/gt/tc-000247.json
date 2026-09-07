@@ -1,0 +1,56 @@
+{
+  "cabecalho": {
+    "data": "01/04/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Mirante",
+    "vigilantes": [
+      "L. Ribeiro",
+      "F. Almeida"
+    ]
+  },
+  "document_id": "tc-000247",
+  "ocorrencias": [
+    {
+      "acao": "Brigada comunicada e sistema rearmado.",
+      "descricao": "Alarme de incêndio acionado por engano no pátio.",
+      "hora_entrada": "18:15",
+      "hora_saida": null,
+      "item": "Alarme",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000247.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "ReenieBeanie",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 01/04/2026 - Noite\nVigilante: L. Ribeiro, F. Almeida\nUnidade: Posto Mirante\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nAlarme  18:15  Alarme de incêndio acionado por engano  Brigada comunicada e sistema rearmado.  sim\nno pátio.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "01/04/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Brigada comunicada e sistema rearmado.",
+          "descricao": "Alarme de incêndio acionado por engano no pátio.",
+          "hora": "18:15",
+          "item": "Alarme",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Posto Mirante",
+      "vigilantes": "L. Ribeiro, F. Almeida"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

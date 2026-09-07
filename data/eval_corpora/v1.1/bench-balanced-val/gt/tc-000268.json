@@ -1,0 +1,73 @@
+{
+  "cabecalho": {
+    "data": "20/07/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "J. Ferreira",
+      "N. Teixeira"
+    ]
+  },
+  "document_id": "tc-000268",
+  "ocorrencias": [
+    {
+      "acao": "Aberto chamado de manutenção.",
+      "descricao": "Iluminação queimada no pátio.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Iluminação",
+      "resolvido": "nao"
+    },
+    {
+      "acao": "Travada e registrada.",
+      "descricao": "Janela do Setor C encontrada destravada.",
+      "hora_entrada": null,
+      "hora_saida": null,
+      "item": "Porta aberta",
+      "resolvido": null
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000268.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "Caveat",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 20/07/2026 - Dia\nVigilante: J. Ferreira, N. Teixeira\nUnidade: Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nIluminação  Iluminação queiamda no pátio.  Aberto chamado de manutenção.  não\n\nPorta aberta  Janela do Setor C encontrada destravada.  Travada e registrada.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "20/07/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Aberto chamado de manutenção.",
+          "descricao": "Iluminação queiamda no pátio.",
+          "hora": null,
+          "item": "Iluminação",
+          "resolvido": "não"
+        },
+        {
+          "acao": "Travada e registrada.",
+          "descricao": "Janela do Setor C encontrada destravada.",
+          "hora": null,
+          "item": "Porta aberta",
+          "resolvido": null
+        }
+      ],
+      "unidade": "Unidade 05",
+      "vigilantes": "J. Ferreira, N. Teixeira"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

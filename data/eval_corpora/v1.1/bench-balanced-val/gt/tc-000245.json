@@ -1,0 +1,39 @@
+{
+  "cabecalho": {
+    "data": "04/05/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 07",
+    "vigilantes": [
+      "K. Gomes",
+      "G. Rocha"
+    ]
+  },
+  "document_id": "tc-000245",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000245.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 04/05/2026 - Dia\nVigilante: K. Gomes, G. Rocha\nUnidade: Unidade 07\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "04/05/2026 - Dia",
+      "rows": [],
+      "unidade": "Unidade 07",
+      "vigilantes": "K. Gomes, G. Rocha"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

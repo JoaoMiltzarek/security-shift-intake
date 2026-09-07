@@ -1,0 +1,74 @@
+{
+  "cabecalho": {
+    "data": "09/06/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 05",
+    "vigilantes": [
+      "B. Lima",
+      "E. Costa"
+    ]
+  },
+  "document_id": "tc-000156",
+  "ocorrencias": [
+    {
+      "acao": "Acesso registrado e supervisionado.",
+      "descricao": "Equipe da TecnoRonda realiza limpeza técnica no recepção.",
+      "hora_entrada": "09:53",
+      "hora_saida": null,
+      "item": "Prestador de serviço",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Verificação no local realizada.",
+      "descricao": "Alarme disparou no Setor A, verificação sem anormalidade.",
+      "hora_entrada": "14:47",
+      "hora_saida": null,
+      "item": "Alarme",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000156.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "PatrickHand-Regular",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[0].descricao",
+      "ambiguous:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 09/06/2026 - Dia\nVigilantes B. Lima, E. Costa\nUnidade Unidade 05\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nPrestador de serviço  09:53  Equipe da TecnoRonda realiza 1impzea  Acesso registrado e supervisionado.  sim\ntécnica no recepção.\n\nAlarme  14:47  Alarme disparou no Setor A, verificação  Verificação no local realizada.  sim\nsem anormalidade.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "09/06/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Acesso registrado e supervisionado.",
+          "descricao": "Equipe da TecnoRonda realiza 1impzea técnica no recepção.",
+          "hora": "09:53",
+          "item": "Prestador de serviço",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Verificação no local realizada.",
+          "descricao": "Alarme disparou no Setor A, verificação sem anormalidade.",
+          "hora": "14:47",
+          "item": "Alarme",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 05",
+      "vigilantes": "B. Lima, E. Costa"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

@@ -1,0 +1,59 @@
+{
+  "cabecalho": {
+    "data": "26/02/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 09",
+    "vigilantes": [
+      "E. Costa",
+      "A. Souza"
+    ]
+  },
+  "document_id": "tc-000210",
+  "ocorrencias": [
+    {
+      "acao": "Registrado e monitorado.",
+      "descricao": "Oscilação de energia derrubou câmeras por alguns minutos.",
+      "hora_entrada": "09:49",
+      "hora_saida": null,
+      "item": "Falta de energia",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000210.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "photo",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "ambiguous:ocorrencias[0].hora",
+      "crossout:ocorrencias[0].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 26/02/2026 - Dia\nVigilante: E. Costa, A. Souza\nUnidade: Unidade 09\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nFalta de energia  O9:49  Oscilação Oscilação de energia derrubou  Registrado e monitorado.  sim\ncâmeras por alguns minutos.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "26/02/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Registrado e monitorado.",
+          "descricao": "[risc:Oscilação] Oscilação de energia derrubou câmeras por alguns minutos.",
+          "hora": "O9:49",
+          "item": "Falta de energia",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Unidade 09",
+      "vigilantes": "E. Costa, A. Souza"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

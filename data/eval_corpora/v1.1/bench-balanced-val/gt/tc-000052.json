@@ -1,0 +1,38 @@
+{
+  "cabecalho": {
+    "data": "08/04/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Delta",
+    "vigilantes": [
+      "E. Costa"
+    ]
+  },
+  "document_id": "tc-000052",
+  "ocorrencias": [],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": true,
+  "source_file": "pdfs/tc-000052.pdf",
+  "synthetic": {
+    "band": null,
+    "dataset": "bench-balanced",
+    "difficulty": "clean",
+    "font": "JustMeAgainDownHere",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData: 08/04/2026 - Noite\nVigilante: E. Costa\nUnidade: Posto Delta\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nS/A\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "08/04/2026 - Noite",
+      "rows": [],
+      "unidade": "Posto Delta",
+      "vigilantes": "E. Costa"
+    },
+    "template": "controle_B"
+  },
+  "truth_source": "generator"
+}

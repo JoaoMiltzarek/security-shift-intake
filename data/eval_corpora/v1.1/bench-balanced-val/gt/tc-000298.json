@@ -1,0 +1,91 @@
+{
+  "cabecalho": {
+    "data": "11/04/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Unidade 01",
+    "vigilantes": [
+      "E. Costa",
+      "B. Lima",
+      "L. Ribeiro"
+    ]
+  },
+  "document_id": "tc-000298",
+  "ocorrencias": [
+    {
+      "acao": "Sem pendências na passagem.",
+      "descricao": "Assumido o posto com chaves e rádio conferidos.",
+      "hora_entrada": "02:40",
+      "hora_saida": null,
+      "item": "Troca de turno",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Manutenção acionada.",
+      "descricao": "Inspeção no recepção identificou fiação exposta.",
+      "hora_entrada": "04:00",
+      "hora_saida": "05:26",
+      "item": "Inspeção",
+      "resolvido": "sim"
+    },
+    {
+      "acao": "Verificação extra no local.",
+      "descricao": "Barulho vindo do recepção, verificação sem anormalidade.",
+      "hora_entrada": "23:30",
+      "hora_saida": null,
+      "item": "Perturbação",
+      "resolvido": null
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000298.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ReenieBeanie",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "misspell:ocorrencias[1].descricao",
+      "partial:ocorrencias[1].descricao",
+      "ambiguous:ocorrencias[2].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 11/04/2026 - Noite\nVigilantes E. Costa, B. Lima, L. Ribeiro\nUnidade Unidade 01\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nTroca de turno  02:40  Assumido o posto com chaves e rádio  Sem pendências na passagem.  sim\nconferidos.\n\nInspeção  04:00 - 05:26  Inspeção no recepção  Manutenção acionada.  sim\n\nPerturbação  23:30  Barulho vindo do recepção, verificação  Verificação extra no local.\nsem anorma1idade.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "11/04/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Sem pendências na passagem.",
+          "descricao": "Assumido o posto com chaves e rádio conferidos.",
+          "hora": "02:40",
+          "item": "Troca de turno",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Manutenção acionada.",
+          "descricao": "Inspeção no recepção",
+          "hora": "04:00 - 05:26",
+          "item": "Inspeção",
+          "resolvido": "sim"
+        },
+        {
+          "acao": "Verificação extra no local.",
+          "descricao": "Barulho vindo do recepção, verificação sem anorma1idade.",
+          "hora": "23:30",
+          "item": "Perturbação",
+          "resolvido": null
+        }
+      ],
+      "unidade": "Unidade 01",
+      "vigilantes": "E. Costa, B. Lima, L. Ribeiro"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

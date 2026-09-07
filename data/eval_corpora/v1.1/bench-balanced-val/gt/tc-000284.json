@@ -1,0 +1,70 @@
+{
+  "cabecalho": {
+    "data": "20/08/2026 - Dia",
+    "turno": "Dia",
+    "unidade": "Unidade 01",
+    "vigilantes": [
+      "H. Martins"
+    ]
+  },
+  "document_id": "tc-000284",
+  "ocorrencias": [
+    {
+      "acao": "Manutenção acionada.",
+      "descricao": "Inspeção no pátio identificou fiação exposta.",
+      "hora_entrada": "08:12",
+      "hora_saida": null,
+      "item": "Inspeção",
+      "resolvido": "nao"
+    },
+    {
+      "acao": "Operação manual até reparo.",
+      "descricao": "Portão da doca com sensor falhando.",
+      "hora_entrada": "15:52",
+      "hora_saida": null,
+      "item": "Portão",
+      "resolvido": "nao"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000284.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 20/08/2026 - Dia\nVigilantes H. Martins\nUnidade Unidade 01\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nInspeção  08:12  Inspeção no pátio identificou fiação  Manutenção acionada.  não\nexposta.\n\nPortão  15:52  Portão da doca com sensor falhando.  Operação manual até reparo.  não\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "20/08/2026 - Dia",
+      "rows": [
+        {
+          "acao": "Manutenção acionada.",
+          "descricao": "Inspeção no pátio identificou fiação exposta.",
+          "hora": "08:12",
+          "item": "Inspeção",
+          "resolvido": "não"
+        },
+        {
+          "acao": "Operação manual até reparo.",
+          "descricao": "Portão da doca com sensor falhando.",
+          "hora": "15:52",
+          "item": "Portão",
+          "resolvido": "não"
+        }
+      ],
+      "unidade": "Unidade 01",
+      "vigilantes": "H. Martins"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}

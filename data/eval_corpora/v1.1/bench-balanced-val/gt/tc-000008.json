@@ -1,0 +1,89 @@
+{
+  "cabecalho": {
+    "data": "24/10/2026 - Noite",
+    "turno": "Noite",
+    "unidade": "Posto Delta",
+    "vigilantes": [
+      "H. Martins",
+      "K. Gomes"
+    ]
+  },
+  "document_id": "tc-000008",
+  "ocorrencias": [
+    {
+      "acao": "Acesso negado e registrado.",
+      "descricao": "Veículo RTJ6E70 tentou acesso pela doca sem agendamento.",
+      "hora_entrada": "02:01",
+      "hora_saida": null,
+      "item": "Veículo não autorizado",
+      "resolvido": null
+    },
+    {
+      "acao": "Verificação extra no local.",
+      "descricao": "Barulho vindo do recepção, verificação sem anormalidade.",
+      "hora_entrada": "20:29",
+      "hora_saida": "21:37",
+      "item": "Perturbação",
+      "resolvido": "nao"
+    },
+    {
+      "acao": "Registrado e liberado.",
+      "descricao": "Colaborador esqueceu o crachá, acesso mediante registro.",
+      "hora_entrada": "05:44",
+      "hora_saida": null,
+      "item": "Crachá",
+      "resolvido": "sim"
+    }
+  ],
+  "review_status": "synthetic_ground_truth",
+  "riscado": false,
+  "schema_version": "1.0",
+  "sem_alteracao": false,
+  "source_file": "pdfs/tc-000008.pdf",
+  "synthetic": {
+    "band": "lower80",
+    "dataset": "bench-balanced",
+    "difficulty": "scan",
+    "font": "ShadowsIntoLight",
+    "generator": "tier_c/v2",
+    "legibility": {},
+    "messiness": [
+      "crossout:ocorrencias[1].descricao",
+      "misspell:ocorrencias[2].descricao"
+    ],
+    "ocr_reference": "CONTROLE DE OCORRENCIAS\nData e Turno 24/10/2026 - Noite\nVigilantes H. Martins, K. Gomes\nUnidade Posto Delta\nItem  Hora  Descricao da Ocorrencia  Acao  Resolvido\nVeículo não autorizado  02:01  Veículo RTJ6E70 tentou acesso pela  Acesso negado e registrado.\ndoca sem agendamento.\n\nPerturbação  20:29 - 21:37  Barulho vindo do do recepção,  Verificação extra no local.  não\nverificação sem anormalidade.\n\nCrachá  05:44  Colaborador esqueceu o carchá, acesso  Registrado e liberado.  sim\nmediante registro.\n\nRonda",
+    "profile": "balanced",
+    "seed": 43,
+    "split": "val",
+    "surface": {
+      "data": "24/10/2026 - Noite",
+      "rows": [
+        {
+          "acao": "Acesso negado e registrado.",
+          "descricao": "Veículo RTJ6E70 tentou acesso pela doca sem agendamento.",
+          "hora": "02:01",
+          "item": "Veículo não autorizado",
+          "resolvido": null
+        },
+        {
+          "acao": "Verificação extra no local.",
+          "descricao": "Barulho vindo [risc:do] do recepção, verificação sem anormalidade.",
+          "hora": "20:29 - 21:37",
+          "item": "Perturbação",
+          "resolvido": "não"
+        },
+        {
+          "acao": "Registrado e liberado.",
+          "descricao": "Colaborador esqueceu o carchá, acesso mediante registro.",
+          "hora": "05:44",
+          "item": "Crachá",
+          "resolvido": "sim"
+        }
+      ],
+      "unidade": "Posto Delta",
+      "vigilantes": "H. Martins, K. Gomes"
+    },
+    "template": "controle_A"
+  },
+  "truth_source": "generator"
+}
