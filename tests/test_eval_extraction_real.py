@@ -309,11 +309,11 @@ class _RaisingVision:
     """Simula Ollama offline / modelo não baixado: transcribe levanta RuntimeError."""
 
     def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
-        raise RuntimeError("Could not reach a local VLM server at http://localhost:11434/v1")
+        raise RuntimeError("Could not reach the local OCR reader")
 
 
 class _EmptyVision:
-    """Simula VLM devolvendo string vazia válida (resposta sem conteúdo útil)."""
+    """Simula um leitor devolvendo string vazia válida."""
 
     def read(self, page: PageArtifact, deadline: Deadline) -> TranscriptionResult:
         return TranscriptionResult(text="", confidence=0.5, confidence_source="mock")
@@ -327,12 +327,12 @@ def _sheet_with_file(tmp_path: Path) -> dict[str, Any]:
     return cur
 
 
-def test_eval_marks_vlm_runtime_error_available_false(tmp_path: Path) -> None:
+def test_eval_marks_reader_runtime_error_available_false(tmp_path: Path) -> None:
     out = run_sheet(_sheet_with_file(tmp_path), TABLE_CONFIG, vision=_RaisingVision())
     assert out["available"] is False
     assert out["ran"] is False
     assert out["reason"] == "reader_error"
-    assert "VLM server" in str(out["_detail"]["reader_error"])
+    assert "OCR reader" in str(out["_detail"]["reader_error"])
 
 
 def test_real_mode_rejects_source_outside_private_before_reader(tmp_path: Path) -> None:
@@ -352,7 +352,7 @@ def test_real_mode_rejects_source_outside_private_before_reader(tmp_path: Path) 
     assert out["reason"] == "source_outside_private"
 
 
-def test_eval_vlm_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
+def test_eval_empty_response_degrades_not_crashes(tmp_path: Path) -> None:
     out = run_sheet(_sheet_with_file(tmp_path), TABLE_CONFIG, vision=_EmptyVision())
     assert out["available"] is True
     assert out["ran"] is True
@@ -373,8 +373,8 @@ def test_eval_preserves_source_paths_with_spaces(tmp_path: Path) -> None:
 
 def test_public_report_whitelist_drops_pii() -> None:
     meta = {
-        "reader": "local_vlm",
-        "model": "qwen2.5vl:3b abc123",
+        "reader": "local_ocr",
+        "model": "tesseract",
         "dpi": 150,
         "prompt_sha256": "deadbeef",
         "git_commit": "cafe1234",
@@ -614,7 +614,7 @@ def test_compare_runs_paired_counts_and_g1() -> None:
         ],
     }
     vlm_run = {
-        "meta": {"reader": "local_vlm", "dpi": 150},
+        "meta": {"reader": "local_ocr", "dpi": 150},
         "per_sheet": [
             {
                 "document_id": "d1",
@@ -687,4 +687,4 @@ def test_run_metadata_attests_exact_local_ocr_runtime() -> None:
 
 def test_run_metadata_rejects_retired_reader() -> None:
     with pytest.raises(ValueError, match="Unsupported"):
-        run_metadata("local_vlm", 250)
+        run_metadata("retired_reader", 250)

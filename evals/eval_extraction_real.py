@@ -536,7 +536,7 @@ def run_sheet(
     """Roda o pipeline numa folha; devolve o resultado detalhado (com PII).
 
     Erro do leitor (RuntimeError: Tesseract ausente, Ollama offline, resposta vazia
-    do VLM) NUNCA propaga: a folha sai `available:false` com o motivo — a rodada e
+    do leitor) NUNCA propaga: a folha sai `available:false` com o motivo — a rodada e
     as outras folhas continuam (EVAL_PROTOCOL §8/§9).
     """
     base: dict[str, Any] = {
