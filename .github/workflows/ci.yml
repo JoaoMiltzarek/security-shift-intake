@@ -208,11 +208,11 @@ jobs:
       - name: Verify Python runtime
         run: uv run --locked --python 3.11.15 python -c "import sys; assert sys.version_info[:3] == (3, 11, 15)"
 
-      - name: Verify the release manifest freeze is versioned
-        run: test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl
-
-      - name: Generate canonical synthetic safety dataset
-        run: make gen-safety-sheets
+      - name: Verify the committed safety corpus
+        run: >-
+          uv run --locked python -c
+          "from data.safety_corpus import load_verified_safety_corpus;
+          corpus = load_verified_safety_corpus(); print(len(corpus.split.entries))"
 
       - name: Run committed showcase fixture through real Tesseract
         env:

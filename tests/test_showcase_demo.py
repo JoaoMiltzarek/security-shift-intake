@@ -423,18 +423,13 @@ def test_ci_browser_automation_uses_the_locked_playwright() -> None:
     assert 'name = "playwright"' in lock
 
 
-def test_ci_eval_safety_generates_canonical_dataset_before_gate() -> None:
-    """A clean checkout has only ``data/synthetic/.gitkeep``.
-
-    The blocking eval must therefore build the declared bench-balanced fixture before
-    invoking the gate; local ignored datasets must never be an implicit CI dependency.
-    """
+def test_ci_eval_safety_verifies_committed_corpus_before_gate() -> None:
+    """Release evaluation uses authenticated committed bytes without regeneration."""
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-    freeze = "test -f data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl"
+    verify = "corpus = load_verified_safety_corpus()"
     generate = "make gen-safety-sheets"
     gate = "make eval-safety DPI=150 OUT=/tmp/eval_safety"
 
-    assert freeze in workflow
-    assert generate in workflow
-    assert workflow.index(freeze) < workflow.index(generate)
-    assert workflow.index(generate) < workflow.index(gate)
+    assert verify in workflow
+    assert generate not in workflow
+    assert workflow.index(verify) < workflow.index(gate)

@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Any
 
 from data.generators.tier_c import CANONICAL_DATASETS
+from data.safety_corpus import load_verified_safety_corpus
 from data.tier_c_contract import (
     TierCContractError,
     load_verified_canonical_split,
@@ -502,7 +503,11 @@ def main(argv: list[str]) -> int:
     contract_attestation: dict[str, Any] = {}
     if args.dataset is not None:
         try:
-            verified = load_verified_canonical_split(args.dir, args.dataset, args.split)
+            verified = (
+                load_verified_safety_corpus().split
+                if args.require_safety_gates
+                else load_verified_canonical_split(args.dir, args.dataset, args.split)
+            )
         except TierCContractError as exc:
             print(f"CONTRATO TIER C INVÁLIDO: {exc}", file=sys.stderr)
             return 1

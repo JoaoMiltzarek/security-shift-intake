@@ -461,7 +461,11 @@ def test_release_gate_rejects_incomplete_runtime_before_evaluation(
     def forbidden_evaluation(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("sheets must not run under an unattested runtime")
 
-    monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
+    def forbidden_generated_split(*_args: object) -> object:
+        raise AssertionError("release evaluation must consume the committed safety corpus")
+
+    monkeypatch.setattr(ev, "load_verified_canonical_split", forbidden_generated_split)
+    monkeypatch.setattr(ev, "load_verified_safety_corpus", lambda: SimpleNamespace(split=verified))
     monkeypatch.setattr(ev, "get_evaluation_reader", lambda _name: EnglishOnlyOCR())
     monkeypatch.setattr(ev, "evaluate_sheet", forbidden_evaluation)
     out = tmp_path / "unattested"
@@ -528,7 +532,7 @@ def test_require_safety_gates_fails_before_reader_when_contract_is_invalid(
     def forbidden_reader(_name: str) -> object:
         raise AssertionError("reader must not be constructed before contract verification")
 
-    monkeypatch.setattr(ev, "load_verified_canonical_split", invalid_contract)
+    monkeypatch.setattr(ev, "load_verified_safety_corpus", invalid_contract)
     monkeypatch.setattr(ev, "get_evaluation_reader", forbidden_reader)
     out = tmp_path / "invalid-contract"
     rc = ev.main(
@@ -580,7 +584,7 @@ def test_require_safety_gates_rejects_reader_that_runs_zero_sheets(
                 "tesseract_language": "por",
             }
 
-    monkeypatch.setattr(ev, "load_verified_canonical_split", lambda *_args: verified)
+    monkeypatch.setattr(ev, "load_verified_safety_corpus", lambda: SimpleNamespace(split=verified))
     monkeypatch.setattr(ev, "get_evaluation_reader", lambda _name: AttestedOCR())
     monkeypatch.setattr(ev, "evaluate_sheet", unavailable_reader)
     out = tmp_path / "unavailable"
