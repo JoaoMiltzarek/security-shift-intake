@@ -34,6 +34,7 @@ import contextlib
 import json
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -462,7 +463,7 @@ def main(argv: list[str]) -> int:
         "--output-dir",
         type=Path,
         default=None,
-        help="redireciona resumo público + detalhado (não toca docs/ nem <dir>/eval)",
+        help="redireciona o resumo agregado; detalhes permanecem em private/",
     )
     parser.add_argument(
         "--require-safety-gates",
@@ -567,7 +568,13 @@ def main(argv: list[str]) -> int:
     eval_dir = output_dir
     summary_path = eval_dir / "eval_synthetic_summary.json"
     eval_dir.mkdir(parents=True, exist_ok=True)
-    detailed_path = eval_dir / f"detailed_{args.vision}_dpi{args.dpi}_{args.split}.json"
+    private_root = (REPO_ROOT / "private").resolve()
+    details_root = REPO_ROOT / "private" / "audit" / "evaluations"
+    details_root.mkdir(parents=True, exist_ok=True)
+    if not details_root.resolve().is_relative_to(private_root):
+        raise ValueError("Detailed evaluation storage must remain inside private/")
+    detailed_dir = Path(tempfile.mkdtemp(prefix="run-", dir=details_root))
+    detailed_path = detailed_dir / f"detailed_{args.vision}_dpi{args.dpi}_{args.split}.json"
     detailed_path.write_text(
         json.dumps(
             {"summary": summary, "per_sheet": per_sheet},

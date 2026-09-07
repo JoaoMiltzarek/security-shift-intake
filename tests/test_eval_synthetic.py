@@ -86,7 +86,7 @@ def test_main_default_split_is_val_and_public_is_aggregates_only(
     text = summary_path.read_text(encoding="utf-8")
     assert "per_sheet" not in text and 'transcription"' not in text
     assert scan_text_for_pii(text) == []
-    assert (smoke_dir / "eval" / "detailed_mock_dpi150_val.json").exists()
+    assert not list((smoke_dir / "eval").glob("detailed_*.json"))
 
 
 def test_main_split_test_is_explicit(
@@ -157,9 +157,10 @@ def test_refusal_metric_requires_review_signal_and_operational_block() -> None:
 # --- Eval-safety: output externo e gates binários -------------------------------
 
 
-def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> None:
-    """--output-dir escreve resumo público + detalhado FORA do repo e NUNCA toca os
-    artefatos congelados em docs/ nem o eval/ do dataset (anti-tuning §5)."""
+def test_output_dir_redirects_only_aggregates(
+    smoke_dir: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An external summary destination must never receive detailed OCR results."""
     out = tmp_path / "safety_out"
     frozen = Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8")
     # smoke_dir é compartilhado entre testes: compara o eval/ do dataset antes/depois.
@@ -169,7 +170,12 @@ def test_output_dir_redirects_all_artifacts(smoke_dir: Path, tmp_path: Path) -> 
     assert ev.main(["--dir", str(smoke_dir), "--output-dir", str(out)]) == 0
 
     assert (out / "eval_synthetic_summary.json").exists()
-    assert list(out.glob("detailed_*.json"))
+    assert not list(out.glob("detailed_*.json"))
+    output = capsys.readouterr().out
+    detail_line = next(line for line in output.splitlines() if line.startswith("Detalhado: "))
+    detailed_path = Path(detail_line.removeprefix("Detalhado: "))
+    assert detailed_path.resolve().is_relative_to((ev.REPO_ROOT / "private").resolve())
+    assert json.loads(detailed_path.read_text(encoding="utf-8"))["per_sheet"]
     assert Path("docs/eval_synthetic_summary.json").read_text(encoding="utf-8") == frozen
     eval_after = set(eval_dir.glob("*")) if eval_dir.exists() else set()
     assert eval_after == eval_before  # dataset intocado por esta rodada
