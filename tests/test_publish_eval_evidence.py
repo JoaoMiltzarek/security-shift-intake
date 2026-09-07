@@ -53,7 +53,7 @@ def _metrics(n_ran: int) -> dict[str, Any]:
 
 def valid_release_payload() -> dict[str, Any]:
     lock_sha256 = hashlib.sha256(Path("uv.lock").read_bytes()).hexdigest()
-    manifest = Path("data/manifests/tier_c_manifest_v2/bench-balanced.val.jsonl").read_bytes()
+    manifest = Path("data/eval_corpora/v1.1/bench-balanced-val/manifests/val.jsonl").read_bytes()
     return {
         "artifact_schema": "ssi-tier-c-eval-summary/v1",
         "run": {

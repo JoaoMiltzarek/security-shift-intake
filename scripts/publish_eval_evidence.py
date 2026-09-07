@@ -19,14 +19,9 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, NoReturn, cast
 
-from data.generators.occurrences import Split
 from data.generators.tier_c import DATASET_VERSION, MANIFEST_SCHEMA
-from data.tier_c_contract import (
-    TierCContractError,
-    canonical_manifest_bytes,
-    default_frozen_manifest_path,
-    parse_manifest,
-)
+from data.safety_corpus import load_verified_safety_corpus
+from data.tier_c_contract import TierCContractError
 from evals.eval_extraction_synthetic import (
     PARSER_CEILING_NOTE,
     PUBLIC_SUMMARY_SCHEMA,
@@ -314,16 +309,11 @@ def _sha256(path: Path) -> str:
 
 
 def _validated_manifest_identity() -> tuple[str, int]:
-    split = cast(Split, RELEASE_SAFETY_SPLIT)
-    path = default_frozen_manifest_path(RELEASE_SAFETY_DATASET, split)
-    if path is None:
-        raise EvidenceValidationError("freeze canônico da release indisponível")
     try:
-        entries = parse_manifest(path, expected_split=split)
+        corpus = load_verified_safety_corpus()
     except (OSError, TierCContractError) as exc:
-        raise EvidenceValidationError("freeze canônico da release inválido") from exc
-    digest = hashlib.sha256(canonical_manifest_bytes(entries)).hexdigest()
-    return digest, len(entries)
+        raise EvidenceValidationError("corpus canônico da release inválido") from exc
+    return corpus.split.manifest_sha256, len(corpus.split.entries)
 
 
 def _validate_dimension(
