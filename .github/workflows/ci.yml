@@ -355,9 +355,12 @@ jobs:
           --expected-commit "$(git rev-parse HEAD)"
 
       - name: Verify promoted evidence-only delta
-        run: >-
-          uv run --locked python -m scripts.verify_release_delta
-          --base HEAD^ --head HEAD
+        run: |
+          if test -e docs/evals/releases/v1.1.0/eval-safety.bench-balanced.val.local_ocr.dpi150.json; then
+            uv run --locked python -m scripts.verify_release_delta --base HEAD^ --head HEAD
+          else
+            echo "No promoted evidence in this candidate checkout; final tag integrity performs the promotion check."
+          fi
 
       - name: Upload promotable release-candidate summary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
