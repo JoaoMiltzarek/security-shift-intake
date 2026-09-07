@@ -143,5 +143,5 @@ def test_ci_skips_release_evidence_but_preserves_diagnostics_after_privacy_failu
     assert "id: privacy" in workflow
     assert workflow.count(condition) == 1
     report_step = workflow[workflow.index("- name: Evidence report") :]
-    assert report_step.index(condition) < report_step.index("scripts/evidence_report.py")
+    assert report_step.index(condition) < report_step.index("python -m scripts.evidence_report")
     assert "- name: Upload quality diagnostics\n        if: always()" in workflow

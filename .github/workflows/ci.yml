@@ -88,7 +88,7 @@ jobs:
       - name: Evidence report (authoritative collector — uploaded, not committed)
         if: ${{ success() && steps.privacy.outcome == 'success' }}
         run: >
-          uv run --locked python scripts/evidence_report.py
+          uv run --locked python -m scripts.evidence_report
           --preflight /tmp/quality-diagnostics/preflight.json
           --pytest-log /tmp/quality-diagnostics/pytest.log
           --privacy-log /tmp/quality-diagnostics/privacy.log
