@@ -344,7 +344,7 @@ def test_changelog_describes_v110_without_claiming_release() -> None:
 
     assert "## [1.1.0] - Release candidate" in changelog
     assert "release candidate is frozen" in changelog
-    assert "without asserting unpublished metrics" in changelog
+    assert "promoted evidence record will carry the final metrics" in changelog
     assert "Human-confirmed triage" in changelog
     assert "Structured readiness" in changelog
     assert "Evidence identity" in changelog
