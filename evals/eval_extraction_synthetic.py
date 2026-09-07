@@ -256,8 +256,8 @@ def evaluate_sheet(cur: dict[str, Any], config: Any, vision: Any, dpi: int) -> d
     # só dispararia com um reader/config que emitisse linhas "aceitas" — exatamente
     # o buraco que o gate deve vigiar. false_incident_count segue REPORTADO como
     # métrica de ruído do reader (custa tempo de revisão), mas não bloqueia.
-    result["false_incident_unreviewed"] = result["false_incident"] and not all(
-        occ.needs_review for occ in normalized.occurrences
+    result["false_incident_unreviewed"] = (
+        result["false_incident"] and result.get("occurrences_require_review") is not True
     )
     result.update(row_metrics(cur, normalized))
     result.update(

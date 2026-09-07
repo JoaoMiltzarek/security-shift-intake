@@ -619,6 +619,12 @@ def run_sheet(
             "normalized_disposition": (
                 state.normalized.disposition if state.normalized is not None else None
             ),
+            "occurrences_require_review": (
+                bool(state.normalized.occurrences)
+                and all(occurrence.needs_review for occurrence in state.normalized.occurrences)
+                if state.normalized is not None
+                else False
+            ),
         }
     )
 

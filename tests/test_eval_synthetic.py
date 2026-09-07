@@ -260,6 +260,29 @@ def test_ocr_reference_uses_the_exact_rendered_line_surface() -> None:
         ev._surface_reference({"surface": {"data": "partial"}})
 
 
+@pytest.mark.parametrize("requires_review", [True, False, None])
+def test_false_incident_review_uses_executed_state(
+    monkeypatch: pytest.MonkeyPatch, requires_review: bool | None
+) -> None:
+    monkeypatch.setattr(
+        ev,
+        "run_sheet",
+        lambda *_args, **_kwargs: {
+            "ran": True,
+            "normalized_disposition": "present",
+            "occurrences_require_review": requires_review,
+            "operational_approvable": False,
+            "operational_exportable": False,
+            "parse_table_success": False,
+        },
+    )
+    result = ev.evaluate_sheet(
+        {"ocorrencias": []}, load_config(TABLE_CONFIG_PATH), get_evaluation_reader("mock"), 150
+    )
+    assert result["false_incident"]
+    assert result["false_incident_unreviewed"] is (requires_review is not True)
+
+
 def test_safety_formulas_from_per_sheet_flags() -> None:
     """Preserva diagnósticos F-01 e mede recall pelos gates operacionais reais."""
     fake = [
