@@ -285,7 +285,7 @@ jobs:
           BROWSER_SMOKE_SCREENSHOT: /tmp/browser-smoke/browser-smoke.png
         run: |
           set -o pipefail
-          mkdir -p private
+          test ! -e private
           INTAKE_CONFIG=configs/controle_ocorrencias.yaml \
             uv run --locked uvicorn src.api.asgi:app --host 127.0.0.1 --port 8000 \
             > /tmp/browser-smoke/server.log 2>&1 &
