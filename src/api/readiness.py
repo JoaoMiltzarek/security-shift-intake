@@ -26,6 +26,7 @@ class ReadinessBlockerCode(StrEnum):
     ROUTING_UNRESOLVED = "routing_unresolved"
     APPROVAL_REQUIRED = "approval_required"
     APPROVAL_STALE = "approval_stale"
+    STATUS_BLOCKED = "status_blocked"
 
 
 class ReadinessBlocker(BaseModel):
@@ -222,7 +223,15 @@ def evaluate_readiness(
             "No non-empty server-side route resolves for the confirmed classification.",
         )
 
+    if status is not None and status not in {ApprovalStatus.PENDING, ApprovalStatus.APPROVED}:
+        _append_once(
+            blockers,
+            ReadinessBlockerCode.STATUS_BLOCKED,
+            "The draft lifecycle does not permit approval, export, or simulation.",
+        )
+
     operational_codes = {
+        ReadinessBlockerCode.STATUS_BLOCKED,
         ReadinessBlockerCode.EVIDENCE_CHANGED,
         ReadinessBlockerCode.CONFIG_MISMATCH,
         ReadinessBlockerCode.DISPOSITION_UNCONFIRMED,

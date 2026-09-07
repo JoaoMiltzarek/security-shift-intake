@@ -6,6 +6,7 @@ import hashlib
 import io
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from src.api.page_images import save_page_artifacts
@@ -95,6 +96,26 @@ def test_current_approval_unlocks_export_and_simulation(tmp_path: Path) -> None:
 
     assert report.approvable and report.exportable and report.simulatable
     assert report.blockers == []
+
+
+@pytest.mark.parametrize("status", ["rejected", "simulated", "unknown"])
+def test_lifecycle_blocks_operations_even_for_clean_approved_content(
+    tmp_path: Path, status: str
+) -> None:
+    report = evaluate_readiness(
+        _state(tmp_path),
+        CONFIG,
+        page_root=tmp_path,
+        status=status,
+        revision=2,
+        state_sha256="b" * 64,
+        approved_revision=2,
+        approved_state_sha256="b" * 64,
+    )
+    assert not report.approvable
+    assert not report.exportable
+    assert not report.simulatable
+    assert ReadinessBlockerCode.STATUS_BLOCKED in _codes(report)
 
 
 def test_tampered_evidence_blocks_every_capability(tmp_path: Path) -> None:

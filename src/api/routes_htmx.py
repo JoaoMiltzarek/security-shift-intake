@@ -98,6 +98,10 @@ _READINESS_COPY: dict[ReadinessBlockerCode, tuple[str, str]] = {
         "Aprovação desatualizada",
         "O conteúdo mudou desde a aprovação. Revise e aprove novamente.",
     ),
+    ReadinessBlockerCode.STATUS_BLOCKED: (
+        "Operações indisponíveis",
+        "Folhas rejeitadas precisam de nova edição. Folhas simuladas estão encerradas.",
+    ),
 }
 
 _CLASSIFICATION_COPY: dict[str, dict[str, str]] = {
